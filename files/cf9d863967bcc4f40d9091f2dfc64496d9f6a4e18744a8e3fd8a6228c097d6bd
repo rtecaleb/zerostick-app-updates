@@ -1,0 +1,1236 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ZeroStick EXO — EDITORIAL CLARITY.
+
+   LOAD ORDER (this matters, it is the whole contract):
+       phone.html <style> #1     line 7    the kit + the palette
+       phone.html <style> #2     line 587  entrances + the five editor hues
+       zs-brand.css              line 606  materials, press, the ion accent
+       phone.html <style> #3     line 607  reduced-motion entrances
+       zs-anim.css               line 2434 ─ IN THE BODY
+       zs-micro.css              line 2440 ─ IN THE BODY
+       zs-editorial.css   ← THIS FILE, linked at line ~2446 (LIVE since
+                            2026-08-14), immediately after zs-micro.js
+
+   THE <link> IS IN THE BODY, AFTER zs-micro.css — never move it to <head>.
+   Two of this app's stylesheets load from the body, so a <head> link is NOT
+   last and several rules here would silently lose. The shipped order is:
+
+       <link rel="stylesheet" href="zs-micro.css">
+       <script src="zs-micro.js"></script>
+       <link rel="stylesheet" href="zs-editorial.css">
+
+   Rules that must also beat the two stylesheets JavaScript injects at RUNTIME
+   (smart-actions.js `zs-smart-css`, phone-sections.js `cv-region-css`, both
+   appended to <head> after everything) cannot win on order at all, so they
+   are prefixed with `body` and win on specificity. Marked where they appear.
+
+   THREE THINGS THIS FILE DELIBERATELY DOES NOT TOUCH, because they are owned
+   elsewhere and stomping them would break shipped behaviour:
+     · `.sw::before`   zs-micro.css's ion bloom  — see §9.1
+     · `.pk::after`    zs-micro.css's lock ring  — see §10
+     · `.item .ico.ico-*`  the five editor hues  — see §5.3
+
+   WHAT THIS FILE CHANGES, AND WHY
+
+   The kit had nine box treatments separated by 2px of corner radius, four
+   "pick one of N" controls with four geometries, sixty padding values, and a
+   type range 6.5px wide from 12px to 18px. The section header was BOLDER than
+   the row title it introduced. Everything looked like one thing because,
+   measured, everything WAS one thing.
+
+   Three moves fix it, in this order of importance:
+
+   1. TYPE DOES THE WORK. Seven sizes, three weights, size-specific tracking.
+      A config name is 24px/700; the label above it is 11.5px/700 uppercase
+      muted. That is a 2.1× size ratio, and the hierarchy stops being inverted.
+
+   2. SURFACES GET A JOB, NOT A RADIUS. There are now exactly four materials —
+      GROUND (the page), CARD (things that group), CONTROL (things you press),
+      WELL (recesses that hold a selection). You can tell them apart with the
+      colour turned off, because they differ in fill AND edge AND elevation.
+
+   3. CYAN MEANS ONE THING AGAIN. Ion cyan used to be the primary button, the
+      selected tab, the applied filter and the current page — four meanings,
+      one flat cyan slab, often on the same screen. Now a solid ion fill means
+      "press this to do the thing" and nothing else. Selection is a raised
+      neutral pill with an ion indicator bar under it, which is a different
+      shape as well as a different colour.
+
+   CONTRAST — every pair introduced here is measured, not estimated. Numbers
+   are in the comment beside the rule. Nothing in this file drops a text pair
+   below 4.5:1 or a state indicator below 3:1. The two boundary tiers are
+   stated honestly where they are set (§1.4).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ 1. TOKENS ════════════════════════════════════════════════════════════ */
+
+:root {
+
+  /* ── 1.1 TYPE SCALE ──────────────────────────────────────────────────────
+     Seven sizes on a ~1.18 ratio, and only THREE weights. Three, because the
+     system stacks we ship on disagree about everything else: Segoe UI has
+     Regular/Semibold/Bold and silently rounds 500 to Regular and 650 to
+     Semibold, so a scale built on 400/500/600/650/700/800 renders as three
+     weights on Windows anyway — it just renders as three UNPREDICTABLE ones.
+     400 / 600 / 700 is the set every platform actually has.
+
+     Tracking is size-specific because letters drift apart as they grow. The
+     display sizes pull in, the caption sizes push out, uppercase pushes out a
+     lot. (This continues the rule zs-brand.css established; it just now has
+     sizes to attach to.) */
+  --fs-hero:    24px;  --fw-hero:    700; --lh-hero:    1.12; --tr-hero:   -.028em;
+  --fs-title:   19px;  --fw-title:   700; --lh-title:   1.20; --tr-t:      -.021em;
+  --fs-lead:  16.5px;  --fw-lead:    700; --lh-lead:    1.24; --tr-l:      -.014em;
+  --fs-row:   15.5px;  --fw-row:     600; --lh-row:     1.30; --tr-r:      -.006em;
+  --fs-body:  14.5px;  --fw-body:    400; --lh-body:    1.45; --tr-b:       0;
+  --fs-sub:     13px;  --fw-sub:     400; --lh-sub:     1.55; --tr-s:      .004em;
+  --fs-eyebrow: 11.5px; --fw-eyebrow: 700; --lh-eyebrow: 1.20; --tr-e:      .13em;
+  --fs-micro:  10.5px;
+
+  /* ── 1.2 SPACING ─────────────────────────────────────────────────────────
+     Four values. The kit had sixty, which is why phone.html needs ten
+     adjacency rules at the bottom of its <style> to patch vertical rhythm
+     pair by pair. Everything below is one of these four or a row's
+     min-height — nothing else. */
+  --sp-1:  4px;   /* inside a chip; label→sub gap                */
+  --sp-2: 10px;   /* between siblings in a row; control padding  */
+  --sp-3: 16px;   /* card padding; the standard gutter           */
+  --sp-4: 26px;   /* between one section and the next            */
+
+  /* ── 1.3 RADIUS ──────────────────────────────────────────────────────────
+     Four values plus the pill. The three existing tokens are redefined here
+     rather than replaced, so every one of their ~21 call sites moves at once
+     and the 30 hardcoded radii scattered through the kit get restated below.
+     Safe to set at :root: nothing in body.zs-oled or body.a11y-contrast
+     touches radius, so no theme override is being outranked. */
+  --r-chip:  8px;   /* tags, badges, the small stuff              */
+  --r-ctl:  12px;   /* anything you press                         */
+  --r-card: 18px;   /* anything that groups                       */
+  --r-sheet:28px;   /* the one surface that comes up from the bottom */
+  --r-pill: 999px;  /* a shape, not a scale step                  */
+
+  /* ── 1.4 EDGES — two tiers, and the honest reason ────────────────────────
+     WCAG 1.4.11 asks 3:1 for a boundary that IDENTIFIES a control or a state.
+     It does not ask it of a decorative grouping edge, and a 3:1 grey outline
+     around all eleven cards on the Overview screen reads as a wireframe, not
+     a product. So:
+
+       --line       containers  #43556c  2.58:1 vs --bg,  2.10:1 vs a card
+                    (was #212b39 at 1.28:1 vs the card — invisible, which is
+                    what the survey correctly called an accessibility defect
+                    as well as an aesthetic one. This is a 64% improvement and
+                    it is paired with a real fill delta and a lit top edge, so
+                    the card no longer depends on its outline alone.)
+
+       --zs2-edge   controls    #5c7089  3.88:1 vs --bg,  3.15:1 vs a card,
+                    3.61:1 vs --panel, 3.44:1 vs an OLED card. Every button,
+                    stepper, picker and toggle gets this one. It clears 3:1 on
+                    every surface the app can put a control on, in every
+                    theme — so the thing you can press is identifiable by its
+                    boundary, which is exactly what 1.4.11 is about.
+
+     High-contrast mode promotes BOTH past 3:1 — see §14. */
+  --line:      #43556c;
+  --zs2-edge:  #5c7089;
+
+  /* ── 1.5 MATERIALS ───────────────────────────────────────────────────────
+     Overlays, never hex fills. An overlay composites onto whatever --panel
+     currently is, so body.zs-oled keeps its true black and still gets the
+     same RELATIVE lift; a hardcoded #1c222a would have frozen OLED mode into
+     looking like the default theme, which is how a theme quietly dies. */
+  --zs2-card-a:  rgba(255,255,255,.055); /* card, top   → #1c222a on --panel */
+  --zs2-card-b:  rgba(255,255,255,.022); /* card, bottom→ #141a23           */
+  --zs2-ctl-a:   rgba(255,255,255,.120); /* control, top→ #2c3139           */
+  --zs2-ctl-b:   rgba(255,255,255,.040); /* control, bot→ #191e27           */
+  --zs2-sel:     rgba(255,255,255,.130); /* the selected segment pill        */
+  --zs2-well:    rgba(0,0,0,.34);        /* a recess cut into a card         */
+  --zs2-well-pg: rgba(255,255,255,.05);  /* a recess on the page ground —
+                                            black on near-black is nothing,
+                                            so on --bg the well goes UP       */
+  --zs2-hair:    rgba(255,255,255,.075); /* divider INSIDE a card, 1.23:1 —
+                                            deliberately quiet: the card edge
+                                            does the grouping, the hairline
+                                            only stops rows touching          */
+  --zs2-sheen:   inset 0 1px 0 rgba(255,255,255,.075); /* light on a top edge */
+  --zs2-groove:  inset 0 1px 2px rgba(0,0,0,.55);      /* light lost in a well */
+
+  --zs2-ion-tint: rgba(111, 155, 255,.14);  /* icon containers, accent chips    */
+  --zs2-ion-line: rgba(111, 155, 255,.55);  /* their edge — 3.72:1 vs a card    */
+  --zs2-ion-dash: rgba(111, 155, 255,.45);  /* the "add something" dashes,
+                                            3.02:1 vs --bg                   */
+}
+
+
+/* ══ 2. TYPE, APPLIED ═════════════════════════════════════════════════════
+   Where hierarchy actually broke: the primary label of every settings row was
+   14.5px/400 — the same weight as the paragraph in the note underneath it —
+   while the uppercase header introducing it was 12px/700. The header was
+   louder than its own content. Row labels now carry 15.5px/600 in --text and
+   headers drop to 11.5px muted, so size and colour outrank weight and the
+   order is right way up. */
+
+.hero .nm {
+  font-size: var(--fs-hero); font-weight: var(--fw-hero);
+  line-height: var(--lh-hero); letter-spacing: var(--tr-hero);
+}
+.phead h2, .zs-gate h2 {
+  font-size: var(--fs-title); font-weight: var(--fw-title);
+  line-height: var(--lh-title); letter-spacing: var(--tr-t);
+}
+.appbar h1 { font-size: var(--fs-lead); letter-spacing: var(--tr-l); }
+
+.cfg .cn .name, .sheet .shead h3, .aimph b, .smval, .smtitle {
+  font-size: var(--fs-lead); font-weight: var(--fw-lead);
+  line-height: var(--lh-lead); letter-spacing: var(--tr-l);
+}
+
+/* row titles — the most common line of text in the product */
+.drow .t .lab, .item .t .lab {
+  font-size: var(--fs-row); font-weight: var(--fw-row);
+  line-height: var(--lh-row); letter-spacing: var(--tr-r); color: var(--text);
+}
+.flab, .acc > .ah, .salab {           /* .salab: the Smart Actions row label */
+  font-size: 15px; font-weight: var(--fw-row);
+  line-height: var(--lh-row); letter-spacing: var(--tr-r); color: var(--text);
+}
+.lrow .src { font-size: var(--fs-body); font-weight: var(--fw-row); letter-spacing: var(--tr-r); }
+.card .cn  { font-size: 14px; font-weight: var(--fw-row); letter-spacing: var(--tr-r); }
+
+/* secondary lines. One size (13px) for every explanatory string in the app —
+   hints, notes, sub-labels, leads, card descriptions — because they are the
+   same kind of sentence and were previously six sizes between 11.5 and 13.5. */
+.drow .t .hint, .item .t .hint, .flab em, .note, .lead, .card .cd,
+.hero .live, .idline .mt, .phead .psub, .smsub, .smcap, .pkr .pkn em,
+.acc > .ab .lead, .ph {
+  font-size: var(--fs-sub); font-weight: var(--fw-sub);
+  line-height: var(--lh-sub); letter-spacing: var(--tr-s);
+}
+
+/* the eyebrow. 11.5px/700 uppercase at --muted: 6.45:1 on --bg, 5.24:1 on a
+   card — both past AA — and unmistakably subordinate to a 15.5px/600 title. */
+.grp, .sh, .pkh {
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-eyebrow);
+  line-height: var(--lh-eyebrow); letter-spacing: var(--tr-e);
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* Numbers. Every live readout in this app changes in place many times a
+   second; tabular figures stop the row reflowing under the finger. */
+.stat b, .stp .sv, .flab .rv, .smval, .lrow .rt b, .dvb-meta b {
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+
+
+/* ══ 3. CHROME — the two header bars ══════════════════════════════════════
+   zs-brand.css already makes these glass and fades their lower boundary
+   instead of ruling it. All that is missing is a lit top edge and enough
+   room for 19px type. `body` prefix so the padding survives the runtime
+   blocks. */
+
+body .appbar, body .phead {
+  box-shadow: var(--zs2-sheen);
+  padding-left: var(--sp-3); padding-right: var(--sp-3);
+}
+body .phead { padding-bottom: var(--sp-2); gap: var(--sp-2); }
+.phead .psub { color: var(--muted); margin-top: 1px; }
+
+/* Back is the control every screen depends on, and it was a 14.5px word.
+   44px minimum, ion, and its own optical margin so the glyph lines up with
+   the 16px gutter rather than sitting 2px inside it. */
+.pback, .appbar .cogbtn {
+  min-height: 44px; min-width: 44px;
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-r);
+  border-radius: var(--r-ctl);
+}
+
+
+/* ══ 4. SECTION HEADERS — .grp and .sh ════════════════════════════════════
+   These two were pixel-identical and yet collapsed differently against their
+   siblings, which is the whole reason phone.html carries
+   `.sh+.grp-card,.sh+.acc,…{margin-top:0}` at line 366. They are now one
+   component with one rhythm: --sp-4 above, --sp-2 below, and the space under
+   a header belongs to the header (§13 restates the adjacency rules so the
+   card below never adds its own).
+
+   The 2px ion tick is the only decoration in the file. It is identical on
+   every header, carries no state, and is what makes eight consecutive
+   sections read as eight sections rather than one long run. */
+.grp, .sh, .pkh {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.grp  { padding: var(--sp-4) var(--sp-1) var(--sp-2); }
+.sh   { margin:  var(--sp-4) 2px var(--sp-2); }
+.pkh  { margin:  var(--sp-3) 2px var(--sp-2); }
+.grp::before, .sh::before, .pkh::before {
+  content: ""; flex: none; width: 2px; height: 11px;
+  border-radius: 2px; background: var(--accent);
+}
+/* first thing on a screen should not be pushed down by a full section gap */
+.dbody > .sh:first-child, .menu > .grp:first-child { margin-top: 4px; padding-top: 4px; }
+
+/* the inline action a header can carry (Reorder, the live chip) */
+.grp .gact {
+  min-height: 44px; padding: 0 var(--sp-2); margin-right: -8px;
+  font-size: var(--fs-sub); font-weight: var(--fw-row);
+  letter-spacing: 0; text-transform: none; border-radius: var(--r-ctl);
+}
+
+
+/* ══ 5. SURFACES ══════════════════════════════════════════════════════════
+
+   Four materials, and every box in the app is exactly one of them.
+
+     CARD    groups things.        fill = card overlay, edge = --line,
+                                   lit top edge, radius --r-card
+     CONTROL you press it.         fill = control overlay, edge = --zs2-edge,
+                                   lit top edge, radius --r-ctl, shadow el-1
+     WELL    holds a selection.    fill = negative overlay, groove inset
+     GROUND  the page.             --bg, untouched
+
+   The card gradient runs light→dark top to bottom. That is not a flourish:
+   it is the single cheapest way to say "this is a physical panel lit from
+   above", and it is why the card no longer needs a 3:1 outline to be seen.
+   Measured on the default theme, card top #1c222a is 1.23:1 against --bg and
+   the lit edge above it is 1.26:1 against the card — small numbers doing a
+   job that no single number could do alone. */
+
+.hero, .cfg, .drow, .item, .grp-card, .acc, .vizbox, .tile, .card,
+.mechcurve, .sastripbox, .sacat {          /* last two: beats a runtime block */
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen);
+}
+
+.grp-card, .acc, .vizbox {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+/* ── 5.1 THE HERO ────────────────────────────────────────────────────────
+   The most important element on the home screen used to differ from a plain
+   config row by 1px of type and a box-shadow that composites to 1.02:1
+   against the ground — mathematically invisible. It is now the only surface
+   in the app carrying elevation AND the engraved reticle, so it is different
+   in kind rather than in degree.
+
+   CONSTRAINT 7. The left border is set INLINE by renderHome() to the console
+   family colour. That means the `border` SHORTHAND is forbidden here — it
+   would reset border-left-width to 1px and leave the inline colour painting a
+   hairline where a 5px signal belongs. Longhands only, and border-left-color
+   is never mentioned. Same rule on .cfg below. */
+.hero {
+  border-style: solid;
+  border-width: 1px 1px 1px 5px;
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--el-2), var(--zs2-sheen);
+  overflow: hidden;
+  position: relative;
+}
+.hero > * { position: relative; z-index: 1; }
+.hero .top { padding: var(--sp-3) var(--sp-3) 14px; gap: 14px; }
+.hero .art { border-radius: 14px; }
+
+/* The reticle from the logo, engraved into the card's top-right corner and
+   clipped by its radius. This is the only place the brand geometry appears
+   below the app bar — the mark used to live on exactly one element in the
+   whole product (.appbar h1 .brandmark) and the app read as anonymous
+   because of it.
+
+   ENGRAVED, NOT GLOWING, and that is a contrast decision rather than a taste
+   one. A cyan watermark at 13% under the config name drops --muted on top of
+   it to 3.97:1, which fails. Black at 32% RAISES it: --muted goes 5.24 → 5.89
+   and --text 13.91 → 15.63. A darker watermark can never hurt legibility on a
+   dark card, so it can be placed where a lighter one could not. */
+.hero::after {
+  content: ""; position: absolute; z-index: 0; pointer-events: none;
+  right: -34px; top: -30px; width: 172px; height: 172px;
+  --ret: rgba(0,0,0,.32);
+  background-image:
+    radial-gradient(circle at 50% 50%, transparent 0 43%, var(--ret) 43% 45.4%, transparent 45.9%),
+    radial-gradient(circle at 50% 50%, transparent 0 13%, var(--ret) 13% 15%, transparent 15.5%),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret));
+  background-size: 100% 100%, 100% 100%, 2px 17%, 2px 17%, 17% 2px, 17% 2px;
+  background-position: 0 0, 0 0, 50% 6%, 50% 94%, 6% 50%, 94% 50%;
+  background-repeat: no-repeat;
+}
+
+/* The board line. This carries the single most load-bearing fact in the
+   product — "is my adapter actually driving the console" — and it was the
+   smallest text on the page. It cannot be moved out of the hero without
+   changing renderHome(), but it can stop being a footnote: its own strip,
+   its own hairline, 13px, and a dot at 6.37:1. */
+.hero .live {
+  padding: 12px var(--sp-3);
+  color: var(--muted);
+  border-top: 1px solid var(--zs2-hair);
+  background: rgba(255,255,255,.03);
+}
+.hero .live .dot { color: var(--green); font-size: 14px; }
+
+/* "Edit this config" is a real action, so it is a real button rail. */
+.hero .go {
+  min-height: 54px; padding: 0 var(--sp-3);
+  border-top: 1px solid var(--line);
+  background-image: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.05));
+  background-color: var(--panel);
+  color: var(--accent);                    /* 8.20:1 on that face */
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-r);
+}
+
+/* ── 5.2 CONFIG ROWS ─────────────────────────────────────────────────────
+   Longhand borders again — inline border-left-color. */
+.cfg {
+  border-style: solid;
+  border-width: 1px 1px 1px 5px;
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+  border-radius: var(--r-card);
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 14px;
+  gap: 14px;
+}
+.cfg .cn .name { color: var(--text); }
+.idline { margin-top: 3px; gap: 6px; }
+.idline .mt { color: var(--muted); }        /* 5.24:1 on the card */
+
+/* JS already writes aria-current="true" on the live row. Free state, no new
+   class: the active config gets a brighter face and a defined edge instead
+   of being the same rectangle with a tick bolted on. */
+.cfg[aria-current="true"] {
+  background-image: linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+  border-top-color: var(--zs2-edge);
+  border-right-color: var(--zs2-edge);
+  border-bottom-color: var(--zs2-edge);
+}
+/* The tick AND the words — colour is never the only channel here, it never
+   was, and the type change keeps it that way. #56d364 measures 8.31:1. */
+.cstate {
+  width: 58px; color: #56d364;
+  font-size: var(--fs-micro); font-weight: var(--fw-eyebrow);
+  letter-spacing: .06em; text-transform: uppercase; line-height: 1.25;
+}
+.cstate .tick { font-size: 17px; letter-spacing: 0; }
+
+/* ── 5.3 NAVIGATION ROWS — .drow and .item ───────────────────────────────
+   These were the same content model rendered two ways: a card on Home, a bare
+   list line in the editor. The editor menu — the second screen every user
+   reaches and the product's entire feature set — was five undecorated rows on
+   the raw ground, 0 cards, 0 borders, 1 radius, 80% grey text. It is the most
+   literal case of "this doesn't even look cool".
+
+   One component now. .item gets its own horizontal margin because .menu pads
+   `8px 0` and there is no wrapper element to add — the row supplies its own
+   gutter, which needs no markup change at all. */
+.drow, .item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  min-height: 68px;
+  gap: 14px;
+  align-items: center;
+}
+.drow { padding: 14px var(--sp-3); margin-top: var(--sp-2); }
+.item { padding: 14px var(--sp-3); margin: var(--sp-2) 14px; }
+/* phone.html gives .item a bottom hairline that belonged to the flat list */
+.item { border-bottom-color: var(--line); }
+.drow:active, .item:active { background-color: var(--panel2); }
+
+/* The icon container. It existed, it was 30px, it was --muted on --panel2,
+   and it appeared on seven rows in the entire app. It is the cheapest
+   scanning aid available — shape first, so it works with colour off. */
+.drow .ico, .item .ico {
+  width: 36px; height: 36px; border-radius: var(--r-ctl);
+  background: rgba(255,255,255,.07);
+  border: 1px solid var(--line);
+  color: var(--text);      /* 11.37:1 on that tint — was --muted at 4.28:1,
+                              which FAILED, and is the reason this line is a
+                              fix and not a preference */
+}
+.drow .ico svg, .item .ico svg { width: 19px; height: 19px; }
+
+/* THE FIVE-HUE EDITOR MENU IS ALREADY SHIPPING and this file must not touch
+   it. phone.html's SECOND <style> block (line 587+) tints each editor row by
+   section — .ico-overview ion, .ico-aim gold, .ico-bindings steel,
+   .ico-smart orange, .ico-vision the brand gradient — via `.item .ico.ico-X`
+   at (0,3,0), which out-specifies the (0,2,0) neutral container above. It
+   survives untouched, which is correct: those hues already dodge the
+   semantic set and the survey simply had not seen that block.
+
+   What is left to fix is the FALLBACK. phone.html:225 still paints
+   `.item.gated .ico` in rgba(88,166,255,…) — the PlayStation family blue as
+   generic chrome — and today that is masked only because the one gated row
+   happens to be the one .ico-vision repaints. Add a second gated section and
+   the blue appears on an Xbox config.
+
+   :not([class*="ico-"]) is the whole point of this selector: it retints ONLY
+   an icon with no section tint of its own, so it can never overwrite the
+   five hues. Ion glyph 6.70:1 on the tint, edge 3.72:1 against the card. */
+.item.gated .ico:not([class*="ico-"]) {
+  background: var(--zs2-ion-tint);
+  border-color: var(--zs2-ion-line);
+  color: var(--accent);
+}
+.chev, .drow .chev, .item .chev { color: var(--muted); font-size: 17px; }
+
+/* ── 5.4 CARDS, TILES, PLACEHOLDERS ─────────────────────────────────────── */
+.cards { gap: var(--sp-2); }
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 14px var(--sp-2) var(--sp-3);
+  display: flex; flex-direction: column; min-height: 118px;
+}
+.card .ci { color: var(--accent); }        /* 9.10:1 on the card */
+.card .ci svg { width: 24px; height: 24px; }
+.card .cn { margin-top: var(--sp-2); color: var(--text); }
+.card .cd { color: var(--muted); margin-top: var(--sp-1); }
+.card:active { background-color: var(--panel2); }
+
+.tile {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--sp-3) var(--sp-2);
+  position: relative;
+}
+/* Selected tile: 2px edge (a WIDTH change, readable with colour off), an ion
+   wash, and a tick in the corner. Three channels, per constraint 6. */
+.tile.on {
+  border-width: 2px; border-color: var(--accent);
+  padding: 15px 9px;                        /* hold the box the same size */
+  background-image: linear-gradient(180deg, var(--zs2-ion-tint), rgba(111, 155, 255,.06));
+}
+.tile.on::after {
+  content: "✓"; position: absolute; top: 6px; right: 8px;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+}
+.tile .tart { height: 48px; }
+
+.ph, .newcfg, .addbtn {
+  border-style: dashed; border-width: 1px; border-radius: var(--r-card);
+}
+.ph { border-color: var(--line); color: var(--muted); padding: var(--sp-3); background: none; }
+.mechcurve { border: 1px solid var(--line); border-radius: var(--r-card); padding: var(--sp-3); }
+
+
+/* ══ 6. SETTINGS ROWS INSIDE A CARD ═══════════════════════════════════════
+   .fld is the workhorse — it is every toggle, slider, stepper and dropdown in
+   the product. The row gets a real height so a 44px control has somewhere to
+   live, and the divider gets quiet: the card's own edge does the grouping, so
+   an interior rule only has to stop two rows touching. 1.23:1 is correct for
+   that job and wrong for any other. */
+.fld {
+  padding: 13px var(--sp-3);
+  min-height: 60px; gap: 14px;
+  border-bottom: 1px solid var(--zs2-hair);
+}
+.fld.col { padding-top: 14px; padding-bottom: var(--sp-3); }
+.flab em {
+  display: block; color: var(--muted); margin-top: 3px; font-style: normal;
+}
+.flab .rv { color: var(--accent); font-weight: var(--fw-title); }  /* 9.10:1 */
+.fld.tapper:active { background-color: rgba(255,255,255,.045); }
+.grp-card + .grp-card { margin-top: var(--sp-2); }
+
+/* list rows and stat rows share the card's interior rhythm */
+.lrow {
+  padding: 13px 0; gap: var(--sp-2); min-height: 54px;
+  border-top: 1px solid var(--zs2-hair);
+}
+.grp-card > .stat, .grp-card > .lrow { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+.stat {
+  padding: 12px 0; gap: var(--sp-2);
+  border-top: 1px solid var(--zs2-hair);
+  font-size: var(--fs-sub); color: var(--muted);
+}
+/* Every stat value used to be ion. Accent on 71 read-only numbers is accent
+   meaning nothing — it is the same colour as the primary button. Values are
+   --text/700 tabular (13.91:1); only a genuinely good state stays green. */
+.stat b { color: var(--text); font-size: var(--fs-body); font-weight: var(--fw-title); }
+.stat b.ok, .stat .ok { color: var(--green); }   /* 6.30:1 on the card */
+.lrow .arrow { color: var(--muted); }
+.lrow .rt { gap: var(--sp-2); }
+
+
+/* ══ 7. BUTTONS ═══════════════════════════════════════════════════════════
+   Called out by name by the owner, so they get the most work in this file.
+
+   A button is a KEY: a face lit from above, a defined edge at 3.88:1 against
+   the page, one step of elevation, and 50px of height. Nothing here is
+   decoration for its own sake — the lit top edge is what separates a button
+   from a rectangle of slightly different grey, and the edge colour is what
+   makes it identifiable without relying on the label. */
+
+.btn {
+  min-height: 50px;
+  padding: 0 var(--sp-3);
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text);                    /* 11.37:1 on the face */
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-r);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+  margin-top: var(--sp-2);
+}
+
+/* THE one solid ion surface in the app. It used to be shared with the
+   selected tab, the applied filter and the current page; now a cyan slab
+   means "press this and something happens" and nothing else.
+   `body` prefix: this must beat zs-brand.css:252 AND the runtime blocks.
+   Ink #041a2e measures 10.13:1 on the gradient's top and 8.43:1 on its
+   bottom — AA at every point on the face, AAA over most of it. */
+body .btn.primary {
+  background-image: linear-gradient(180deg, rgba(255,255,255,.09), rgba(0,0,0,.07));
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: var(--fw-title);
+  box-shadow: 0 2px 14px var(--zs-ion-glow), inset 0 1px 0 rgba(255,255,255,.28);
+}
+/* Danger reads as danger by fill, edge AND label colour, so it survives
+   greyscale: red label 5.33:1 on its wash, edge 3.14:1 against the page. */
+.btn.danger {
+  background-image: none;
+  background-color: rgba(255,98,89,.13);
+  border-color: rgba(255,98,89,.60);
+  color: var(--red);
+  box-shadow: none;
+}
+.btn.ghost {
+  background-image: none; background-color: transparent;
+  border-color: var(--line); box-shadow: none; color: var(--text);
+}
+/* Small still means tappable. 44px is the floor, not a suggestion — this used
+   to render at ~35px, which is under the threshold on the one product whose
+   whole purpose is lowering physical demand. */
+.btn.sm {
+  min-height: 44px; padding: 0 var(--sp-3);
+  font-size: var(--fs-sub); font-weight: var(--fw-row);
+  display: inline-flex; width: auto; margin-top: 0;
+}
+
+/* "add something" — one component, two call sites. These were the same
+   button at radius 14 and radius 10. Ion dashes at 3.02:1 against the page,
+   ion label at 11.20:1. */
+.newcfg, .addbtn {
+  min-height: 54px; padding: 0 var(--sp-3);
+  border-color: var(--zs2-ion-dash);
+  color: var(--accent);
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  margin-top: var(--sp-2);
+  background: rgba(111, 155, 255,.045);
+}
+
+/* the small square icon button. 38px of visible key, 48px of hit area via the
+   ::after expander phone.html already ships — the target is legal without the
+   button having to look chunky. */
+.ib {
+  width: 38px; height: 38px;
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text);
+  font-size: 15px; font-weight: var(--fw-row);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+.ib::after { inset: -5px; }              /* 48px hit target */
+
+/* the "•••" that hides five settings behind it, and the curve preview */
+.mechpill {
+  min-height: 44px; padding: 0 22px;
+  border: 1px solid var(--zs2-edge); border-radius: var(--r-pill);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text); font-size: var(--fs-body);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+
+
+/* ══ 8. SEGMENTED CONTROLS — .seg2, .subtabs, #edtabs ═════════════════════
+   Four "pick one of N" controls with two resting backgrounds, two radii and
+   four paddings, whose SELECTED state was byte-identical to the primary
+   button. This is the change that gives cyan its meaning back.
+
+   THE TRACK is a well: the group of options is one recessed object, so the
+   choice reads as "one of these", not "four separate buttons that happen to
+   be adjacent".
+
+   THE SELECTED OPTION is a raised neutral pill with an ion indicator bar.
+   Its state is carried on four independent channels, which is what
+   constraint 6 asks for:
+      · label colour  --text 11.04:1 on the pill  vs  --muted 5.94:1 on track
+      · weight        700 vs 600
+      · elevation     a lit, shadowed pill vs a flat track
+      · the bar       ion at 7.22:1 on the pill, 10.32:1 on the track — this
+                      is the ≥3:1 non-text indicator WCAG 1.4.11 wants, and
+                      it is a shape, so greyscale keeps it. */
+
+.seg2 {
+  margin-top: var(--sp-2);
+  gap: var(--sp-1); padding: var(--sp-1);
+  background: var(--zs2-well);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--r-ctl) + 4px);
+  box-shadow: var(--zs2-groove);
+}
+.seg2 button, .subtabs button, #edtabs button {
+  position: relative;
+  min-height: 44px;
+  padding: 12px 8px 14px;
+  border: 1px solid transparent;
+  background: none;
+  border-radius: var(--r-ctl);
+  color: var(--muted);
+  font-size: var(--fs-sub); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-s);
+}
+/* beats zs-brand.css:252 and both runtime blocks */
+body .seg2 button.on, body .subtabs button.on, body #edtabs button.on {
+  background-image: none;
+  background-color: var(--zs2-sel);
+  border-color: rgba(255,255,255,.09);
+  color: var(--text);
+  font-weight: var(--fw-title);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+body .seg2 button.on::after, body .subtabs button.on::after,
+body #edtabs button.on::after {
+  content: ""; position: absolute; left: 24%; right: 24%; bottom: 6px;
+  height: 2px; border-radius: 2px; background: var(--accent);
+}
+
+/* The sticky sub-tab strip bleeds to the screen edge so it can occlude
+   content scrolling under it; the TRACK therefore cannot be the element's own
+   background, or it would bleed too. ::before draws the well inside the
+   bleed. No markup change, and if a build ever drops the pseudo-element the
+   strip degrades to exactly today's flat row. */
+.subtabs {
+  padding: var(--sp-2) 18px var(--sp-2);
+  margin-bottom: var(--sp-2);
+  gap: var(--sp-1);
+}
+.subtabs::before {
+  content: ""; position: absolute; z-index: 0;
+  left: 18px; right: 18px; top: 6px; bottom: 6px;
+  border-radius: calc(var(--r-ctl) + 4px);
+  background: var(--zs2-well-pg);
+  border: 1px solid var(--line);
+  box-shadow: var(--zs2-groove);
+  pointer-events: none;
+}
+.subtabs button { z-index: 1; }
+
+#edtabs {
+  gap: var(--sp-1); padding: var(--sp-2) 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+
+/* ══ 9. VALUE CONTROLS ════════════════════════════════════════════════════ */
+
+/* ── 9.1 THE TOGGLE ──────────────────────────────────────────────────────
+   Off and on differ by knob POSITION first, then track fill, then knob
+   colour. Position is the channel that survives everything.
+   knob #8b98a5 on the off track: 6.05:1 · ion knob on the on track: 4.77:1 ·
+   the on track's ion border against the card: 9.10:1. */
+.sw {
+  width: 52px; height: 32px;
+  background: var(--zs2-well);
+  border: 1px solid var(--zs2-edge);
+  box-shadow: var(--zs2-groove);
+  position: relative;
+}
+/* NOT DONE HERE, on purpose. 52×32 is under the 44px floor, and the obvious
+   fix — a ::before hit expander like the one .ib already carries — is not
+   available: ::after is the knob (phone.html) and ::before is the ion bloom
+   (zs-micro.css:47). Both pseudo-elements on .sw are spoken for, and quietly
+   taking one would delete a shipped micro-interaction to fix a target the
+   user can still hit by aiming at a 60px row. Growing the element and
+   insetting the track re-homes the knob, which zs-micro.js then animates to
+   the wrong place. This needs a wrapper element the renderer does not emit,
+   so it is written down in the risks rather than bodged here. */
+body .sw.on {
+  background: rgba(111, 155, 255,.28);
+  border-color: var(--accent);
+}
+body .sw.on::after { background: var(--accent); box-shadow: 0 0 10px var(--zs-ion-glow); }
+
+/* ── 9.2 THE SLIDER ─────────────────────────────────────────────────────── */
+input[type=range].rng {
+  height: 44px;
+  background: linear-gradient(rgba(0,0,0,.34), rgba(0,0,0,.34)) 50% 50%/100% 8px no-repeat;
+  border-radius: var(--r-pill);
+}
+input[type=range].rng::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent);              /* 10.32:1 on the track */
+  border: 4px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px var(--zs-ion-glow);
+}
+input[type=range].rng::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); border: 4px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ── 9.3 THE STEPPER ─────────────────────────────────────────────────────
+   A well with two keys cut into it. The value is 16px/700 tabular in --text
+   because it is the answer to the question the row is asking, and it was
+   13.5px/600 — smaller than the label above it. */
+.stp {
+  background: var(--zs2-well);
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--zs2-groove);
+  overflow: hidden; gap: 0;
+}
+.stp button {
+  width: 46px; height: 46px;
+  color: var(--accent);                    /* 10.32:1 on the well */
+  font-size: 21px; font-weight: var(--fw-row);
+}
+.stp button:first-child { border-right: 1px solid var(--zs2-hair); }
+.stp button:last-child  { border-left:  1px solid var(--zs2-hair); }
+.stp .sv {
+  min-width: 56px; padding: 0 var(--sp-1);
+  font-size: 16px; font-weight: var(--fw-title); color: var(--text);
+}
+.stp .sv::after { font-size: var(--fs-sub); color: var(--muted); }
+.stp input.svedit {
+  border-radius: var(--r-chip); font-size: 16px; font-weight: var(--fw-title);
+}
+
+/* ── 9.4 SELECTS AND TEXT FIELDS ─────────────────────────────────────────
+   Not on the brief's list, but they sit inside .fld on every screen and a
+   restyled row with a stock select in it looks broken. */
+select.sel, input.txt {
+  min-height: 44px; padding: 0 var(--sp-2);
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+input.txt { padding: 0 14px; font-weight: var(--fw-body); }
+.lrow .sel { min-height: 40px; font-size: var(--fs-sub); }
+
+/* ── 9.5 PROGRESS ───────────────────────────────────────────────────────
+   Styled but never emitted — it is the only home the brand gradient has, so
+   it is kept correct rather than deleted. Ion against the well: 10.32:1. */
+.prog {
+  height: 10px; border-radius: var(--r-pill);
+  background: var(--zs2-well);
+  box-shadow: var(--zs2-groove);
+  margin-top: var(--sp-2);
+}
+.prog > i { background: var(--zs-grad); border-radius: var(--r-pill); }
+
+/* ── 9.6 SWATCHES ───────────────────────────────────────────────────────
+   36px circles need a legal target too; ::after gives 46px without growing
+   the dot, which has to stay small enough to sit six-across at 390px. */
+.sc { position: relative; }
+.sc::after { content: ""; position: absolute; inset: -5px; }
+
+
+/* ══ 10. PICKERS — .pk, .pkr, .pbtn ═══════════════════════════════════════
+   Two real bugs get fixed here, both found by measurement rather than by
+   looking:
+
+   1. `.pk` never declared a colour, so it inherited the UA button default:
+      BLACK. It is masked today only because every child overrides it and the
+      glyph SVGs carry their own fills. Any text placed directly in a .pk
+      would render black-on-panel2 at 1.19:1.
+   2. `.pk` and `.pbtn` both set font-family:inherit and forgot font-size, so
+      they ran at 13.333px — the browser's default button size, and one of the
+      ten font sizes counted on the Computer Vision screen.
+
+   .pk and .pkr use the CARD face, not the control face, and that is
+   deliberate: both carry --muted sub-labels, and --muted on the control face
+   measures 4.28:1, which FAILS. On the card face it is 5.24:1, and inside a
+   sheet 4.71:1. The material follows the text it has to carry. */
+.pk {
+  width: 58px; min-height: 58px;
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  color: var(--text);                 /* fixes the inherited black */
+  font-size: 12px;                    /* fixes the 13.333px UA default */
+  box-shadow: var(--zs2-sheen);
+  padding: var(--sp-1) 2px; gap: 3px;
+  position: relative;
+}
+.pk .pklab { font-size: var(--fs-micro); color: var(--muted); }
+.pk.wide { width: 84px; }
+.pk.cur {
+  border-width: 2px; border-color: var(--accent);
+  padding: 3px 1px;                   /* hold the box the same size */
+  background-image: linear-gradient(180deg, var(--zs2-ion-tint), rgba(111, 155, 255,.05));
+}
+/* The tick goes on the LABEL's ::before, not the cell's ::after, because
+   .pk::after is zs-micro.css:155 — the lock ring it flashes when a button is
+   chosen. A `.pk.cur::after` here would out-specify that and silently kill
+   the animation. Where a cell is glyph-only and has no .pklab the tick is
+   simply absent and the 2px border carries the state, which is the graceful
+   degradation this whole file is written to. */
+.pk.cur .pklab::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+
+.pkr {
+  min-height: 60px; padding: var(--sp-2) 14px; gap: 14px;
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  box-shadow: var(--zs2-sheen);
+  margin-top: var(--sp-2);
+}
+/* the leading glyph gets the same container the menu rows use, so a picker
+   row and a settings row look like relatives */
+.pkr .pki {
+  width: 36px; height: 36px; border-radius: var(--r-ctl);
+  background: var(--zs2-ion-tint);
+  border: 1px solid var(--zs2-ion-line);
+  color: var(--accent);
+}
+.pkr .pki svg { width: 20px; height: 20px; }
+.pkr .pkn em { color: var(--muted); margin-top: 2px; }
+.pkr.cur { border-width: 2px; border-color: var(--accent); padding: 9px 13px; }
+
+/* the picker TRIGGER — shows the current choice, opens the sheet */
+.pbtn {
+  min-height: 44px; padding: 0 var(--sp-2); gap: var(--sp-2);
+  border: 1px solid var(--zs2-edge);
+  border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-sub);            /* fixes the 13.333px UA default */
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+.pbtn .plab { font-size: var(--fs-sub); font-weight: var(--fw-row); }
+.pbtn .pchev { color: var(--text); font-size: 13px; }  /* --muted here is
+                                                          4.28:1 and fails */
+.pkgrid { gap: var(--sp-2); }
+
+
+/* ══ 11. CHIPS — .tag, .badge, .pill ══════════════════════════════════════
+   Six chip types existed at 11 / 11 / 12 / 12 / 12.5 / 11.5px and radii
+   6 / 6 / 999 / 999 / 999. Two shapes now, and the shape is the meaning:
+
+     rounded rect (--r-chip)  METADATA — a fact about the thing
+     pill (--r-pill)          STATUS   — something that is true right now
+
+   All of them are outline chips by default. A filled chip at --muted measured
+   4.28:1 and failed; --muted on the card behind it is 5.24:1 and passes, so
+   the fill goes and the border stays. */
+.tag, .badge {
+  min-height: 22px; padding: 2px var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--muted);
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-s);
+  display: inline-flex; align-items: center;
+}
+.pill {
+  min-height: 22px; padding: 2px 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--zs2-ion-line);
+  background: var(--zs2-ion-tint);
+  color: var(--accent);                  /* 6.70:1 on its own wash */
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-row);
+}
+/* .tag.accent used the PlayStation blue as a generic "interesting" colour.
+   Retinted: ion label 6.70:1 on the wash, edge 3.72:1 against the card. */
+.tag.accent {
+  background: var(--zs2-ion-tint);
+  border-color: var(--zs2-ion-line);
+  color: var(--accent);
+}
+/* green here is semantic (Xbox / live), and it is never alone — the label
+   says the word. #56d364 6.35:1 on its wash, edge 4.82:1 against it. */
+.tag.on {
+  background: rgba(63,185,80,.16);
+  border-color: var(--green);
+  color: #56d364;
+}
+
+
+/* ══ 12. NOTES, ACCORDIONS, OVERLAYS ══════════════════════════════════════ */
+
+/* ── 12.1 THE NOTE — the app's most-emitted component ────────────────────
+   Nineteen per screen on Computer Vision, eighteen on Aim, and each one was a
+   12.5px grey paragraph inside a BLUE box — rgba(88,166,255,.08), the
+   PlayStation family colour, used as the generic information wash on Xbox
+   screens too. Ninety per cent of the Smart Actions screen is grey text, and
+   this component is why.
+
+   A note stops being a box. It is a margin note: a 2px rule and an indent,
+   which is what a note has looked like in print for four hundred years. The
+   consequence is the point — when nineteen of them stop drawing boxes, the
+   three things on the screen that ARE boxes finally read as boxes.
+
+   --muted on the page ground: 6.45:1. Rule at 2.58:1. */
+.note {
+  background: none;
+  border: none;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  padding: 2px 0 2px 14px;
+  margin-top: var(--sp-3);
+  color: var(--muted);
+}
+.note b { color: var(--text); font-weight: var(--fw-row); }
+
+/* A warning keeps its box, and now it is the ONLY note with one — which is
+   the entire reason warnings were invisible before: every note looked like a
+   callout, so a callout meant nothing. warnNotes() already prefixes "⚠", so
+   the signal is glyph + box + colour, never colour alone.
+   --muted on the amber wash 5.14:1 · amber rule vs the wash 7.08:1. */
+.note.warn {
+  background: rgba(224,163,58,.10);
+  border: 1px solid rgba(224,163,58,.35);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r-ctl);
+  padding: 12px 14px;
+}
+.lead { color: var(--muted); margin: 0 0 var(--sp-2); }
+
+/* ── 12.2 THE ACCORDION ─────────────────────────────────────────────────── */
+.acc > .ah {
+  min-height: 56px; padding: 0 var(--sp-3); gap: var(--sp-2);
+}
+.acc.open > .ah { border-bottom: 1px solid var(--zs2-hair); }
+.acc > .ah .aicon { color: var(--muted); }
+.acc.open > .ah .aicon { color: var(--accent); }   /* 9.10:1 — and the chevron
+                                                      rotation carries the same
+                                                      state without colour */
+.acc > .ah .chev { color: var(--muted); font-size: 17px; }
+.acc > .ab { padding: 14px var(--sp-3) var(--sp-3); }
+.acc + .acc, .acc { margin-top: var(--sp-2); }
+.acc > .ah:active { background-color: rgba(255,255,255,.045); }
+
+/* ── 12.3 THE SHEET ─────────────────────────────────────────────────────
+   The biggest radius in the app, on the one surface that comes up from the
+   bottom edge. zs-brand.css owns its glass and its grabber; this is geometry
+   and type only. */
+.sheet { border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
+.sheet .shead { padding: 20px var(--sp-3) var(--sp-2); }
+.sheet .shead h3 { color: var(--text); }
+.sheet .shead .sclose {
+  width: 42px; height: 42px;
+  border: 1px solid var(--zs2-edge);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text); font-size: 16px;
+}
+.sheet .sbody { padding: 2px var(--sp-3) 22px; }
+
+/* ── 12.4 THE TOAST ─────────────────────────────────────────────────────
+   A small floating chip, so it takes the pill shape rather than a card
+   radius — it is not a panel and should not look like one.
+   --text on the toast 13.78:1 · ion action 9.01:1. */
+.toast {
+  border-radius: var(--r-pill);
+  min-height: 48px; padding: var(--sp-2) 20px;
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-r);
+  gap: var(--sp-3);
+}
+.toast button { font-size: var(--fs-body); font-weight: var(--fw-title); padding: var(--sp-2); }
+
+
+/* ══ 13. VERTICAL RHYTHM ══════════════════════════════════════════════════
+   phone.html patches spacing with ten adjacency rules because there is no
+   owned stack. Those rules are (0,2,0) and load before us, so they win over a
+   plain .grp-card{margin-top}. Rather than fight them with !important, the
+   same adjacencies are restated here at the same specificity in the right
+   order: everything gets the section gap, and then anything immediately after
+   a header gets nothing, because the header already spent that space in §4.
+
+   ORDER IS LOAD-BEARING in this block. The reset must come second. */
+.note + .grp-card, .vizbox + .grp-card, .acc + .grp-card,
+.btn + .grp-card, label + .grp-card,
+.grp-card + .note, .grp-card + .btn, .grp-card + .acc,
+.note + .btn, .btn + .btn {
+  margin-top: var(--sp-3);
+}
+.sh + .grp-card, .sh + .acc, .sh + .vizbox, .sh + .note, .sh + .btn,
+.sh + .cards, .sh + .seg2, .sh + .lead, .grp + .drow, .grp + .cfg,
+.grp + .hero, .grp + .item {
+  margin-top: 0;
+}
+.vizbox { margin-top: var(--sp-3); padding: var(--sp-3); }
+.dbody { padding-left: 18px; padding-right: 18px; }
+
+
+/* ══ 14. ACCESSIBILITY ════════════════════════════════════════════════════
+   Five signals, each honoured on its own terms. None of them is treated as a
+   downgrade — high contrast gets a BETTER edge, not a cheaper one. */
+
+/* ── 14.1 MORE CONTRAST ─────────────────────────────────────────────────
+   Both edge tiers are promoted past 3:1 and the decorative sheens come off,
+   because a gradient is exactly the thing that blurs a boundary for someone
+   who asked for boundaries.
+     --line     #74829a  4.71:1 vs --panel, 4.12:1 vs a card
+     --zs2-edge #8c9bb2  6.98:1 vs --bg,    5.68:1 vs a card
+   These are set on :root here and on body.a11y-contrast below; the body rule
+   has the higher specificity, so the app's own switch always wins over the
+   OS's, which is the behaviour a user who set both would expect. */
+@media (prefers-contrast: more) {
+  :root { --line: #74829a; --zs2-edge: #8c9bb2; --zs2-hair: rgba(255,255,255,.20); }
+  .hero, .cfg, .drow, .item, .grp-card, .acc, .vizbox, .tile, .card,
+  .btn, .pk, .pkr, .pbtn, .ib, .mechcurve { background-image: none; box-shadow: none; }
+  .hero::after { display: none; }               /* no watermark under text */
+  .tile.on, .pk.cur, .pkr.cur { border-width: 3px; }
+  body .seg2 button.on, body .subtabs button.on, body #edtabs button.on {
+    border-color: var(--text);
+  }
+  .note { border-left-width: 3px; }
+}
+body.a11y-contrast {
+  --line: #74829a; --zs2-edge: #8c9bb2; --zs2-hair: rgba(255,255,255,.20);
+}
+body.a11y-contrast .hero::after { display: none; }
+body.a11y-contrast .hero, body.a11y-contrast .cfg, body.a11y-contrast .drow,
+body.a11y-contrast .item, body.a11y-contrast .grp-card, body.a11y-contrast .acc,
+body.a11y-contrast .vizbox, body.a11y-contrast .tile, body.a11y-contrast .card,
+body.a11y-contrast .btn, body.a11y-contrast .pk, body.a11y-contrast .pkr,
+body.a11y-contrast .pbtn, body.a11y-contrast .ib {
+  background-image: none;
+}
+/* --muted becomes #bcc7d3 in this mode: 9.34:1 on a card, 11.49:1 on the
+   ground, and 7.63:1 even on the bright control face — so the one pairing
+   that fails at default contrast passes comfortably here. */
+
+/* ── 14.2 REDUCED TRANSPARENCY ──────────────────────────────────────────
+   Every overlay in this file composites onto an OPAQUE parent, so nothing
+   here is see-through in the sense the setting means. What does go is the
+   two places a translucent surface stacks on another one: the well drawn
+   over the sticky sub-tab strip, and the tinted press states. */
+@media (prefers-reduced-transparency: reduce) {
+  .subtabs::before { background: var(--panel); }
+  .seg2 { background: var(--bg); }
+  .stp, .sw, input[type=range].rng, .prog { box-shadow: none; }
+  .fld.tapper:active, .acc > .ah:active { background-color: var(--panel2); }
+  .newcfg, .addbtn { background: none; }
+}
+
+/* ── 14.3 REDUCED MOTION ────────────────────────────────────────────────
+   This file adds no animation and no transition, so there is nothing to turn
+   off — zs-brand.css §7 and body.a11y-motion already cover the press springs.
+   The only motion-adjacent thing added is the ::after tick on a selected tile
+   or picker cell, and a tick that simply exists cannot trigger anything. The
+   rule below is here so the intent is on the record rather than implied. */
+@media (prefers-reduced-motion: reduce) {
+  .tile.on::after, .pk.cur::after, .hero::after { transition: none; animation: none; }
+}
+
+/* ── 14.4 BIGGER TOUCH TARGETS (the app's own switch) ───────────────────
+   phone.html grows .ib, .sw and .stp button under body.a11y-big at (0,2,0),
+   which already outranks this file's (0,1,0) sizes — nothing to redo. What
+   DOES need restating is the segmented padding, because the indicator bar
+   sits 6px off the bottom and a11y-big's `padding:15px 8px` would let a
+   descender reach it. Equal specificity, later source. */
+body.a11y-big .seg2 button, body.a11y-big .subtabs button,
+body.a11y-big #edtabs button { padding: 16px 8px 19px; }
+body.a11y-big .btn { min-height: 56px; }
+body.a11y-big .btn.sm { min-height: 48px; }
+body.a11y-big .fld { min-height: 68px; }
+body.a11y-big .drow, body.a11y-big .item { min-height: 76px; }
+
+/* ── 14.5 OLED ──────────────────────────────────────────────────────────
+   --panel drops to #0a0d11 and --bg to true black, and because every surface
+   above is an OVERLAY rather than a hex fill, the whole system moves with it:
+   a card lands at #171a1e (1.20:1 against black, vs 1.23:1 against --bg in
+   the default theme — the same relationship, not a broken one).
+   The edges keep their jobs: --line 2.75:1 against pure black, --zs2-edge
+   4.13:1. The one thing worth nudging is the card lift, because black is
+   less forgiving than near-black. */
+body.zs-oled {
+  --zs2-card-a: rgba(255,255,255,.075);
+  --zs2-card-b: rgba(255,255,255,.030);
+}
+
+/* ── 14.6 FOCUS ─────────────────────────────────────────────────────────
+   Untouched from zs-brand.css — 2px ion at 11.20:1 against the ground, with a
+   5px wash halo. Restated only where a new radius would let the ring clip. */
+.item:focus-visible, .drow:focus-visible, .cfg:focus-visible,
+.hero .go:focus-visible { border-radius: var(--r-card); }
+.btn:focus-visible, .seg2 button:focus-visible, .subtabs button:focus-visible,
+.pbtn:focus-visible, .ib:focus-visible { border-radius: var(--r-ctl); }
+
+
+/* ══ 15. TWO RUNTIME-INJECTED BLOCKS, RECONCILED ══════════════════════════
+   smart-actions.js and phone-sections.js each inject a stylesheet at runtime
+   that re-solves problems this kit already solves. They land in <head> after
+   us, so these three rules carry a `body` prefix to win on specificity.
+
+   Only the constraint violations are corrected — the rest of those blocks is
+   left alone, because rewriting a stylesheet this file cannot see the whole
+   of is how a design system breaks a screen it was never shown. */
+
+/* .satile.sel used rgba(88,166,255,.35) — the PlayStation family colour — as
+   a generic "this one is selected" glow, on every screen including Xbox
+   configs. Same fix as .item.gated: ion, plus a width change so the state is
+   not colour alone. */
+body .satile.sel {
+  border-color: var(--accent);
+  border-width: 2px;
+  box-shadow: 0 0 0 2px var(--zs-ion-glow);
+}
+/* .sapreview is a card wearing the PlayStation wash for the same reason. */
+body .sapreview {
+  background: rgba(255,255,255,.045);
+  border-color: var(--line);
+  border-radius: var(--r-card);
+}
+/* the family/filter chips and tiles inherit the kit's two shapes */
+body .safil button, body .sapill { border-radius: var(--r-pill); min-height: 40px; }
+body .satile { border-radius: var(--r-ctl); }
+
+
+/* ══ 16. THE AIM PAGER ════════════════════════════════════════════════════
+   The best-designed screen in the app and the only place a card layout
+   already existed — so this is type only. Its own (0,2,0)/(0,3,0) overrides
+   in phone.html keep the centred-stack layout; these match that specificity
+   so the sizes move with the rest of the scale and the layout does not. */
+.aimpage .fld .flab { font-size: 15px; font-weight: var(--fw-row); }
+.aimpage .fld .flab em { font-size: var(--fs-sub); line-height: var(--lh-sub); }
+.aimpage .fld .stp .sv { font-size: 19px; font-weight: var(--fw-title); }
+/* phone.html:407 shrinks the stepper keys to 44×40 inside an aim page, which
+   is under the 44px floor on the axis a thumb actually misses. Restated at
+   matching specificity — measured in the browser, not assumed. */
+.aimpage .fld .stp button { width: 46px; height: 46px; font-size: 21px; }
+.aimph { border-radius: var(--r-card); padding: 14px var(--sp-3); }
+.aimph em { font-size: var(--fs-sub); }
+.aimdots i { background: var(--line); }        /* 2.58:1 — was 1.28:1 */
+.aimdots i.on { background: var(--accent); }   /* 11.20:1 against the ground */
+.smcar .smval {
+  min-width: 150px; min-height: 48px;
+  border: 1px solid var(--zs2-edge); border-radius: var(--r-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--el-1), var(--zs2-sheen);
+}
+.smcar .arr { color: var(--accent); font-size: 26px; }
+.smblk { padding: 14px var(--sp-3) 2px; }
+.mechcurve span { color: var(--muted); font-size: var(--fs-sub); }

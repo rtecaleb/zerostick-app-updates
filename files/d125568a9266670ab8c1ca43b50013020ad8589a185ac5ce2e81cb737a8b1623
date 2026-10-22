@@ -1,0 +1,242 @@
+/* psn-oauth.js — the PlayStation sign-in link, the address it lands on, an
+ * account ID and the PS5's pairing code: the pure half of Remote Play setup
+ * (D286). No network, no storage, no DOM. The screen is
+ * sections/07a-remote-play-setup.js; the tests are tools/test-psn-oauth.js.
+ *
+ * PORTED FROM THE A7S, NOT INVENTED. The A7S built the sign-in link and read
+ * the redirect through pyremoteplay (board/psn.py login-url / save-account,
+ * pyremoteplay/oauth.py), and turned a pasted account ID into the 8 bytes a
+ * pairing needs with board/psn.py normalise_account_id(). The same rules,
+ * the same order of checks and the same sentences are here, in JS, so the
+ * app can do them without a board helper.
+ *
+ * WHAT THE REDIRECT ADDRESS HOLDS, honestly. After the player signs in at
+ * Sony, Sony sends the browser to
+ *   https://remoteplay.dl.playstation.net/remoteplay/redirect?code=XXXX
+ * The `code` is a ONE-TIME sign-in code that expires within minutes. It is
+ * NOT the account ID: the A7S traded it with Sony's servers (a token request,
+ * then an account request) to learn the ID. parseRedirect() reads and checks
+ * the code; trading it is the adapter's job (the Core will do it over its
+ * Ethernet when Remote Play lands, docs/REMOTE-PLAY-CORE.md). The code is a
+ * live credential until it is spent, so nothing here logs it, stores it or
+ * puts it anywhere but the return value.
+ *
+ * THERE IS NO PASSWORD ANYWHERE IN THIS FILE, AND THERE NEVER MAY BE. The
+ * sign-in happens on Sony's own page, in the player's own browser.
+ */
+(function (root) {
+  'use strict';
+
+  /* pyremoteplay/oauth.py's constants, verbatim. The client id is a public
+     identifier (it is in the address bar of every Remote Play sign-in); no
+     client SECRET is here and none may be added (docs/REMOTE-PLAY-CORE.md,
+     "The sign-in code"). */
+  var AUTH_URL = 'https://auth.api.sonyentertainmentnetwork.com/2.0/oauth/authorize';
+  var CLIENT_ID = 'ba495a24-818c-472b-b12d-ff231c1b5745';
+  var REDIRECT_URL = 'https://remoteplay.dl.playstation.net/remoteplay/redirect';
+
+  /* the order and spelling pyremoteplay sends (proven on the A7S, 2026-07-17:
+     PS5-416 paired from a sign-in made with exactly this link) */
+  var LOGIN_PARAMS = [
+    ['service_entity', 'urn:service-entity:psn'],
+    ['response_type', 'code'],
+    ['client_id', CLIENT_ID],
+    ['redirect_uri', REDIRECT_URL],
+    ['scope', 'psn:clientapp'],
+    ['request_locale', 'en_US'],
+    ['ui', 'pr'],
+    ['service_logo', 'ps'],
+    ['layout_type', 'popup'],
+    ['smcid', 'remoteplay'],
+    ['prompt', 'always'],
+    ['PlatformPrivacyWs1', 'minimal'],
+    ['no_captcha', 'true']
+  ];
+
+  /* the bounds table, the A7S's own (board/psn.py, rp_profile.py) */
+  var NAME_MAX = 64;
+  var ACCOUNT_ID_MAX = 64;
+  var REDIRECT_MAX = 2048;
+  var PIN_DIGITS = 8;
+
+  /* A bounded, control-character-free string (psn.py _clean). */
+  function clean(value, limit) {
+    var s = String(value == null ? '' : value), out = '', i, c;
+    for (i = 0; i < s.length; i++) {
+      c = s.charCodeAt(i);
+      if (c >= 32 && c !== 127) out += s.charAt(i);
+    }
+    return out.slice(0, limit);
+  }
+  function trim(s) { return String(s).replace(/^\s+|\s+$/g, ''); }
+
+  /* The Sony sign-in page to open in the player's own browser. */
+  function loginUrl() {
+    return AUTH_URL + '?' + LOGIN_PARAMS.map(function (kv) {
+      return kv[0] + '=' + kv[1];
+    }).join('&');
+  }
+
+  /* The address the sign-in landed on -> {ok:true, code} or {ok:false, error}.
+     pyremoteplay's _parse_redirect_url rules: it must start with the
+     redirect address, carry `code`, and the code must be longer than one
+     character. Two more the app needs because a person is pasting: only the
+     first line counts (a paste can carry a newline), and Sony's own refusal
+     (`error=` in the address, e.g. the player pressed Cancel) is named. */
+  function parseRedirect(raw) {
+    var url = trim(clean(String(raw == null ? '' : raw).split(/[\r\n]/)[0], REDIRECT_MAX));
+    if (!url) return { ok: false, error: 'Paste the whole web address that page landed on.' };
+    if (!/^https:\/\//i.test(url)) {
+      return { ok: false, error: 'That is not a web address. Copy the whole thing from the browser’s ' +
+        'address bar, starting with https://.' };
+    }
+    if (url.slice(0, REDIRECT_URL.length).toLowerCase() !== REDIRECT_URL.toLowerCase()) {
+      return { ok: false, error: 'That is not the page Sony sends you to after signing in. It starts ' +
+        'with https://remoteplay.dl.playstation.net/remoteplay/redirect — sign in again from the ' +
+        'link above and copy the address you land on.' };
+    }
+    var q = url.indexOf('?'), params = {}, parts, i, kv, k, v;
+    if (q >= 0) {
+      parts = url.slice(q + 1).split('#')[0].split('&');
+      for (i = 0; i < parts.length; i++) {
+        if (!parts[i]) continue;
+        kv = parts[i].split('=');
+        k = kv.shift();
+        v = kv.join('=');
+        try { k = decodeURIComponent(k.replace(/\+/g, ' ')); v = decodeURIComponent(v.replace(/\+/g, ' ')); }
+        catch (e) { /* a malformed escape: keep it as typed */ }
+        if (!(k in params)) params[k] = v;   /* the first value, as parse_qs()[k][0] */
+      }
+    }
+    if (params.error) {
+      return { ok: false, error: 'Sony did not sign you in (it said “' + clean(params.error, 60) +
+        '”). Open the sign-in link again and finish signing in.' };
+    }
+    if (!('code' in params)) {
+      return { ok: false, error: 'That address has no sign-in code in it. Copy the WHOLE address ' +
+        '— the part after “?code=” is the bit that matters.' };
+    }
+    var code = trim(params.code);
+    if (code.length <= 1) {
+      return { ok: false, error: 'That sign-in code is cut short. Copy the whole address again.' };
+    }
+    return { ok: true, code: code };
+  }
+
+  /* --- the account ID: board/psn.py normalise_account_id(), in JS -------- */
+
+  /* base64 <-> bytes without atob/btoa, so Node and every webview agree */
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  function b64encode(bytes) {
+    var out = '', i, n;
+    for (i = 0; i < bytes.length; i += 3) {
+      n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+      out += B64.charAt((n >> 18) & 63) + B64.charAt((n >> 12) & 63) +
+        (i + 1 < bytes.length ? B64.charAt((n >> 6) & 63) : '=') +
+        (i + 2 < bytes.length ? B64.charAt(n & 63) : '=');
+    }
+    return out;
+  }
+  /* strict: the alphabet only, length a multiple of 4, '=' only at the end
+     (Python's b64decode(validate=True)); null when it is not base64 */
+  function b64decode(s) {
+    if (s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) return null;
+    var bytes = [], i, n, a, b, c, d;
+    for (i = 0; i < s.length; i += 4) {
+      a = B64.indexOf(s.charAt(i)); b = B64.indexOf(s.charAt(i + 1));
+      c = s.charAt(i + 2) === '=' ? -1 : B64.indexOf(s.charAt(i + 2));
+      d = s.charAt(i + 3) === '=' ? -1 : B64.indexOf(s.charAt(i + 3));
+      if (a < 0 || b < 0) return null;
+      if (c < 0 && d >= 0) return null;
+      if (i + 4 < s.length && (c < 0 || d < 0)) return null;
+      n = (a << 18) | (b << 12) | ((c < 0 ? 0 : c) << 6) | (d < 0 ? 0 : d);
+      bytes.push((n >> 16) & 255);
+      if (c >= 0) bytes.push((n >> 8) & 255);
+      if (d >= 0) bytes.push(n & 255);
+    }
+    return bytes;
+  }
+  /* a decimal string -> its 8 little-endian bytes, or null past 2^64-1.
+     Long division by 256 on the digit string, so no BigInt is needed. */
+  function decimalToLE8(digits) {
+    var num = digits.replace(/^0+/, '') || '0', bytes = [], i, rem, q, d, next;
+    while (num !== '0') {
+      rem = 0; q = '';
+      for (i = 0; i < num.length; i++) {
+        d = rem * 10 + (num.charCodeAt(i) - 48);
+        next = Math.floor(d / 256);
+        rem = d % 256;
+        if (q || next) q += String(next);
+      }
+      bytes.push(rem);
+      num = q || '0';
+      if (bytes.length > 8) return null;
+    }
+    while (bytes.length < 8) bytes.push(0);
+    return bytes;
+  }
+
+  /* {ok:true, id} (the base64 of the 8-byte account id, the form a pairing
+     sends) or {ok:false, error}. Accepts both forms a person can have:
+       * base64, 12 characters ending in '=' (Chiaki-ng, PS Play, pyremoteplay);
+       * decimal, the ~19-digit number, converted with pyremoteplay's own
+         transform base64(int.to_bytes(8, 'little')).
+     DIGITS ARE TESTED FIRST, as on the A7S: a 12-digit string is legal
+     base64, and reading it that way would refuse it for the wrong reason. */
+  function normaliseAccountId(raw) {
+    var text = trim(clean(raw, ACCOUNT_ID_MAX));
+    if (!text) {
+      return { ok: false, error: 'Paste your PlayStation account ID — the short code from Chiaki-ng ' +
+        'or any Chiaki / PS Play setup you already have.' };
+    }
+    if (/^[0-9]+$/.test(text)) {
+      var le = decimalToLE8(text);
+      if (!le) {
+        return { ok: false, error: 'That number is too long to be a PlayStation account ID — they are ' +
+          '8 bytes, so at most 20 digits.' };
+      }
+      return { ok: true, id: b64encode(le) };
+    }
+    var padded = text.replace(/-/g, '+').replace(/_/g, '/');
+    while (padded.length % 4) padded += '=';
+    var bytes = b64decode(padded);
+    if (!bytes) {
+      return { ok: false, error: 'That does not look like a PlayStation account ID. It is either a ' +
+        'short code ending in \'=\' or a long run of digits — copy the whole thing, with no spaces.' };
+    }
+    if (bytes.length !== 8) {
+      return { ok: false, error: 'That code is ' + bytes.length + ' bytes long and a PlayStation ' +
+        'account ID is exactly 8 — it may have been cut short when it was copied.' };
+    }
+    return { ok: true, id: b64encode(bytes) };
+  }
+
+  /* The name a saved account is listed by (psn.py do_add_account). */
+  function cleanName(raw) {
+    var name = trim(clean(raw, NAME_MAX));
+    if (!name) {
+      return { ok: false, error: 'Give this account a name — it is how it will be listed, and how a ' +
+        'config says which account to play as.' };
+    }
+    return { ok: true, name: name };
+  }
+
+  /* The PS5's pairing code: exactly eight digits (psn_link.register). */
+  function checkPin(raw) {
+    var pin = String(raw == null ? '' : raw).replace(/\D/g, '').slice(0, PIN_DIGITS + 1);
+    if (pin.length !== PIN_DIGITS) {
+      return { ok: false, error: 'The pairing code is exactly ' + PIN_DIGITS + ' digits — read it off ' +
+        'the TV again.' };
+    }
+    return { ok: true, pin: pin };
+  }
+
+  var API = {
+    AUTH_URL: AUTH_URL, CLIENT_ID: CLIENT_ID, REDIRECT_URL: REDIRECT_URL,
+    NAME_MAX: NAME_MAX, ACCOUNT_ID_MAX: ACCOUNT_ID_MAX, REDIRECT_MAX: REDIRECT_MAX, PIN_DIGITS: PIN_DIGITS,
+    loginUrl: loginUrl, parseRedirect: parseRedirect, normaliseAccountId: normaliseAccountId,
+    cleanName: cleanName, checkPin: checkPin
+  };
+  if (typeof module === 'object' && module.exports) module.exports = API;
+  else root.ZSPSN = API;
+})(typeof window !== 'undefined' ? window : this);

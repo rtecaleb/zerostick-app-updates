@@ -1,0 +1,436 @@
+/* shell/12-sheets.js — the bottom sheet, the photo picker, the board facts, toast.
+ *
+ * sheetOpen / sheetClose with focus return and the focus trap, the config
+ * photo picker, the board-facts sheet, toast().
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── button-picker sheet host ──────────────────────────────────── */
+  var sheetOnClose = null;
+  /* One sheet host, but sheets NEST (remap sheet → button picker replaces its
+     content). Close callbacks are therefore a stack: opening a nested sheet
+     must never discard the outer one's callback, or the screen behind it never
+     learns it has to refresh. */
+  var sheetCbs = [];
+  /* WHO OPENED IT. A modal that dumps a keyboard user back at the top of the
+     document when it closes is the single most-noticed accessibility defect
+     in a sheet, and it is the one nobody sees by tapping. The opener is
+     remembered on the OUTERMOST open only — a nested sheet (remap → button
+     picker) must return the finger to the control that started the whole
+     thing, not to a control inside a sheet that no longer exists. */
+  var sheetOpener = null;
+  var SHEET_FOCUSABLE = 'button,[href],input,select,textarea,[tabindex]';
+  function sheetFocusables(){
+    var w=document.getElementById('sheetwrap');
+    var L=w.querySelectorAll(SHEET_FOCUSABLE), out=[], i, el;
+    for(i=0;i<L.length;i++){
+      el=L[i];
+      if(el.disabled) continue;
+      if(el.getAttribute('tabindex')==='-1') continue;   /* the heading */
+      if(el.getAttribute('aria-hidden')==='true') continue;
+      out.push(el);
+    }
+    return out;
+  }
+  function sheetOpen(title, bodyHTML, onClose, opener){
+    var w=document.getElementById('sheetwrap');
+    var wasOpen = w.classList.contains('open');
+    var head=document.getElementById('sheettitle');
+    head.textContent = title;
+    /* A FRESH ELEMENT PER OPEN (B2). #sheetbody is one element for the
+       whole app, and a sheet that hung a listener on what this returned
+       hung it on THAT element: every later sheet then ran the listeners of
+       every sheet opened before it, so one tap in a Vision box sheet
+       rewrote every box opened earlier. What is returned now is a new
+       .sheet-inner inside #sheetbody, which goes away with its listeners
+       the next time any sheet opens. */
+    var host=document.getElementById('sheetbody');
+    host.innerHTML = '';
+    var body=document.createElement('div');
+    body.className = 'sheet-inner';
+    body.innerHTML = bodyHTML;
+    host.appendChild(body);
+    if(!wasOpen){
+      sheetCbs = [];
+      /* explicit opener beats the guess: a tap never moves activeElement on
+         a phone, so the caller that HAS a trigger says so (openBoardSheet) */
+      var guess = document.activeElement;
+      sheetOpener = opener ||
+        ((guess && guess!==document.body && guess.focus) ? guess : null);
+      if(sheetOpener && sheetOpener.hasAttribute &&
+         sheetOpener.hasAttribute('aria-expanded'))
+        sheetOpener.setAttribute('aria-expanded','true');
+    }
+    if(onClose) sheetCbs.push(onClose);
+    sheetOnClose = onClose||null;
+    w.classList.add('open');
+    w.setAttribute('aria-hidden','false');
+    /* FOCUS GOES TO THE HEADING, NOT THE CLOSE KEY AND NOT THE FIRST CONTROL.
+       The sheet is aria-modal, so whatever takes focus is the first thing
+       spoken; "Your board" is the answer to "what just happened", and "Close"
+       is not. tabindex="-1" on the h3 is what makes it targetable. */
+    try{ head.focus(); }catch(e){}
+    syncInert();
+    return body;
+  }
+  function sheetClose(){
+    var w=document.getElementById('sheetwrap');
+    if(!w.classList.contains('open')) return;
+    w.classList.remove('open');
+    w.setAttribute('aria-hidden','true');
+    var back = sheetOpener; sheetOpener = null;
+    if(back && back.hasAttribute && back.hasAttribute('aria-expanded'))
+      back.setAttribute('aria-expanded','false');
+    syncInert();
+    /* return the finger to the control that opened it — AFTER the inert flags
+       are cleared, or focusing into a still-inert layer is a no-op */
+    if(back && back.focus) try{ back.focus(); }catch(e){}
+    var cbs = sheetCbs; sheetCbs = []; sheetOnClose = null;
+    /* innermost first, then the sheets it was opened from */
+    for(var i=cbs.length-1;i>=0;i--){ try{ cbs[i](); }catch(e){} }
+  }
+  document.getElementById('sheetscrim').addEventListener('click', sheetClose);
+  document.getElementById('sheetclose').addEventListener('click', sheetClose);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') sheetClose(); });
+  /* THE TRAP. aria-modal tells a screen reader the rest is gone; inert tells
+     the pointer and the AT the same thing; neither stops Tab from walking out
+     of the sheet in every browser, so the key itself is wrapped here. Only
+     while the sheet is open — with it shut this handler does nothing. */
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Tab') return;
+    var w=document.getElementById('sheetwrap');
+    if(!w.classList.contains('open')) return;
+    var f = sheetFocusables();
+    if(!f.length){ e.preventDefault(); return; }
+    var cur=document.activeElement, idx=-1, i;
+    for(i=0;i<f.length;i++) if(f[i]===cur) idx=i;
+    /* idx<0 covers BOTH interesting cases at once — focus on the heading
+       (tabindex -1, deliberately not in the ring) and focus escaped out of
+       the sheet entirely. Either way the next stop is the near end of the
+       ring in the direction of travel, which is what a trap means. */
+    if(e.shiftKey){
+      if(idx<=0){ e.preventDefault(); try{ f[f.length-1].focus(); }catch(x){} }
+    } else {
+      if(idx<0 || idx===f.length-1){ e.preventDefault(); try{ f[0].focus(); }catch(x){} }
+    }
+  });
+
+  /* ── config photo picker ────────────────────────────────────────────
+     One sheet, used from the config's Overview screen. Everything happens
+     here on the phone, and the picture STAYS here (D120): the adapter
+     receives nothing, not even a note that a photo exists. */
+  function openPhotoSheet(p, onDone){
+    var pending = null;                 /* the shrunk Blob awaiting confirm */
+    var kind = photoKind(p.id);
+
+    function body(){
+      var showing = (pending || (kind==='photo' && hasPhoto(p.id))) ? 'photo' : 'mark';
+      /* the preview is a preview of a TILE, so it carries --cfg like every
+         other one: without it the foot stripe would fall back to neutral grey
+         and this sheet would show a tile the app never draws */
+      var pbox = ' style="width:160px;height:160px;--cfg:'+esc(p.color||'#4a5568')+'"';
+      var prev = pending
+        ? '<span class="art photo"'+pbox+'>'+
+          '<img id="ph-prev" alt="Preview of the photo you picked"></span>'
+        : (showing==='photo'
+            ? '<span class="art photo"'+pbox+'>'+
+              '<img src="'+esc(photoURL(p.id))+'" alt="'+esc(p.name)+' — current photo"></span>'
+            /* THE PREVIEW MUST BE THE TILE. This branch used to hand-roll a
+               badge-on-colour square, so the sheet promised one picture and
+               HOME drew another — and once the no-photo tile gained its
+               monogram the two stopped agreeing at all. artHTML with
+               force:'mark' is the same code path the app renders, so
+               "what you get with no photo" is literally what you get. */
+            : artHTML(p, 160, {force:'mark', plate:true}));
+
+      /* WHERE IT LIVES, said where it is chosen, and the one cost with it:
+         kept in this app on this device, so another device's app will not
+         show it. A device that cannot keep one says why instead, and offers
+         no button that would only fail. */
+      var blocked = pending ? '' : photoBlocked();
+      var h = '<div style="display:flex;justify-content:center;padding:6px 0 14px">'+prev+'</div>'+
+        '<div id="ph-msg" class="note" style="margin:0 0 12px">'+
+          (blocked
+            ? esc(blocked)
+            : 'Use a picture so you can spot this config at a glance. It stays in '+
+              'this app on this device: it is not sent to your ZeroStick or to the '+
+              'internet, so your other devices will not show it.')+'</div>'+
+        /* accept, but deliberately NO capture attribute: `capture` forces the
+           camera and removes the photo library, which is half of what was
+           asked for. Without it, phones offer Camera AND Photo Library. */
+        '<input type="file" id="ph-file" accept="image/jpeg,image/png,image/webp" '+
+          'style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" '+
+          'tabindex="-1" aria-hidden="true">';
+
+      if(pending){
+        h += '<button class="btn primary" id="ph-use">Use this photo</button>'+
+             '<button class="btn" id="ph-again">Pick a different one</button>';
+      } else {
+        if(!blocked){
+          h += '<button class="btn primary" id="ph-pick">'+
+                 (hasPhoto(p.id)?'Change photo':'Take a photo or choose one')+'</button>';
+        }
+        if(hasPhoto(p.id)){
+          h += kind==='photo'
+            ? '<button class="btn" id="ph-mark">Use a controller mark instead</button>'
+            : '<button class="btn" id="ph-usephoto">Show the photo instead</button>';
+          h += '<button class="btn ghost" id="ph-del" style="color:var(--red)">Remove photo</button>';
+        }
+      }
+      return h;
+    }
+
+    function say(msg, tone){
+      var el = document.getElementById('ph-msg');
+      if(el){ el.textContent = msg;
+        el.style.color = tone==='bad' ? 'var(--red)' : ''; }
+    }
+
+    /* m40: one preview URL at a time. Every redraw made a new object URL
+       for the same picture and never let the old one go, a few hundred KB
+       of blob memory each while picking; the last one goes when the sheet
+       closes. */
+    var prevURL = null;
+    function freePrev(){
+      if(prevURL && typeof URL.revokeObjectURL === 'function'){ try{ URL.revokeObjectURL(prevURL); }catch(e){} }
+      prevURL = null;
+    }
+    function draw(){
+      var host = sheetOpen('Config photo', body(), freePrev);
+      freePrev();
+      if(pending){
+        var im = document.getElementById('ph-prev');
+        if(im) im.src = prevURL = URL.createObjectURL(pending);
+      }
+      var file = document.getElementById('ph-file');
+      function pick(){ if(file) file.click(); }
+      var b;
+      if((b=document.getElementById('ph-pick'))) b.addEventListener('click', pick);
+      if((b=document.getElementById('ph-again'))) b.addEventListener('click', pick);
+
+      if(file) file.addEventListener('change', function(){
+        var f = file.files && file.files[0];
+        if(!f) return;
+        say('Shrinking your photo…');
+        shrinkPhoto(f).then(function(blob){
+          pending = blob; draw();
+          say('Ready — about '+Math.round(blob.size/1024)+' KB. '+
+              'Location and other hidden details were removed.');
+        })['catch'](function(){
+          say('That picture is too large to open on this phone. '+
+              'Try a different one.', 'bad');
+        });
+      });
+
+      if((b=document.getElementById('ph-use'))) b.addEventListener('click', function(){
+        var blob = pending;
+        say('Saving…');
+        savePhoto(p.id, blob, function(ok, err){
+          /* the adapter is not involved, so its link is never the reason */
+          if(!ok){ say('The photo wasn’t saved. '+err, 'bad'); return; }
+          pending = null; kind = 'photo';
+          sheetClose();
+          toast('Photo saved for "'+p.name+'" on this device');
+          if(onDone) onDone();
+        });
+      });
+
+      if((b=document.getElementById('ph-mark'))) b.addEventListener('click', function(){
+        kind = 'mark'; setPhotoShow(p.id, 'mark');
+        draw(); toast('Showing the controller mark');
+        if(onDone) onDone();
+      });
+      if((b=document.getElementById('ph-usephoto'))) b.addEventListener('click', function(){
+        kind = 'photo'; setPhotoShow(p.id, 'photo');
+        draw(); toast('Showing your photo');
+        if(onDone) onDone();
+      });
+      if((b=document.getElementById('ph-del'))) b.addEventListener('click', function(){
+        dropPhoto(p.id, function(ok){
+          kind = 'mark'; pending = null; draw();
+          toast(ok ? 'Photo removed'
+                   : 'Photo removed for now, but this device could not remember that, '+
+                     'so it may come back');
+          if(onDone) onDone();
+        });
+      });
+      wireArt(host);
+    }
+    draw();
+  }
+
+  /* ── the board-facts sheet ──────────────────────────────────────────
+     Owner, 2026-08-17: "board connected · sending inputs · up 103 mins —
+     that is a debug fact, maybe make it pop up if someone clicks board on
+     the top right, which is already green." So the hero stopped narrating
+     the link and the ● board chip became this sheet's door.
+
+     FACTS ONLY, AND ONLY FACTS THE APP ALREADY HOLDS: everything below is
+     read from LIVE.status (the 8 s poll) and the cached active profile —
+     nothing new is fetched, so opening it costs nothing and works offline.
+     A snapshot on purpose: the sheet lives in #sheetwrap, outside #home,
+     so the poll's renderHome can never repaint it mid-read; a state that
+     changes while it is open is one sheet-reopen away, which is the right
+     price for a screen that can never churn under a finger. */
+  /* `from` is the chip that was tapped — HOME's #livechip, or the board
+     chip on the device bar (#dvb-board, D272; it was a .bchip key in each
+     panel header before). It is passed EXPLICITLY because sheetOpen's
+     activeElement guess finds nothing after a touch, and because there is
+     more than one possible opener: closing must return the finger to
+     the one it left, not to whichever chip happens to be first in the
+     document. Guarded on nodeType so that wiring it straight to an
+     addEventListener (which would hand it an Event) can never smuggle a
+     non-element in. */
+  function openBoardSheet(from){
+    var on = LIVE.online!==false;
+    var st = LIVE.status || {};
+    var be = st.outputBackend || {};
+    var a  = prof(activeId);
+    var full = LIVE.full[activeId] || {};
+    var rate = full.output && full.output.rateHz;
+    var seen = st.uptimeS!=null;             /* has the board ever answered? */
+    function row(lab, val, cls){
+      return '<div class="stat"><span>'+lab+'</span><b'+
+             (cls?' class="'+cls+'"':'')+'>'+val+'</b></div>';
+    }
+    var up = Math.round((st.uptimeS||0)/60);
+    var upTxt = up>=120 ? Math.floor(up/60)+' h '+(up%60)+' min' : up+' min';
+    var h = '<div class="note" style="margin:0 0 12px">'+
+      (on ? 'What your ZeroStick is doing right now.'
+          : 'Can’t reach your ZeroStick — the facts below are the last it reported.')+
+      '</div>'+
+      '<div class="grp-card">'+
+      /* never colour alone: the word and the glyph both say the state */
+      row('Connection', on ? '● Connected'
+        : '<span style="color:var(--amber)">○ Offline</span>', on?'ok':'')+
+      (seen ? row('Output', backendText(be)) : '')+
+      (seen ? (st.outputEnabled===false
+        /* "Output switch" is the engineer's name for the control Overview
+           calls "Adapter is sending inputs". One switch, one name. */
+        ? row('Adapter is sending inputs', '<span style="color:var(--red)">Paused</span>')
+        : row('Adapter is sending inputs', 'On', 'ok')) : '')+
+      (rate ? row('Update rate', rate+' Hz') : '')+
+      /* Engine ticks came here from Overview's deleted "More board details"
+         fold (screen-map §1): this sheet is the ONE home for board telemetry
+         now, and tickSeq is already in the status this sheet reads. */
+      /* "Engine ticks" names the engine loop. Global Settings ▸ Performance
+         shows the same number and now calls it what it is; so does this. */
+      (seen && st.tickSeq!=null ? row('Reads of your controls', Number(st.tickSeq||0).toLocaleString()) : '')+
+      (seen ? row('Powered for', upTxt) : '')+
+      (a ? row('Playing', esc(a.name)) : '')+
+      (st.version ? row('Board app', 'v'+esc(String(st.version))) : '')+
+      /* the two rows the deleted fold owned that this sheet's status answer
+         does not carry: filled by one-shot GETs below — a modal is redrawn by
+         "Check again", so one fetch per open is the honest refresh rate */
+      (on ? '<div id="bs-input"></div><div id="bs-devs"></div>' : '')+
+      '</div>';
+    /* THE SHEET'S ONE MOVE. It was a facts sheet with no action at all — the
+       only control on it was ✕, i.e. the way out was the whole interface, the
+       same defect the back-button header has on every screen. Re-reading the
+       status is the honest action in BOTH states: online it answers "is that
+       still true", offline it is the retry, and it is a GET either way so
+       pressing it can never change anything on the board. The label branches
+       because the two questions are different questions. */
+    h += '<button class="btn primary" id="bs-again">'+
+         (on ? 'Check again' : 'Try to reach it again')+'</button>';
+    /* the chip is handed over EXPLICITLY. A tap never moves activeElement on
+       a phone, so sheetOpen's guess would find nothing and the finger would
+       come back to the top of the document instead of to the chip it left. */
+    /* BOTH HALVES, and they are orthogonal: the branch taught this sheet WHO
+       opened it (the chip lives on every screen now, not only HOME, so a
+       guess would return the finger to the wrong place), and HEAD gave it a
+       Try again for the offline case. */
+    var host = sheetOpen('Your board', h, null,
+      (from && from.nodeType===1) ? from : document.getElementById('livechip'));
+    /* the "last pressed" + "plugged in" rows from Overview's deleted fold —
+       one-shot GETs on open (never a poll: this sheet is deliberately static
+       so it can never churn under a finger; "Check again" is the refresh). */
+    if(on){
+      api('/input/live').then(function(j){
+        var el = host.querySelector('#bs-input');
+        if(!el || !j.ok) return;
+        var d = j.data || {};
+        var lastKey = d.lastEvent && (d.lastEvent.source || d.lastEvent.code);
+        el.innerHTML = row('Last pressed',
+          lastKey ? esc(String(lastKey).replace(/^KEY_|^BTN_/,'')) : '—');
+      })['catch'](function(){});
+      api('/devices').then(function(j){
+        var el = host.querySelector('#bs-devs');
+        if(!el || !j.ok || !Array.isArray(j.data)) return;
+        /* THE SAME FILTER THE DEVICE BAR USES. /devices hands back every
+           evdev node, and on this board most of them are the SoC's own
+           hardware — sunxi-gpadc0/channel0..3 (the A733's ADC lines) and
+           axp8191-pek (the PMIC power button). This row printed "6 — " and
+           then listed FOUR raw kernel paths over four wrapped lines, so the
+           count and the list disagreed and neither meant anything. Count and
+           list now come from the same filtered array, so they can't drift. */
+        /* ONE ENTRY PER PHYSICAL DEVICE, same as the bar. The filter alone
+           still counted a DualSense three times — the kernel splits it into a
+           pad node, a Motion Sensors node and a Touchpad node — so this row
+           said "4 —" and then named the same controller three times over. */
+        var real = ZS.userDevices ? ZS.userDevices(j.data)
+                 : j.data.filter(function(d){
+                     return !ZS.isUserDevice || ZS.isUserDevice(d);
+                   });
+        var names = real.slice(0,4).map(function(d){
+          return esc(d.name || d.ident || 'device');
+        }).join(', ');
+        if(real.length > 4) names += ' and '+(real.length-4)+' more';
+        /* D217: an interface the Core chose not to open is not a device
+           (ZS.userDevices leaves it out of the count); it is said after the
+           count, quietly, so "2 plugged in" stays true */
+        var skipped = ZS.notOpened ? ZS.notOpened(j.data) : [];
+        el.innerHTML = row('Plugged in',
+          (real.length ? real.length+' — '+names : 'nothing detected')+
+          (skipped.length ? ' <span style="color:var(--muted)">\u00b7 '+skipped.length+
+            ' not opened</span>' : ''));
+      })['catch'](function(){});
+    }
+    var again = host.querySelector('#bs-again');
+    if(again) again.addEventListener('click', function(){
+      again.disabled = true; again.textContent = 'Checking…';
+      /* redraw THIS sheet, not a new one: sheetOpen sees it is already open,
+         so the opener, the close callbacks and the focus ring all survive. */
+      refreshStatus().then(function(){ openBoardSheet(); },
+                           function(){ openBoardSheet(); });
+    });
+  }
+
+  /* ── toast ─────────────────────────────────────────────────────── */
+  var toastTimer=null;
+  /* A TOAST BELONGS TO THE SCREEN IT WAS RAISED ON. syncInert() calls this
+     whenever the editor or a detail panel opens or closes (real navigation,
+     never the poll and never a sheet), so an "Undo" raised in the Smart
+     Actions editor cannot ride back to HOME and sit on the mark. */
+  function hideToast(){
+    var el=document.getElementById('toast');
+    if(el) el.classList.remove('show');
+    if(toastTimer){clearTimeout(toastTimer);toastTimer=null;}
+  }
+  function toast(msg, opt){
+    opt = opt||{};
+    var el=document.getElementById('toast');
+    el.innerHTML = '<span>'+esc(msg)+'</span>' + (opt.action?'<button id="toastact">'+esc(opt.action)+'</button>':'');
+    function hide(){ hideToast(); }
+    if(opt.action && opt.onAction){
+      document.getElementById('toastact').addEventListener('click', function(e){ e.stopPropagation(); hide(); opt.onAction(); });
+    }
+    el.onclick = hide;                                    /* tap anywhere to dismiss */
+    /* pause while the pointer rests on it — and RE-ARM on leave, or a toast
+       that was hovered once stays on screen forever */
+    el.onpointerenter = function(){ if(toastTimer){clearTimeout(toastTimer);toastTimer=null;} };
+    el.onpointerleave = function(){
+      if(!el.classList.contains('show')) return;
+      if(toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(hide, opt.action? 4000 : 1600);
+    };
+    el.classList.add('show');
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer=setTimeout(hide, opt.ms || (opt.action?8000:2600));
+  }
+

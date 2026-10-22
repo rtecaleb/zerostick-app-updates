@@ -1,0 +1,454 @@
+/* recoil-pad.js: the Recoil Workshop's CONTROLLER path (D175), ZS_RECOIL_PAD.
+ *
+ * Most ZeroStick players play on a controller, and the mouse workshop
+ * (recoil-workshop.js, D170) traces a pattern in mouse counts, which a
+ * controller cannot do. This path is "tune it while you shoot", with no DPI,
+ * sensitivity, calibration or translator step anywhere in it:
+ *
+ *   1 Start   what to do (a plain wall 10 to 15 m away, hold Fire), the one
+ *             choice that matters before shooting (only while aiming down
+ *             sights), Start.
+ *   2 Tune    the player fires; the Core pulls the right stick LIVE while
+ *             the fire trigger is held (POST /recoil/pad, played by
+ *             components/zs_recoil/zs_recoil_pad.c). Big plain controls:
+ *             Pull down, Pull sideways, Start delay, Strength over the
+ *             magazine (start / middle / end of the spray, and how long the
+ *             spray lasts). The D-pad nudges Pull down (up / down) and Pull
+ *             sideways (left / right) by 1 from the controller itself; the
+ *             Core consumes those presses and the app picks the new numbers
+ *             up from the status poll ("rev"). Accept.
+ *
+ * Accept saves an ordinary Smart Action on Fire (follows rt+, so whatever
+ * Fire is bound to starts it), run while held, made of AIM steps on the
+ * right stick (the same step a hand-made "pull down" uses) sampled from the
+ * very shape the Core played (pullAt, held to zs_rcl_pad_push by the tests).
+ * Its stick variance is left at the action default (D171). The action keeps
+ * a `recoil` record {kind:'pad', ...} so its wrench re-opens this path.
+ *
+ * ES5 ONLY (DESIGN.md). Load after recoil-workshop.js, whose kit it borrows
+ * (ZS_RECOIL._kit).
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 250;
+  var SEND_MS = 120;
+  var SEG_MS = 100;                 /* the saved action's resolution */
+  var STEP_MS_CAP = 10000;          /* the runner's per-step cap */
+  var DUR_CAP = 30000;              /* the runner's maxDuration ceiling */
+
+  /* the Core's own bands (zs_recoil.h, ZS_RCL_PAD_*) */
+  var BAND = {
+    down: [0, 100], side: [-100, 100], delayMs: [0, 2000],
+    start: [0, 200], mid: [0, 200], end: [0, 200], sprayMs: [500, 10000]
+  };
+  var FIELDS = ['down', 'side', 'delayMs', 'start', 'mid', 'end', 'sprayMs'];
+
+  function Z() { return window.ZS; }
+  function K() { return window.ZS_RECOIL._kit; }
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function defaults() {
+    return { down: 25, side: 0, delayMs: 0, start: 100, mid: 100, end: 100, sprayMs: 3000, ads: false };
+  }
+  function cleanParams(src) {
+    var d = defaults(), o = {}, i;
+    src = src || {};
+    for (i = 0; i < FIELDS.length; i++) {
+      var f = FIELDS[i];
+      o[f] = clamp(Math.round(num(src[f], d[f])), BAND[f][0], BAND[f][1]);
+    }
+    o.ads = !!src.ads;
+    return o;
+  }
+
+  /* ── the shape: the Core's zs_rcl_pad_strength / _push, exactly ──── */
+
+  function strengthAt(p, t) {
+    if (!(t >= p.delayMs)) return 0;
+    var u = t - p.delayMs, half = p.sprayMs / 2;
+    if (half <= 0) return p.end / 100;
+    if (u <= half) return (p.start + (p.mid - p.start) * (u / half)) / 100;
+    if (u <= 2 * half) return (p.mid + (p.end - p.mid) * ((u - half) / half)) / 100;
+    return p.end / 100;
+  }
+  /* the right-stick push t ms after the trigger went down: +y is UP, so a
+     pull down is negative y */
+  function pullAt(p, t) {
+    var k = strengthAt(p, t);
+    if (k <= 0) return [0, 0];
+    return [clamp(p.side / 100 * k, -1, 1), clamp(-p.down / 100 * k, -1, 1)];
+  }
+
+  /* One AIM step (or a wait, when there is nothing to push) for `ms`. */
+  function stickStep(xy, ms) {
+    var dist = Math.round(Math.min(1, Math.sqrt(xy[0] * xy[0] + xy[1] * xy[1])) * 100) / 100;
+    if (dist <= 0) return { k: 'wait', ms: ms };
+    var ang = Math.round(Math.atan2(xy[1], xy[0]) * 180 / Math.PI);
+    return { k: 'stick', stick: 'right', angle: ((ang % 360) + 360) % 360, dist: dist, ms: ms };
+  }
+  function sameStep(a, b) {
+    return a.k === b.k && (a.k === 'wait' || (a.angle === b.angle && a.dist === b.dist));
+  }
+  function pushStep(out, st) {
+    var last = out[out.length - 1];
+    if (last && sameStep(last, st) && last.ms + st.ms <= STEP_MS_CAP) { last.ms += st.ms; return; }
+    out.push(st);
+  }
+  /* The saved action's steps: the delay as a wait, the spray in SEG_MS
+     slices (each at its middle's strength, so the line is followed both ways
+     evenly), slices that come out the same merged, then the end strength held
+     to the runner's 30 s ceiling (run while held: letting go of Fire ends it
+     whenever that is). */
+  function padSteps(p) {
+    var out = [], t, used = 0;
+    if (p.delayMs > 0) { out.push({ k: 'wait', ms: p.delayMs }); used = p.delayMs; }
+    for (t = 0; t < p.sprayMs; t += SEG_MS) {
+      var t1 = Math.min(p.sprayMs, t + SEG_MS);
+      pushStep(out, stickStep(pullAt(p, p.delayMs + (t + t1) / 2), t1 - t));
+    }
+    used += p.sprayMs;
+    var tail = DUR_CAP - used, endXY = pullAt(p, p.delayMs + p.sprayMs + 1);
+    while (tail > 0) {
+      var ms = Math.min(STEP_MS_CAP, tail);
+      pushStep(out, stickStep(endXY, ms));
+      tail -= ms;
+    }
+    return out;
+  }
+
+  /* ── the doors ask this ── */
+
+  /* the config's input type ('controller', 'mnk', 'stick_mouse'), or ''
+     when it does not say (recoil-workshop.js then asks) */
+  function inputOf(p) {
+    var L = Z().live;
+    var f = (L && L.full && p && L.full[p.id]) || {};
+    return String(f.inputType || (p && p.inputType) || '');
+  }
+  function isPadAction(a) {
+    return !!(a && a.recoil && typeof a.recoil === 'object' && a.recoil.kind === 'pad');
+  }
+
+  /* ── the sheet ── */
+
+  var cssDone = false;
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'rp-css';
+    s.textContent =
+      '.rp-how{margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.5}' +
+      '.rp-how li{margin:0 0 6px}' +
+      '.rp-live{font-variant-numeric:tabular-nums;font-size:15px;margin:0 0 10px;padding:10px 12px;' +
+        'border-radius:14px;border:1.5px solid var(--line,rgba(255,255,255,.12))}' +
+      '.rp-live.on{border-color:var(--accent,#2fd9ce);background:rgba(47,217,206,.08)}' +
+      '.rp-live b{font-size:19px}' +
+      '.rp-curve{display:block;width:100%;height:auto;margin:2px 0 8px}' +
+      '.rp-curve .ax{stroke:var(--line,rgba(255,255,255,.18));stroke-width:1}' +
+      '.rp-curve .ln{fill:none;stroke:var(--accent,#2fd9ce);stroke-width:2.2;stroke-linejoin:round}' +
+      '.rp-curve .pt{fill:var(--accent,#2fd9ce)}' +
+      '.rp-curve text{fill:var(--muted);font-size:10px}' +
+      '.rp-dpad{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 12px}' +
+      '.rp-kind{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}' +
+      '.rp-kind button{text-align:left;padding:14px;border-radius:16px;border:1.5px solid var(--line,rgba(255,255,255,.12));' +
+        'background:var(--panel2,#141a24);color:var(--text);font:inherit;cursor:pointer}' +
+      '.rp-kind button.pick{border-color:var(--accent,#2fd9ce)}' +
+      '.rp-kind b{display:block;font-size:17px;letter-spacing:var(--tr-title,-.016em);margin:0 0 3px}' +
+      '.rp-kind span{display:block;font-size:13px;color:var(--muted);line-height:1.4}';
+    document.head.appendChild(s);
+  }
+
+  /* the strength line: flat at 0 through the delay, then start, middle, end */
+  function curveSVG(p) {
+    var W = 300, H = 92, L = 6, R = 6, T = 10, B = 18;
+    var total = p.delayMs + p.sprayMs, top = Math.max(200, p.start, p.mid, p.end);
+    function X(t) { return (L + (W - L - R) * t / total).toFixed(1); }
+    function Y(s) { return (T + (H - T - B) * (1 - s / top)).toFixed(1); }
+    var pts = [[0, 0], [p.delayMs, 0], [p.delayMs, p.start], [p.delayMs + p.sprayMs / 2, p.mid], [total, p.end]];
+    if (!p.delayMs) pts = pts.slice(2);
+    var h = '<svg class="rp-curve" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="strength: start ' +
+      p.start + '%, middle ' + p.mid + '%, end ' + p.end + '%">' +
+      '<line class="ax" x1="' + L + '" y1="' + Y(100) + '" x2="' + (W - R) + '" y2="' + Y(100) + '" stroke-dasharray="3 4"/>' +
+      '<polyline class="ln" points="' + pts.map(function (q) { return X(q[0]) + ',' + Y(q[1]); }).join(' ') + '"/>';
+    [[p.delayMs, p.start], [p.delayMs + p.sprayMs / 2, p.mid], [total, p.end]].forEach(function (q) {
+      h += '<circle class="pt" cx="' + X(q[0]) + '" cy="' + Y(q[1]) + '" r="3.6"/>';
+    });
+    return h + '<text x="' + L + '" y="' + (H - 4) + '">first shot</text>' +
+      '<text x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end">end of the spray</text></svg>';
+  }
+
+  function sideWords(v) {
+    return v === 0 ? 'none' : Math.abs(v) + '% ' + (v < 0 ? 'left' : 'right');
+  }
+  function liveWords(W) {
+    var pd = (W.status && W.status.pad) || {};
+    if (pd.firing) {
+      var push = pd.push || [0, 0], x = Math.round(num(push[0], 0) * 100), y = Math.round(-num(push[1], 0) * 100);
+      if (!x && !y) return '<b>Firing</b> · ' + (W.p2.ads ? 'aim down sights to test it' : 'waiting for the start delay');
+      return '<b>Firing</b> · pulling ' + y + '% down' + (x ? ', ' + sideWords(x) : '');
+    }
+    return 'Hold Fire to test it' + (num(pd.plays, 0) ? ' · tested ' + pd.plays + '×' : '');
+  }
+
+  function open(p, opts) {
+    opts = opts || {};
+    css();
+    var saved = isPadAction(opts.action) ? opts.action.recoil : null;
+    var W = {
+      p: p, page: 'start', opened: false, closed: false, timer: null, stimer: null,
+      status: null, err: '', busy: false, rev: 0, sending: 0, cb: false,
+      p2: cleanParams(saved || (opts.action ? { ads: opts.action.gate === 'ads' } : null)),
+      editing: !!saved,
+      onAccept: opts.onAccept
+    };
+    W.paint = function () { paint(W); };
+    paint(W);
+    /* a read first (it opens nothing): whether Passthrough Mode is on, and
+       whether this Core has the workshop at all */
+    K().api('/recoil/status').then(function (j) {
+      if (W.closed) return;
+      if (j.ok && j.data) {
+        W.status = j.data;
+        window.ZS_RECOIL._setSupport(true);
+      } else if (/does not answer|501|not found|no such/i.test(String(j.error || ''))) {
+        window.ZS_RECOIL._setSupport(false);
+        W.err = 'This Core’s firmware does not have the Anti-Recoil Lab yet. Update the Core, then try again.';
+      }
+      if (W.page === 'start' && !W.busy) W.paint();
+    });
+    return W;
+  }
+
+  function teardown(W) {
+    if (W.closed) return;
+    W.closed = true;
+    if (W.timer) { clearInterval(W.timer); W.timer = null; }
+    if (W.stimer) { clearTimeout(W.stimer); W.stimer = null; }
+    if (W.opened) K().api('/recoil/close', 'POST', {});
+    W.opened = false;
+  }
+
+  function paint(W) {
+    if (W.closed) return;
+    var html = W.page === 'start' ? pageStart(W) : pageTune(W);
+    /* the first paint registers this workshop's close, even when the sheet
+       is already open (it came from the "Controller or Mouse?" page) */
+    var el = Z().sheetOpen('Anti-Recoil Lab', html, W.cb ? undefined : function () { teardown(W); });
+    W.cb = true;
+    if (Z().wire) Z().wire(el, 'rp/sheet');
+    wire(W, el);
+  }
+
+  function pageStart(W) {
+    var k = K();
+    var st = W.status || {}, navOk = st.navigate !== true;
+    var h = '<p class="rw-q">Make anti-recoil for a gun</p>' +
+      '<p class="rw-h">You shoot at a wall and adjust the pull until your shots stay on one spot. ' +
+      'The Core pulls your right stick down while you hold Fire. About a minute.</p>' +
+      '<ol class="rp-how">' +
+      '<li>In the game, go somewhere with a plain wall about <b>10 to 15 m</b> away (a practice range is ideal).</li>' +
+      '<li>Press <b>Start</b> below, then hold <b>Fire</b> at the wall.</li>' +
+      '<li>Shots climbing? Pull down more. Drifting sideways? Pull the other way.</li></ol>';
+    h += '<ul class="rw-checks">' +
+      '<li><i class="ok">✓</i><span>Your other Scripts are paused while this is open<em>They come back ' +
+        'the moment you close it.</em></span></li>' +
+      (navOk ? '' : '<li><i class="no">!</i><span>Passthrough Mode is <b>on</b>: switch it off with its shortcut first</span></li>') +
+      '</ul>';
+    h += k.card(k.fld('Only while aiming down sights', k.toggle(W.p2.ads, 'rp-ads', 'only while aiming down sights'),
+      'off: it pulls whenever you fire'));
+    h += W.err ? k.note(k.esc(W.err), 'warn') : '';
+    h += '<div class="rw-row">' + k.btn('Cancel', null, 'rp-cancel') +
+      k.btn(W.busy ? 'Opening…' : 'Start', 'primary', 'rp-start', W.busy) + '</div>';
+    return h;
+  }
+
+  function pageTune(W) {
+    var k = K(), q = W.p2, pd = (W.status && W.status.pad) || {};
+    var h = '<p class="rp-live' + (pd.firing ? ' on' : '') + '" id="rp-live" aria-live="polite">' + liveWords(W) + '</p>';
+    h += k.card(
+      k.stepper('Pull down', q.down, 1, 0, 100, '%', 'more if your shots still climb', 'down') +
+      k.stepper('Pull sideways', q.side, 1, -100, 100, '%', 'minus pulls left, plus pulls right', 'side') +
+      k.stepper('Start delay', q.delayMs, 10, 0, 2000, ' ms', 'wait this long after you start firing', 'delayMs'));
+    h += '<div class="sh">Strength over the magazine</div>' +
+      k.card('<div id="rp-curve">' + curveSVG(q) + '</div>' +
+        k.stepper('Start', q.start, 5, 0, 200, '%', 'the first shots', 'start') +
+        k.stepper('Middle', q.mid, 5, 0, 200, '%', 'half way through', 'mid') +
+        k.stepper('End', q.end, 5, 0, 200, '%', 'the last shots, and after', 'end') +
+        k.stepper('Spray lasts', q.sprayMs / 1000, 0.5, 0.5, 10, ' s', 'about how long a full magazine takes', 'sprayS'));
+    h += k.card(k.fld('Only while aiming down sights', k.toggle(q.ads, 'rp-ads', 'only while aiming down sights')));
+    h += '<p class="rp-dpad">On your controller: D-pad <b>up / down</b> changes Pull down, <b>left / right</b> ' +
+      'changes Pull sideways. The D-pad does nothing in the game while this is open.</p>';
+    h += W.err ? k.note(k.esc(W.err), 'warn') : '';
+    h += '<div class="rw-row">' + k.btn('Back', null, 'rp-back') +
+      k.btn(W.editing ? 'Save' : 'Accept', 'primary', 'rp-accept') + '</div>';
+    return h;
+  }
+
+  /* ── talking to the Core ── */
+
+  function body(W) {
+    var q = W.p2;
+    return { down: q.down, side: q.side, delayMs: q.delayMs, start: q.start, mid: q.mid, end: q.end,
+      sprayMs: q.sprayMs, ads: q.ads };
+  }
+  function send(W, now) {
+    if (W.stimer) clearTimeout(W.stimer);
+    W.stimer = setTimeout(function () {
+      W.stimer = null;
+      W.sending++;
+      K().api('/recoil/pad', 'POST', body(W)).then(function (j) {
+        W.sending--;
+        if (W.closed) return;
+        if (!j.ok) { W.err = String(j.error || 'The Core said no.'); W.paint(); return; }
+        if (j.data) { W.status = j.data; W.rev = num(j.data.pad && j.data.pad.rev, W.rev); }
+        if (W.err) { W.err = ''; W.paint(); }
+      });
+    }, now ? 0 : SEND_MS);
+  }
+
+  function openSession(W) {
+    W.busy = true;
+    W.err = '';
+    W.paint();
+    K().api('/recoil/open', 'POST', { pad: true }).then(function (j) {
+      if (W.closed) return null;
+      if (!j.ok) {
+        W.busy = false;
+        var e = String(j.error || '');
+        W.err = /does not answer|501|not found|no such|fire control/i.test(e)
+          ? 'This Core’s firmware does not have the controller Anti-Recoil Lab yet. Update the Core, then try again.'
+          : 'The Core could not open the workshop' + (e ? ': ' + e : '.');
+        W.paint();
+        return null;
+      }
+      W.opened = true;
+      W.status = j.data || {};
+      W.timer = setInterval(function () { poll(W); }, POLL_MS);
+      return K().api('/recoil/pad', 'POST', body(W)).then(function (r) {
+        if (W.closed) return;
+        W.busy = false;
+        if (!r.ok) { W.err = String(r.error || 'The Core said no.'); }
+        else if (r.data) { W.status = r.data; W.rev = num(r.data.pad && r.data.pad.rev, 0); }
+        W.page = 'tune';
+        W.paint();
+      });
+    });
+  }
+
+  function poll(W) {
+    if (W.closed) return;
+    K().api('/recoil/status').then(function (j) {
+      if (W.closed || !j.ok) return;
+      var was = W.status || {};
+      W.status = j.data || {};
+      if (W.status.state !== 'pad' && W.opened) {
+        W.opened = false;
+        W.err = 'The Core closed the workshop because it lost touch with the app. Go back and start it again.';
+        W.paint();
+        return;
+      }
+      live(W, was);
+    });
+  }
+
+  /* what moves on its own, without a repaint (which would cut a stepper's
+     hold-to-repeat short): the live line, and numbers the D-pad changed */
+  function live(W, was) {
+    var el = document.getElementById('sheetbody');
+    if (!el || W.page !== 'tune') return;
+    var pd = W.status.pad || {};
+    var ln = el.querySelector('#rp-live');
+    if (ln) { ln.innerHTML = liveWords(W); ln.classList.toggle('on', !!pd.firing); }
+    if (num(pd.rev, 0) > W.rev && !W.sending && !W.stimer) {
+      W.rev = num(pd.rev, 0);
+      ['down', 'side'].forEach(function (f) {
+        if (pd[f] == null || num(pd[f], W.p2[f]) === W.p2[f]) return;
+        W.p2[f] = clamp(Math.round(num(pd[f], 0)), BAND[f][0], BAND[f][1]);
+        var sv = el.querySelector('.sv[data-f="' + f + '"]');
+        if (sv) sv.textContent = String(W.p2[f]);
+      });
+    }
+  }
+
+  function accept(W) {
+    if (!W.onAccept) return;
+    var q = W.p2;
+    var action = {
+      name: 'Anti-recoil',
+      enabled: true,
+      colour: '#f47fa4',
+      trigger: { src: null, follow: 'rt+', gesture: 'press' },
+      holdMode: 'run_while_held', gate: q.ads ? 'ads' : 'always', uninterruptible: false,
+      varianceMs: 0, maxDurationMs: DUR_CAP, cooldownMs: 0, maxRepeats: 1,
+      category: 'Recoil', fromTemplate: 'recoil-workshop',
+      notes: 'Made in the Anti-Recoil Lab on a controller: pull down ' + q.down + '%' +
+        (q.side ? ', sideways ' + sideWords(q.side) : '') + '.',
+      steps: padSteps(q),
+      recoil: { v: 1, kind: 'pad', down: q.down, side: q.side, delayMs: q.delayMs, start: q.start,
+        mid: q.mid, end: q.end, sprayMs: q.sprayMs, ads: !!q.ads }
+    };
+    var cb = W.onAccept;
+    Z().sheetClose();       /* runs teardown: the Core's session closes */
+    cb(action);
+  }
+
+  function wire(W, el) {
+    function on(id, fn) {
+      var b = el.querySelector('#' + id);
+      if (b) b.addEventListener('click', function (e) { if (!b.disabled) fn(e, b); });
+    }
+    on('rp-cancel', function () { Z().sheetClose(); });
+    on('rp-start', function () { openSession(W); });
+    on('rp-ads', function (e, b) {
+      W.p2.ads = b.classList.contains('on');
+      if (W.page === 'tune') send(W, true);
+    });
+    on('rp-back', function () {
+      K().api('/recoil/close', 'POST', {});
+      W.opened = false;
+      if (W.timer) { clearInterval(W.timer); W.timer = null; }
+      W.page = 'start';
+      W.err = '';
+      W.paint();
+    });
+    on('rp-accept', function () { accept(W); });
+    el.addEventListener('zsstep', function (e) {
+      var t = e.target, f = t && t.getAttribute ? t.getAttribute('data-f') : null;
+      var v = num(parseFloat(t && t.textContent), NaN);
+      if (!f || !isFinite(v)) return;
+      if (f === 'sprayS') { f = 'sprayMs'; v = v * 1000; }
+      if (!BAND[f]) return;
+      W.p2[f] = clamp(Math.round(v), BAND[f][0], BAND[f][1]);
+      var cv = el.querySelector('#rp-curve');
+      if (cv && f !== 'down' && f !== 'side') cv.innerHTML = curveSVG(W.p2);
+      send(W, false);
+    });
+  }
+
+  /* ── "Controller or Mouse?" (recoil-workshop.js draws it, this words it) ── */
+
+  function kindHTML(mouseFirst) {
+    var pad = '<button type="button" id="rw-kind-pad"' + (mouseFirst ? '' : ' class="pick"') + '>' +
+      '<b>Controller</b><span>Shoot at a wall and adjust the pull while you fire. No setup.</span></button>';
+    var mouse = '<button type="button" id="rw-kind-mouse"' + (mouseFirst ? ' class="pick"' : '') + '>' +
+      '<b>Mouse</b><span>Trace the bullet marks with your mouse. Uses this config’s DPI.</span></button>';
+    css();
+    return '<p class="rw-q">What do you play this gun with?</p>' +
+      '<div class="rp-kind">' + (mouseFirst ? mouse + pad : pad + mouse) + '</div>';
+  }
+
+  window.ZS_RECOIL_PAD = {
+    open: open,
+    isPadAction: isPadAction,
+    inputOf: inputOf,
+    kindHTML: kindHTML,
+    /* the tests pin these */
+    _pullAt: pullAt,
+    _strengthAt: strengthAt,
+    _padSteps: padSteps,
+    _clean: cleanParams
+  };
+})();

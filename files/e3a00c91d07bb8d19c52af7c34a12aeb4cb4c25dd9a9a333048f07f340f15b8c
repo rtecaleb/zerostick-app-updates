@@ -1,0 +1,216 @@
+/* zs-vcal.js - the MANUAL Reticle Velocity Calibration's bookkeeping (D181).
+ *
+ * XIM's method, by hand: the player sweeps a known angle (a full turn back to
+ * a landmark for X, feet to sky for Y) and the Core integrates the stick it
+ * really sent (firmware/lite-p4/components/zs_vcal, routes /calibration/...).
+ * Each sweep comes back already as a FULL-STICK turn rate, because the app
+ * told the Core which dead zone the game has. This file is the app's half:
+ *
+ *   defaults     which dead zone to assume (the last MEASURED one: the
+ *                config's measured translator, else the latest auto
+ *                Calibrate result, else the config's own number) and a
+ *                comfortable locked stick force above it
+ *   law          the game's stick law the Core integrates with, taken from
+ *                the translator running now (its curve) and that dead zone
+ *   rate         a sweep's full-stick deg/s, recomputed from what the Core
+ *                observed (angle over turning time at a locked force) when
+ *                the player changes the dead zone afterwards, so a corrected
+ *                zone does not cost the sweeps
+ *   review       calibration.py's review(): ADS faster than hip, and the
+ *                four numbers not describing one game (separability)
+ *   toModel      the four numbers + the zone(s) -> the SAME resolved
+ *                translator the auto Calibrate writes
+ *                (mouseTranslation.resolvedAimModel, docs/AIM-MODEL.md,
+ *                needsCalibration false)
+ *
+ * WHY THE ASSEMBLY IS HERE AND NOT ON THE CORE. The A7S agent had a
+ * /calibration/assemble route because its sweeps came back as raw observed
+ * rates at an UNKNOWN response, and two of them at two forces had to be
+ * divided into each other to find the zone. With the zone known (the owner:
+ * "you already know the deadzone, just give me that by default") every sweep
+ * is a full-stick number by itself, and what is left is pure bookkeeping
+ * that the app must redo anyway when the zone is edited. One implementation,
+ * Node-tested (tools/test-vcal.js), and the draft stays where the player can
+ * see it.
+ *
+ * Pure functions, no DOM.
+ */
+(function (root) {
+  'use strict';
+
+  var RUNS = ['hipX', 'hipY', 'adsX', 'adsY'];
+  var MIN = 10, MAX = 4000;              /* the aim model's turnRate bounds */
+  var FORCE_MIN = 0.05, FORCE_MAX = 0.9; /* the Core's (zs_vcal.h) */
+  var MAX_RESIDUAL = 0.15;               /* calibration.py MAX_SEPARABILITY_RESIDUAL */
+
+  function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function r1(v) { return Math.round(v * 10) / 10; }
+  function r3(v) { return Math.round(v * 1000) / 1000; }
+
+  /* The dead zone to assume, and where it came from (a word for the screen).
+     mt: the config's mouseTranslation. calResult: GET /calibrate/status's
+     data.result, or null. */
+  function defaultDeadzone(mt, calResult, mode) {
+    var r = mt && mt.resolvedAimModel;
+    var m = isObj(r) ? r[mode === 'ads' ? 'ads' : 'hip'] : null;
+    if (isObj(r) && r.needsCalibration === false && isObj(m) && isNum(m.deadzone)) {
+      return { dz: r3(m.deadzone), from: 'measured' };
+    }
+    if (isObj(calResult)) {
+      var c = mode === 'ads' && isNum(calResult.adsDeadzone) ? calResult.adsDeadzone : calResult.deadzone;
+      if (isNum(c) && c >= 0 && c <= 0.5) { return { dz: r3(c), from: 'calibrate' }; }
+    }
+    if (mt && isNum(mt.gameDeadzone)) { return { dz: r3(mt.gameDeadzone), from: 'typed' }; }
+    if (isObj(m) && isNum(m.deadzone)) { return { dz: r3(m.deadzone), from: 'translator' }; }
+    if (mt && isNum(mt.antiDeadzone)) { return { dz: r3(mt.antiDeadzone), from: 'translator' }; }
+    return { dz: 0, from: 'none' };
+  }
+
+  /* A locked stick clearly past the zone, slow enough to stop on a landmark. */
+  function defaultForce(dz) {
+    var f = (isNum(dz) ? dz : 0) + 0.3;
+    return Math.round(Math.max(0.35, Math.min(FORCE_MAX, f)) * 100) / 100;
+  }
+
+  /* The game's law for one mode, as /calibration/start takes it. */
+  function law(mt, mode, dz) {
+    var r = mt && mt.resolvedAimModel;
+    var m = isObj(r) ? r[mode === 'ads' ? 'ads' : 'hip'] : null;
+    var out = { deadzone: dz };
+    if (isObj(m) && m.curve === 'lut' && Array.isArray(m.points) && m.points.length) {
+      out.points = m.points.slice(0, 16).map(function (p) { return [p[0], p[1]]; });
+    } else if (isObj(m) && m.curve === 'power' && isNum(m.exp) && m.exp >= 0.1 && m.exp <= 5) {
+      out.exp = m.exp;
+    }
+    return out;
+  }
+
+  /* zs_vcal_forward, so the app can redo a sweep at a corrected zone */
+  function forward(lw, s) {
+    var dz = isNum(lw.deadzone) ? lw.deadzone : 0;
+    s = Math.min(1, Math.abs(s));
+    if (s <= dz) { return 0; }
+    var u = (s - dz) / (1 - dz);
+    if (Array.isArray(lw.points) && lw.points.length) {
+      var x0 = 0, y0 = 0, i;
+      var pts = lw.points.filter(function (p) { return p[0] < 1 - 1e-6; }).concat([[1, 1]]);
+      for (i = 0; i < pts.length; i++) {
+        var x1 = pts[i][0], y1 = pts[i][1];
+        if (u <= x1) { return x1 > x0 ? y0 + (y1 - y0) * (u - x0) / (x1 - x0) : y1; }
+        x0 = x1; y0 = y1;
+      }
+      return 1;
+    }
+    return isNum(lw.exp) && lw.exp !== 1 ? Math.pow(u, lw.exp) : u;
+  }
+
+  /* One sweep's full-stick deg/s at the zone the draft says now. A locked
+     sweep is redone from what the Core observed; a free-stick one has only
+     the Core's own answer (its integral used the zone it was given). */
+  function rate(run, lw) {
+    if (!isObj(run)) { return 0; }
+    var q = Number(run.stickForce), obs = Number(run.observedDegPerS);
+    if (q > 0 && obs > 0 && lw) {
+      var g = forward(lw, q);
+      return g > 0 ? r1(obs / g) : 0;
+    }
+    var v = Number(run.degPerS);
+    return isFinite(v) && v > 0 ? v : 0;
+  }
+
+  /* calibration.py review(): plain sentences, [] = nothing detectable */
+  function review(cal) {
+    var out = [];
+    function val(k) { var v = cal && cal[k]; return isNum(v) && v > 0 ? v : null; }
+    var hx = val('hipX'), hy = val('hipY'), ax = val('adsX'), ay = val('adsY');
+    [[ax, hx, 'left and right', 'Hip X and ADS X'], [ay, hy, 'up and down', 'Hip Y and ADS Y']]
+      .forEach(function (t) {
+        if (t[0] !== null && t[1] !== null && t[0] > t[1]) {
+          out.push('Aiming down sights came out faster than hip fire ' + t[2] + ' (' +
+            Math.round(t[0]) + ' vs ' + Math.round(t[1]) + ' °/s). No game does that, so one of ' +
+            'those two sweeps was done in the other aim mode. Measure ' + t[3] + ' again.');
+        }
+      });
+    if (hx === null || hy === null || ax === null || ay === null) { return out; }
+    var left = hx * ay, right = hy * ax, scale = Math.max(left, right);
+    var res = scale > 0 ? Math.abs(left - right) / scale : 0;
+    if (res > MAX_RESIDUAL) {
+      out.push('These four numbers do not fit one game: aiming should slow left-right and ' +
+        'up-down by the same amount, and here they are ' + Math.round(res * 100) + '% apart. ' +
+        'At least one sweep measured something other than its name.');
+    }
+    return out;
+  }
+
+  /* The draft -> the four numbers, with the zone(s) as they are now.
+     draft: { runs: {hipX: <stop answer>, ...}, dz: {hip, ads}, mt } */
+  function assemble(draft) {
+    var cal = {}, mt = draft.mt || {};
+    var lw = { hip: law(mt, 'hip', draft.dz.hip), ads: law(mt, 'ads', draft.dz.ads) };
+    RUNS.forEach(function (k) {
+      var v = rate((draft.runs || {})[k], lw[k.slice(0, 3)]);
+      cal[k] = v >= MIN && v <= MAX ? v : null;
+    });
+    return { calibration: cal, problems: review(cal) };
+  }
+
+  /* What "Use these numbers" can write, or a sentence why not yet. */
+  function ready(cal) {
+    if (!cal.hipX || !cal.hipY) {
+      return 'Measure Hip X and Hip Y first: those two set the translator’s turn speed.';
+    }
+    return '';
+  }
+
+  /* One mode in the resolved shape (zs-aim-model.js resolvedMode). */
+  function modeOf(base, dz, vx, vy) {
+    var b = isObj(base) ? base : {};
+    return {
+      deadzone: dz,
+      shape: b.shape || 'circle',
+      curve: b.curve || 'linear',
+      exp: isNum(b.exp) ? b.exp : 1.0,
+      points: Array.isArray(b.points) ? b.points.map(function (p) { return [p[0], p[1]]; }) : [],
+      vx: vx,
+      vy: vy,
+      ramp: b.ramp || null,
+      dampMs: isNum(b.dampMs) ? b.dampMs : 0
+    };
+  }
+
+  /* The four numbers -> mouseTranslation.resolvedAimModel. The translator
+     running now gives the curve and the rest of the shape; the sweeps give
+     the turn rates and the zone. An ADS axis not measured is carried from
+     its measured sibling at the same aim-down-sight ratio, else from the
+     translator running now, else the hip one. */
+  function toModel(cal, dz, mt, name, id) {
+    var r = mt && mt.resolvedAimModel;
+    var cur = isObj(r) ? r : null;
+    var hx = cal.hipX, hy = cal.hipY, ax = cal.adsX, ay = cal.adsY;
+    if (!ax && ay) { ax = r1(ay * hx / hy); }
+    if (!ay && ax) { ay = r1(ax * hy / hx); }
+    if (!ax && !ay && cur && isObj(cur.ads) && isNum(cur.ads.vx) && isNum(cur.ads.vy)) {
+      ax = cur.ads.vx; ay = cur.ads.vy;
+    }
+    if (!ax || !ay) { ax = hx; ay = hy; }
+    var cm = mt && isNum(mt.cm360) ? mt.cm360 : 0;
+    return {
+      format: 'zs-aim-model/1',
+      translator: (cur && cur.translator) || id || 'game',
+      name: name,
+      needsCalibration: false,
+      generic: false,
+      use_cm: cm > 0,
+      hip: modeOf(cur && cur.hip, dz.hip, hx, hy),
+      ads: modeOf(cur && cur.ads, dz.ads, ax, ay)
+    };
+  }
+
+  root.ZSVCAL = {
+    RUNS: RUNS, FORCE_MIN: FORCE_MIN, FORCE_MAX: FORCE_MAX,
+    defaultDeadzone: defaultDeadzone, defaultForce: defaultForce, law: law,
+    forward: forward, rate: rate, review: review, assemble: assemble, ready: ready,
+    toModel: toModel
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

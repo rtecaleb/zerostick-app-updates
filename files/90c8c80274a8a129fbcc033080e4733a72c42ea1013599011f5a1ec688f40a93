@@ -1,0 +1,1345 @@
+/* zs-curve-grid.js - the curve editor (D184, XIM parity), window.ZSCURVE.
+ *
+ * ONE editor for every "draw your own curve" in the app: the Translation
+ * tab's mouse Speed curve and a controller stick's Custom curve (hip, and
+ * aiming's own). It reads like XIM's Curve Editor:
+ *
+ *   - a title, "Curve Editor - Right stick : Hip" (source : stance), from
+ *     the caller;
+ *   - HANDLES (the circles): 2 to 16 of them COUNTING the two fixed ends
+ *     (0, 0) and (1, 1), so 2 is a straight line. Each handle moves freely
+ *     across (kept at least GAP from its neighbours) and up (never below the
+ *     handle before it, never above the one after it), so the curve only
+ *     ever rises;
+ *   - CONTROL POINTS (the small solid dots), one in the middle of each
+ *     segment, ON the curve. Tapping one STRAIGHTENS that segment (a
+ *     straight line between its two handles); tapping it again makes it
+ *     smooth again. Straight segments are drawn as a small square, smooth
+ *     ones as a dot, so the state never rides on colour alone;
+ *   - the readout of the handle in hand, "x 1.000  y 0.907";
+ *   - Add handle (+), Remove handle (-), Straighten (the selected segment,
+ *     or all of them; "Smooth" when they already are), Reset view, COPY
+ *     and PASTE (a clipboard shared by every curve in the app: stances,
+ *     sticks and configs);
+ *   - zoom (wheel, pinch) and pan (drag on empty space) of the plot, held
+ *     so the 0..1 square is always in reach; a handle drag stays 1:1 in data
+ *     space at any zoom;
+ *   - the ready-made shapes: Linear, Ease-in, Ease-out, S-type.
+ *
+ * The line between the handles is a smooth MONOTONIC curve (Fritsch-
+ * Carlson, the "pchip" curve): it never dips, never overshoots a handle,
+ * and a flat stretch stays flat. A straight segment is a plain line, and a
+ * smooth segment beside one takes its slope (capped so it still cannot
+ * overshoot), so the curve stays continuous and rising. Across is the input
+ * (how far you push, how fast your hand moves: velocity IN, 0-100 %); up is
+ * the reticle's speed (OUT, 0-100 %). It is applied AFTER the Core has
+ * removed the game's own measured curve (the EXO Linear / translator
+ * inversion), never stacked on the game's curve.
+ *
+ * STORAGE. The same config fields as before (`grid`, `adsGrid`,
+ * `curveGrid`) hold the editor's curve in one of two shapes:
+ *   - the D184 shape, SEVEN numbers: y at x = 1/8 .. 7/8, ends fixed, no
+ *     straight segments. Every curve that IS that (handles on the 1/8 grid,
+ *     nothing straightened: every preset, an untouched straight line, a
+ *     curve only moved up and down) is still stored this way, so an older
+ *     app opens it, and an old config opens exactly as before;
+ *   - anything else: { v: 2, h: [[x, y], ...], s: [0|1, ...] }. `h` is
+ *     EVERY handle, ends included (h[0] = [0, 0], the last = [1, 1]), x
+ *     strictly rising, 4 decimals; `s` has one flag per segment (h.length - 1),
+ *     1 = straight.
+ * gridOf() accepts both and returns the canonical one of the two (or null).
+ *
+ * What the Core receives is not the handles: it is the curve SAMPLED
+ * (`points`, `adsPoints`, `curvePoints`), because the Core's curve is
+ * straight lines between points (zs_curves.c, piecewise, at most 16 pairs,
+ * the ends implied). A seven-number curve samples exactly as it always has,
+ * 15 places at 1/16 .. 15/16. Any other curve samples to 16 points: every
+ * handle's own x first (so a straight segment's corners are exact), then
+ * greedily the place where the straight lines miss the smooth curve most.
+ * Always <= 16 pairs, x strictly rising and never exactly 0 or 1, both
+ * 0..1: the shape the encoders (zs-profile-encode.js, encode.py
+ * _feel_points / _curve_points) and the firmware already accept, unchanged.
+ *
+ * Old configs: the Translation tab's first curve (D164) was three dots at
+ * 1/4, 1/2, 3/4, joined by straight lines. fromCurve() reads that (and any
+ * other curve a config can hold: linear, power, exponential) at the seven
+ * grid places, so the editor opens on the curve the config already runs and
+ * nothing is written until the player moves a point.
+ *
+ * Presets: D184 named its two shapes 'sticky' (below the line) and
+ * 'aggressive' (above it). Ease-in IS the old Sticky curve and Ease-out IS
+ * the old Aggressive one (same seven numbers), so a config saved with
+ * either lights the new name; the old ids stay recognised as aliases
+ * (PRESET_ALIAS) wherever an id is passed in.
+ *
+ * Direct manipulation (docs/DESIGN.md, the apple-design skill): a handle
+ * answers on pointer-down, tracks the finger 1:1 from where it was grabbed
+ * (no jump to the finger), keeps tracking off its own bounds (pointer
+ * capture), and saves on release. A pan rubber-bands at the edge of the
+ * square and settles on a critically damped spring that starts from where
+ * the view IS and the finger's velocity; any touch stops it where it is.
+ * Reduce Motion (the media query, or the app's body.a11y-motion) jumps.
+ *
+ * Keyboard: every handle is a role="slider". Up / Down move it up and down
+ * 2 %, Left / Right (and Shift + Up / Down) move it across 2 %, Page Up /
+ * Page Down 10 %, Home / End to its neighbours' limits, Delete removes it,
+ * + (or Insert) adds a handle beside it. Every control point is a toggle
+ * button (Enter / Space).
+ *
+ * ES5 only, no DOM at load: dashboard/tools/test-curve-editor.js and
+ * test-stick-modes.js run the pure half in Node.
+ */
+(function (root) {
+  'use strict';
+
+  var N = 7;                            /* the D184 grid: 1/8 .. 7/8 */
+  var X = [];
+  for (var k = 1; k <= N; k++) { X.push(k / (N + 1)); }
+  var SAMPLES = 15;                     /* a seven-number curve: 1/16 .. 15/16 */
+  var MAX_PTS = 16;                     /* the Core's cap (ZS_CURVE_POINTS_MAX) */
+  var MIN_H = 2, MAX_H = 16;            /* handles, ends included */
+  var GAP = 0.02;                       /* the least room between two handles */
+  var SMIN = 0.125;                     /* the deepest zoom: 1/8 of the square */
+  var W = 280, H = 196, PAD = 18;       /* the viewBox */
+  var PW = W - 2 * PAD, PH = H - 2 * PAD;
+  var CLIP_KEY = 'zs-curve-clipboard';
+  var FULL = { x: 0, y: 0, s: 1 };
+
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function clamp01(v) { return !isNum(v) ? 0 : (v < 0 ? 0 : (v > 1 ? 1 : v)); }
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  function round(v, dp) { var f = Math.pow(10, dp); return Math.round(v * f) / f; }
+
+  /* The straight line: what every curve starts as (the seven-number form,
+     so a fresh Custom curve opens with seven handles to take hold of). */
+  function straight() { return X.slice(); }
+
+  /* Seven values made legal: each 0..1 and never below the one before it
+     (the curve rises or stays flat; it never turns back). */
+  function monotone(ys) {
+    var out = [], lo = 0, i;
+    for (i = 0; i < N; i++) {
+      var v = clamp01(isNum(ys && ys[i]) ? ys[i] : X[i]);
+      if (v < lo) { v = lo; }
+      out.push(v);
+      lo = v;
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------ the model --
+     m = { h: [[x, y], ...] every handle, ends included; s: [bool] per
+     segment, true = straight }. */
+
+  function isSeven(v) {
+    if (!v || typeof v.length !== 'number' || v.length !== N || typeof v === 'string') { return false; }
+    for (var i = 0; i < N; i++) { if (!isNum(v[i])) { return false; } }
+    return true;
+  }
+  function sevenModel(ys) {
+    var g = monotone(ys), h = [[0, 0]], s = [], i;
+    for (i = 0; i < N; i++) { h.push([X[i], g[i]]); }
+    h.push([1, 1]);
+    for (i = 0; i < h.length - 1; i++) { s.push(false); }
+    return { h: h, s: s };
+  }
+
+  /* Any list of handles made legal: the ends forced, x rising with GAP
+     between, y never falling, 2..16 of them. Flags survive only when no
+     handle had to go (otherwise they would land on the wrong segments). */
+  function normModel(hs, ss) {
+    var pts = [], i, dropped = false;
+    for (i = 0; i < (hs ? hs.length : 0); i++) {
+      var q = hs[i];
+      if (q && isNum(q[0]) && isNum(q[1])) { pts.push([clamp01(q[0]), clamp01(q[1]), i]); }
+      else { dropped = true; }
+    }
+    pts.sort(function (a, b) { return a[0] - b[0] || a[2] - b[2]; });
+    var hadEnds = pts.length >= 2 && pts[0][0] === 0 && pts[pts.length - 1][0] === 1;
+    var h = [[0, 0]], lastY = 0;
+    for (i = 0; i < pts.length; i++) {
+      var x = round(pts[i][0], 4), y = round(pts[i][1], 4);
+      if (x <= 0 || x >= 1) { if (!hadEnds || (i !== 0 && i !== pts.length - 1)) { dropped = true; } continue; }
+      if (x < h[h.length - 1][0] + GAP - 1e-9 || x > 1 - GAP + 1e-9 || h.length >= MAX_H - 1) { dropped = true; continue; }
+      if (y < lastY) { y = lastY; }
+      h.push([x, y]);
+      lastY = y;
+    }
+    h.push([1, 1]);
+    var s = [], keep = !dropped && hadEnds && ss && ss.length === h.length - 1 && h.length === pts.length;
+    for (i = 0; i < h.length - 1; i++) { s.push(keep ? !!ss[i] : false); }
+    return { h: h, s: s };
+  }
+
+  /* A stored curve (either shape) as a model, or null. */
+  function modelOf(v) {
+    if (isSeven(v)) { return sevenModel(v); }
+    if (v && typeof v === 'object' && !isSeven(v) && v.h && typeof v.h.length === 'number') {
+      return normModel(v.h, v.s);
+    }
+    return null;
+  }
+  /* for drawing and sampling: seven slots with a hole in them are filled
+     the D184 way (monotone), anything unreadable is the straight line */
+  function anyModel(v) {
+    if (v && typeof v === 'object' && v.length === N) { return sevenModel(v); }
+    return modelOf(v) || sevenModel(straight());
+  }
+  function copyModel(m) {
+    return { h: m.h.map(function (q) { return [q[0], q[1]]; }), s: m.s.slice() };
+  }
+
+  /* The seven numbers, when the model is exactly a D184 curve; else null. */
+  function sevenOf(m) {
+    if (m.h.length !== N + 2) { return null; }
+    var out = [], i;
+    for (i = 0; i < m.s.length; i++) { if (m.s[i]) { return null; } }
+    for (i = 1; i <= N; i++) {
+      if (Math.abs(m.h[i][0] - X[i - 1]) > 1e-6) { return null; }
+      out.push(m.h[i][1]);
+    }
+    return out;
+  }
+  /* What goes in the config: seven numbers when it can be, else v2. */
+  function storeOf(m) {
+    var g = sevenOf(m);
+    if (g) { return g; }
+    return {
+      v: 2,
+      h: m.h.map(function (q) { return [round(q[0], 4), round(q[1], 4)]; }),
+      s: m.s.map(function (b) { return b ? 1 : 0; })
+    };
+  }
+
+  /* A config's stored grid in its canonical shape, or null when it is
+     neither seven numbers nor a v2 curve. */
+  function gridOf(v) {
+    var m = modelOf(v);
+    return m ? storeOf(m) : null;
+  }
+
+  /* ------------------------------------------------------ the smooth curve --
+     Fritsch-Carlson tangents through the handles. A straight segment
+     ignores tangents; a smooth one beside it takes its slope, capped at
+     3x its own (the Fritsch-Carlson box), so nothing overshoots. */
+  function knots(m) {
+    var xs = [], vs = [], n = m.h.length, h = [], d = [], t = [], i;
+    for (i = 0; i < n; i++) { xs.push(m.h[i][0]); vs.push(m.h[i][1]); }
+    for (i = 0; i < n - 1; i++) {
+      h.push(xs[i + 1] - xs[i]);
+      d.push((vs[i + 1] - vs[i]) / h[i]);
+    }
+    var s = m.s;
+    function capped(slope, dc) { return dc <= 0 ? 0 : Math.min(Math.max(slope, 0), 3 * dc); }
+    t[0] = d[0];
+    t[n - 1] = d[n - 2];
+    for (i = 1; i < n - 1; i++) {
+      if (s[i - 1] && !s[i]) {
+        t[i] = capped(d[i - 1], d[i]);
+      } else if (s[i] && !s[i - 1]) {
+        t[i] = capped(d[i], d[i - 1]);
+      } else if (d[i - 1] * d[i] <= 0) {
+        t[i] = 0;
+      } else {
+        var w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+        t[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+      }
+    }
+    /* the ends: keep the tangent from overshooting its own segment */
+    if (d[0] === 0) { t[0] = 0; } else if (t[0] > 3 * d[0]) { t[0] = 3 * d[0]; }
+    if (d[n - 2] === 0) { t[n - 1] = 0; } else if (t[n - 1] > 3 * d[n - 2]) { t[n - 1] = 3 * d[n - 2]; }
+    return { x: xs, y: vs, m: t, h: h, s: s.slice() };
+  }
+
+  /* The curve at t (0..1). */
+  function evalKnots(K, t) {
+    t = clamp01(t);
+    var i = 0;
+    while (i < K.x.length - 2 && t > K.x[i + 1]) { i++; }
+    var h = K.h[i], s = (t - K.x[i]) / h;
+    if (K.s[i]) { return K.y[i] + s * (K.y[i + 1] - K.y[i]); }
+    var s2 = s * s, s3 = s2 * s;
+    var y = (2 * s3 - 3 * s2 + 1) * K.y[i] + (s3 - 2 * s2 + s) * h * K.m[i] +
+            (-2 * s3 + 3 * s2) * K.y[i + 1] + (s3 - s2) * h * K.m[i + 1];
+    /* monotone by construction; this only stops a last-bit wobble */
+    var lo = K.y[i], hi = K.y[i + 1];
+    return y < lo ? lo : (y > hi ? hi : y);
+  }
+  function evalAt(v, t) { return evalKnots(knots(anyModel(v)), t); }
+
+  /* ------------------------------------------------- what the Core reads -- */
+  function sampleSeven(K) {
+    var out = [], j;
+    for (j = 1; j <= SAMPLES; j++) {
+      var x = j / (SAMPLES + 1);
+      out.push([x, round(evalKnots(K, x), 4)]);
+    }
+    return out;
+  }
+  function sampleAny(K) {
+    var xs = [0], i, j, q;
+    /* a corner (a handle beside a straight segment) is sampled exactly;
+       a smooth handle only if the error search below wants it */
+    for (i = 1; i < K.x.length - 1; i++) { if (K.s[i - 1] || K.s[i]) { xs.push(K.x[i]); } }
+    xs.push(1);
+    while (xs.length - 2 < MAX_PTS) {
+      var best = -1, bestE = 1e-4, bestX = 0, wide = -1, wideW = 0.004;
+      for (j = 0; j < xs.length - 1; j++) {
+        var a = xs[j], b = xs[j + 1], w = b - a;
+        if (w <= 0.004) { continue; }
+        if (w > wideW) { wideW = w; wide = j; }
+        var ya = evalKnots(K, a), yb = evalKnots(K, b);
+        for (q = 1; q < 12; q++) {
+          var tq = a + w * q / 12, e = Math.abs(evalKnots(K, tq) - (ya + (yb - ya) * q / 12));
+          if (e > bestE) { bestE = e; best = j; bestX = tq; }
+        }
+      }
+      var at = best >= 0 ? bestX : (wide >= 0 ? (xs[wide] + xs[wide + 1]) / 2 : -1);
+      if (at < 0) { break; }
+      at = round(at, 4);
+      var pos = 0;
+      while (pos < xs.length && xs[pos] < at) { pos++; }
+      if (Math.abs(xs[pos] - at) < 1e-4 || Math.abs(xs[pos - 1] - at) < 1e-4) { break; }
+      xs.splice(pos, 0, at);
+    }
+    var out = [];
+    for (i = 1; i < xs.length - 1; i++) { out.push([round(xs[i], 4), round(evalKnots(K, xs[i]), 4)]); }
+    return out;
+  }
+  /* What the Core receives: <= 16 [input, speed] pairs, x rising, 0..1. */
+  function sample(v) {
+    var m = anyModel(v), K = knots(m);
+    return sevenOf(m) ? sampleSeven(K) : sampleAny(K);
+  }
+
+  /* Any curve a config can already hold, read at the seven grid places:
+     linear, power and exponential (zs_curves.c's formulas) and piecewise
+     (straight lines through the points, anchored, as the Core draws them).
+     Old three-dot Speed curves come through the piecewise branch. */
+  function fromCurve(kind, strength, points) {
+    var ys = [], i;
+    var s = isNum(strength) ? strength : 1;
+    var pts = [];
+    if (kind === 'piecewise' && points && points.length) {
+      for (i = 0; i < points.length; i++) {
+        var q = points[i];
+        if (q && isNum(q[0]) && isNum(q[1])) { pts.push([clamp01(q[0]), clamp01(q[1])]); }
+      }
+      pts.sort(function (a, b) { return a[0] - b[0]; });
+      if (!pts.length || pts[0][0] > 0) { pts.unshift([0, 0]); }
+      if (pts[pts.length - 1][0] < 1) { pts.push([1, 1]); }
+    }
+    for (i = 0; i < N; i++) {
+      var x = X[i], y = x;
+      if (kind === 'power' && s > 0) {
+        y = Math.pow(x, s);
+      } else if (kind === 'exponential' && Math.abs(s) >= 1e-6) {
+        var c = Math.max(-60, Math.min(60, s));
+        y = (Math.exp(c * x) - 1) / (Math.exp(c) - 1);
+      } else if (pts.length) {
+        for (var j = 1; j < pts.length; j++) {
+          if (x <= pts[j][0]) {
+            var x0 = pts[j - 1][0], x1 = pts[j][0];
+            y = x1 <= x0 ? pts[j][1] : pts[j - 1][1] + (x - x0) / (x1 - x0) * (pts[j][1] - pts[j - 1][1]);
+            break;
+          }
+        }
+      }
+      ys.push(round(clamp01(y), 3));
+    }
+    return monotone(ys);
+  }
+
+  /* --------------------------------------------------- the ready-made ones --
+     Ease-in: gentle acceleration, slow near the middle and fast at the edge
+     (below the line; D184's Sticky / precise, same numbers). Ease-out:
+     aggressive, quick from the first push (above it; D184's Aggressive).
+     S-type: multi-zone, gentle at the start, steep through the middle,
+     flattening at the top (y = x - 0.7 sin(2 pi x) / 2 pi: slope 0.3 at the
+     ends, 1.7 in the middle, never falling). */
+  function shape(e) { return X.map(function (x) { return round(Math.pow(x, e), 3); }); }
+  function sType() {
+    return X.map(function (x) { return round(x - 0.7 * Math.sin(2 * Math.PI * x) / (2 * Math.PI), 3); });
+  }
+  var PRESETS = [
+    { id: 'linear', name: 'Linear', ys: straight() },
+    { id: 'easein', name: 'Ease-in', ys: shape(1.7) },
+    { id: 'easeout', name: 'Ease-out', ys: shape(0.6) },
+    { id: 'stype', name: 'S-type', ys: sType() }
+  ];
+  /* D184's ids, still understood wherever an id comes in */
+  var PRESET_ALIAS = { sticky: 'easein', aggressive: 'easeout' };
+  function presetById(id) {
+    id = PRESET_ALIAS[id] || id;
+    for (var i = 0; i < PRESETS.length; i++) { if (PRESETS[i].id === id) { return PRESETS[i]; } }
+    return null;
+  }
+  function presetOf(v) {
+    var m = modelOf(v);
+    if (!m) { return null; }
+    var g = sevenOf(m), i, j;
+    for (i = 0; i < PRESETS.length; i++) {
+      var p = PRESETS[i].ys, same = true;
+      if (g) {
+        for (j = 0; j < N; j++) { if (Math.abs(p[j] - g[j]) > 0.004) { same = false; } }
+      } else {
+        /* a v2 curve that draws the same shape (handles moved onto it) */
+        var K = knots(m), KP = knots(sevenModel(p));
+        for (j = 1; j < 32 && same; j++) {
+          if (Math.abs(evalKnots(K, j / 32) - evalKnots(KP, j / 32)) > 0.004) { same = false; }
+        }
+      }
+      if (same) { return PRESETS[i].id; }
+    }
+    return null;
+  }
+
+  /* ----------------------------------------------------------- the edits --
+     Pure: each takes a model and returns a new one (or null: not possible). */
+  function widestSeg(m) {
+    var k = 0, w = -1, i;
+    for (i = 0; i < m.h.length - 1; i++) {
+      var d = m.h[i + 1][0] - m.h[i][0];
+      if (d > w + 1e-12) { w = d; k = i; }
+    }
+    return k;
+  }
+  function roomIn(m, k) { return m.h[k + 1][0] - m.h[k][0] >= 2 * GAP + 0.0002; }
+  /* A handle in the middle of segment k (or the widest, when k has no room),
+     ON the curve as it is, so nothing moves under the finger. */
+  function addM(m, k) {
+    if (m.h.length >= MAX_H) { return null; }
+    if (!(k >= 0 && k < m.h.length - 1) || !roomIn(m, k)) { k = widestSeg(m); }
+    if (!roomIn(m, k)) { return null; }
+    var K = knots(m);
+    var x = round((m.h[k][0] + m.h[k + 1][0]) / 2, 4);
+    var y = round(clamp(evalKnots(K, x), m.h[k][1], m.h[k + 1][1]), 4);
+    var n = copyModel(m);
+    n.h.splice(k + 1, 0, [x, y]);
+    n.s.splice(k + 1, 0, n.s[k]);
+    return { m: n, i: k + 1 };
+  }
+  /* Handle i goes (never an end, never below two handles); its two
+     segments become one, straight only if both were. */
+  function removeM(m, i) {
+    if (m.h.length <= MIN_H || !(i >= 1 && i <= m.h.length - 2)) { return null; }
+    var n = copyModel(m);
+    var flag = !!(n.s[i - 1] && n.s[i]);
+    n.h.splice(i, 1);
+    n.s.splice(i - 1, 2, flag);
+    return n;
+  }
+  /* Segments ks (all when null) set straight (flag true) or smooth. */
+  function straightenM(m, ks, flag) {
+    var n = copyModel(m), i;
+    if (ks === null || ks === undefined) { for (i = 0; i < n.s.length; i++) { n.s[i] = flag; } }
+    else { for (i = 0; i < ks.length; i++) { if (ks[i] >= 0 && ks[i] < n.s.length) { n.s[ks[i]] = flag; } } }
+    return n;
+  }
+  /* Handle i moved to (x, y), kept between its neighbours. x not a number
+     keeps it where it is across. */
+  function moveM(m, i, x, y) {
+    if (!(i >= 1 && i <= m.h.length - 2)) { return; }
+    var a = m.h[i - 1], b = m.h[i + 1], q = m.h[i];
+    if (isNum(x)) { q[0] = round(clamp(x, a[0] + GAP, b[0] - GAP), 4); }
+    if (isNum(y)) { q[1] = round(clamp(clamp01(y), a[1], b[1]), 4); }
+  }
+
+  /* Public, on stored values: each returns the new stored curve, or null. */
+  function addHandle(v, k) {
+    var m = modelOf(v), r = m ? addM(m, isNum(k) ? k : -1) : null;
+    return r ? storeOf(r.m) : null;
+  }
+  function removeHandle(v, i) {
+    var m = modelOf(v), n = m ? removeM(m, i) : null;
+    return n ? storeOf(n) : null;
+  }
+  function straightenSeg(v, k, flag) {
+    var m = modelOf(v);
+    if (!m) { return null; }
+    return storeOf(straightenM(m, isNum(k) ? [k] : null, flag !== false));
+  }
+  function handlesOf(v) { var m = modelOf(v); return m ? copyModel(m) : null; }
+
+  /* "x 1.000  y 0.907" */
+  function readout(x, y) { return 'x ' + clamp01(x).toFixed(3) + '  y ' + clamp01(y).toFixed(3); }
+
+  /* ------------------------------------------------------------ clipboard --
+     One clipboard for every curve in the app, kept in localStorage so it
+     crosses stances, sticks, configs and a reload. Storage can be missing
+     or throw (a private window, blocked site data): the copy then lives in
+     memory for this session. The system clipboard also gets a small JSON,
+     best effort only; nothing reads it back. */
+  var clipMem = null, clipRead = false, live = [];
+  function clipGet() {
+    if (!clipRead) {
+      clipRead = true;
+      try {
+        var ls = root.localStorage, raw = ls && ls.getItem(CLIP_KEY);
+        if (raw) { var v = JSON.parse(raw); if (modelOf(v)) { clipMem = v; } }
+      } catch (e) { /* no storage: memory only */ }
+    }
+    return clipMem ? gridOf(clipMem) : null;
+  }
+  function copyCurve(v) {
+    var m = modelOf(v);
+    if (!m) { return false; }
+    var val = {
+      v: 2,
+      h: m.h.map(function (q) { return [round(q[0], 4), round(q[1], 4)]; }),
+      s: m.s.map(function (b) { return b ? 1 : 0; })
+    };
+    clipMem = val;
+    clipRead = true;
+    var json = JSON.stringify(val);
+    try { root.localStorage.setItem(CLIP_KEY, json); } catch (e) { /* memory only */ }
+    try {
+      var nc = root.navigator && root.navigator.clipboard;
+      if (nc && nc.writeText) {
+        var p = nc.writeText(JSON.stringify({ zsCurve: val }));
+        if (p && p.then) { p.then(null, function () { /* best effort */ }); }
+      }
+    } catch (e2) { /* best effort */ }
+    live = live.filter(function (ed) { return ed.alive(); });
+    live.forEach(function (ed) { ed.refresh(); });
+    return true;
+  }
+
+  /* -------------------------------------------------------------- drawing -- */
+
+  function px(x, v) { return PAD + (x - v.x) / v.s * PW; }
+  function py(y, v) { return H - PAD - (y - v.y) / v.s * PH; }
+  function f1(v) { return v.toFixed(1); }
+  function pct(v) { return Math.round(v * 100) + '%'; }
+
+  function pathOf(K, v) {
+    var lo = Math.max(0, v.x - v.s * 0.05), hi = Math.min(1, v.x + v.s * 1.05), xs = [], j;
+    for (j = 0; j <= 64; j++) { xs.push(lo + (hi - lo) * j / 64); }
+    for (j = 0; j < K.x.length; j++) { if (K.x[j] > lo && K.x[j] < hi) { xs.push(K.x[j]); } }
+    xs.sort(function (a, b) { return a - b; });
+    var d = '';
+    for (j = 0; j < xs.length; j++) {
+      d += (j ? ' L' : 'M') + f1(px(xs[j], v)) + ' ' + f1(py(evalKnots(K, xs[j]), v));
+    }
+    return d;
+  }
+
+  function gridMarkup(v) {
+    var step = Math.pow(2, Math.floor(Math.log(v.s / 8 + 1e-12) / Math.LN2 + 1e-9));
+    var g = '', i, a, b;
+    a = Math.ceil(v.x / step - 1e-9); b = Math.floor((v.x + v.s) / step + 1e-9);
+    for (i = a; i <= b; i++) {
+      var gx = f1(px(i * step, v));
+      g += '<line class="' + (i % 4 === 0 ? 'cg-major' : 'cg-line') + '" x1="' + gx + '" y1="' + f1(H - PAD) +
+        '" x2="' + gx + '" y2="' + f1(PAD) + '"/>';
+    }
+    var hs = step * 2;
+    a = Math.ceil(v.y / hs - 1e-9); b = Math.floor((v.y + v.s) / hs + 1e-9);
+    for (i = a; i <= b; i++) {
+      var gy = f1(py(i * hs, v));
+      g += '<line class="' + (i % 4 === 0 ? 'cg-major' : 'cg-line') + '" x1="' + f1(PAD) + '" y1="' + gy +
+        '" x2="' + f1(W - PAD) + '" y2="' + gy + '"/>';
+    }
+    g += '<line class="cg-diag" x1="' + f1(px(0, v)) + '" y1="' + f1(py(0, v)) + '" x2="' + f1(px(1, v)) +
+      '" y2="' + f1(py(1, v)) + '"/>';
+    return g;
+  }
+  function axMarkup(v, nm) {
+    var full = v.s >= 1 - 1e-9;
+    return '<text class="cg-ax" x="' + PAD + '" y="' + (H - 3) + '">' + (full ? '0%' : pct(v.x)) + '</text>' +
+      '<text class="cg-ax" x="' + f1(PAD + PW / 2) + '" y="' + (H - 3) + '" text-anchor="middle">' + esc(nm.x) + '</text>' +
+      '<text class="cg-ax" x="' + (W - PAD) + '" y="' + (H - 3) + '" text-anchor="end">' + (full ? '100%' : pct(v.x + v.s)) + '</text>' +
+      '<text class="cg-ax" x="' + PAD + '" y="' + (PAD - 5) + '">' + esc(nm.y) +
+        (full ? '' : ' ' + pct(v.y) + '–' + pct(v.y + v.s)) + '</text>';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function handleLabel(m, i, nm) {
+    var push = Math.round(m.h[i][0] * 100), val = Math.round(m.h[i][1] * 100);
+    return {
+      label: nm.y + ' at ' + push + '% ' + nm.x.toLowerCase() + ', handle ' + i + ' of ' + (m.h.length - 2),
+      text: val + '% ' + nm.y.toLowerCase() + ' at ' + push + '% ' + nm.x.toLowerCase(),
+      now: String(val)
+    };
+  }
+  function segLabel(m, k) {
+    return 'Segment ' + (k + 1) + ' of ' + m.s.length + ', ' + (m.s[k] ? 'straight' : 'smooth') +
+      '. Press to make it ' + (m.s[k] ? 'smooth' : 'straight');
+  }
+  /* A control point's touch area: generous, but it gives way near a
+     handle, which always wins the space around its own circle. */
+  function cpHit(m, K, v, k) {
+    var xm = (m.h[k][0] + m.h[k + 1][0]) / 2, ym = evalKnots(K, xm);
+    var cx = px(xm, v), cy = py(ym, v), dmin = 1e9, j;
+    for (j = k; j <= k + 1; j++) {
+      var dx = px(m.h[j][0], v) - cx, dy = py(m.h[j][1], v) - cy;
+      dmin = Math.min(dmin, Math.sqrt(dx * dx + dy * dy));
+    }
+    return { cx: cx, cy: cy, r: clamp(dmin * 0.45, 7, 20) };
+  }
+  function ptsMarkup(m, K, v, nm, sel) {
+    var out = '', i, k;
+    /* the fixed ends */
+    out += '<circle class="cg-end" data-cgend="0" cx="' + f1(px(0, v)) + '" cy="' + f1(py(0, v)) + '" r="6"/>' +
+      '<circle class="cg-end" data-cgend="1" cx="' + f1(px(1, v)) + '" cy="' + f1(py(1, v)) + '" r="6"/>';
+    for (i = 1; i < m.h.length - 1; i++) {
+      var L = handleLabel(m, i, nm), cx = f1(px(m.h[i][0], v)), cy = f1(py(m.h[i][1], v));
+      out += '<g class="cg-pt' + (sel && sel.h === i ? ' sel' : '') + '" data-cg="' + i + '" tabindex="0" role="slider" ' +
+        'aria-label="' + esc(L.label) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + L.now + '" ' +
+        'aria-valuetext="' + esc(L.text) + '">' +
+        '<circle class="cg-hit" cx="' + cx + '" cy="' + cy + '" r="20"/>' +
+        '<circle class="cg-ring" cx="' + cx + '" cy="' + cy + '" r="16"/>' +
+        '<circle class="cg-dot" cx="' + cx + '" cy="' + cy + '" r="9"/>' +
+        '</g>';
+    }
+    for (k = 0; k < m.s.length; k++) {
+      var c = cpHit(m, K, v, k), x1 = f1(c.cx), y1 = f1(c.cy);
+      out += '<g class="cg-cp' + (m.s[k] ? ' str' : '') + (sel && sel.s === k ? ' sel' : '') + '" data-cgseg="' + k +
+        '" tabindex="0" role="button" aria-pressed="' + (m.s[k] ? 'true' : 'false') + '" ' +
+        'aria-label="' + esc(segLabel(m, k)) + '">' +
+        '<circle class="cg-cphit" cx="' + x1 + '" cy="' + y1 + '" r="' + f1(c.r) + '"/>' +
+        '<circle class="cg-cpring" cx="' + x1 + '" cy="' + y1 + '" r="9"/>' +
+        '<circle class="cg-cpd" cx="' + x1 + '" cy="' + y1 + '" r="4.5"/>' +
+        '<rect class="cg-cps" x="' + f1(c.cx - 4.5) + '" y="' + f1(c.cy - 4.5) + '" width="9" height="9"/>' +
+        '</g>';
+    }
+    return out;
+  }
+
+  var CSS =
+    '.cg-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 10px;margin-top:8px}' +
+    '.cg-title{font-size:13px;font-weight:600;color:var(--text,#e6edf3);letter-spacing:var(--tr-body,0)}' +
+    '.cg-read{font-size:12px;color:var(--muted,#8b98a8);font-variant-numeric:tabular-nums;white-space:pre;min-height:1.4em}' +
+    '.cgrid{display:block;width:100%;max-width:340px;margin:6px auto 0;touch-action:none;user-select:none;-webkit-user-select:none}' +
+    '.cgrid .cg-bg{fill:transparent}' +
+    '.cgrid .cg-line{stroke:var(--line,#2a3340);stroke-width:1}' +
+    '.cgrid .cg-major{stroke:var(--line,#2a3340);stroke-width:1.4}' +
+    '.cgrid .cg-diag{stroke:var(--muted,#8b98a8);stroke-width:1.5;stroke-dasharray:4 5;opacity:.7}' +
+    '.cgrid .cg-path{fill:none;stroke:var(--accent,#2fd9ce);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}' +
+    '.cgrid .cg-hit,.cgrid .cg-cphit{fill:transparent}' +
+    '.cgrid .cg-end{fill:var(--zs-card,#151b23);stroke:var(--muted,#8b98a8);stroke-width:2}' +
+    '.cgrid .cg-dot{fill:var(--zs-card,#151b23);stroke:var(--accent,#2fd9ce);stroke-width:3;transition:r 90ms ease-out}' +
+    '.cgrid .cg-ring{fill:none;stroke:none}' +
+    '.cgrid .cg-pt{cursor:grab;outline:none}' +
+    '.cgrid .cg-pt.on{cursor:grabbing}' +
+    '.cgrid .cg-pt.on .cg-dot,.cgrid .cg-pt.sel .cg-dot,.cgrid .cg-pt:focus .cg-dot{r:12;fill:var(--accent,#2fd9ce)}' +
+    '.cgrid .cg-pt:focus .cg-ring,.cgrid .cg-pt.sel .cg-ring{stroke:var(--accent,#2fd9ce);stroke-width:2}' +
+    '.cgrid .cg-cp{cursor:pointer;outline:none}' +
+    '.cgrid .cg-cpd,.cgrid .cg-cps{fill:var(--accent,#2fd9ce)}' +
+    '.cgrid .cg-cps{display:none}' +
+    '.cgrid .cg-cp.str .cg-cps{display:inline}' +
+    '.cgrid .cg-cp.str .cg-cpd{display:none}' +
+    '.cgrid .cg-cpring{fill:none;stroke:none}' +
+    '.cgrid .cg-cp:focus .cg-cpring,.cgrid .cg-cp.sel .cg-cpring,.cgrid .cg-cp.on .cg-cpring{stroke:var(--accent,#2fd9ce);stroke-width:2}' +
+    '.cgrid .cg-off{display:none}' +
+    '.cgrid .cg-ax{fill:var(--muted,#8b98a8);font-size:10.5px;font-variant-numeric:tabular-nums}' +
+    /* .cgwrap in front: zs-kit.css's `.btn + .btn` sibling margin must not
+       step every button after the first down a row */
+    '.cg-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}' +
+    '.cgwrap .cg-tools .btn{flex:1 1 0;min-width:0;width:auto;margin:0;min-height:44px;padding:6px 8px;font-size:12.5px;line-height:1.2;white-space:normal}' +
+    '.cgwrap .cg-tools .cg-ico{flex:0 0 44px;padding:0;font-size:20px;font-weight:600}' +
+    '.cg-tools .cg-br{flex-basis:100%;height:0}' +
+    '.cg-presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}' +
+    '.cgwrap .cg-presets .btn{flex:1 1 0;min-width:0;width:auto;margin:0;min-height:44px;padding:6px 6px;font-size:12.5px;line-height:1.2;white-space:normal}' +
+    '.cgwrap .cg-presets .btn.on{border-color:var(--accent,#2fd9ce);color:var(--accent,#2fd9ce)}' +
+    '.cg-help{font-size:12px;line-height:1.45;color:var(--muted,#8b98a8);margin-top:8px;letter-spacing:var(--tr-caption,0)}' +
+    '.cg-say{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);border:0;white-space:nowrap}' +
+    '@media (prefers-reduced-motion:reduce){.cgrid .cg-dot{transition:none}}' +
+    'body.a11y-motion .cgrid .cg-dot{transition:none}';
+  var cssDone = false;
+  function ensureCss() {
+    var doc = root.document;
+    if (cssDone || !doc || !doc.createElement) { return; }
+    cssDone = true;
+    try {
+      var st = doc.createElement('style');
+      st.setAttribute('data-zs', 'curve-grid');
+      st.textContent = CSS;
+      (doc.head || doc.body || doc.documentElement).appendChild(st);
+    } catch (e) { /* a page without a head still draws the editor */ }
+  }
+
+  var HELP = 'Across: what goes in, 0–100%. Up: the reticle’s speed that comes out, 0–100%. ' +
+    'Drag a circle to move it; tap a dot to straighten that part. Applied after the Core takes out the ' +
+    'game’s own curve, so the two are never stacked.';
+
+  /* The editor's markup. o: { id, ys (the stored curve, either shape),
+     title ('Curve Editor - Right stick : Hip'), label (the whole editor's
+     name), xName ('Stick push'), yName ('Camera speed'), presets (bool),
+     help (a line under it; '' for none), straightLabel (an old-style "Make
+     it straight" button, reset to linear; omitted = none) }. */
+  function html(o) {
+    ensureCss();
+    var m = anyModel(o.ys), K = knots(m);
+    var nm = { x: o.xName || 'Stick push', y: o.yName || 'Camera speed' };
+    var id = esc(o.id);
+    var presets = '';
+    if (o.presets) {
+      var on = presetOf(storeOf(m));
+      presets = '<div class="cg-presets" role="group" aria-label="Ready-made curves">' +
+        PRESETS.map(function (p) {
+          return '<button class="btn ghost' + (p.id === on ? ' on' : '') + '" data-cgpreset="' + p.id + '"' +
+            ' aria-pressed="' + (p.id === on ? 'true' : 'false') + '">' + esc(p.name) + '</button>';
+        }).join('') + '</div>';
+    }
+    /* D285: the editor's how-to is a "?" (the app's helpHTML: bullets, and
+       hidden with Show help buttons off); a page without the app keeps the line */
+    var helpTxt = esc(o.help || HELP);
+    var ZSA = root && root.ZS;
+    var help = o.help === '' ? '' : (ZSA && typeof ZSA.helpHTML === 'function'
+      ? '<div class="cg-help">' + ZSA.helpHTML('cg-' + id, 'Curve editor', helpTxt) + '</div>'
+      : '<div class="cg-help">' + helpTxt + '</div>');
+    return '<div class="cgwrap" data-cgwrap="' + id + '" data-cgx="' + esc(nm.x) + '" data-cgy="' + esc(nm.y) + '">' +
+      '<div class="cg-head">' +
+        (o.title ? '<div class="cg-title" data-cgtitle="1">' + esc(o.title) + '</div>' : '') +
+        '<div class="cg-read" data-cgread="1" aria-hidden="true"></div>' +
+      '</div>' +
+      '<svg class="cgrid" id="' + id + '" viewBox="0 0 ' + W + ' ' + H + '" role="group" ' +
+        'aria-label="' + esc(o.label || o.title || 'Curve') + '">' +
+        '<defs><clipPath id="' + id + '-clip"><rect x="' + (PAD - 2) + '" y="' + (PAD - 2) + '" width="' + (PW + 4) +
+          '" height="' + (PH + 4) + '"/></clipPath></defs>' +
+        '<rect class="cg-bg" x="0" y="0" width="' + W + '" height="' + H + '"/>' +
+        '<g data-cggrid="1" clip-path="url(#' + id + '-clip)">' + gridMarkup(FULL) + '</g>' +
+        '<g data-cgax="1">' + axMarkup(FULL, nm) + '</g>' +
+        '<path class="cg-path" data-cgpath="1" clip-path="url(#' + id + '-clip)" d="' + pathOf(K, FULL) + '"/>' +
+        '<g data-cgpts="1">' + ptsMarkup(m, K, FULL, nm, null) + '</g>' +
+      '</svg>' +
+      '<div class="cg-tools" role="toolbar" aria-label="Curve tools">' +
+        '<button class="btn ghost cg-ico" data-cgadd="1" aria-label="Add handle" title="Add handle">+</button>' +
+        '<button class="btn ghost cg-ico" data-cgdel="1" aria-label="Remove handle" title="Remove handle"' +
+          ' disabled>−</button>' +
+        '<button class="btn ghost" data-cgstraighten="1">' + (m.s.every(Boolean) ? 'Smooth all' : 'Straighten all') + '</button>' +
+        '<button class="btn ghost" data-cgview="1" disabled>Reset view</button>' +
+        '<span class="cg-br" aria-hidden="true"></span>' +
+        '<button class="btn ghost" data-cgcopy="1" aria-label="Copy this curve">COPY</button>' +
+        '<button class="btn ghost" data-cgpaste="1" aria-label="Paste the copied curve"' +
+          (clipGet() ? '' : ' disabled') + '>PASTE</button>' +
+      '</div>' +
+      presets +
+      help +
+      (o.straightLabel ? '<button class="btn ghost" data-cgstraight="1" style="margin-top:8px">' + esc(o.straightLabel) + '</button>' : '') +
+      '<div class="cg-say" data-cgsay="1" role="status" aria-live="polite"></div>' +
+      '</div>';
+  }
+
+  /* Bring the editor to life. `wrap` is the [data-cgwrap] element html()
+     made; o: { ys, onInput(v) while dragging, onCommit(v) after every
+     change (release, a key, a button, a preset, a paste), onPreset(id, v)
+     instead of onCommit for a preset, onStraight() for the old reset
+     button }. v is always the STORED shape (see the header). Returns
+     { set(v), get(), view(), resetView(), zoom(factor, x, y), select(sel),
+       add(), remove(), straighten(), toggle(k), copy(), paste() }. */
+  function wire(wrap, o) {
+    if (!wrap || !wrap.querySelector) { return null; }
+    o = o || {};
+    var svg = wrap.querySelector('svg');
+    var L = {
+      grid: wrap.querySelector('[data-cggrid]'), ax: wrap.querySelector('[data-cgax]'),
+      path: wrap.querySelector('[data-cgpath]'), pts: wrap.querySelector('[data-cgpts]'),
+      read: wrap.querySelector('[data-cgread]'), say: wrap.querySelector('[data-cgsay]'),
+      add: wrap.querySelector('[data-cgadd]'), del: wrap.querySelector('[data-cgdel]'),
+      str: wrap.querySelector('[data-cgstraighten]'), view: wrap.querySelector('[data-cgview]'),
+      copy: wrap.querySelector('[data-cgcopy]'), paste: wrap.querySelector('[data-cgpaste]')
+    };
+    var nm = { x: wrap.getAttribute('data-cgx') || 'Stick push', y: wrap.getAttribute('data-cgy') || 'Camera speed' };
+    var m = anyModel(o.ys), K = knots(m);
+    var view = { x: 0, y: 0, s: 1 };
+    var sel = null;            /* { h: i } a handle, { s: k } a segment */
+    var drag = null, pans = {}, pan = null, pinch = null, anim = null;
+
+    function all(sel2) { return Array.prototype.slice.call(wrap.querySelectorAll(sel2)); }
+    function get() { return storeOf(m); }
+    function commit() { if (o.onCommit) { o.onCommit(get()); } }
+    function announce(t) { if (L.say) { L.say.textContent = t; } }
+    function now() {
+      try { if (root.performance && root.performance.now) { return root.performance.now(); } } catch (e) { /* none */ }
+      return Date.now();
+    }
+    function reduced() {
+      try {
+        if (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) { return true; }
+        var b = root.document && root.document.body;
+        return !!(b && b.classList && b.classList.contains('a11y-motion'));
+      } catch (e) { return false; }
+    }
+    function dis(b, off) { if (b) { b.disabled = !!off; } }
+
+    function say() {
+      if (!L.read) { return; }
+      var t = '';
+      if (drag && drag.kind === 'h') { t = readout(m.h[drag.i][0], m.h[drag.i][1]); }
+      else if (sel && isNum(sel.h)) { t = readout(m.h[sel.h][0], m.h[sel.h][1]); }
+      else if (sel && isNum(sel.s)) {
+        var xm = (m.h[sel.s][0] + m.h[sel.s + 1][0]) / 2;
+        t = readout(xm, evalKnots(K, xm));
+      }
+      L.read.textContent = t;
+    }
+    function strTargets() { return sel && isNum(sel.s) ? [sel.s] : null; }
+    function strAllOn() {
+      var ks = strTargets(), i;
+      if (ks) { return !!m.s[ks[0]]; }
+      for (i = 0; i < m.s.length; i++) { if (!m.s[i]) { return false; } }
+      return true;
+    }
+    function refresh() {
+      var canAdd = m.h.length < MAX_H && roomIn(m, widestSeg(m));
+      dis(L.add, !canAdd);
+      dis(L.del, !(sel && isNum(sel.h)) || m.h.length <= MIN_H);
+      if (L.str) {
+        var segSel = !!strTargets(), on = strAllOn();
+        L.str.textContent = (on ? 'Smooth' : 'Straighten') + (segSel ? '' : ' all');
+      }
+      dis(L.view, view.s >= 1 - 1e-6 && Math.abs(view.x) < 1e-6 && Math.abs(view.y) < 1e-6);
+      dis(L.paste, !clipGet());
+      var on2 = presetOf(get());
+      all('[data-cgpreset]').forEach(function (b) {
+        var hit = b.getAttribute('data-cgpreset') === on2;
+        b.classList.toggle('on', hit);
+        b.setAttribute('aria-pressed', hit ? 'true' : 'false');
+      });
+      say();
+    }
+    /* positions, labels and states, in place (nothing is rebuilt, so a
+       dragged or focused element stays the same element) */
+    function place() {
+      K = knots(m);
+      if (L.path) { L.path.setAttribute('d', pathOf(K, view)); }
+      all('.cg-end').forEach(function (c) {
+        var e = +c.getAttribute('data-cgend');
+        c.setAttribute('cx', f1(px(e, view)));
+        c.setAttribute('cy', f1(py(e, view)));
+        c.classList.toggle('cg-off', outside(e, e));
+      });
+      all('.cg-pt').forEach(function (g) {
+        var i = +g.getAttribute('data-cg');
+        if (!m.h[i]) { return; }
+        var cx = f1(px(m.h[i][0], view)), cy = f1(py(m.h[i][1], view));
+        all2(g, 'circle').forEach(function (c) { c.setAttribute('cx', cx); c.setAttribute('cy', cy); });
+        var lab = handleLabel(m, i, nm);
+        g.setAttribute('aria-label', lab.label);
+        g.setAttribute('aria-valuenow', lab.now);
+        g.setAttribute('aria-valuetext', lab.text);
+        g.classList.toggle('sel', !!(sel && sel.h === i));
+        g.classList.toggle('cg-off', outside(m.h[i][0], m.h[i][1]));
+      });
+      all('.cg-cp').forEach(function (g) {
+        var k2 = +g.getAttribute('data-cgseg');
+        if (!m.s.hasOwnProperty(k2)) { return; }
+        var c = cpHit(m, K, view, k2), x1 = f1(c.cx), y1 = f1(c.cy);
+        all2(g, 'circle').forEach(function (ci) { ci.setAttribute('cx', x1); ci.setAttribute('cy', y1); });
+        var hit = g.querySelector('.cg-cphit');
+        if (hit) { hit.setAttribute('r', f1(c.r)); }
+        var sq = g.querySelector('.cg-cps');
+        if (sq) { sq.setAttribute('x', f1(c.cx - 4.5)); sq.setAttribute('y', f1(c.cy - 4.5)); }
+        g.classList.toggle('str', !!m.s[k2]);
+        g.classList.toggle('sel', !!(sel && sel.s === k2));
+        var xm2 = (m.h[k2][0] + m.h[k2 + 1][0]) / 2;
+        g.classList.toggle('cg-off', outside(xm2, evalKnots(K, xm2)));
+        g.setAttribute('aria-pressed', m.s[k2] ? 'true' : 'false');
+        g.setAttribute('aria-label', segLabel(m, k2));
+      });
+      refresh();
+    }
+    function all2(el, s) { return Array.prototype.slice.call(el.querySelectorAll(s)); }
+    /* zoomed in, a point outside the window is not drawn in the margin
+       over the axis labels (Reset view brings it back) */
+    function outside(x, y) {
+      var e = 1e-6;
+      return x < view.x - e || x > view.x + view.s + e || y < view.y - e || y > view.y + view.s + e;
+    }
+    /* the handles and control points rebuilt (their number changed); the
+       keyboard focus goes back to the same handle or segment */
+    function rebuild(focusSel) {
+      K = knots(m);
+      if (sel && isNum(sel.h) && !(sel.h >= 1 && sel.h <= m.h.length - 2)) { sel = null; }
+      if (sel && isNum(sel.s) && !(sel.s >= 0 && sel.s < m.s.length)) { sel = null; }
+      if (L.pts) { L.pts.innerHTML = ptsMarkup(m, K, view, nm, sel); }
+      place();
+      if (focusSel) {
+        var el = isNum(focusSel.h) ? wrap.querySelector('.cg-pt[data-cg="' + focusSel.h + '"]')
+          : (isNum(focusSel.s) ? wrap.querySelector('.cg-cp[data-cgseg="' + focusSel.s + '"]') : null);
+        if (el && el.focus) { try { el.focus(); } catch (e) { /* old webview */ } }
+      }
+    }
+
+    /* ---- the view ---- */
+    function clampView(v) {
+      var s = clamp(v.s, SMIN, 1);
+      return { x: clamp(v.x, 0, 1 - s), y: clamp(v.y, 0, 1 - s), s: s };
+    }
+    function setView(v) {
+      view = { x: v.x, y: v.y, s: clamp(v.s, SMIN, 1) };
+      if (L.grid) { L.grid.innerHTML = gridMarkup(view); }
+      if (L.ax) { L.ax.innerHTML = axMarkup(view, nm); }
+      place();
+    }
+    function stopAnim() {
+      if (anim !== null) {
+        try { (root.cancelAnimationFrame || function () {})(anim); } catch (e) { /* none */ }
+        anim = null;
+      }
+    }
+    /* a critically damped spring (response 0.4 s, DESIGN.md's `move`) from
+       where the view IS, carrying vel (data units / s); x, y and s apart */
+    function animTo(target, vel) {
+      stopAnim();
+      target = clampView(target);
+      if (reduced() || !root.requestAnimationFrame) { setView(target); return; }
+      var w = 2 * Math.PI / 0.4, t0 = now(), keys = ['x', 'y', 's'], c1 = {}, c2 = {};
+      keys.forEach(function (k2) {
+        c1[k2] = view[k2] - target[k2];
+        c2[k2] = ((vel && vel[k2]) || 0) + w * c1[k2];
+      });
+      function step() {
+        var t = (now() - t0) / 1000, e = Math.exp(-w * t), nv = {}, done = true;
+        keys.forEach(function (k2) {
+          nv[k2] = target[k2] + (c1[k2] + c2[k2] * t) * e;
+          if (Math.abs(nv[k2] - target[k2]) > 1e-4) { done = false; }
+        });
+        if (done || t > 3) { anim = null; setView(target); return; }
+        setView(nv);
+        anim = root.requestAnimationFrame(step);
+      }
+      anim = root.requestAnimationFrame(step);
+    }
+    function zoomAround(ax, ay, s2) {
+      s2 = clamp(s2, SMIN, 1);
+      var f = s2 / view.s;
+      setView(clampView({ x: ax - (ax - view.x) * f, y: ay - (ay - view.y) * f, s: s2 }));
+    }
+    /* keep a handle the keyboard is moving in sight */
+    function reveal(i) {
+      if (!m.h[i]) { return; }
+      var q = m.h[i], v = view;
+      if (q[0] < v.x || q[0] > v.x + v.s || q[1] < v.y || q[1] > v.y + v.s) {
+        setView(clampView({ x: q[0] - v.s / 2, y: q[1] - v.s / 2, s: v.s }));
+      }
+    }
+    function rubber(v, lo, hi, dim) {
+      function rb(over) { return (over * dim * 0.55) / (dim + 0.55 * over); }
+      if (v < lo) { return lo - rb(lo - v); }
+      if (v > hi) { return hi + rb(v - hi); }
+      return v;
+    }
+    function rectOf() {
+      var r = svg && svg.getBoundingClientRect ? svg.getBoundingClientRect() : null;
+      return (r && r.width && r.height) ? r : null;
+    }
+    /* a pointer in data space (null when the plot has no size yet) */
+    function toData(ev) {
+      var r = rectOf();
+      if (!r) { return null; }
+      var vx = (ev.clientX - r.left) * (W / r.width), vy = (ev.clientY - r.top) * (H / r.height);
+      return { x: view.x + (vx - PAD) / PW * view.s, y: view.y + (H - PAD - vy) / PH * view.s };
+    }
+    function capture(ev) {
+      if (svg && svg.setPointerCapture) { try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* old webview */ } }
+    }
+
+    /* ---- the edits, as the buttons and keys make them ---- */
+    function addAt(k, focusIt) {
+      var r = addM(m, k);
+      if (!r) { announce(m.h.length >= MAX_H ? 'Sixteen handles is the most' : 'No room for another handle'); return false; }
+      m = r.m;
+      sel = { h: r.i };
+      rebuild(focusIt ? sel : null);
+      commit();
+      announce('Handle added');
+      return true;
+    }
+    function segForAdd() {
+      if (sel && isNum(sel.s)) { return sel.s; }
+      if (sel && isNum(sel.h)) {
+        var i = sel.h, a = m.h[i][0] - m.h[i - 1][0], b = m.h[i + 1][0] - m.h[i][0];
+        return b > a ? i : i - 1;
+      }
+      return -1;
+    }
+    function removeSel(focusIt) {
+      if (!(sel && isNum(sel.h))) { return false; }
+      var i = sel.h, n = removeM(m, i);
+      if (!n) { return false; }
+      m = n;
+      sel = m.h.length > 2 ? { h: Math.max(1, Math.min(i - 1 || 1, m.h.length - 2)) } : null;
+      rebuild(focusIt && sel ? sel : null);
+      if (focusIt && !sel && L.add && L.add.focus) { try { L.add.focus(); } catch (e) { /* none */ } }
+      commit();
+      announce('Handle removed');
+      return true;
+    }
+    function toggleSeg(k) {
+      if (!(k >= 0 && k < m.s.length)) { return; }
+      m = straightenM(m, [k], !m.s[k]);
+      sel = { s: k };
+      place();
+      commit();
+      announce('Segment ' + (k + 1) + (m.s[k] ? ' straight' : ' smooth'));
+    }
+    function straightenSel() {
+      var ks = strTargets(), flag = !strAllOn();
+      m = straightenM(m, ks, flag);
+      place();
+      commit();
+      announce((flag ? 'Straightened' : 'Smoothed') + (ks ? ' segment ' + (ks[0] + 1) : ' every segment'));
+    }
+    function setModel(n) { m = n; sel = null; rebuild(null); }
+
+    /* ---- pointers ---- */
+    if (svg) {
+      svg.addEventListener('pointerdown', function (ev) {
+        stopAnim();
+        var t = ev.target, g = t && t.closest ? t.closest('.cg-pt') : null;
+        var cp = !g && t && t.closest ? t.closest('.cg-cp') : null;
+        if (g && !drag && !pinch && !pan) {
+          var i = +g.getAttribute('data-cg'), d = toData(ev);
+          if (!m.h[i]) { return; }
+          drag = { kind: 'h', i: i, id: ev.pointerId, el: g, moved: false,
+            gx: d ? d.x - m.h[i][0] : 0, gy: d ? d.y - m.h[i][1] : 0 };
+          sel = { h: i };
+          g.classList.add('on');
+          capture(ev);
+          if (ev.preventDefault) { ev.preventDefault(); }
+          place();
+          return;
+        }
+        if (cp && !drag && !pinch && !pan) {
+          drag = { kind: 'c', k: +cp.getAttribute('data-cgseg'), id: ev.pointerId, el: cp,
+            cx: ev.clientX, cy: ev.clientY, off: false };
+          cp.classList.add('on');
+          capture(ev);
+          if (ev.preventDefault) { ev.preventDefault(); }
+          return;
+        }
+        if (drag) { return; }
+        /* empty space: one finger pans, two pinch */
+        pans[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+        var ids = Object.keys(pans);
+        capture(ev);
+        if (ev.preventDefault) { ev.preventDefault(); }
+        if (ids.length === 1) {
+          pan = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y, moved: false,
+            hist: [[now(), view.x, view.y]] };
+        } else if (ids.length === 2) {
+          pan = null;
+          var a = pans[ids[0]], b = pans[ids[1]];
+          var mid = { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+          pinch = { d0: Math.max(1, Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))), s0: view.s,
+            at: toData(mid) || { x: view.x + view.s / 2, y: view.y + view.s / 2 } };
+        }
+      });
+      svg.addEventListener('pointermove', function (ev) {
+        if (drag && ev.pointerId === drag.id) {
+          if (drag.kind === 'h') {
+            var d = toData(ev);
+            if (!d) { return; }
+            moveM(m, drag.i, d.x - drag.gx, d.y - drag.gy);
+            drag.moved = true;
+            place();
+            if (o.onInput) { o.onInput(get()); }
+          } else {
+            /* a tap slides off and back on (10 px of hysteresis) */
+            var off = Math.abs(ev.clientX - drag.cx) > 10 || Math.abs(ev.clientY - drag.cy) > 10;
+            drag.off = off;
+            drag.el.classList.toggle('on', !off);
+          }
+          return;
+        }
+        if (!pans[ev.pointerId]) { return; }
+        pans[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+        var r = rectOf();
+        if (!r) { return; }
+        if (pinch) {
+          var ids = Object.keys(pans), a = pans[ids[0]], b = pans[ids[1]];
+          if (!a || !b) { return; }
+          var dist = Math.max(1, Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)));
+          var s2 = clamp(pinch.s0 * pinch.d0 / dist, SMIN, 1);
+          var vx = ((a.x + b.x) / 2 - r.left) * (W / r.width), vy = ((a.y + b.y) / 2 - r.top) * (H / r.height);
+          setView(clampView({ x: pinch.at.x - (vx - PAD) / PW * s2, y: pinch.at.y - (H - PAD - vy) / PH * s2, s: s2 }));
+          return;
+        }
+        if (!pan || pan.id !== ev.pointerId) { return; }
+        if (!pan.moved) {
+          if (Math.abs(ev.clientX - pan.x) < 6 && Math.abs(ev.clientY - pan.y) < 6) { return; }
+          pan.moved = true;                       /* from here on, 1:1 */
+          pan.x = ev.clientX; pan.y = ev.clientY;
+          return;
+        }
+        var nx = pan.vx - (ev.clientX - pan.x) * (W / r.width) / PW * view.s;
+        var ny = pan.vy + (ev.clientY - pan.y) * (H / r.height) / PH * view.s;
+        var hi = 1 - view.s;
+        setView({ x: rubber(nx, 0, hi, view.s), y: rubber(ny, 0, hi, view.s), s: view.s });
+        pan.hist.push([now(), view.x, view.y]);
+        if (pan.hist.length > 5) { pan.hist.shift(); }
+      });
+      var end = function (ev) {
+        if (drag && ev.pointerId === drag.id) {
+          var dd = drag;
+          drag = null;
+          dd.el.classList.remove('on');
+          if (dd.kind === 'h') { place(); if (dd.moved) { commit(); } }
+          else if (!dd.off && ev.type === 'pointerup') { toggleSeg(dd.k); }
+          return;
+        }
+        if (!pans[ev.pointerId]) { return; }
+        delete pans[ev.pointerId];
+        if (pinch) {
+          pinch = null;
+          pan = null;
+          animTo(clampView(view), null);
+          return;
+        }
+        if (!pan || pan.id !== ev.pointerId) { return; }
+        var p0 = pan;
+        pan = null;
+        if (!p0.moved) {
+          /* a tap on empty space lets go of the selection */
+          if (ev.type === 'pointerup' && sel) { sel = null; place(); }
+          return;
+        }
+        /* the flick: velocity from the last few moves, projected
+           (DESIGN.md rule 3, d = 0.998), landed inside the square */
+        var h = p0.hist, a = h[0], b = h[h.length - 1], dt = (b[0] - a[0]) / 1000;
+        var vel = dt > 0.005 ? { x: (b[1] - a[1]) / dt, y: (b[2] - a[2]) / dt, s: 0 } : { x: 0, y: 0, s: 0 };
+        var proj = 0.998 / (1 - 0.998) / 1000;
+        animTo({ x: view.x + vel.x * proj, y: view.y + vel.y * proj, s: view.s }, vel);
+      };
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) { svg.addEventListener(n, end); });
+      /* The wheel zooms only a plot the person is working IN (m66,
+         2026-10-10): a scroll that merely passes over the graph on its way
+         up the page used to zoom it and stop the page. Engaged = already
+         zoomed, a pinch (ctrl/cmd + wheel, which is what a trackpad pinch
+         sends), or focus inside the plot (a handle the person picked). */
+      function engaged(ev) {
+        var ae = (typeof document !== 'undefined') ? document.activeElement : null;
+        return view.s < 1 || !!(ev.ctrlKey || ev.metaKey) ||
+          !!(ae && ae !== svg && svg.contains && svg.contains(ae));
+      }
+      svg.addEventListener('wheel', function (ev) {
+        if (!engaged(ev)) { return; }                         /* the page scrolls */
+        var dy = (ev.deltaY || 0) * (ev.deltaMode === 1 ? 16 : (ev.deltaMode === 2 ? 400 : 1));
+        var s2 = clamp(view.s * Math.exp(dy * 0.002), SMIN, 1);
+        if (Math.abs(s2 - view.s) < 1e-9) { return; }        /* nothing to zoom: the page scrolls */
+        if (ev.preventDefault) { ev.preventDefault(); }
+        stopAnim();
+        var d = toData(ev) || { x: view.x + view.s / 2, y: view.y + view.s / 2 };
+        zoomAround(d.x, d.y, s2);
+      }, { passive: false });
+      svg.addEventListener('focusin', function (ev) {
+        var t = ev.target, g = t && t.closest ? t.closest('.cg-pt') : null, cp = t && t.closest ? t.closest('.cg-cp') : null;
+        if (g) { sel = { h: +g.getAttribute('data-cg') }; reveal(sel.h); place(); }
+        else if (cp) { sel = { s: +cp.getAttribute('data-cgseg') }; place(); }
+      });
+      svg.addEventListener('keydown', function (ev) {
+        var t = ev.target, g = t && t.closest ? t.closest('.cg-pt') : null, cp = t && t.closest ? t.closest('.cg-cp') : null;
+        var k2 = ev.key, add = k2 === '+' || k2 === '=' || k2 === 'Insert' || k2 === 'Add';
+        if (cp) {
+          var sk = +cp.getAttribute('data-cgseg');
+          if (k2 === 'Enter' || k2 === ' ' || k2 === 'Spacebar') {
+            if (ev.preventDefault) { ev.preventDefault(); }
+            toggleSeg(sk);
+          } else if (add) {
+            if (ev.preventDefault) { ev.preventDefault(); }
+            sel = { s: sk };
+            addAt(sk, true);
+          }
+          return;
+        }
+        if (!g) { return; }
+        var i = +g.getAttribute('data-cg');
+        if (!m.h[i]) { return; }
+        sel = { h: i };
+        if (add) {
+          if (ev.preventDefault) { ev.preventDefault(); }
+          addAt(segForAdd(), true);
+          return;
+        }
+        if (k2 === 'Delete' || k2 === 'Backspace' || k2 === 'Del') {
+          if (ev.preventDefault) { ev.preventDefault(); }
+          removeSel(true);
+          return;
+        }
+        var q = m.h[i], x = null, y = null, sh = !!ev.shiftKey;
+        if (k2 === 'ArrowUp') { if (sh) { x = q[0] + 0.02; } else { y = q[1] + 0.02; } }
+        else if (k2 === 'ArrowDown') { if (sh) { x = q[0] - 0.02; } else { y = q[1] - 0.02; } }
+        else if (k2 === 'ArrowRight') { x = q[0] + 0.02; }
+        else if (k2 === 'ArrowLeft') { x = q[0] - 0.02; }
+        else if (k2 === 'PageUp') { y = q[1] + 0.1; }
+        else if (k2 === 'PageDown') { y = q[1] - 0.1; }
+        else if (k2 === 'Home') { y = 0; }
+        else if (k2 === 'End') { y = 1; }
+        else { return; }
+        if (ev.preventDefault) { ev.preventDefault(); }
+        moveM(m, i, x, y);
+        reveal(i);
+        place();
+        commit();
+      });
+    }
+
+    /* ---- the buttons ---- */
+    function on(b, fn) {
+      if (b) { b.addEventListener('click', function (ev) { if (b.disabled) { return; } fn(ev); }); }
+    }
+    on(L.add, function () { addAt(segForAdd(), false); });
+    on(L.del, function () { removeSel(false); });
+    on(L.str, straightenSel);
+    on(L.view, function () { animTo({ x: 0, y: 0, s: 1 }, null); });
+    on(L.copy, function () { if (copyCurve(get())) { announce('Curve copied'); } });
+    on(L.paste, function () {
+      var v = clipGet(), n = v ? modelOf(v) : null;
+      if (!n) { return; }
+      setModel(n);
+      commit();
+      announce('Curve pasted');
+    });
+    all('[data-cgpreset]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var p = presetById(b.getAttribute('data-cgpreset'));
+        if (!p) { return; }
+        setModel(sevenModel(p.ys));
+        if (o.onPreset) { o.onPreset(p.id, get()); } else { commit(); }
+      });
+    });
+    var st = wrap.querySelector('[data-cgstraight]');
+    if (st) {
+      st.addEventListener('click', function () {
+        setModel(sevenModel(straight()));
+        if (o.onStraight) { o.onStraight(); } else { commit(); }
+      });
+    }
+
+    var ed = {
+      alive: function () {
+        var d = wrap.ownerDocument;
+        return !!(d && d.documentElement && d.documentElement.contains && d.documentElement.contains(wrap));
+      },
+      refresh: refresh
+    };
+    live = live.filter(function (x) { return x.alive(); });
+    live.push(ed);
+    place();
+
+    return {
+      set: function (v) { setModel(anyModel(v)); },
+      get: get,
+      view: function () { return { x: view.x, y: view.y, s: view.s }; },
+      resetView: function () { animTo({ x: 0, y: 0, s: 1 }, null); },
+      zoom: function (f, ax, ay) {
+        stopAnim();
+        zoomAround(isNum(ax) ? ax : view.x + view.s / 2, isNum(ay) ? ay : view.y + view.s / 2, view.s / (f || 1));
+      },
+      panBy: function (dx, dy) { stopAnim(); setView(clampView({ x: view.x + dx, y: view.y + dy, s: view.s })); },
+      select: function (s) { sel = s || null; place(); },
+      selected: function () { return sel ? { h: sel.h, s: sel.s } : null; },
+      add: function () { return addAt(segForAdd(), false); },
+      remove: function () { return removeSel(false); },
+      straighten: straightenSel,
+      toggle: toggleSeg,
+      copy: function () { return copyCurve(get()); },
+      paste: function () { if (L.paste && !L.paste.disabled) { L.paste.click(); return true; } return false; },
+      readout: function () { return L.read ? L.read.textContent : ''; }
+    };
+  }
+
+  /* D401: XIM-FORMAT AIM CURVES, pasted in. Not the grid editor above: an
+     XIM curve is a quadratic-Bezier spline the Core runs as it is
+     (zs_bezier.h, written clean room from CURVE-SPEC.md), from the demanded
+     turn (0..1 of the game's top speed) to the stick. Points are integers
+     0..10000, laid out anchor, control, anchor, ..., anchor; a pair with
+     65535 in it ends the list. The rules are encode.py _xim_curve's, so a
+     curve this accepts is one the encoders write and the Core runs. */
+  var XIM_UNIT = 10000, XIM_END = 65535, XIM_MAX_POINTS = 63;
+  function ximStraight() { return [[0, 0], [5000, 5000], [10000, 10000]]; }
+  /* A pasted curve: any text with numbers in it, read as x, y pairs. All
+     numbers 0..1 are fractions (times 10000, rounded); otherwise they are
+     XIM's own 0..10000 integers. Returns { points } or { error } (a
+     sentence for the player). */
+  function ximParse(text) {
+    var nums = String(text == null ? '' : text).match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [];
+    var vals = nums.map(Number), i, pts = [], frac = true;
+    if (!vals.length) { return { error: 'Paste the curve’s numbers: x, y pairs.' }; }
+    for (i = 0; i < vals.length; i++) {
+      if (!isFinite(vals[i]) || vals[i] < 0) { return { error: 'The numbers must be 0 or more.' }; }
+      if (vals[i] === XIM_END) { vals = vals.slice(0, i - (i % 2)); break; }
+      if (vals[i] > 1) { frac = false; }
+    }
+    if (vals.length % 2) { return { error: 'The numbers must come in x, y pairs.' }; }
+    for (i = 0; i < vals.length; i += 2) {
+      var x = frac ? Math.round(vals[i] * XIM_UNIT) : vals[i];
+      var y = frac ? Math.round(vals[i + 1] * XIM_UNIT) : vals[i + 1];
+      if (Math.floor(x) !== x || Math.floor(y) !== y || x > XIM_UNIT || y > XIM_UNIT) {
+        return { error: 'Each number must be a whole number from 0 to 10000 (or 0 to 1).' };
+      }
+      pts.push([x, y]);
+    }
+    if (pts.length < 3 || pts.length % 2 === 0) {
+      return { error: 'A curve is anchor, handle, anchor, … ending on an anchor: an odd number of points, at least 3.' };
+    }
+    if (pts.length > XIM_MAX_POINTS) { return { error: 'At most 32 anchors (63 points).' }; }
+    for (i = 2; i < pts.length; i += 2) {
+      if (pts[i][0] < pts[i - 2][0]) { return { error: 'Each anchor must be at or right of the one before it.' }; }
+    }
+    if (pts[pts.length - 1][0] === pts[0][0]) { return { error: 'The curve has no width.' }; }
+    return { points: pts };
+  }
+  /* The curve at x (0..1), as the Core reads it: 0 outside the anchors. */
+  function ximEval(points, x) {
+    var i;
+    if (!Array.isArray(points) || !(x >= 0)) { return 0; }
+    for (i = 0; i + 2 < points.length; i += 2) {
+      var x0 = points[i][0] / XIM_UNIT, cx = points[i + 1][0] / XIM_UNIT, x1 = points[i + 2][0] / XIM_UNIT;
+      var y0 = points[i][1] / XIM_UNIT, cy = points[i + 1][1] / XIM_UNIT, y1 = points[i + 2][1] / XIM_UNIT;
+      if (x1 === x0 || x < x0 || x > x1) { continue; }
+      var a = x0 - 2 * cx + x1, b = 2 * (cx - x0), c = x0 - x, t;
+      if (Math.abs(a) < 1e-6) { t = (x - x0) / (x1 - x0); }
+      else { t = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a); }
+      t = Math.min(1, Math.max(0, t));
+      return Math.min(1, Math.max(0, (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * cy + t * t * y1));
+    }
+    return 0;
+  }
+  function ximIsStraight(points) {
+    var s = ximStraight();
+    return Array.isArray(points) && points.length === 3 && points.every(function (q, i) {
+      return q[0] === s[i][0] && q[1] === s[i][1];
+    });
+  }
+
+  root.ZSCURVE = {
+    ximStraight: ximStraight,
+    ximParse: ximParse,
+    ximEval: ximEval,
+    ximIsStraight: ximIsStraight,
+    N: N,
+    X: X.slice(),
+    MIN_HANDLES: MIN_H,
+    MAX_HANDLES: MAX_H,
+    GAP: GAP,
+    MAX_POINTS: MAX_PTS,
+    CLIP_KEY: CLIP_KEY,
+    straight: straight,
+    monotone: monotone,
+    gridOf: gridOf,
+    handlesOf: handlesOf,
+    storeOf: storeOf,
+    evalAt: evalAt,
+    sample: sample,
+    fromCurve: fromCurve,
+    PRESETS: PRESETS,
+    PRESET_ALIAS: PRESET_ALIAS,
+    presetById: presetById,
+    presetOf: presetOf,
+    addHandle: addHandle,
+    removeHandle: removeHandle,
+    straightenSeg: straightenSeg,
+    readout: readout,
+    copy: copyCurve,
+    clipboard: clipGet,
+    html: html,
+    wire: wire
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

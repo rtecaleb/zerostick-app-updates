@@ -1,0 +1,138 @@
+# Where the Apex Legends weapon catalog comes from
+
+Everything here was read on **2026-10-01**, during **Season 30: Marked, Split 2**
+(Season 30 launched 2026-08-04; Split 2 started 2026-09-15). `catalog.json` in
+this folder is every gun a player can pick up in Apex Legends' Battle Royale;
+this file says where every fact and every picture in it came from.
+
+**Pictures: publisher pictures only (decision D116).** Every picture in
+`weapons/` is Electronic Arts' own image, cut from the eight screenshots of the
+game's **Legend Locker weapon screen** on EA's own help site
+(help.ea.com, "Apex Legends guns and weapons guide"). So each is the game's
+own weapon render, exactly as the game draws it, on that screen's blue
+backdrop. None came from a fan wiki, Fandom, wiki.gg, a loadout site or an
+image search. They are EA's copyright, used in the app to identify the weapon,
+the same risk the owner accepted in D116. Delete a `.png` and set that
+weapon's `image` to `null` and the app shows the class symbol instead; nothing
+else changes.
+
+## The list
+
+EA's help article **"Apex Legends guns and weapons guide"**
+(<https://help.ea.com/en/articles/apex-legends/guns-and-weapons/>, "Updated 2
+days ago" when read on 2026-10-01) names every gun class and every gun in it.
+Its classes and their order are the game's own: the same as the tabs of the
+Legend Locker weapon screen in its screenshots (HAVOC, FLATLINE, HEMLOK, R-301,
+NEMESIS for the assault rifles, and so on). The catalog keeps that order.
+
+Counts: **29 guns in 7 classes**: Assault Rifles 5, SMGs 5, LMGs 4, Marksman 4,
+Sniper Rifles 4, Shotguns 4, Pistols 3. 8 have an official picture. This is
+the same 29 that press write-ups of Season 30 count ("29 weapons total").
+
+Three names differ between EA's help article and EA's newer patch notes. The
+catalog uses the patch notes' name, keeps the other as an `aliases` word (so
+search finds both) and marks the item `uncertain`:
+
+- **Hemlok Breach AR** (help article: "Hemlok Burst AR"). EA's Marked patch
+  notes (<https://www.ea.com/games/apex-legends/news/marked-patch-notes>) tune
+  the "Hemlok Breach AR" and its Breach Charge. The community wiki says the
+  Breach AR took the Burst AR's place in floor loot in Season 28 Split 2
+  (2026-03-24).
+- **RE-45** (help article: "RE-45 Auto"). The Marked patch notes call it
+  "RE-45" and give it an energy stockpile. The community wiki says the
+  three-round **RE-45 Burst** (energy ammo) replaced the RE-45 Auto in Season 28
+  Split 2. If the owner's screen writes "RE-45 BURST", rename the item (its id
+  stays `pistols.re_45`).
+- **Bocek Compound Bow** (help article: "Bocek 2.0"). EA's Marked Midseason
+  patch notes (<https://www.ea.com/games/apex-legends/news/marked-midseason-patch-notes>,
+  2026-09-14) call it "Bocek Compound Bow".
+
+**Not in the list, on purpose:** Legend abilities that shoot (Rampart's Sheila,
+which is her Ultimate, not a gun you carry), ordnance (grenades, Arc Stars,
+thermites), melee (cosmetic in Apex: every Legend punches), and limited-time
+mode weapons.
+
+**Akimbo.** The P2020 and the Mozambique Shotgun can be held two at once
+("Akimbo"); EA's help article says they take one weapon slot, so they are one
+gun each here, not separate entries.
+
+## Care Package and gold weapons
+
+Care Package (supply drop) guns are the same guns as on the floor, moved there
+for a season; they are not separate entries, and nothing in the catalog
+records the rotation, because it changes every season and the gun's picture
+and id do not. For the record, on 2026-10-01: the Marked patch notes move the
+**30-30 Repeater** into the Care Package and return the **G7 Scout** to the
+floor; press write-ups of Season 30 name the Care Package guns as the
+**Kraber .50-Cal Sniper**, the **L-STAR EMG** and the **30-30 Repeater**
+(not confirmed by an EA page). Gold weapons are no longer a rotating set
+(Marked patch notes, "Gold Weapon Rotation Removed").
+
+## Ammo (`ammo`)
+
+The ammo each gun takes, as `light`, `heavy`, `energy`, `shotgun`, `sniper` or
+`arrows` (EA's help article names those types). The C.A.R. SMG takes both
+heavy and light. From the community wiki's ammo page
+(<https://apexlegends.wiki.gg/wiki/Ammo>), checked against EA's Marked patch
+notes, whose energy rework lists the energy guns: HAVOC, Nemesis, Devotion,
+L-STAR, RE-45, Volt and Triple Take (energy ammo boxes were removed in Season
+30; those guns now carry a regenerating stockpile). A gun in the Care Package
+uses "Mythic" ammo that comes with it while it is there; its `ammo` is still
+its own type.
+
+## Pictures
+
+All fetched on **2026-10-01**. The first address in each row is the picture's
+own, on EA's help site; "Locker render" is the game's own weapon render cut
+from EA's screenshot of the Legend Locker weapon screen (800 x 450): it keeps
+that screen's blue backdrop. Where the gun's barrel reached into the screen's
+stats column on the left, the crop starts after the stats, so the barrel tip
+is trimmed (said in the row).
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/havoc_rifle.png | HAVOC Rifle | https://help.ea.com/_images/seegk6e7ypwi/62estpSnRkU6gsUkQM6A50/5df8e68e98f789afbde28feea1cc5c4b/apex-legends-weapons-guide-assault-rifles.webp | Locker render (480 x 162), muzzle tip trimmed | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/r_99_smg.png | R-99 SMG | https://help.ea.com/_images/seegk6e7ypwi/4e1mcwEJq5dVne0yDhAnvQ/b18dcbf6040be6e5697369ec1d31221d/apex-legends-weapons-guide-submachine-guns.webp | Locker render (420 x 207), magazine cut at the bottom by the screen's level bar | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/rampage_lmg.png | Rampage LMG | https://help.ea.com/_images/seegk6e7ypwi/75ZeHG7vWWGn3gqsuzOKdw/ce087d075814c908c6f8b190ab39023b/apex-legends-weapons-guide-light-machine-guns.webp | Locker render (480 x 133), muzzle trimmed | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/30_30_repeater.png | 30-30 Repeater | https://help.ea.com/_images/seegk6e7ypwi/BT8KWYz4zzQvFAiuk4QmB/264482a655fbb3d27dd4e856e4015655/apex-legends-weapons-guide-marksman.webp | Locker render (480 x 118), barrel tip trimmed | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/charge_rifle.png | Charge Rifle | https://help.ea.com/_images/seegk6e7ypwi/opHdqnGEUdNs65CaVkrHp/16d838a3be1c1d2d66f3961b76229321/apex-legends-weapons-guide-sniper-rifles.webp | Locker render (475 x 220) | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/peacekeeper.png | Peacekeeper | https://help.ea.com/_images/seegk6e7ypwi/50ajg2s8eXP9jn2ofn2I9E/31b8a4e5c442bd1c6481b96392d15034/apex-legends-weapons-guide-shotguns.webp | Locker render (480 x 117) | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/wingman.png | Wingman | https://help.ea.com/_images/seegk6e7ypwi/sZISPZBildRQevOXUn79O/0ed02fe65400e2b6c0a19adb974837eb/apex-legends-weapons-guide-pistols.webp | Locker render (283 x 164) | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+| weapons/mozambique_shotgun.png | Mozambique Shotgun | https://help.ea.com/_images/seegk6e7ypwi/514pTZ64wbowERnWg33w8K/165ddb6a3a7481ca43a5ed12c9b22c65/apex-legends-weapons-guide-akimbo-pistols.webp | Locker render (405 x 194), from the article's Akimbo section | [page](https://help.ea.com/en/articles/apex-legends/guns-and-weapons/) | 2026-10-01 |
+
+## No official picture (image: null)
+
+EA publishes no clean per-weapon render set: ea.com has no weapons page
+(`/games/apex-legends/about/weapons` is a 404), the Marked and Marked
+Midseason patch notes show season art and screenshots, not single guns, and
+the help article shows only the eight above. The app shows the class symbol
+for these until the owner trains the weapon from his own screen, and his crop
+then becomes the row's picture (D122 section 5):
+
+- VK-47 Flatline, Hemlok Breach AR, R-301 Carbine, Nemesis Burst AR (group `assault_rifles`)
+- Alternator SMG, Prowler Burst PDW, Volt SMG, C.A.R. SMG (group `smgs`)
+- Devotion LMG, L-STAR EMG, M600 Spitfire (group `lmgs`)
+- G7 Scout, Triple Take, Bocek Compound Bow (group `marksman`)
+- Longbow DMR, Kraber .50-Cal Sniper, Sentinel (group `sniper_rifles`)
+- EVA-8 Auto, Mastiff (group `shotguns`)
+- RE-45, P2020 (group `pistols`)
+
+The fan wikis (apexlegends.wiki.gg, Fandom) carry a render of every gun, but
+those are EA's art re-hosted by a fan site, which D116 rules out as a source.
+Using them is the owner's call, not this file's.
+
+## Update the list when a season changes the guns
+
+Apex adds or reworks a gun every few seasons, at each season and each
+mid-season split. For each change:
+
+1. Read the season's patch notes on ea.com
+   (<https://www.ea.com/games/apex-legends/news>), section **WEAPONS** and
+   **LOOT**, and EA's weapons guide (link above).
+2. A new gun goes at the end of its class with its id
+   (`<class>.<slug of name>`, game-data/README.md), `name`, `from` (the season
+   it arrived, or `null`), `sources`, `ammo`, `uncertain: null`. A renamed gun
+   keeps its id and gets the new name; the old one goes into `aliases`.
+3. Set `asOf` to today and `season` to the season now live.
+4. Run `node dashboard/tools/test-game-data.js`; rebuild the exe and run
+   `node dashboard/tools/sync-mobile.js`.

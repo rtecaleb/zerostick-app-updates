@@ -1,0 +1,230 @@
+# Where the Black Ops 7 multiplayer weapon catalog comes from
+
+Everything here was read on **2026-09-23**. `catalog.json` in this folder is the
+list of every weapon a player can put in a Black Ops 7 **multiplayer** loadout;
+this file says where every fact and every picture in it came from.
+
+**Pictures: publisher artwork only (decision D116).** Every picture in
+`weapons/` is Activision's own image, from callofduty.com or its image server
+imgs.callofduty.com, converted to PNG, cropped to the weapon and scaled to at
+most 480 x 300 pixels. 63 of them are byte-for-byte copies of the Black Ops 7
+pictures in `../cod-warzone/weapons/` (the same weapons; each catalog folder is
+self-contained, so they are copied, not shared), and their rows below are the
+Warzone catalog's rows unchanged. One, the Roc 20mm, is new here. None came from
+a fan wiki, Fandom, a loadout site or an image search. They are Activision's
+copyright, used in the app to identify the weapon, the same risk the owner
+accepted for the game pictures in D116. Delete a `.png` and set that weapon's
+`image` to `null` and the app shows the class symbol instead; nothing else
+changes.
+
+## What is in Black Ops 7 multiplayer today
+
+- **Current season: Season 06, "The Haunting"**, live since September 17, 2026
+  ([Season 06 blog](https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement),
+  [Black Ops 7 Season 06 patch notes](https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes)).
+  The notes call it "the final Season of Black Ops 7 Ranked Play".
+- **Launch (November 14, 2025): 30 weapons**, 23 primary, 5 secondary, 2 melee
+  ([launch weapons blog](https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment)).
+- **Every season since added weapons** (Black Ops 7's own patch notes and season
+  blogs, table below): Season 01 seven (Kogot-7, Maddox RFB, Sokol 545, NX
+  Ravager, Ballistic Knife, then Sturmwolf 45 and Hawker HX at Season 01
+  Reloaded); Season 02 seven (REV-46, EGRT-17, H311-SAW, GDL Havoc, SG-12, then
+  Voyak KT-3 and Swordfish A1 at Reloaded); Season 03 six (MK35 ISR, VST,
+  Strider 300, 1911, then Siren and Katana); Season 04 six (KRS-7.62, CBRS-3,
+  Grimhawk, VX Compact, then AN-94 and Executioner's Duet); Season 05 four
+  (FG42, Gremlin, Mammoth, then Mace); Season 06 four (VMP, TR51 Para,
+  Arcblade, Roc 20mm).
+
+Counts: **64 weapons in 10 classes**: Assault Rifles 14, SMGs 13, Shotguns 4,
+LMGs 4, Marksman Rifles 5, Sniper Rifles 5, Pistols 4, Launchers 2, Special 5,
+Melee 8. All 64 have a picture.
+
+## Black Ops 7 multiplayer against Warzone
+
+Checked, not assumed:
+
+- **Every Black Ops 7 weapon in Warzone is in multiplayer, and the reverse.**
+  The 64 here are exactly the 64 Black Ops 7 weapons of `../cod-warzone/`. Each
+  one is named, with its class, on a Black Ops 7 multiplayer page (the launch
+  blog, a season blog, or the Black Ops 7 patch notes' "New Weapons" section),
+  and the Warzone catalog finds each one on a Warzone page. No season added a
+  weapon to only one of the two.
+- **What Warzone has and multiplayer does not: the 206 Legacy weapons** (Black
+  Ops 6, Modern Warfare III, Modern Warfare II). The Season 01 blog's Warzone
+  section says they are "accessible in Call of Duty: Warzone (only)".
+- **Not in this list, on purpose:**
+  - Scorestreak weapons (Death Machine, War Machine, Grim Reaper, Archangel
+    Launcher, Combat Bow and the others the Season 01 Reloaded notes add under
+    "Returning Black Ops 6 Loadout Content"): they come from a Scorestreak, not
+    from a loadout.
+  - Zombies-only weapons: the Wonder Weapons, and the "Ultra-Rarity Legacy
+    Weapons" that appear only in Zombies Mystery Boxes (the PPSh-41 from Season
+    04 Reloaded, the TR2 and the Olympia from Season 05 Reloaded).
+  - Weapon Blueprints and Mastercraft variants, even when an event names them
+    like a weapon: Season 06's "DOOM Shotgun" and "Crucible Blade" are the
+    "Tear" M10 Breacher and "Crucible" Katana Blueprints (Season 06 blog).
+  - Equipment (the Combat Axe is a Lethal).
+
+## How the list is organised, and what is not confirmed
+
+- **Classes, in the game's order.** Activision's own [Black Ops 7 weapons
+  guide](https://www.callofduty.com/guides/blackops7/weapons) filters by
+  Assault Rifle, SMG, Shotgun, LMG, Marksman Rifle, Sniper Rifle, Pistol,
+  Launcher, Special, Melee, the order the launch blog lists Primary, Secondary
+  and Melee weapons in. The group ids and names are the Warzone catalog's (the
+  plural the launch blog uses; "Special" as the guide and the patch-note class
+  brackets write it), so a weapon has the same id in both catalogs.
+- **Order inside a class**: the launch weapons first, the free one then by the
+  player level that unlocks it (the launch blog's "Player Levels: Weapon Unlock
+  Criteria"), then each later weapon in the order its season added it. **The
+  order on the in-game screen itself was not confirmed** from an official page.
+- **Ids** are the Warzone catalog's ids for the same weapons. They are permanent
+  in each catalog on its own; sharing them only means a weapon trained in one
+  game reads the same in the other.
+
+## Names
+
+Names are spelt as the Warzone catalog spells them, which is Activision's
+spelling in running text (the launch blog first, then the season blogs and
+patch-note text); every one was checked against the Black Ops 7 pages below.
+The game draws weapon names in capitals, so capitalisation never changes what
+the owner sees on screen. The Warzone catalog's `SOURCES.md` lists Activision's
+own slips (A.R.C M1, Coda 9 / CODA 9, Flatline Mk.II / MK.II, Peacekeeper MK1 /
+Mk1, M15 Mod 0 / MOD 0) and what was used instead; the same choices hold here.
+The Season 01 blog also writes "Sturmwulf 45" twice and "Hawker HK" once, under
+their camo pictures; its own headings and every other page say Sturmwolf 45 and
+Hawker HX.
+
+## Uncertain
+
+- `pistols.coda_9` (Coda 9): Capitalisation only: Activision writes 'Coda 9' (launch blog, patch-note text) and 'CODA 9' (weapons guide, Season 01 notes) about equally; the game sets names in capitals, so both read the same on screen.
+- `special.nx_ravager` (NX Ravager): Class: Activision's Season 01 blog calls it a Special Weapon (class line 'Special, Event Reward') and the Season 01 patch notes tune it under Special Weapons, but the Black Ops 7 weapons guide index labels it Sniper Rifle (its own picture there is named SPC). Filed under Special until the owner's screen says otherwise.
+- `melee.flatline_mk_ii` (Flatline Mk.II): Capitalisation only: the launch blog writes 'Flatline Mk.II', several patch notes 'Flatline MK.II'; the game sets names in capitals.
+
+## Community sites
+
+None was needed: every weapon, class and spelling here is on an Activision
+page. The Warzone catalog's `SOURCES.md` lists the community sites that were
+read to cross-check the Black Ops 7 list (wzstats.gg matched it).
+
+## Official pages read
+
+"Dated" is the newest date shown on the page (patch-note pages grow with each
+update). Every page was read on 2026-09-23.
+
+| page | dated | what it gave |
+|---|---|---|
+| [Ready for Launch: Weapons Hot: All Weapons and Equipment Confirmed for Black Ops 7](https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment) | 2025-11-07 | The 30 launch weapons: Primary (23: Assault Rifles 6, SMGs 6, Shotguns 3, LMGs 2, Marksman Rifles 3, Sniper Rifles 3), Secondary (5: Pistols 3, Launchers 2) and Melee (2), each with its class, and the player level that unlocks each; spellings in running text. |
+| [Weapons - Black Ops 7 (official guide)](https://www.callofduty.com/guides/blackops7/weapons) | undated, through Season 05 | The class filter in the game's order (Assault Rifle to Melee); every weapon through Season 05 except the VX Compact, AN-94 and Executioner's Duet; files GDL Havoc under Special and NX Ravager under Sniper Rifle (see Uncertain). |
+| [Black Ops 7 Weapon Detail: SG-12 Shotgun (official guide)](https://www.callofduty.com/guides/blackops7/weapons/shotgun/sg-12) | undated | The SG-12 is a Season 02 Shotgun. |
+| [Black Ops 7 Preseason Patch Notes](https://www.callofduty.com/patchnotes/2025/11/call-of-duty-black-ops-7-preseason-patch-notes) | 2025-11-26 | Launch-weapon spellings in its tuning notes. |
+| [Black Ops 7 and Warzone Season 01: All You Need to Know (blog)](https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01) | 2025-11-24 | "The seven Season 01 weapons": Kogot-7, Maddox RFB, Sokol 545, NX Ravager (Special), Ballistic Knife (Melee), Sturmwolf 45, Hawker HX, each with its class line; that Legacy weapons are Warzone only. |
+| [Black Ops 7 Season 01 Patch Notes](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes) | 2026-01-28 | Season 01 Reloaded "New Weapons": Sturmwolf 45 (SMG), Hawker HX (Sniper Rifle); tuning of the Season 01 weapons under Assault Rifles, SMGs, LMGs, Special Weapons and Melees; the returning Black Ops 6 Scorestreaks. |
+| [Black Ops 7 and Warzone Season 02 Content Drop (blog)](https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement) | 2026-01-29 | REV-46, EGRT-17, H311-SAW, GDL Havoc ("Special Weapon", class line "Special"), SG-12 (Shotgun, Escalation Directive event), Voyak KT-3, Swordfish A1. |
+| [Black Ops 7 Season 02 Patch Notes](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes) | 2026-03-26 | "New Weapons" with classes in brackets: REV-46 (SMG), EGRT-17 (Assault Rifle), H311-SAW (Melee), GDL Havoc, Voyak KT-3 (Assault Rifle), Swordfish A1 (Marksman Rifle); the SG-12 "now accessible via the Armory". |
+| [Black Ops 7 and Warzone Season 02 Reloaded (blog)](https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-02-reloaded) | 2026-03-04 | Voyak KT-3, Swordfish A1. |
+| [Black Ops 7 and Warzone Season 03 Content Drop (blog)](https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-03-announcement) | 2026-03-25 | MK35 ISR, VST, Strider 300, 1911 ("Secondary Weapon"), Siren ("Special Weapon"), Katana. |
+| [Black Ops 7 Season 03 Patch Notes](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes) | 2026-05-22 | MK35 ISR (Assault Rifle), VST (SMG), Strider 300 (Sniper Rifle), 1911 (Pistol); at Reloaded Siren (Special Weapon), Katana (Melee). |
+| [Black Ops 7 and Warzone Season 03 Mid-Season (blog)](https://www.callofduty.com/blog/2026/04/call-of-duty-black-ops-7-warzone-season-03-reloaded-announcement) | 2026-04-23 | Siren, Katana. |
+| [Black Ops 7 and Warzone Season 04 Content Drop (blog)](https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-announcement) | 2026-06-02 | KRS-7.62, CBRS-3, Grimhawk ("Secondary Weapon"), VX Compact, Executioner's Duet, AN-94. |
+| [Black Ops 7 Season 04 Patch Notes](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes) | 2026-07-02 | KRS-7.62 (Marksman Rifle), CBRS-3 (SMG), Grimhawk (Special), VX Compact (Assault Rifle); at Reloaded AN-94 (Assault Rifle), Executioner's Duet (Melee). |
+| [Black Ops 7 and Warzone Season 04 Mid-Season (blog)](https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-reloaded-announcement) | 2026-06-22 | Executioner's Duet, AN-94. |
+| [Black Ops 7 and Warzone Season 05 Content Drop (blog)](https://www.callofduty.com/blog/2026/07/call-of-duty-black-ops-7-warzone-season-05-announcement) | 2026-07-13 | FG42, Gremlin, Mammoth, Mace, "four new weapons". |
+| [Black Ops 7 Season 05 Patch Notes](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes) | 2026-09-02 | FG42 (Assault Rifle), Gremlin (SMG), Mammoth (LMG); at Reloaded Mace (Melee); the Zombies-only TR2 and Olympia. |
+| [Black Ops 7 and Warzone Season 05 Mid-Season (blog)](https://www.callofduty.com/blog/2026/08/call-of-duty-black-ops-7-warzone-season-05-reloaded-announcement) | 2026-08-13 | Mace. |
+| [Black Ops 7 and Warzone Season 06 Content Drop: The Haunting (blog)](https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement) | 2026-09-08 | Season 06 is "The Haunting", launching September 17; VMP, TR51 Para, Arcblade, Roc 20mm ("Secondary Weapon", class Special); the DOOM event's Blueprints; the Roc 20mm picture. |
+| [Black Ops 7 Season 06 Patch Notes](https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes) | 2026-09-16 | The current season; VMP (SMG), TR51 Para (Assault Rifle), Arcblade (Melee), Roc 20mm (Special). |
+
+The Warzone pages that the copied picture rows below cite are described in
+`../cod-warzone/SOURCES.md`.
+
+## Pictures
+
+"Render" is Activision's cut-out weapon picture (transparent background),
+trimmed to the weapon. "Crop" is cut from a larger official picture, with what
+else is in it noted. "Shown on" is the official page that shows it. **Not
+linked**: the file is on Activision's image server in the same folder, with the
+same naming, as the weapon pictures the patch notes use, but none of the pages
+read links to it. Every row but the last is copied unchanged from the Warzone
+catalog's `SOURCES.md` (fetched 2026-09-23); the file itself is a copy of the
+Warzone one.
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/bo7_m15_mod_0.png | M15 Mod 0 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/M15MOD0.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_ak_27.png | AK-27 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/AK27.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_mxr_17.png | MXR-17 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/MXR17.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_x9_maverick.png | X9 Maverick (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/X9Maverick.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_ds20_mirage.png | DS20 Mirage (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/DS20Mirage.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_peacekeeper_mk1.png | Peacekeeper MK1 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/PeacekeeperMK1.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_maddox_rfb.png | Maddox RFB (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/MaddoxRFB.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_egrt_17.png | EGRT-17 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/EGRT17.png | render | [page](https://www.callofduty.com/patchnotes/2026/03/call-of-duty-bo7-warzone-season-02-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_voyak_kt_3.png | Voyak KT-3 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/VoyakKT3.png | render | [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_mk35_isr.png | MK35 ISR (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/MK35ISR.png | render | [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_vx_compact.png | VX Compact (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/VXCompact.png | render | [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-bo7-warzone-season-04-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_an_94.png | AN-94 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/AN94.png | render | [page](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-bo7-warzone-season-05-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_fg42.png | FG42 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/FG42.png | render | [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes) | 2026-09-23 |
+| weapons/bo7_tr51_para.png | TR51 Para (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/wz/s06/gun-2.jpg | crop: patch-note banner, the rifle held by an Operator (hand and sleeve visible) | [page](https://www.callofduty.com/patchnotes/2026/09/call-of-duty-bo7-warzone-season-06-patch-notes) | 2026-09-23 |
+| weapons/bo7_ryden_45k.png | Ryden 45K (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Ryden45k.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_rk_9.png | RK-9 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/RK9.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_razor_9mm.png | Razor 9mm (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Razor9mm.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_dravec_45.png | Dravec 45 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Dravec45.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_carbon_57.png | Carbon 57 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Carbon57.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_mpc_25.png | MPC-25 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/MPC25.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_kogot_7.png | Kogot-7 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Kogot7.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_sturmwolf_45.png | Sturmwolf 45 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Sturmwolf45.png | render | [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_rev_46.png | REV-46 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/REV46.png | render | [page](https://www.callofduty.com/patchnotes/2026/03/call-of-duty-bo7-warzone-season-02-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-bo7-warzone-season-04-patch-notes) | 2026-09-23 |
+| weapons/bo7_vst.png | VST (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/VST.png | render | [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-bo7-warzone-season-04-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_cbrs_3.png | CBRS-3 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/CBRS3.png | render | [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-bo7-warzone-season-04-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_gremlin.png | Gremlin (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Gremlin.png | render | [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes) | 2026-09-23 |
+| weapons/bo7_vmp.png | VMP (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/wz/s06/gun-1.jpg | crop: patch-note banner, the SMG held by an Operator (both hands visible) | [page](https://www.callofduty.com/patchnotes/2026/09/call-of-duty-bo7-warzone-season-06-patch-notes) | 2026-09-23 |
+| weapons/bo7_m10_breacher.png | M10 Breacher (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/M10Breacher.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_echo_12.png | Echo 12 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Echo12.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_akita.png | Akita (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Akita.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_sg_12.png | SG-12 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/SG12.png | render | [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/03/call-of-duty-bo7-warzone-season-02-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_mk_78.png | MK.78 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Mk78.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_xm325.png | XM325 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/XM325.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_sokol_545.png | Sokol 545 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Sokol545.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_mammoth.png | Mammoth (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Mammoth.png | render | [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes) | 2026-09-23 |
+| weapons/bo7_m8a1.png | M8A1 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/M8A1.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_warden_308.png | Warden 308 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Warden308.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_m34_novaline.png | M34 Novaline (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/M34Novaline.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes) | 2026-09-23 |
+| weapons/bo7_swordfish_a1.png | Swordfish A1 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/SwordfishA1.png | render | [page](https://www.callofduty.com/patchnotes/2026/03/call-of-duty-bo7-warzone-season-02-reloaded-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes) | 2026-09-23 |
+| weapons/bo7_krs_7_62.png | KRS-7.62 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/KRS762.png | render | not linked | 2026-09-23 |
+| weapons/bo7_vs_recon.png | VS Recon (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/VSRecon.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_shadow_sk.png | Shadow SK (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/ShadowSK.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_xr_3_ion.png | XR-3 Ion (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/XR3Ion.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_hawker_hx.png | Hawker HX (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/HawkerHX.png | render | [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_strider_300.png | Strider 300 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Strider300.png | render | [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-bo7-warzone-season-03-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/08/call-of-duty-bo7-warzone-season-05-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_jager_45.png | Jäger 45 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Jager45.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2025/11/call-of-duty-black-ops-7-preseason-patch-notes) | 2026-09-23 |
+| weapons/bo7_velox_5_7.png | Velox 5.7 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Velox57.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_coda_9.png | Coda 9 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/CODA9.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_1911.png | 1911 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/1911.png | render | [page](https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes) | 2026-09-23 |
+| weapons/bo7_aarow_109.png | AAROW 109 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/AAROW109.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes) | 2026-09-23 |
+| weapons/bo7_a_r_c_m1.png | A.R.C. M1 (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/ARCM1.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_nx_ravager.png | NX Ravager (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/NXRavager.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/01/call-of-duty-bo7-warzone-season-01-reloaded-patch-notes) | 2026-09-23 |
+| weapons/bo7_gdl_havoc.png | GDL Havoc (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/GDLHavoc.png | render | [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-bo7-warzone-season-02-patch-notes), [page](https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes) | 2026-09-23 |
+| weapons/bo7_siren.png | Siren (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Siren.png | render | [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes) | 2026-09-23 |
+| weapons/bo7_grimhawk.png | Grimhawk (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Grimhawk.png | render | [page](https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes) | 2026-09-23 |
+| weapons/bo7_knife.png | Knife (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/Knife.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes) | 2026-09-23 |
+| weapons/bo7_flatline_mk_ii.png | Flatline Mk.II (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/FlatlineMKII.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes) | 2026-09-23 |
+| weapons/bo7_ballistic_knife.png | Ballistic Knife (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/BallisticKnife.png | render | [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-bo7-warzone-season-01-patch-notes), [page](https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes) | 2026-09-23 |
+| weapons/bo7_h311_saw.png | H311-SAW (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/H311SAW.png | render | not linked | 2026-09-23 |
+| weapons/bo7_katana.png | Katana (Black Ops 7) | https://www.callofduty.com/content/dam/atvi/callofduty/cod-touchui/guides/games/blackops7/weapons-matrix/weapons/BO7-Weapons-Katana-Main.webp | crop: official weapons guide picture, the blade on the guide's dark display stand | [page](https://www.callofduty.com/guides/blackops7/weapons) | 2026-09-23 |
+| weapons/bo7_executioners_duet.png | Executioner’s Duet (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/all/ExecutionersDuet.png | render | [page](https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes) | 2026-09-23 |
+| weapons/bo7_mace.png | Mace (Black Ops 7) | https://www.callofduty.com/content/dam/atvi/callofduty/cod-touchui/guides/games/blackops7/weapons-matrix/weapons/BO7_Weapons_Mace_Main.webp | crop: official weapons guide picture, the mace on the guide's dark display stand | [page](https://www.callofduty.com/guides/blackops7/weapons) | 2026-09-23 |
+| weapons/bo7_arcblade.png | Arcblade (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/patchnotes/body/bo7/wz/s06/Melee.jpg | crop: patch-note banner, the blade in an Operator's hand (arm visible) | [page](https://www.callofduty.com/patchnotes/2026/09/call-of-duty-bo7-warzone-season-06-patch-notes) | 2026-09-23 |
+| weapons/bo7_roc_20mm.png | Roc 20mm (Black Ops 7) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/bo7/season-06/BO7-SEASON-06-ANNOUNCEMENT-040.webp | crop: the Season 06 blog's "Weapon Prestige Camos" picture, its bottom-right panel: the whole weapon side-on in its Prestige Max "Spooled" camo (a film-strip pattern, not its plain finish); the tips of the panel's gold Prestige badge show at the bottom right | [page](https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement) | 2026-09-23 |
+
+**Why the Roc 20mm wears a camo.** The Warzone catalog has no Roc 20mm picture:
+the patch notes only show it in an Operator's hands. The Season 06 blog has two
+more: its weapon card (`BO7-SEASON-06-ANNOUNCEMENT-039.webp`) shows the plain
+weapon, but the card's Prestige Attachment panel covers the lower left of the
+frame and the stock runs off the right edge, so no crop gets the whole gun; the
+Weapon Prestige Camos picture (`-040`) shows the whole gun side-on three times,
+in three camos. The darkest of them, Spooled, was used. Replace it when
+Activision publishes a plain one.
+
+## No official picture (image: null)
+
+None. Every weapon in this catalog has an official picture.

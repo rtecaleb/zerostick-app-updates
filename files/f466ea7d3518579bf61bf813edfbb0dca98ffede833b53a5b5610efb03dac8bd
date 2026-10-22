@@ -1,0 +1,562 @@
+/* smart-actions/09-sheets.js — the sheets: a step, and the trigger picker.
+ *
+ * openStepSheet (one step's kind, targets and numbers) and the trigger picker.
+ *
+ * Tests: test-smart-actions.js, test-mnk-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('sheets', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var addbtn = SEC.addbtn, aimModelOf = SEC.aimModelOf, armConfirm = SEC.armConfirm,
+      btn = SEC.btn, btnI = SEC.btnI, card = SEC.card, clamp = SEC.clamp,
+      clone = SEC.clone, configNumberTop = SEC.configNumberTop, DPS_MAX = SEC.DPS_MAX,
+      DPS_MIN = SEC.DPS_MIN, dpsWord = SEC.dpsWord, esc = SEC.esc,
+      fallbackDist = SEC.fallbackDist, normStep = SEC.normStep, note = SEC.note, helpNote = SEC.helpNote,
+      num = SEC.num, padName = SEC.padName, pushDps = SEC.pushDps,
+      realUnits = SEC.realUnits, seg = SEC.seg, srcArt = SEC.srcArt,
+      STEP_MS_CAP = SEC.STEP_MS_CAP, stepper = SEC.stepper,
+      TARGET_SECTIONS = SEC.TARGET_SECTIONS, tgtArt = SEC.tgtArt, tgtName = SEC.tgtName,
+      tgtShort = SEC.tgtShort, tgtSvg = SEC.tgtSvg, VIEW = SEC.VIEW, ZS = SEC.ZS,
+      dirWord = SEC.dirWord, stepLine = SEC.stepLine, srcName = SEC.srcName;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var kbPageHTML, keysOutNoteHTML, mousePageHTML, padSourcePageHTML, deckHTML, wireDeck,
+      sameWord, backToEditor, draw;
+  ZS_SMART_PARTS.after(function () {
+    kbPageHTML = SEC.kbPageHTML;
+    keysOutNoteHTML = SEC.keysOutNoteHTML;
+    mousePageHTML = SEC.mousePageHTML;
+    padSourcePageHTML = SEC.padSourcePageHTML;
+    deckHTML = SEC.deckHTML;
+    wireDeck = SEC.wireDeck;
+    sameWord = SEC.sameWord;
+    backToEditor = SEC.backToEditor;
+    draw = SEC.draw;
+  });
+
+  /* ══ sheets ═══════════════════════════════════════════════════════
+     phone.html's sheet host is a single element whose close-callbacks are a
+     STACK, and re-opening it while it is open only swaps the content. That is
+     how a sheet navigates to a sub-pane (pick a button) and back without
+     losing the outer sheet's close callback: pass onClose on the FIRST paint
+     only. */
+  function sheetPaint(title, html, onClose) {
+    var body = ZS.sheetOpen(title, html, onClose);
+    ZS.wire(body, 'sa/sheet');
+    return body;
+  }
+
+  function targetPickerHTML(p) {
+    var h = '<div class="note">Pick what ZeroStick should send to the console.</div>';
+    TARGET_SECTIONS.forEach(function (sec) {
+      h += '<div class="pkh">' + esc(sec.h) + '</div><div class="pkgrid">' +
+        sec.codes.map(function (c) {
+          var nm = tgtName(c, p);
+          /* Same rule as the Buttons list: L1/R2/L3/TP draw their own letters
+             as the "glyph", so these tiles rendered "L1" stacked on "L1".
+             Keep the picture when it is a symbol, keep the word always. */
+          var art = sameWord(tgtSvg(c, p), tgtShort(c, p)) ? '' : tgtSvg(c, p);
+          return '<button class="pk" data-tgt="' + esc(c) + '" aria-label="' + esc(nm) + '" title="' + esc(nm) + '">' +
+            art + '<span class="pklab">' + esc(tgtShort(c, p)) + '</span></button>';
+        }).join('') + '</div>';
+    });
+    /* keys and clicks are real targets on every config (gridHTML says how);
+       the same pictures as the button screen's pages */
+    h += '<div class="pkh">Keyboard</div>' + keysOutNoteHTML() + kbPageHTML('data-tgt') +
+      '<div class="pkh">Mouse</div>' + mousePageHTML('data-tgt');
+    return h;
+  }
+
+  /* swap the open sheet to the button grid, then back to whatever painted it */
+  function openTargetPane(p, onPick, back) {
+    /* TWO PICKERS, TWO TITLES THAT SAY WHICH ONE YOU ARE IN. This one and
+       the source picker both used to open with a bare "Choose a button", so
+       the only way to tell "which button do you press" from "which button
+       does the console get" was to notice the tiles were different. */
+    var body = sheetPaint('Which button should it send?', targetPickerHTML(p));
+    body.querySelectorAll('[data-tgt]').forEach(function (b) {
+      b.addEventListener('click', function () { onPick(b.dataset.tgt); back(); });
+    });
+  }
+
+  var STEP_KINDS = [
+    ['tap', 'Tap a button', 'press it and let go'],
+    ['hold', 'Press and hold a button', 'keeps it down until a later step lets go'],
+    ['release', 'Let go of a button', 'releases one you held earlier'],
+    ['wait', 'Wait', 'a pause before the next step'],
+    ['stick', 'Move a stick', 'push it a direction and a distance'],
+    ['trig', 'Pull a trigger', 'all the way'],
+    ['sens', 'Change stick speed', 'slow down or speed up aiming'],
+    ['swap', 'Swap the sticks', 'left does right, right does left'],
+    ['config', 'Switch config', 'jump to another config'],
+    /* a Recoil Workshop pull: its sheet was titled "Step N - Step" (m21) */
+    ['move', 'Recoil pull', 'made by the Anti-Recoil Lab'],
+    /* D280 */
+    ['tassist', 'Turn assist', 'a mouse swipe keeps turning']
+  ];
+  /* The old flat "pick a step kind" list is gone: the palette's Special page
+     replaces it, one mark and one word per tile, with XIM's two disclosure
+     rules (catAllowed). STEP_KINDS survives only to name a step in its
+     sheet's title. */
+
+  /* One line per step sheet, from the wording spec. Says what the step FEELS
+     like — never what it emits. */
+  var SHEET_HELP = {
+    tap: 'A tap presses it and lets go on its own.',
+    hold: 'It stays held until a “Let go” step, or until the sequence ends.',
+    release: 'Only useful after a Hold earlier in the sequence.',
+    wait: 'A pause between the steps either side of it. This is what gives a sequence its rhythm.',
+    trig: 'Pulls it all the way down. Choose “keep holding” and it stays down until the sequence ends.',
+    stick: 'Pushes the stick in a direction on top of whatever you are doing — so you can still aim while it runs.',
+    sens: 'Half speed makes fine aiming easier. Zero freezes the stick completely.',
+    swap: 'Left does what right did and the other way round, for as long as this step runs.',
+    config: 'Changes your whole setup without putting the pad down.'
+  };
+  /* D285: everything a step sheet used to explain in notes, as ONE "?"
+     fold at its top: the kind's line (SHEET_HELP) and then the notes that
+     sat further down (the combo, Hold, Let go, trigger, swap and recoil
+     pull explanations). Same words, now bullets behind the "?". */
+  function stepHelp(k, p) {
+    var t = SHEET_HELP[k] ? esc(SHEET_HELP[k]) : '';
+    function more(x) { t += (t ? ' ' : '') + x; }
+    if (k === 'tap' || k === 'hold' || k === 'release') {
+      /* the example names two OUTPUT controls, so it follows the console
+         this config targets — "Circle + R1" on a PS5, "B + RB" on an Xbox */
+      more('Two or more buttons in one step are pressed at exactly the same moment — that is how a combo like “' +
+        esc(tgtName('east', p)) + ' + ' + esc(tgtName('r1', p)) + '” works.');
+    }
+    if (k === 'hold') more('It stays down until a later <b>Let go</b> step, or until the whole action ends.');
+    if (k === 'release') more('Letting go takes no time at all — it happens the moment this step starts.');
+    if (k === 'trig') more('A trigger step always pulls it <b>all the way</b>. ZeroStick cannot half-pull a trigger inside an action — that is a limit of the console protocol, not a setting.');
+    if (k === 'swap') more('While this step runs, the left stick does what the right one normally does and the right does the left. Handy for looting menus.');
+    if (k === 'move') more('A recoil pull the <b>Anti-Recoil Lab</b> made from your trace. Change it there ' +
+      '(the wrench at the top of this action) so the whole pattern stays in step.');
+    if (k === 'tassist') {
+      /* D280's "the rest of the story behind the ?": the Ready-made's own words */
+      (SEC.TEMPLATES || []).forEach(function (x) { if (x.id === 'turnassist') more(esc(x.d)); });
+    }
+    return t;
+  }
+
+  /* ── the step sheet ───────────────────────────────────────────── */
+
+  function stepTitle(S) {
+    var i = S.step.i, k = S.step.kind;
+    var nm = 'Step';
+    for (var j = 0; j < STEP_KINDS.length; j++) if (STEP_KINDS[j][0] === k) nm = STEP_KINDS[j][1];
+    return 'Step ' + (i + 1) + ' — ' + nm;
+  }
+
+  function targetsCardHTML(list, p) {
+    var rows = list.length ? list.map(function (c, i) {
+      var nm = tgtName(c, p);
+      return '<div class="lrow">' + tgtArt(c, p) + '<span class="src">' + esc(nm) + '</span>' +
+        '<span class="rt"><button class="ib" data-rmt="' + i + '" style="color:var(--red)" aria-label="' +
+        esc('remove ' + nm) + '">✕</button></span></div>';
+    }).join('') : '<div class="lrow" style="color:var(--muted)">No button chosen yet</div>';
+    return '<div class="grp-card" id="sk-targets">' + rows + '</div>';
+  }
+
+  function dialHTML(angle) {
+    var pt = knobXY(angle);
+    var ticks = '';
+    for (var d = 0; d < 360; d += 45) {
+      var a = knobXY(d), b = knobXY2(d, 50);
+      ticks += '<line x1="' + b[0].toFixed(1) + '" y1="' + b[1].toFixed(1) + '" x2="' + a[0].toFixed(1) +
+        '" y2="' + a[1].toFixed(1) + '" stroke="var(--line)" stroke-width="1.4"/>';
+    }
+    return '<div class="vizbox" style="text-align:center">' +
+      '<svg id="sk-dial" class="sadial" viewBox="0 0 160 160" role="slider" tabindex="0" ' +
+      'aria-label="direction" aria-valuemin="0" aria-valuemax="359" aria-valuenow="' + angle +
+      '" aria-valuetext="' + esc(dirWord(angle)) + '">' +
+      '<circle cx="80" cy="80" r="58" fill="var(--bg)" stroke="var(--line)" stroke-width="1.4"/>' +
+      '<circle cx="80" cy="80" r="38" fill="none" stroke="var(--line)" stroke-dasharray="2 5"/>' +
+      ticks +
+      '<line id="sk-arm" x1="80" y1="80" x2="' + pt[0].toFixed(1) + '" y2="' + pt[1].toFixed(1) +
+      '" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>' +
+      '<circle id="sk-knob" cx="' + pt[0].toFixed(1) + '" cy="' + pt[1].toFixed(1) +
+      /* the knob's ring is the ink that rides every bright fill in this app,
+         not a hand-picked near-black: --accent-ink, 10.87:1 on ion */
+      '" r="10" fill="var(--accent)" stroke="var(--accent-ink)" stroke-width="2.5"/>' +
+      /* the knob orbits at r=58, so its lowest edge is y=148 — the labels sit
+         clear of it at 11 and 158 rather than being sat on by the dot */
+      '<text x="80" y="11" text-anchor="middle" font-size="9" fill="var(--muted)">up</text>' +
+      '<text x="80" y="158" text-anchor="middle" font-size="9" fill="var(--muted)">down</text>' +
+      '</svg><div style="color:var(--muted);font-size:12px;margin-top:4px">drag the dot, or type the angle below</div></div>';
+  }
+  /* screen y grows downward; the board's angle grows counter-clockwise with
+     90° = up, so the y term is inverted in both directions */
+  function knobXY(angle) { return knobXY2(angle, 58); }
+  function knobXY2(angle, r) {
+    var rad = Math.PI * angle / 180;
+    return [80 + r * Math.cos(rad), 80 - r * Math.sin(rad)];
+  }
+  function snapAngle(a) {
+    var n = (Math.round(a / 45) * 45) % 360;
+    var off = Math.abs(a - n);
+    return Math.min(off, 360 - off) <= 7 ? n : Math.round(a);
+  }
+
+  /* Wrapped in #sk-wrap for the same reason the editor is wrapped: the sheet
+     host element itself survives every re-paint, so a listener put on it
+     would stack up and a stale one would rewrite the wrong step's summary. */
+  function stepSheetHTML(S, p) {
+    var d = S.step.draft, k = S.step.kind;
+    var help = stepHelp(k, p);
+    var h = '<div id="sk-wrap">' + (help ? helpNote('sk-' + k, stepTitle(S), help) : '');
+    if (k === 'tap' || k === 'hold' || k === 'release') {
+      h += '<div class="sh">Which buttons</div>' + targetsCardHTML(d.t, p) +
+        addbtn('Add another button', 'sk-addt');
+      if (k === 'tap') h += card(stepper('How long', d.ms, 10, 1, STEP_MS_CAP, 'ms', 'how long the button stays down', 'ms'));
+    } else if (k === 'wait') {
+      h += card(stepper('Wait for', d.ms, 10, 0, STEP_MS_CAP, 'ms', '10000 ms is the longest a single step can be', 'ms'));
+    } else if (k === 'stick') {
+      /* D189: on the aim stick a push can be a TURN RATE instead, in degrees
+         per second, which the Core turns into stick through the config's
+         measured game every tick (hip or aiming). The same action then works
+         in any calibrated game. */
+      var dpsOn = d.stick !== 'left' && num(d.dps, 0) > 0;
+      var mdl = aimModelOf(p);
+      var unitSeg = (d.stick === 'left' || (!dpsOn && ZS.productHides && ZS.productHides('aimXim'))) ? '' :
+        seg('Measure it in', ['Stick %', 'Turn speed (°/s)'], dpsOn ? 1 : 0, 'sk-unit') +
+        (!mdl && !dpsOn ? '<div class="note" id="sk-dpsnote">Turn speed needs a calibrated game: ' +
+          'calibrate on Translation (or use a game with a measured translator). Stick % works everywhere.</div>' : '');
+      var amount;
+      if (dpsOn) {
+        var tt = mdl ? ZSAIMMODEL.topDps(mdl, false, num(d.angle, 0)) : null;
+        var yawP = num(d.dps, 0) * Math.cos(num(d.angle, 0) * Math.PI / 180);
+        var pitP = num(d.dps, 0) * Math.sin(num(d.angle, 0) * Math.PI / 180);
+        amount = stepper('Turn speed', Math.round(num(d.dps, 0)), 5, 1, DPS_MAX, '°/s',
+            'across ' + dpsWord(Math.abs(yawP)) + ' · up and down ' + dpsWord(Math.abs(pitP)) +
+            (tt != null ? ' · this game tops out at ' + dpsWord(tt) + ' this way' : ''), 'dps') +
+          (mdl ? '' : note('This config has no calibrated game, so the Core pushes the stick ' +
+            Math.round(num(d.dist, 0) * 100) + '% instead. Calibrate on Translation to turn at this speed.', 'warn', true));
+      } else {
+        var asD = (realUnits() && d.stick !== 'left') ? pushDps(p, d) : null;
+        amount = stepper('How far', Math.round(d.dist * 100), 5, 1, 100, '%',
+          'how hard the stick is pushed' + (asD != null ? ' · about ' + dpsWord(asD) + ' from the hip' : ''), 'dist');
+      }
+      h += card(seg('Which stick', ['Aim (right)', 'Move (left)'], d.stick === 'left' ? 1 : 0, 'sk-stick') + unitSeg) +
+        dialHTML(d.angle) +
+        card(stepper('Direction', d.angle, 5, 0, 359, '°', dirWord(d.angle), 'angle') +
+          amount +
+          stepper('How long', d.ms, 10, 0, STEP_MS_CAP, 'ms', '0 means keep pushing until a later step or the end', 'ms'));
+    } else if (k === 'trig') {
+      h += card(seg('Which trigger',
+        ['Right (' + tgtShort('rt+', p) + ')', 'Left (' + tgtShort('lt+', p) + ')'],
+        d.t[0] === 'lt+' ? 1 : 0, 'sk-which') +
+        seg('How', ['Pull and release', 'Pull and keep holding'], d.keep ? 1 : 0, 'sk-keep') +
+        (d.keep ? '' : stepper('How long', d.ms, 10, 1, STEP_MS_CAP, 'ms', null, 'ms')));
+    } else if (k === 'sens') {
+      h += card(seg('Which stick', ['Aim (right)', 'Move (left)'], d.which === 'left' ? 1 : 0, 'sk-which') +
+        stepper('Speed', Math.round(d.scale * 100), 5, 0, 300, '%', '100% is normal · 0% freezes the stick', 'scale') +
+        seg('Which way', ['Both', 'Left / right only', 'Up / down only'], d.axis === 'x' ? 1 : d.axis === 'y' ? 2 : 0, 'sk-axis') +
+        stepper('How long', d.ms, 100, 0, STEP_MS_CAP, 'ms', '0 means it lasts until the action ends', 'ms'));
+    } else if (k === 'swap') {
+      h += card(stepper('How long', d.ms, 100, 0, STEP_MS_CAP, 'ms', '0 means it lasts until the action ends', 'ms'));
+    } else if (k === 'move') {
+      h += card(stepper('How long', d.ms, 1, 0, STEP_MS_CAP, 'ms', 'this pull is spread evenly over this time', 'ms'));
+    } else if (k === 'tassist') {
+      /* D280: one number, and the rest of the story behind the ? */
+      h += card(stepper('A swipe ends after', d.gap || 80, 10, 30, 400, 'ms',
+        'how long the mouse rests before the turn locks in', 'gap'));
+    } else if (k === 'config') {
+      var ti = d.to === 'prev' ? 1 : d.to === 'next' ? 0 : 2;
+      h += card(seg('Which config', ['The next one', 'The one before', 'A specific number'], ti, 'sk-to') +
+        (ti === 2 ? stepper('Config number', d.to, 1, 1, configNumberTop(d.to), '', 'counting from 1', 'to') : ''));
+    } else {
+      h += note('This step came from your board or another app. ZeroStick can move it and keep it, but cannot show what is inside it.', 'warn');
+    }
+    /* REORDER LIVES HERE. The numbered word rows that used to carry ↑ ↓ ✕
+       are gone from the build screen, so this sheet is where a step's
+       position is changed — nothing lost, one more tap in. Only drawn for a
+       step that is really in the list (a brand-new one is appended on Done). */
+    var inList = S.step.i < S.draft.steps.length;
+    if (inList && S.draft.steps.length > 1) {
+      h += '<div class="fld"><div class="salab">Where it runs<em>step ' + (S.step.i + 1) +
+        ' of ' + S.draft.steps.length + '</em></div>' +
+        '<span class="stp"><button id="sk-up" aria-label="move this step earlier"' +
+        (S.step.i <= 0 ? ' disabled' : '') + '>↑</button>' +
+        '<b class="sv" data-nosave="1">' + (S.step.i + 1) + '</b>' +
+        '<button id="sk-down" aria-label="move this step later"' +
+        (S.step.i >= S.draft.steps.length - 1 ? ' disabled' : '') + '>↓</button></span></div>';
+    }
+    h += '<div class="note" id="sk-say">' + esc(stepLine(d, S.step.i, S.draft.steps, p)) + '</div>' +
+      btnI('ok', 'Done', 'primary', 'sk-done') +
+      btn('Remove this step', 'danger', 'sk-rm') + '</div>';
+    return h;
+  }
+
+  function openStepSheet(p, S, first, root) {
+    root = root || VIEW.lastRoot;
+    var body = sheetPaint(stepTitle(S), stepSheetHTML(S, p), first ? function () { S.step = null; } : undefined);
+    var d = S.step.draft, k = S.step.kind;
+    function repaint() { openStepSheet(p, S, false, root); }
+    /* back to wherever this was opened from: the editor sheet when it is
+       open, the pushed screen otherwise */
+    function leave() {
+      S.step = null;
+      if (S.sheetEditor) { backToEditor(root, p, S); return; }
+      ZS.sheetClose();
+      draw(root, p);
+    }
+    function say() {
+      var el = body.querySelector('#sk-say');
+      if (el) el.textContent = stepLine(d, S.step.i, S.draft.steps, p);
+    }
+    function segButtons(id, fn) {
+      var seg2 = body.querySelector('#' + id);
+      if (!seg2) return;
+      var bs = seg2.querySelectorAll('button');
+      for (var i = 0; i < bs.length; i++) {
+        (function (idx) { bs[idx].addEventListener('click', function () { fn(idx); }); })(i);
+      }
+    }
+
+    /* every stepper writes into the draft through its data-f name; the value
+       lives in the DOM only until this fires */
+    body.querySelector('#sk-wrap').addEventListener('zsstep', function (e) {
+      var sv = e.target, f = sv && sv.dataset && sv.dataset.f;
+      if (!f) return;
+      var v = num(sv.textContent, 0);
+      if (f === 'dist') d.dist = clamp(Math.round(v) / 100, 0.01, 1);
+      else if (f === 'dps') {
+        /* D189: the fallback follows the turn, from hip's model */
+        d.dps = clamp(Math.round(v * 10) / 10, DPS_MIN, DPS_MAX);
+        var fb = fallbackDist(p, d);
+        if (fb != null) d.dist = fb;
+      }
+      else if (f === 'scale') d.scale = clamp(Math.round(v) / 100, 0, 3);
+      else if (f === 'angle') { d.angle = ((Math.round(v) % 360) + 360) % 360; paintDial(true); }
+      else if (f === 'to') d.to = clamp(Math.round(v), 1, configNumberTop(d.to));
+      else d[f] = Math.round(v);
+      say();
+    });
+
+    body.querySelectorAll('[data-rmt]').forEach(function (b) {
+      b.addEventListener('click', function () { d.t.splice(+b.dataset.rmt, 1); repaint(); });
+    });
+    var addt = body.querySelector('#sk-addt');
+    /* no kbRow here: .addbtn already gets Enter/Space from phone.html's wire() */
+    if (addt) addt.addEventListener('click', function () {
+      openTargetPane(p, function (code) { if (d.t.indexOf(code) < 0) d.t.push(code); }, repaint);
+    });
+
+    segButtons('sk-stick', function (i) {
+      d.stick = i === 1 ? 'left' : 'right';
+      if (d.stick === 'left') delete d.dps;     /* D189: only the aim stick turns the camera */
+      repaint();
+    });
+    /* D189: Stick % <-> Turn speed. Switching keeps the SAME turn: a push
+       becomes the rate it makes in this game, a rate becomes its push. With
+       no measured game the switch to deg/s is refused, said, and nothing is
+       written. */
+    segButtons('sk-unit', function (i) {
+      if (i === 1) {
+        if (num(d.dps, 0) > 0) return;
+        var r = pushDps(p, d);
+        if (r == null) {
+          ZS.toast('Turn speed needs a calibrated game — calibrate on Translation, or keep Stick %');
+          repaint();
+          return;
+        }
+        d.dps = clamp(Math.round(r), 1, DPS_MAX);
+        var fb = fallbackDist(p, d);
+        if (fb != null) d.dist = fb;
+      } else {
+        delete d.dps;
+      }
+      repaint();
+    });
+    segButtons('sk-axis', function (i) { d.axis = i === 1 ? 'x' : i === 2 ? 'y' : 'both'; say(); });
+    if (k === 'trig') {
+      segButtons('sk-which', function (i) { d.t = [i === 1 ? 'lt+' : 'rt+']; say(); });
+      segButtons('sk-keep', function (i) { d.keep = i === 1; repaint(); });
+    } else {
+      segButtons('sk-which', function (i) { d.which = i === 1 ? 'left' : 'aim'; say(); });
+    }
+    /* "A specific number" keeps the number last chosen (m21): leaving it for
+       next / before and coming back used to reset it to 2 */
+    segButtons('sk-to', function (i) {
+      if (typeof d.to === 'number') S.step.lastTo = d.to;
+      d.to = i === 0 ? 'next' : i === 1 ? 'prev' : (S.step.lastTo || 2);
+      repaint();
+    });
+
+    /* ── the direction dial ── */
+    var dial = body.querySelector('#sk-dial');
+    function paintDial(fromStepper) {
+      if (!dial) return;
+      var pt = knobXY(d.angle);
+      var arm = body.querySelector('#sk-arm'), knob = body.querySelector('#sk-knob');
+      if (arm) { arm.setAttribute('x2', pt[0].toFixed(1)); arm.setAttribute('y2', pt[1].toFixed(1)); }
+      if (knob) { knob.setAttribute('cx', pt[0].toFixed(1)); knob.setAttribute('cy', pt[1].toFixed(1)); }
+      dial.setAttribute('aria-valuenow', String(d.angle));
+      dial.setAttribute('aria-valuetext', dirWord(d.angle));
+      if (!fromStepper) {
+        var sv = body.querySelector('.sv[data-f="angle"]');
+        if (sv) sv.textContent = String(d.angle);
+      }
+      say();
+    }
+    if (dial) {
+      var dragging = false;
+      var fromPoint = function (ev) {
+        var r = dial.getBoundingClientRect();
+        var a = Math.atan2((r.top + r.height / 2) - ev.clientY, ev.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+        if (a < 0) a += 360;
+        d.angle = snapAngle(a) % 360;
+        paintDial(false);
+      };
+      dial.addEventListener('pointerdown', function (ev) {
+        dragging = true;
+        if (dial.setPointerCapture) { try { dial.setPointerCapture(ev.pointerId); } catch (e) {} }
+        fromPoint(ev);
+      });
+      dial.addEventListener('pointermove', function (ev) { if (dragging) fromPoint(ev); });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) {
+        dial.addEventListener(n, function () { dragging = false; });
+      });
+      dial.addEventListener('keydown', function (ev) {
+        var st = ev.shiftKey ? 1 : 5, moved = true;
+        if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') d.angle -= st;
+        else if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') d.angle += st;
+        else if (ev.key === 'Home') d.angle = 0;
+        else if (ev.key === 'End') d.angle = 180;
+        else moved = false;
+        if (!moved) return;
+        ev.preventDefault();
+        d.angle = ((Math.round(d.angle) % 360) + 360) % 360;
+        paintDial(false);
+      });
+    }
+
+    /* ── reorder ── */
+    function move(delta) {
+      var i = S.step.i, j = i + delta, list = S.draft.steps;
+      if (i >= list.length || j < 0 || j >= list.length) return;
+      /* commit the open edit first, or moving would resurrect the old copy */
+      list[i] = normStep(d) || d;
+      var t = list[j]; list[j] = list[i]; list[i] = t;
+      S.step.i = j;
+      S.step.draft = clone(list[j]);
+      d = S.step.draft;
+      S.draft.edited = true;
+      S.unsaved = true;
+      S.sel = j;
+      repaint();
+    }
+    var up = body.querySelector('#sk-up');
+    if (up) up.addEventListener('click', function () { move(-1); });
+    var dn = body.querySelector('#sk-down');
+    if (dn) dn.addEventListener('click', function () { move(1); });
+
+    var done = body.querySelector('#sk-done');
+    if (done) done.addEventListener('click', function () {
+      S.draft.steps[S.step.i] = normStep(d) || d;
+      S.draft.edited = true;
+      S.unsaved = true;
+      S.sel = S.step.i;
+      leave();
+    });
+    var rm = body.querySelector('#sk-rm');
+    if (rm) armConfirm(rm, function () {
+      if (S.step.i < S.draft.steps.length) S.draft.steps.splice(S.step.i, 1);
+      S.draft.edited = true;
+      S.unsaved = true;
+      S.sel = Math.max(0, S.step.i - 1);
+      leave();
+    });
+    return body;
+  }
+
+  /* ── the trigger picker ───────────────────────────────────────── */
+
+  /* PALETTE B — the trigger source. Four pages, the same grammar as the step
+     palette, and this is where the owner's "you just swipe if you want
+     keyboard buttons" is honoured: a real QWERTY page and a real mouse page,
+     because an INPUT genuinely can be a key or a mouse button.
+
+     opts.keepOpen — do not close the sheet host on a pick. The editor uses
+     it so the draft survives the trip: the caller paints the editor back
+     over this sheet instead of the host closing under it. */
+  function pickTrigger(p, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var done = false, listener = null;
+      function finish(v) {
+        if (done) return;
+        done = true;
+        if (listener) listener.stop();
+        resolve(v);
+      }
+      function take(v) {
+        finish(v);
+        if (!opts.keepOpen) ZS.sheetClose();
+      }
+
+      /* the two follow-triggers keep tracking rebinds, so they are their own
+         page rather than a tile lost among sixteen identical ones */
+      var doesPage = '<div class="sabwide">' +
+        '<button type="button" class="sabkey" data-fol="rt+" aria-label="your Fire button">' +
+        srcArt('rt') + '<i>Fire</i></button>' +
+        '<button type="button" class="sabkey" data-fol="lt+" aria-label="your Aim button">' +
+        srcArt('lt') + '<i>Aim</i></button></div>' +
+        helpNote('sa-src-fol', 'Fire and Aim',
+          'These two follow whatever you have bound to Fire and Aim on the Buttons screen, so they keep working if you rebind.');
+
+      var pages = [
+        { n: 'What it does', h: doesPage },
+        { n: 'Pad', h: padSourcePageHTML() +
+          helpNote('sa-src-pad', 'Triggers',
+            'A trigger fires once it is more than 60% down, so it works even if that trigger is not bound to anything.') },
+        { n: 'Keyboard', h: kbPageHTML() },
+        { n: 'Mouse', h: mousePageHTML() }
+      ];
+      /* the sheet LISTENS for as long as it is open (owner, 2026-10-10): the
+         first deliberate press on the keyboard, the mouse or the controller
+         answers it, as in every other "which button?" picker; every key
+         stays tappable (ZS.listenForPress, sections/01-kit.js) */
+      var listens = ZS.live.online !== false && typeof ZS.listenForPress === 'function';
+      var h = (listens ? '<div class="pk-live" id="sa-tlive" role="status" aria-live="polite"></div>' : '') +
+        deckHTML('sa-tpick', pages, 0);
+
+      var body = sheetPaint('What starts this action?', h, function () { finish(null); });
+      wireDeck(body, 'sa-tpick', 0, null);
+
+      body.querySelectorAll('[data-fol]').forEach(function (b) {
+        b.addEventListener('click', function () { take({ follow: b.dataset.fol, src: null }); });
+      });
+      body.querySelectorAll('[data-src]').forEach(function (b) {
+        b.addEventListener('click', function () { take({ src: b.dataset.src, follow: null }); });
+      });
+      /* every key on the QWERTY page is ALSO reachable by pressing it, which
+         is what keeps a 30px key from being a precision-only control */
+      if (listens) {
+        listener = ZS.listenForPress(body, { mount: body.querySelector('#sa-tlive'), p: p,
+          onHeard: function (src) {
+            /* the listener names a pulled analog trigger by the pad's trigger
+               BUTTON, because that is what a binding needs. A Smart Action
+               wants the analog source, which fires at 60% pull. */
+            if (src === 'BTN_TL2') { src = 'lt'; ZS.toast(padName('lt') + ' — fires once you pull it past 60%'); }
+            else if (src === 'BTN_TR2') { src = 'rt'; ZS.toast(padName('rt') + ' — fires once you pull it past 60%'); }
+            else ZS.toast(srcName(src) + ' detected');
+            take({ src: src, follow: null });
+          } });
+        if (done) listener.stop();
+      }
+    });
+  }
+
+  /* what the other parts use from this one */
+  SEC.openStepSheet = openStepSheet;
+  SEC.stepTitle = stepTitle;
+  SEC.openTargetPane = openTargetPane;
+  SEC.pickTrigger = pickTrigger;
+  SEC.sheetPaint = sheetPaint;
+});

@@ -1,0 +1,25 @@
+# Where every trained spot's picture comes from
+
+D404. A trained spot is a place in a game where the Anti-Recoil Lab's
+Automatic does everything by itself: the Core checks the player stands
+there, aims, fires one magazine, times the fire rate and finds the holes.
+Each spot in a game pack (`recoilSpots`) names one picture in this folder,
+which players see on the spot card ("stand here, face the wall like this").
+
+Rules: real frames only. Every picture here is the Core's own capture of
+the game, taken by **Train this spot** (developer builds) at the moment the
+owner captured the spot's view. Never a screenshot from the web, never a
+drawn or generated picture.
+
+These pictures live in the app only: the exe and the phone app carry this
+folder, and no picture is ever sent to or kept on the Core (the spot's
+48 x 27 reference thumbnail is sent for one Lab session and forgotten).
+
+`dashboard/tools/add-recoil-spot.js` copies a picture in and adds its row
+below. `dashboard/tools/test-game-packs.js` fails a spot whose picture is
+missing or not listed.
+
+| picture | pack | spot | trained | how |
+|---|---|---|---|---|
+| cod-bo7-range-recoil-wall.jpg | cod-bo7 | range-recoil-wall | 2026-10-19 | Trained on a Core from the owner's own captures at his permanent spot (Call of Duty firing range, 2026-10-19, docs/reference/recoil-wall/recoil-spot-2026-10-19): ref is the Core's own thumbnail of frame00 (spot_ref_tool, zs_recoil_spot.c); frame01/02 MATCH 0.99, the auto run's before.jpg 0.91. Wall floor and brightness from the trail suite on the aimed frame (after.jpg). Field of view NOT measured: hip 103 is the app's guess; aiming is from the zoom the Core measured, 1.52 (the wall 83 -> 126 px wide). |
+| cod-warzone-range-recoil-wall.jpg | cod-warzone | range-recoil-wall | 2026-10-19 | Trained on a Core from the owner's own captures at his permanent spot (Call of Duty firing range, 2026-10-19, docs/reference/recoil-wall/recoil-spot-2026-10-19): ref is the Core's own thumbnail of frame00 (spot_ref_tool, zs_recoil_spot.c); frame01/02 MATCH 0.99, the auto run's before.jpg 0.91. Wall floor and brightness from the trail suite on the aimed frame (after.jpg). Field of view NOT measured: hip 103 is the app's guess; aiming is from the zoom the Core measured, 1.52 (the wall 83 -> 126 px wide). |

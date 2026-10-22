@@ -1,0 +1,442 @@
+/* smart-actions/99-selfcheck.js — the self-check, and the call that runs every part.
+ *
+ * Set window.ZS_SMART_SELFTEST before the parts load and this checks the pure
+ * rules (normAction, toBoard, dupWhen, lockAxis, bindBadges, recordToSteps...),
+ * leaving window.ZS_SMART_SELFTEST_RESULT. The line at the bottom runs the parts.
+ *
+ * Tests: test-smart-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('selfcheck', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var CONTROL_SOURCE = SEC.CONTROL_SOURCE, emitSource = SEC.emitSource,
+      fromBoardAction = SEC.fromBoardAction, has = SEC.has, normAction = SEC.normAction,
+      PAD_SOURCES = SEC.PAD_SOURCES, srcClass = SEC.srcClass, toBoard = SEC.toBoard,
+      ZS = SEC.ZS, dupWhen = SEC.dupWhen, problems = SEC.problems,
+      bindBadges = SEC.bindBadges, whenOptOf = SEC.whenOptOf, whenOpts = SEC.whenOpts,
+      recordToSteps = SEC.recordToSteps, templateCount = SEC.templateCount,
+      templateWhere = SEC.templateWhere, tplIdOf = SEC.tplIdOf, lockAxis = SEC.lockAxis;
+
+  /* THE SELF-CHECK RUNS ONCE EVERY PART'S LATE NAMES ARE BOUND: the functions
+     it calls reach names from parts after theirs (recordToSteps -> bindsOf,
+     13-join.js). It was the last statement of the one big function, when
+     everything existed; the last after() callback is the same moment. */
+  ZS_SMART_PARTS.after(function () {
+  /* ══ self-check — set window.ZS_SMART_SELFTEST before this file loads ══
+     Same idiom as glyphs.js. It covers exactly one thing: what this file
+     writes into trigger.source, which is the seam where a Smart Action stops
+     working with no error anywhere. Run it with
+     `node dashboard/tools/test-smart-actions.js`. */
+
+  if (window.ZS_SMART_SELFTEST) {
+    var fails = [];
+    var eq = function (got, want, what) {
+      if (got !== want) fails.push(what + ' → got "' + got + '", want "' + want + '"');
+    };
+
+    /* the default profile every config is cloned from — mouse and keyboard
+       bound to Fire, Aim and Cross, and NO entries for the pad's own controls
+       (that is what gamepad passthrough means) */
+    var DEFAULT_BINDS = [
+      { source: 'KEY_W', target: 'ly+' },
+      { source: 'KEY_SPACE', target: 'south' },
+      { source: 'BTN_LEFT', target: 'rt+' },
+      { source: 'BTN_RIGHT', target: 'lt+' },
+      { source: 'BTN_MIDDLE', target: 'r3' }
+    ];
+    var savedFull = ZS.live && ZS.live.full;
+    var savedClasses = ZS.deviceClasses;
+    ZS.live = ZS.live || {};
+    ZS.live.full = { t: { id: 't', bindings: DEFAULT_BINDS } };
+    var P = { id: 't', input: 'mnk', platform: 'ps5' };
+
+    /* THE BUG: on a pad, "Fire" resolved through the default profile's mouse
+       binding and the action could never fire. */
+    ZS.deviceClasses = function () { return { controller: true }; };
+    eq(emitSource(P, { follow: 'rt+' }), 'rt', 'Fire on a pad');
+    eq(emitSource(P, { follow: 'lt+' }), 'lt', 'Aim on a pad');
+    eq(emitSource(P, { follow: 'south' }), 'BTN_SOUTH', 'Cross on a pad');
+    eq(emitSource(P, { follow: 'r3' }), 'BTN_THUMBR', 'R3 on a pad');
+
+    /* a mouse-and-keyboard rig genuinely does follow the binding */
+    ZS.deviceClasses = function () { return { mouse: true, keyboard: true }; };
+    eq(emitSource(P, { follow: 'rt+' }), 'BTN_LEFT', 'Fire on a mouse rig');
+    eq(emitSource(P, { follow: 'south' }), 'KEY_SPACE', 'Cross on a keyboard rig');
+
+    /* board offline / not enumerated yet: the pad answer, because gamepad
+       passthrough guarantees it works whatever else is bound. An EMPTY class
+       set has to behave the same way — it means "still enumerating" as often
+       as "nothing plugged in" (see devbar.deviceClasses). */
+    ZS.deviceClasses = function () { return null; };
+    eq(emitSource(P, { follow: 'rt+' }), 'rt', 'Fire with no device info');
+    ZS.deviceClasses = function () { return {}; };
+    eq(emitSource(P, { follow: 'rt+' }), 'rt', 'Fire with an empty device list');
+
+    /* an EXPLICIT pad binding beats the pad default — that is the whole point
+       of "follow", and it must keep tracking rebinds */
+    ZS.live.full.t.bindings = DEFAULT_BINDS.concat(
+      [{ source: 'BTN_TL', target: 'rt+' }]);
+    eq(emitSource(P, { follow: 'rt+' }), 'BTN_TL', 'Fire rebound to L1');
+    ZS.live.full.t.bindings = DEFAULT_BINDS;
+
+    /* a literal source is immune to all of it */
+    eq(emitSource(P, { src: 'KEY_F1' }), 'KEY_F1', 'literal source');
+
+    /* every control the picker offers must resolve to a code the ENGINE
+       matches on — this table is checked against the board's CONTROL_SOURCES
+       by board/agent/tests/unit/test_labels.py */
+    for (var i = 0; i < PAD_SOURCES.length; i++) {
+      var code = PAD_SOURCES[i][1];
+      if (code !== 'lt' && code !== 'rt' && code.indexOf('BTN_') !== 0)
+        fails.push('PAD_SOURCES ' + PAD_SOURCES[i][0] + ' emits "' + code + '"');
+    }
+    eq(CONTROL_SOURCE.l2, 'lt', 'L2 is the analog source, not BTN_TL2');
+    eq(CONTROL_SOURCE.r2, 'rt', 'R2 is the analog source, not BTN_TR2');
+
+    /* device classes, which decide whether an action is reported dead */
+    eq(srcClass('BTN_SOUTH'), 'controller', "srcClass('BTN_SOUTH')");
+    eq(srcClass('rt'), 'controller', "srcClass('rt')");
+    eq(srcClass('BTN_LEFT'), 'mouse', "srcClass('BTN_LEFT')");
+    eq(srcClass('KEY_SPACE'), 'keyboard', "srcClass('KEY_SPACE')");
+    eq(srcClass('banana'), 'unknown', "srcClass('banana')");
+
+    /* ── the WHEN list follows /capabilities, and only /capabilities ──
+       Without the actions block a board gets today's exact five options;
+       with it, the three gated ones appear — and an action USING a gated
+       shape is a structural error on the old board (so syncBoard withholds
+       it) and clean on the new one (so toBoard writes the new shapes). */
+    var CAPS_ALL = { actions: {
+      gestures: ['press', 'hold_ms', 'double_tap', 'release', 'tap'],
+      holdModes: ['once', 'repeat_while_held', 'run_while_held', 'toggle'],
+      recorder: true, infiniteDuration: true } };
+    var savedCaps = ZS.live.caps;
+    ZS.deviceClasses = function () { return { controller: true }; };
+
+    delete ZS.live.caps;
+    eq(whenOpts().length, 5, 'WHEN options without caps');
+    ZS.live.caps = CAPS_ALL;
+    eq(whenOpts().length, 8, 'WHEN options with caps');
+    var pairSeen = {};
+    whenOpts().forEach(function (o) { pairSeen[o.g + '/' + o.h] = true; });
+    ['tap/once', 'release/once', 'press/toggle'].forEach(function (k) {
+      if (!pairSeen[k]) fails.push('gated WHEN option missing with caps: ' + k);
+    });
+
+    /* pair lookup, never an index */
+    var tapAct = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'tap', tapMs: 250 },
+      holdMode: 'once', steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+    tapAct.trigger.follow = null;
+    eq(whenOptOf(tapAct).g, 'tap', 'whenOptOf finds tap by pair');
+    var togAct = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'press' },
+      holdMode: 'toggle', maxDurationMs: 0,
+      steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+    togAct.trigger.follow = null;
+    eq(togAct.holdMode, 'toggle', 'normAction keeps toggle');
+    eq(togAct.maxDurationMs, 0, 'normAction keeps maxDurationMs 0');
+    eq(whenOptOf(togAct).h, 'toggle', 'whenOptOf finds toggle by pair');
+
+    /* emission gating: the new shapes never reach a board without the caps */
+    function capErrs(a) {
+      var n = 0;
+      problems(a, P, null).forEach(function (x) { if (x.level === 'error') n++; });
+      return n;
+    }
+    eq(capErrs(tapAct) === 0, true, 'tap action clean WITH caps');
+    eq(capErrs(togAct) === 0, true, 'toggle+0 action clean WITH caps');
+    var bTap = toBoard(P, tapAct);
+    eq(bTap.trigger.activation, 'tap', 'toBoard writes activation tap');
+    eq(bTap.trigger.tapMs, 250, 'toBoard writes tapMs beside tap');
+    var bTog = toBoard(P, togAct);
+    eq(bTog.holdMode, 'toggle', 'toBoard writes holdMode toggle');
+    eq(bTog.trigger.activation, 'press', 'toggle starts on a plain press');
+    eq(bTog.maxDurationMs, 0, 'toBoard writes the 0 duration');
+    delete ZS.live.caps;
+    eq(capErrs(tapAct) > 0, true, 'tap action is an error WITHOUT caps');
+    eq(capErrs(togAct) > 0, true, 'toggle+0 action is an error WITHOUT caps');
+    /* an ordinary action stays exactly as clean as it was */
+    var plain = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'press' },
+      holdMode: 'once', steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+    plain.trigger.follow = null;
+    eq(capErrs(plain), 0, 'a plain action needs no caps');
+    /* the cross-check the schema also makes: 0 with once is never legal */
+    ZS.live.caps = CAPS_ALL;
+    var zeroOnce = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'press' },
+      holdMode: 'once', maxDurationMs: 0,
+      steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+    zeroOnce.trigger.follow = null;
+    eq(capErrs(zeroOnce) > 0, true, 'maxDurationMs 0 with once-mode is an error even with caps');
+    /* ...and the second cross-check: "Always finish" with "Never give up" on
+       a while-held mode is the one shape nothing can end. Each half alone,
+       and the toggle, stay clean. */
+    ['repeat_while_held', 'run_while_held'].forEach(function (mode) {
+      var stuck = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'press' },
+        holdMode: mode, maxDurationMs: 0, uninterruptible: true,
+        steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+      stuck.trigger.follow = null;
+      eq(capErrs(stuck) > 0, true, mode + ' with Always finish and Never give up is an error');
+      stuck.uninterruptible = false;
+      eq(capErrs(stuck), 0, mode + ' with Never give up alone is clean');
+      stuck.uninterruptible = true;
+      stuck.maxDurationMs = 10000;
+      eq(capErrs(stuck), 0, mode + ' with Always finish and a time limit is clean');
+    });
+    var stuckTog = normAction({ trigger: { src: 'BTN_SOUTH', gesture: 'press' },
+      holdMode: 'toggle', maxDurationMs: 0, uninterruptible: true,
+      steps: [{ k: 'tap', t: ['south'], ms: 80 }, { k: 'wait', ms: 80 }] });
+    stuckTog.trigger.follow = null;
+    eq(capErrs(stuckTog), 0, 'a toggle with Always finish and Never give up is clean: its off press always works');
+
+    /* ── recordToSteps: the recorder's conversion, held to its rules ── */
+    function kinds(steps) { return steps.map(function (s) { return s.k; }).join(','); }
+    /* an isolated press is a Tap of its own length, plus the trailing Wait */
+    var r1 = recordToSteps([
+      { source: 'BTN_SOUTH', down: true, tMs: 0 },
+      { source: 'BTN_SOUTH', down: false, tMs: 100 }], P);
+    eq(kinds(r1.steps), 'tap,wait', 'recorder: isolated press → tap + trailing wait');
+    eq(r1.steps[0].ms, 100, 'recorder: tap length is the press length');
+    eq(r1.steps[0].t[0], 'south', 'recorder: BTN_SOUTH maps to south');
+    /* overlapping presses become hold/release pairs with real gaps */
+    var r2 = recordToSteps([
+      { source: 'BTN_SOUTH', down: true, tMs: 0 },
+      { source: 'BTN_EAST', down: true, tMs: 50 },
+      { source: 'BTN_SOUTH', down: false, tMs: 200 },
+      { source: 'BTN_EAST', down: false, tMs: 300 }], P);
+    eq(kinds(r2.steps), 'hold,wait,hold,wait,release,wait,release,wait',
+       'recorder: overlap → hold/release with waits');
+    /* an unpaired down is a hold the sequence-end releases */
+    var r3 = recordToSteps([{ source: 'BTN_TL', down: true, tMs: 0 }], P);
+    eq(kinds(r3.steps), 'hold,wait', 'recorder: unpaired down → hold');
+    /* a pulled trigger is a trig step, timed when isolated */
+    var r4 = recordToSteps([
+      { source: 'rt', down: true, tMs: 0 },
+      { source: 'rt', down: false, tMs: 500 }], P);
+    eq(kinds(r4.steps), 'trig,wait', 'recorder: rt → trig');
+    eq(r4.steps[0].t[0], 'rt+', 'recorder: rt maps to rt+');
+    eq(r4.steps[0].ms, 500, 'recorder: trig carries its duration');
+    eq(!r4.steps[0].keep, true, 'recorder: isolated pull does not keep holding');
+    /* a gap under 20 ms is dropped, a real one becomes a Wait */
+    var r5 = recordToSteps([
+      { source: 'BTN_SOUTH', down: true, tMs: 0 },
+      { source: 'BTN_SOUTH', down: false, tMs: 100 },
+      { source: 'BTN_EAST', down: true, tMs: 110 },
+      { source: 'BTN_EAST', down: false, tMs: 200 },
+      { source: 'BTN_WEST', down: true, tMs: 400 },
+      { source: 'BTN_WEST', down: false, tMs: 480 }], P);
+    eq(kinds(r5.steps), 'tap,tap,wait,tap,wait', 'recorder: <20 ms gap dropped, real gap kept');
+    eq(r5.steps[2].ms, 290, 'recorder: the stopwatch counts from the press start (90 ms press + 200 ms gap, D231)');
+    /* a key follows THIS config's binding; an unbound source is named */
+    ZS.deviceClasses = function () { return { keyboard: true }; };
+    var r6 = recordToSteps([
+      { source: 'KEY_SPACE', down: true, tMs: 0 },
+      { source: 'KEY_SPACE', down: false, tMs: 90 },
+      { source: 'KEY_F9', down: true, tMs: 200 },
+      { source: 'KEY_F9', down: false, tMs: 280 }], P);
+    eq(kinds(r6.steps), 'tap,wait', 'recorder: bound key kept, unbound skipped');
+    eq(r6.steps[0].t[0], 'south', 'recorder: KEY_SPACE follows its binding');
+    eq(r6.skipped.length, 1, 'recorder: the unbound key is NAMED');
+    /* nothing usable answers empty, never throws */
+    var r7 = recordToSteps([{ source: 'KEY_F9', down: true, tMs: 0 }], P);
+    eq(r7.steps.length, 0, 'recorder: nothing mappable → no steps');
+    eq(r7.skipped.length, 1, 'recorder: and the source is still named');
+    var r8 = recordToSteps(null, P);
+    eq(r8.steps.length, 0, 'recorder: garbage in, empty out');
+
+    /* ── the palette pager's direction lock ──
+       10 px of hysteresis before committing, then a 1.2 bias in favour of the
+       SCROLLER. Get this wrong and a horizontal drag inside the deck reads as
+       a near-zero VERTICAL drag on the sheet, which captures the pointer and
+       kills every click — the exact failure the sheet's ✕ had. */
+    eq(lockAxis(30, 4), 'x', 'lockAxis: a clear sideways drag pages');
+    eq(lockAxis(4, 30), 'y', 'lockAxis: a clear downward drag scrolls');
+    eq(lockAxis(12, 11), 'y', 'lockAxis: the 1.2 bias favours the scroller');
+    eq(lockAxis(6, 6), null, 'lockAxis: under 10px commits to nothing');
+    eq(lockAxis(-30, 4), 'x', 'lockAxis: direction, not sign');
+    eq(lockAxis(0, 0), null, 'lockAxis: a tap is not a drag');
+
+    /* ── THE TILE: a badge marks a DEPARTURE from normal, never a value ──
+       Press-once, any time, untagged, human timing must draw NOTHING. This is
+       the whole design, and it is exactly the kind of rule that rots. */
+    function mk(over) {
+      var base = { trigger: { src: 'BTN_TR', gesture: 'press' }, holdMode: 'once',
+        steps: [{ k: 'tap', t: ['south'], ms: 80 }] };
+      for (var k in over) if (Object.prototype.hasOwnProperty.call(over, k)) base[k] = over[k];
+      var a2 = normAction(base);
+      a2.trigger.follow = null;
+      if (over && over.trigger) {
+        a2.trigger.gesture = over.trigger.gesture || 'press';
+        a2.trigger.src = over.trigger.src || 'BTN_TR';
+      }
+      return a2;
+    }
+    ZS.live.caps = CAPS_ALL;
+    var plainB = bindBadges(mk({}));
+    ['top', 'left', 'right', 'bottom'].forEach(function (k) {
+      if (plainB[k]) fails.push('a plain press-once action drew a ' + k + ' badge');
+    });
+    /* each property lands in ITS OWN slot, and nowhere else */
+    function only(b, slot, what) {
+      ['top', 'left', 'right', 'bottom'].forEach(function (k) {
+        if (k === slot && !b[k]) fails.push(what + ' did not draw the ' + slot + ' badge');
+        if (k !== slot && b[k]) fails.push(what + ' leaked into the ' + k + ' slot');
+      });
+    }
+    only(bindBadges(mk({ holdMode: 'repeat_while_held' })), 'top', 'turbo');
+    only(bindBadges(mk({ trigger: { gesture: 'tap' } })), 'top', 'a quick tap');
+    only(bindBadges(mk({ gate: 'ads' })), 'left', 'the ADS gate');
+    only(bindBadges(mk({ gate: 'hip' })), 'left', 'the hip gate');
+    only(bindBadges(mk({ group: 'Sniper' })), 'right', 'a tag');
+    only(bindBadges(mk({ varianceMs: 0 })), 'bottom', 'exact timing');
+    /* the gate's default draws nothing; so does the DEFAULT variance, which
+       is 15 — the bottom slot is inverted ON PURPOSE so the tile stays silent
+       about anything normal */
+    if (bindBadges(mk({ gate: 'always' })).left) fails.push('gate "always" drew a badge');
+    if (bindBadges(mk({ varianceMs: 15 })).bottom) fails.push('the default ±15 ms drew a badge');
+    if (bindBadges(mk({ varianceMs: 40 })).bottom) fails.push('a non-zero variance drew a badge');
+    if (bindBadges(mk({ group: '' })).right) fails.push('an empty tag drew a badge');
+    /* never colour alone: every badge carries a mark AND a word */
+    ['top', 'left', 'right', 'bottom'].forEach(function (k) {
+      var b = bindBadges(mk({ holdMode: 'toggle', gate: 'ads', group: 'X', varianceMs: 0 }))[k];
+      if (!b) { fails.push('a fully-set action left the ' + k + ' slot empty'); return; }
+      if (!b.m || !b.w) fails.push('the ' + k + ' badge signals without a word');
+      if (!b.s) fails.push('the ' + k + ' badge has nothing to say to a screen reader');
+    });
+
+    /* ── the duplicate the Ready-made gallery used to make silently ── */
+    var dupA = mk({}), dupB = mk({});
+    eq(!!dupWhen([dupA], dupB, P), true, 'two press-once actions on one button clash');
+    eq(dupWhen([dupA], dupA, P), null, 'an action never clashes with itself');
+    var dupC = mk({ holdMode: 'repeat_while_held' });
+    eq(dupWhen([dupA], dupC, P), null, 'a different "When" is not a clash');
+    dupA.enabled = false;
+    eq(dupWhen([dupA], dupB, P), null, 'a switched-off action cannot clash');
+
+    /* ── "already on R2" MUST SEE A BOARD-AUTHORED COPY ──
+       templateCount/templateWhere used to read a.fromTemplate and nothing
+       else, and only buildTemplate ever wrote it — so every action that
+       arrived through fromBoardAction (a fresh phone, a cleared store, a
+       second device) was invisible to the duplicate mark. Both channels are
+       proved here: the field, and the constant-name fallback for actions
+       written before the field travelled. */
+    var stamped = normAction({ fromTemplate: 'turbo', name: 'Anything at all',
+      steps: [{ k: 'tap', t: ['south'], ms: 80 }] });
+    eq(tplIdOf(stamped), 'turbo', 'a stamped action names its template');
+    var offBoard = fromBoardAction({
+      id: 'x1', name: 'Rapid fire', category: 'Ready-made',
+      trigger: { source: 'rt' }, steps: [{ press: ['south'], ms: 80 }]
+    }, P);
+    eq(offBoard.fromTemplate, '', 'a legacy board action carries no stamp (as expected)');
+    eq(tplIdOf(offBoard), 'turbo', 'a board action is recognised by its constant name');
+    var offBoard2 = fromBoardAction({
+      id: 'x2', name: 'Rapid fire 3', category: 'Ready-made',
+      trigger: { source: 'rt' }, steps: [{ press: ['south'], ms: 80 }]
+    }, P);
+    eq(tplIdOf(offBoard2), 'turbo', 'the " 2" the add path appends is not a different template');
+    var stampedBoard = fromBoardAction({
+      id: 'x3', name: 'My own name for it', category: 'Ready-made',
+      fromTemplate: 'turbo', trigger: { source: 'rt' },
+      steps: [{ press: ['south'], ms: 80 }]
+    }, P);
+    eq(tplIdOf(stampedBoard), 'turbo', 'the stamp survives the board round trip');
+    /* and it does NOT over-claim: a hand-built action is nobody's template */
+    var mine = fromBoardAction({
+      id: 'x4', name: 'Rapid fire', trigger: { source: 'rt' },
+      steps: [{ press: ['south'], ms: 80 }]
+    }, P);
+    eq(tplIdOf(mine), '', 'a name alone, without category "Ready-made", claims nothing');
+    eq(tplIdOf(normAction({ name: 'Something nobody named', category: 'Ready-made',
+      steps: [{ k: 'tap', t: ['south'], ms: 80 }] })), '',
+    'an unrecognised name under Ready-made claims nothing');
+    /* the stamp reaches the wire, which is the whole point of channel 1 */
+    eq(toBoard(P, stamped).fromTemplate, 'turbo', 'toBoard sends the template stamp');
+    eq(has(toBoard(P, mine), 'fromTemplate'), false,
+      'toBoard invents a stamp for an action that never had one');
+    /* and the two CONSUMERS read through tplIdOf, not the bare field —
+       fixing the recogniser and leaving the callers on a.fromTemplate would
+       pass every check above and still draw 31 identical cards */
+    var boardOnly = { actions: [offBoard, offBoard2, stampedBoard, mine] };
+    eq(templateCount(boardOnly, 'turbo'), 3,
+      'templateCount cannot see a copy that came off the board');
+    eq(templateCount(boardOnly, 'dropshot'), 0,
+      'templateCount counted a copy of a template nobody added');
+    eq(templateWhere(boardOnly, P, 'turbo') !== '', true,
+      'templateWhere cannot name the button a board-authored copy sits on');
+    eq(templateWhere(boardOnly, P, 'dropshot'), '',
+      'templateWhere named a button for a template nobody added');
+
+    /* D171: an action's own stick variance. Absent = the config's (null),
+       never sent; a number is clamped to 0..10 and sent; 0 is a real
+       choice ("exact") and must survive the round trip as 0, not as null. */
+    var svBase = { id: 'sv', name: 'Push', trigger: { source: 'rt' },
+      steps: [{ aim: { angle: 0, magnitude: 0.07 }, ms: 100 }] };
+    var svNone = fromBoardAction(svBase, P);
+    eq(svNone.stickVariance, null, 'no stickVariance reads as "use config default"');
+    eq(has(toBoard(P, svNone), 'stickVariance'), false,
+      'an action on the config default sends no stickVariance');
+    var svOwn = fromBoardAction(Object.assign({}, svBase, { stickVariance: 3 }), P);
+    eq(toBoard(P, svOwn).stickVariance, 3, 'its own +-3 reaches the wire');
+    var svZero = fromBoardAction(Object.assign({}, svBase, { stickVariance: 0 }), P);
+    eq(toBoard(P, svZero).stickVariance, 0, 'its own 0 (exact) survives as 0, not as "default"');
+    eq(normAction({ stickVariance: 40, steps: [] }).stickVariance, 10, 'a wild one is clamped to 10');
+
+    /* D231: the stopwatch starts the next step; a press keeps its length */
+    var ov = normAction({ timing: 2, trigger: { src: 'BTN_SOUTH' }, steps: [
+      { k: 'trig', t: ['lt+'], ms: 200 }, { k: 'wait', ms: 20 }, { k: 'tap', t: ['east'], ms: 80 }] });
+    eq(SEC.timelineEnd(ov.steps), 200, 'LT 200, stopwatch 20, B 80 ends at 200 (LT still held)');
+    var ovB = toBoard(P, ov);
+    eq(JSON.stringify(ovB.steps), JSON.stringify([{ hold: ['lt+'] }, { wait: 20 }, { hold: ['east'] }, { wait: 80 },
+      { release: ['east'] }, { wait: 100 }, { release: ['lt+'] }]),
+      'compiled: hold LT, 20 ms, hold B, 80 ms, let go of B, 100 ms, let go of LT');
+    eq(ovB.timing === 2 && ovB.authored.length === 3, true, 'the authored steps travel beside them');
+    var ovBack = fromBoardAction(ovB, P);
+    eq(JSON.stringify(ovBack.steps), JSON.stringify(ov.steps), 'and read back as built');
+    var seq = normAction({ timing: 2, trigger: { src: 'BTN_SOUTH' }, steps: [
+      { k: 'trig', t: ['lt+'], ms: 200 }, { k: 'tap', t: ['east'], ms: 80 }] });
+    eq(SEC.timelineEnd(seq.steps), 280, 'with no stopwatch, B starts when LT ends');
+    eq(has(toBoard(P, seq), 'authored'), false, 'and nothing is compiled');
+    var old = normAction({ trigger: { src: 'BTN_SOUTH' }, steps: [
+      { k: 'trig', t: ['rt+'], ms: 40 }, { k: 'wait', ms: 40 }] });
+    eq(old.steps[1].ms, 80, 'an old rapid fire (RT 40, gap 40) converts to a stopwatch of 80');
+    eq(SEC.timelineEnd(old.steps), 80, 'and still takes 80 ms a round');
+
+    /* audit m17: three timelines compileSteps got wrong */
+    var cs = function (steps) { return JSON.stringify(toBoard(P, normAction({ timing: 2, trigger: { src: 'BTN_SOUTH' }, steps: steps })).steps); };
+    eq(cs([{ k: 'tap', t: ['east'], ms: 300 }, { k: 'wait', ms: 100 }, { k: 'tap', t: ['east'], ms: 100 }]),
+      JSON.stringify([{ hold: ['east'] }, { wait: 300 }, { release: ['east'] }]),
+      'm17a: two overlapping presses of one button hold it to the LAST one\'s end, never let go early');
+    eq(cs([{ k: 'trig', t: ['rt+'], ms: 50 }, { k: 'wait', ms: 10 }, { k: 'move', dx: 100, dy: 0, ms: 200 }]),
+      JSON.stringify([{ hold: ['rt+'] }, { wait: 10 }, { move: [20, 0], ms: 40 }, { release: ['rt+'] }, { move: [80, 0], ms: 160 }]),
+      'm17b: a Recoil pull is cut where a press ends inside it, its distance shared, so the press keeps its 50 ms');
+    eq(cs([{ k: 'tap', t: ['east'], ms: 100 }, { k: 'wait', ms: 50 }, { k: 'tap', t: ['south'], ms: 100 },
+           { k: 'wait', ms: 10000 }, { k: 'wait', ms: 10000 }, { k: 'tap', t: ['north'], ms: 80 }]),
+      JSON.stringify([{ hold: ['east'] }, { wait: 50 }, { hold: ['south'] }, { wait: 50 }, { release: ['east'] },
+        { wait: 50 }, { release: ['south'] }, { wait: 10000 }, { wait: 9900 }, { hold: ['north'] }, { wait: 80 },
+        { release: ['north'] }]),
+      'm17c: a compiled pause past one step\'s 10 s is split, not shortened');
+    /* audit m21: a Recoil Workshop step's sheet is named for what it is */
+    eq(SEC.stepTitle({ step: { i: 2, kind: 'move' } }), 'Step 3 — Recoil pull', 'm21: the step sheet names a Recoil pull');
+    /* audit m19: an old "press 100, gap 9950" keeps its 9950 ms gap */
+    var longOld = normAction({ trigger: { src: 'BTN_SOUTH' }, steps: [{ k: 'tap', t: ['east'], ms: 100 }, { k: 'wait', ms: 9950 }] });
+    eq(SEC.timelineEnd(longOld.steps), 10050, 'm19: an old long gap converts without losing time');
+    eq(JSON.stringify(toBoard(P, longOld).steps), JSON.stringify([{ press: ['east'], ms: 100 }, { wait: 9900 }, { wait: 50 }]),
+      'm19: and goes back to the Core as the same 9950 ms gap');
+
+    if (savedCaps) ZS.live.caps = savedCaps; else delete ZS.live.caps;
+    ZS.deviceClasses = savedClasses;
+    if (savedFull) ZS.live.full = savedFull;
+
+    window.ZS_SMART_SELFTEST_RESULT = { pass: fails.length === 0, failures: fails };
+    if (window.console) {
+      if (fails.length) console.error('Scripts self-check FAILED:\n  ' + fails.join('\n  '));
+      else console.log('Scripts self-check passed');
+    }
+  }
+  });
+});
+
+/* every part is in: run them, in order, then bind the late names */
+ZS_SMART_PARTS.run();

@@ -1,0 +1,583 @@
+/* zs-anim.js — entrance & transition choreography (window.ZSANIM).
+ *
+ * ES5 ONLY. var / function / string concatenation. No arrow functions, no
+ * template literals, no let/const — same discipline as zs-motion.js.
+ * No dependencies, no CDN: offline exe + Bluetooth.
+ *
+ * ── THE POLL TRAP is this file's central problem ─────────────────────────────
+ *
+ * Screens re-render via innerHTML on an ~8s poll and on board events. An
+ * entrance that replays on every refresh turns the whole app into a strobe.
+ * So every entrance below is gated on a discriminator that separates REAL
+ * NAVIGATION from a refresh:
+ *
+ *   DETAIL (#dbody)   data-ns changes on navigation and stays the same on a
+ *                     refresh (redrawOpenScreen re-runs openDetail with the
+ *                     same s/p → same ns). We track the last ns we saw and
+ *                     animate only when it differs. Closing the panel resets
+ *                     the gate, so reopening the SAME screen counts as
+ *                     navigation again — matching the panel that visibly
+ *                     slides back in around it.
+ *   HOME (#home)      no ns exists. Animate exactly once, at boot — and ONLY
+ *                     if phone.html's own homeEnter() choreography (.zs-enter,
+ *                     hero-first nth-child delays) is absent: when the app
+ *                     shell carries its own boot reveal we defer to it rather
+ *                     than double-animate the same children.
+ *   EDITOR (#edmenu)  renderEdMenu is only reachable from openEditor, which
+ *                     only user taps reach. phone.html now decorates these
+ *                     rows itself (.zs-in + inline delays); we stagger them
+ *                     ONLY when that in-page system has not already done so.
+ *   SHEET (#sheetbody) picker cells stagger only on the closed→open edge of
+ *                     #sheetwrap. A content swap while open (nested pickers)
+ *                     gets a plain crossfade, never a re-stagger.
+ *
+ * ── Namespace note ───────────────────────────────────────────────────────────
+ *
+ * This file's entrance class is `zs-anim-in` (small variant `zs-anim-in-s`).
+ * phone.html independently owns a `zs-in` class for its editor-menu rows and
+ * `zs-enter` for the home boot — different systems, deliberately different
+ * names, so neither file can ever restyle or replay the other's animation,
+ * and each one's reduced-motion story stays its own.
+ *
+ * ── How it attaches ──────────────────────────────────────────────────────────
+ *
+ * From OUTSIDE, exactly like zs-motion.js: MutationObserver on the app's own
+ * DOM plus capture-phase event listeners. phone.html and the renderers are
+ * untouched (renderers keep emitting the same classes; we only decorate the
+ * nodes they made). If this file fails to load — or MutationObserver is
+ * missing — the app keeps every behaviour and simply does not animate.
+ *
+ * Panels and sheets already spring (zs-motion.js). Nothing here re-animates
+ * a surface; the entrances run on the CONTENT while the surface travels, and
+ * both are transform+opacity, so they compose instead of fighting.
+ *
+ * Reduced motion (prefers-reduced-motion OR body.a11y-motion) is checked
+ * LIVE at every animation start, mirroring ZSM.reduced(): staggers collapse
+ * to 0 in JS, and zs-anim.css independently turns the entrances into plain
+ * ≤120ms fades, so the CSS degrades correctly even if this check is stale.
+ */
+(function () {
+  'use strict';
+
+  /* ── tuning ─────────────────────────────────────────────────────────────── */
+
+  var DUR = 260;          /* entrance duration; must match .zs-anim-in in CSS */
+  var STEP_DETAIL = 24;   /* ms per row — detail screens                      */
+  var STEP_HOME = 30;     /* home boot fallback: hero first, then rows        */
+  var STEP_MENU = 24;     /* editor menu fallback: 5 rows = 96ms total        */
+  var STEP_SHEET = 12;    /* picker cells: dense grid, tiny step              */
+  var CAP_MS = 190;       /* delay clamp — item ~8+ starts together, so a
+                             40-row screen settles in <0.5s, never 1.4s       */
+  var CAP_SHEET = 180;
+
+  var CLS = 'zs-anim-in';
+  var CLS_S = 'zs-anim-in-s';
+
+  /* ── environment ────────────────────────────────────────────────────────── */
+
+  var mqReduce = null;
+  try {
+    mqReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  } catch (e) { mqReduce = null; }
+
+  /* Checked live, never cached — the app's own Ease of Access switch sets
+     body.a11y-motion mid-session and must be believed immediately. */
+  function reduced() {
+    if (mqReduce && mqReduce.matches) { return true; }
+    var b = document.body;
+    return !!(b && b.classList && b.classList.contains('a11y-motion'));
+  }
+
+  /* "After the click handlers ran, before the next paint." rAF is the exact
+     pre-paint hook — but it never fires while the document is hidden, so a
+     click delivered to a hidden page (automation, remote panes) would queue
+     work forever. Hidden pages don't paint; setTimeout keeps the sequencing
+     without waiting for a frame that isn't coming. */
+  var rafNative = (typeof window.requestAnimationFrame === 'function')
+    ? window.requestAnimationFrame : null;
+  function raf(fn) {
+    if (document.hidden || !rafNative) { setTimeout(fn, 0); return; }
+    rafNative.call(window, fn);
+  }
+
+  function now() { return new Date().getTime(); }
+
+  /* ── the stagger ────────────────────────────────────────────────────────────
+     delayFor is the pure maths (self-tested); stagger applies it to real
+     children. Delay rides inline so the CSS stays one rule; the class is on
+     the CHILD, so a refresh that replaces children can never inherit it. */
+
+  function delayFor(i, step, cap, isReduced) {
+    if (isReduced) { return 0; }
+    var d = i * step;
+    return d > cap ? cap : d;
+  }
+
+  function unmark(el) {
+    if (!el || !el.classList) { return; }
+    el.classList.remove(CLS);
+    el.classList.remove(CLS_S);
+    if (el.style) { el.style.animationDelay = ''; }
+  }
+
+  function stagger(container, opts) {
+    opts = opts || {};
+    var step = opts.step == null ? STEP_DETAIL : opts.step;
+    var cap = opts.cap == null ? CAP_MS : opts.cap;
+    var isRed = reduced();
+    var kids = opts.selector
+      ? container.querySelectorAll(opts.selector)
+      : container.children;
+    if (!kids || !kids.length) { return 0; }
+    var n = 0, i, el, stamp = now();
+    for (i = 0; i < kids.length; i++) {
+      el = kids[i];
+      if (!el || el.nodeType !== 1 || !el.classList) { continue; }
+      el.style.animationDelay = delayFor(n, step, cap, isRed) + 'ms';
+      el.classList.add(CLS);
+      if (opts.small) { el.classList.add(CLS_S); }
+      el._zsInAt = stamp;
+      n++;
+    }
+    /* Safety sweep: animationend (below) is the primary cleanup, but if the
+       animation never runs (element hidden, a11y-motion flipped mid-flight)
+       the class must still come off, or fill-mode could pin a stale state
+       and a LATER re-attach of the node would replay the entrance. */
+    setTimeout(function () {
+      try {
+        var left = container.querySelectorAll('.' + CLS), j;
+        for (j = 0; j < left.length; j++) {
+          if (left[j]._zsInAt === stamp) { unmark(left[j]); }
+        }
+      } catch (err) { /* container may be gone — fine */ }
+    }, cap + DUR + 450);
+    return n;
+  }
+
+  /* Release the fill-mode the moment each entrance ends, so a press-dip
+     transform is never blocked by a finished keyframe holding transform. */
+  try {
+    document.addEventListener('animationend', function (e) {
+      var t = e.target;
+      if (!t || !t.classList) { return; }
+      if (e.animationName === 'zs-rise' || e.animationName === 'zs-fade-in') {
+        if (t.classList.contains(CLS)) { unmark(t); }
+        if (t.classList.contains('zs-swap')) { t.classList.remove('zs-swap'); }
+      }
+    }, true);
+  } catch (e0) { /* no listener → sweep timers still clean up */ }
+
+  /* ── the navigation discriminator ───────────────────────────────────────────
+     One object, one rule: animate only when the ns differs from the last one
+     seen. reset() is called when the detail panel closes, so reopening the
+     same screen reads as navigation (the panel visibly slides in with it),
+     while redrawOpenScreen / board refreshes — same ns, panel never closed —
+     read as refresh and stay still. */
+
+  function NavGate() { this.last = null; }
+  NavGate.prototype.check = function (ns) {
+    var nav = ns !== this.last;
+    this.last = ns;
+    return nav;
+  };
+  NavGate.prototype.reset = function () { this.last = null; };
+
+  /* DETAIL: observe data-ns only. openDetail sets data-ns then innerHTML in
+     the same synchronous run, so by the time the (microtask) callback fires
+     the new children exist and can be decorated. Content-only mutations
+     (Smart Actions sub-screens, wireCv's put() slots at 320ms) never touch
+     data-ns, so they never even wake this observer — the vision screen's
+     poll costs nothing here. Note: setting data-ns to the SAME value still
+     queues a mutation record, which is exactly why the gate compares values
+     instead of trusting the record. */
+  function attachDetail(body, panel) {
+    var gate = new NavGate();
+    var mo = null, pmo = null;
+
+    function process() {
+      var ns = body.getAttribute('data-ns');
+      if (gate.check(ns)) {
+        stagger(body, { step: STEP_DETAIL, cap: CAP_MS });
+      }
+    }
+
+    if (window.MutationObserver) {
+      mo = new window.MutationObserver(function () { process(); });
+      mo.observe(body, { attributes: true, attributeFilter: ['data-ns'] });
+
+      if (panel) {
+        pmo = new window.MutationObserver(function () {
+          if (!panel.classList.contains('open')) { gate.reset(); }
+        });
+        pmo.observe(panel, { attributes: true, attributeFilter: ['class'] });
+      }
+    }
+
+    return {
+      gate: gate,
+      /* synchronous drain + decide — exists for the self-test, which cannot
+         wait on microtasks and must prove the discriminator deterministically */
+      step: function () {
+        if (mo) { mo.takeRecords(); }
+        process();
+      },
+      destroy: function () {
+        if (mo) { mo.disconnect(); }
+        if (pmo) { pmo.disconnect(); }
+      }
+    };
+  }
+
+  /* EDITOR MENU: rebuilt only by renderEdMenu, only reachable via openEditor,
+     only reachable by a user tap. No poll path — every rebuild may animate.
+     phone.html's renderEdMenu now runs its own entrance (`zs-in` + inline
+     delays, hero-first choreography). When those rows arrive pre-decorated —
+     by either system — we leave them alone; this observer is the fallback
+     that keeps the menu animated if the in-page entrance is ever removed. */
+  function attachMenu(menu) {
+    if (!window.MutationObserver) { return null; }
+    var mo = new window.MutationObserver(function () {
+      if (!menu.children.length) { return; }        /* the innerHTML='' half */
+      var first = menu.children[0];
+      if (first.classList &&
+          (first.classList.contains('zs-in') || first.classList.contains(CLS))) {
+        return;                                     /* already choreographed */
+      }
+      stagger(menu, { step: STEP_MENU, cap: CAP_MS });
+    });
+    mo.observe(menu, { childList: true });
+    return mo;
+  }
+
+  /* SHEET: one observer for both the open class and the body's children, so
+     the two kinds of change can be told apart inside a single batch:
+       closed→open edge  → stagger picker cells (if it is a picker at all;
+                           other sheets let the sheet spring be the entrance)
+       swap while open   → plain 170ms crossfade, no re-stagger, no re-spring
+     sheetOpen() writes innerHTML BEFORE adding .open, so the opening batch
+     contains both records — the edge check wins and the swap path is skipped. */
+  function attachSheetFx(wrap, sbody) {
+    if (!window.MutationObserver) { return null; }
+    var isOpen = wrap.classList.contains('open');
+    /* sheetOpen hands each sheet a fresh .sheet-inner inside #sheetbody
+       (B2), and a sheet that repaints in place writes to THAT, one level
+       down. So the observer also follows the CURRENT .sheet-inner's own
+       children - one level, not the subtree, so a live readout rewriting a
+       span inside it never fades the whole sheet. A write to an inner that
+       is no longer in the sheet is not a swap of what the player sees. */
+    var inner = null;
+    function watch() {
+      var cur = sbody.children[0];
+      if (!(cur && cur.classList && cur.classList.contains('sheet-inner'))) { cur = null; }
+      if (cur === inner) { return; }
+      inner = cur;
+      mo.disconnect();
+      observeAll();
+    }
+    function observeAll() {
+      mo.observe(wrap, { attributes: true, attributeFilter: ['class'] });
+      mo.observe(sbody, { childList: true });
+      if (inner) { mo.observe(inner, { childList: true }); }
+    }
+    var mo = new window.MutationObserver(function (records) {
+      watch();
+      var open = wrap.classList.contains('open');
+      var edge = open && !isOpen;
+      var swapped = false, i;
+      for (i = 0; i < records.length; i++) {
+        if (records[i].type === 'childList' &&
+            (records[i].target === sbody || records[i].target === inner)) { swapped = true; break; }
+      }
+      isOpen = open;
+      if (!open) { return; }
+      if (edge) {
+        if (sbody.querySelectorAll('.pk').length) {
+          stagger(sbody, { selector: '.pk', small: true, step: STEP_SHEET, cap: CAP_SHEET });
+        }
+        return;
+      }
+      if (swapped) {
+        sbody.classList.remove('zs-swap');
+        void sbody.offsetWidth;                     /* restart if mid-fade */
+        sbody.classList.add('zs-swap');
+        setTimeout(function () { sbody.classList.remove('zs-swap'); }, 420);
+      }
+    });
+    watch();
+    if (!inner) { observeAll(); }
+    return mo;
+  }
+
+  /* ── tab indicator: the selection travels ───────────────────────────────────
+     .subtabs re-renders wholesale on every tab tap (Global Settings, Smart
+     Actions), so a persistent indicator cannot survive — instead a transient
+     ghost pill is FLIPped: geometry of the OLD .on button is captured at
+     click time (capture phase, before the renderer's own handler replaces
+     the strip), then after the re-render a pill is injected at the old spot
+     and slides (translateX only) onto the new .on while fading out. Pure
+     decoration on top of the renderer's own instant .on styling — if it is
+     ever orphaned, the next re-render wipes it.
+     .seg2 is deliberately skipped (flex-wrap rows — a travelling pill breaks
+     geometry) and #edtabs is a dead surface. */
+  function tabFlip() {
+    document.addEventListener('click', function (e) {
+      if (reduced()) { return; }
+      var btn = e.target && e.target.closest ? e.target.closest('.subtabs button') : null;
+      if (!btn || !btn.classList || btn.classList.contains('on')) { return; }
+      var strip = btn.parentElement;
+      if (!strip) { return; }
+      var cur = strip.querySelector('button.on');
+      if (!cur) { return; }
+      var oRect = cur.getBoundingClientRect();
+      if (!oRect.width) { return; }
+      var targetTxt = btn.textContent;
+
+      raf(function () {
+        try {
+          var scope = document.getElementById('dbody') || document;
+          var ns = scope.querySelector('.subtabs');
+          if (!ns) { return; }
+          var non = ns.querySelector('button.on');
+          if (!non || non.textContent !== targetTxt) { return; }
+          var nRect = non.getBoundingClientRect();
+          var sRect = ns.getBoundingClientRect();
+          if (!nRect.width) { return; }
+          /* the re-render resets scrollTop; if the strip moved vertically the
+             old geometry is meaningless — skip rather than fly diagonally */
+          if (Math.abs(nRect.top - oRect.top) > 4) { return; }
+
+          var pill = document.createElement('div');
+          pill.className = 'zs-tabghost';
+          pill.style.left = (oRect.left - sRect.left) + 'px';
+          pill.style.top = (oRect.top - sRect.top) + 'px';
+          pill.style.width = oRect.width + 'px';
+          pill.style.height = oRect.height + 'px';
+          ns.appendChild(pill);
+          void pill.offsetWidth;
+          pill.style.transform = 'translate3d(' + (nRect.left - oRect.left).toFixed(1) + 'px,0,0)';
+          pill.style.opacity = '0';
+
+          var gone = false;
+          function drop() {
+            if (gone) { return; }
+            gone = true;
+            if (pill.parentNode) { pill.parentNode.removeChild(pill); }
+          }
+          pill.addEventListener('transitionend', drop);
+          setTimeout(drop, 420);
+        } catch (err) { /* decoration only — never break the tab switch */ }
+      });
+    }, true);
+  }
+
+  /* ── accordion disclosure ───────────────────────────────────────────────────
+     phone.html's wire() toggles .open on the header click; the CSS flips .ab
+     between display:none and block instantly. We ride the same click at
+     capture phase: record the pre-toggle state (and the CURRENT height, which
+     is the only moment a closing body can still be measured), then in the
+     pre-paint rAF drive inline height between 0 and the measured px on the
+     settle curve. Cleanup returns the element to pure class-driven state, so
+     a failure mid-flight degrades to today's instant toggle. Headers are only
+     ever clicked by the user — the poll cannot reach this path. */
+  function accordions() {
+    document.addEventListener('click', function (e) {
+      var h = e.target && e.target.closest ? e.target.closest('.acc > .ah') : null;
+      if (!h) { return; }
+      var acc = h.parentElement;
+      if (!acc || !acc.classList || !acc.classList.contains('acc')) { return; }
+      if (reduced()) { return; }                    /* live check, per start */
+      var ab = null, c;
+      for (c = acc.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 1 && c.classList && c.classList.contains('ab')) { ab = c; break; }
+      }
+      if (!ab) { return; }
+      var wasOpen = acc.classList.contains('open');
+      var h0 = wasOpen ? ab.offsetHeight : 0;       /* measure while visible */
+
+      raf(function () {
+        try {
+          var isOpen = acc.classList.contains('open');
+          if (isOpen === wasOpen) { return; }       /* the click didn't toggle */
+          var tok = {};
+          ab._zsAccTok = tok;
+
+          function settle(ms, fn) {
+            function done() {
+              ab.removeEventListener('transitionend', onEnd);
+              if (ab._zsAccTok !== tok) { return; } /* superseded by a re-tap */
+              ab._zsAccTok = null;
+              fn();
+            }
+            function onEnd(ev) {
+              if (ev.target === ab && ev.propertyName === 'height') { done(); }
+            }
+            ab.addEventListener('transitionend', onEnd);
+            setTimeout(done, ms);
+          }
+
+          if (isOpen) {
+            /* opening: 0 (or wherever a mid-close left it) → content height */
+            var from = ab.style.height ? ab.offsetHeight : 0;
+            var target = ab.scrollHeight;
+            if (!target) { return; }
+            ab.classList.add('zs-acc-anim');
+            ab.style.height = from + 'px';
+            if (!from) { ab.style.opacity = '0'; }
+            void ab.offsetHeight;
+            ab.style.height = target + 'px';
+            ab.style.opacity = '1';
+            settle(320, function () {
+              ab.classList.remove('zs-acc-anim');
+              ab.style.height = '';
+              ab.style.opacity = '';
+            });
+          } else {
+            /* closing: the class already hid it — hold it visible inline and
+               run the measured height down, then hand back to the CSS */
+            if (!h0) { return; }
+            ab.style.display = 'block';
+            ab.classList.add('zs-acc-anim');
+            ab.style.height = h0 + 'px';
+            ab.style.opacity = '1';
+            void ab.offsetHeight;
+            ab.style.height = '0px';
+            ab.style.opacity = '0';
+            settle(320, function () {
+              ab.classList.remove('zs-acc-anim');
+              ab.style.display = '';
+              ab.style.height = '';
+              ab.style.opacity = '';
+            });
+          }
+        } catch (err) { /* fall back to the instant toggle */ }
+      });
+    }, true);
+  }
+
+  /* ── public surface ─────────────────────────────────────────────────────── */
+
+  window.ZSANIM = {
+    reduced: reduced,
+    stagger: stagger,
+    delayFor: delayFor,
+    NavGate: NavGate,
+    _attachDetail: attachDetail       /* exposed for the self-test */
+  };
+
+  /* ── attach to the app ──────────────────────────────────────────────────── */
+
+  try {
+    var dbody = document.getElementById('dbody');
+    var detail = document.getElementById('detail');
+    if (dbody) { attachDetail(dbody, detail); }
+
+    var menu = document.getElementById('edmenu');
+    if (menu) { attachMenu(menu); }
+
+    /* HOME boot reveal — one shot, on the children renderHome() has already
+       drawn (the inline app script ran before this file). If phone.html's own
+       homeEnter() choreography is running (.zs-enter on #home), defer to it:
+       two systems animating the same children is exactly one too many. This
+       path only fires as a fallback when the in-page reveal is absent.
+       Returning from a panel animates NOTHING here in either system: the
+       panel's exit spring reveals home as last drawn, and every later
+       renderHome() creates unclassed nodes. */
+    var home = document.getElementById('home');
+    if (home && home.children.length && !home.classList.contains('zs-enter')) {
+      stagger(home, { step: STEP_HOME, cap: CAP_MS });
+    }
+
+    var wrap = document.getElementById('sheetwrap');
+    var sbody = document.getElementById('sheetbody');
+    if (wrap && sbody) { attachSheetFx(wrap, sbody); }
+
+    tabFlip();
+    accordions();
+  } catch (eAttach) { /* no animations — never a broken app */ }
+
+  /* ── self-test ──────────────────────────────────────────────────────────────
+     Same convention as zs-motion.js. These assert the three things that fail
+     silently: the ns discriminator (the poll trap), the stagger cap, and
+     reduced-motion collapsing. Runs pre-paint; the body-class round-trip is
+     restored before anything renders. */
+  (function () {
+    var fail = [];
+    function ck(c, m) { if (!c) { fail.push(m); } }
+    try {
+      /* 1. the discriminator, as pure logic */
+      var g = new NavGate();
+      ck(g.check('p1/aim') === true, 'first navigation must animate');
+      ck(g.check('p1/aim') === false, 'POLL TRAP: refresh with unchanged ns must NOT animate');
+      ck(g.check('p1/curves') === true, 'ns change must animate');
+      ck(g.check('p1/curves') === false, 'redraw after navigation must not animate');
+      g.reset();
+      ck(g.check('p1/curves') === true, 'reopening after panel close must animate');
+
+      /* 1b. the discriminator, against a real (detached) #dbody lifecycle —
+         set data-ns + innerHTML exactly as openDetail does, drain the
+         observer synchronously, and prove the refresh stays still. */
+      if (window.MutationObserver) {
+        var fake = document.createElement('div');
+        var inst = attachDetail(fake, null);
+        fake.setAttribute('data-ns', 'global/global');
+        fake.innerHTML = '<div></div><div></div><div></div>';
+        inst.step();
+        ck(fake.children.length === 3 && fake.children[0].classList.contains(CLS),
+          'navigation must decorate the new children');
+        /* the 8s poll: same ns re-set, content replaced */
+        fake.setAttribute('data-ns', 'global/global');
+        fake.innerHTML = '<div></div><div></div><div></div>';
+        inst.step();
+        ck(!fake.children[0].classList.contains(CLS),
+          'POLL TRAP (DOM): a refresh with the same ns must not animate');
+        inst.gate.reset();                    /* the panel closed */
+        fake.setAttribute('data-ns', 'global/global');
+        fake.innerHTML = '<div></div>';
+        inst.step();
+        ck(fake.children[0].classList.contains(CLS),
+          're-navigation after the panel closed must animate again');
+        inst.destroy();
+      }
+
+      /* 2. the stagger cap — pure maths first (environment-independent) */
+      ck(delayFor(0, 24, 190, false) === 0, 'row 1 must start immediately');
+      ck(delayFor(5, 24, 190, false) === 120, 'stagger step maths is wrong');
+      ck(delayFor(20, 24, 190, false) === 190, 'delay must clamp at the cap');
+      ck(delayFor(39, 24, 190, false) === 190, 'row 40 must start no later than the cap');
+      ck(delayFor(39, 24, 190, true) === 0, 'reduced motion must collapse the stagger to 0');
+      ck(CAP_MS + DUR < 700, 'a 40-row screen must settle in well under 1.4s');
+      /* and applied to a real 40-child container, consistent with the LIVE
+         reduced() state whatever machine this runs on */
+      var d40 = document.createElement('div'), i40;
+      for (i40 = 0; i40 < 40; i40++) { d40.appendChild(document.createElement('div')); }
+      stagger(d40, { step: 24, cap: 190 });
+      ck(d40.children[39].classList.contains(CLS),
+        'every row must still get the entrance (clamped, not skipped)');
+      var dLast = parseFloat(d40.children[39].style.animationDelay) || 0;
+      ck(dLast === delayFor(39, 24, 190, reduced()),
+        'inline delay must match delayFor under the current motion setting');
+
+      /* 3. reduced-motion collapsing, via the LIVE body-class check */
+      var body = document.body;
+      if (body && body.classList) {
+        var had = body.classList.contains('a11y-motion');
+        body.classList.add('a11y-motion');
+        ck(reduced() === true, 'reduced() must see body.a11y-motion LIVE');
+        var dr = document.createElement('div'), ir;
+        for (ir = 0; ir < 6; ir++) { dr.appendChild(document.createElement('div')); }
+        stagger(dr, { step: 24, cap: 190 });
+        ck((parseFloat(dr.children[5].style.animationDelay) || 0) === 0,
+          'stagger must collapse to 0 under a11y-motion');
+        if (!had) {
+          body.classList.remove('a11y-motion');
+          if (!(mqReduce && mqReduce.matches)) {
+            ck(reduced() === false, 'reduced() must release when the class is removed');
+          }
+        }
+      }
+    } catch (eTest) {
+      fail.push('exception: ' + ((eTest && eTest.message) || eTest));
+    }
+    window.ZSANIM_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+  })();
+})();

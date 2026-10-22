@@ -1,0 +1,1947 @@
+/* smart-actions/01-model.js — the Scripts editor's model: the board's own action JSON.
+ *
+ * The engine's limits (STEP_MS_CAP...), the small helpers and the local control
+ * kit, the vocabulary (step kinds, trigger gestures), the pad in hand order,
+ * names and art for a source or a target (INPUT = the pad you hold, OUTPUT = the
+ * console this config targets), the room a weapon's actions live in (D122),
+ * the local draft (persist), the old editor's migration, the board's step JSON
+ * both ways (emitStep / fromBoardStep), the ADS gate, toBoard, and the sync
+ * that MERGES into accessibilityActions[] (syncBoard, saveAll; never replaces).
+ * Profile: accessibilityActions[] -> ACTIONS 0x0011 -> components/zs_actions.
+ *
+ * Tests: test-smart-actions.js (and its self-check), test-profile-writes.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('model', function (SEC) {
+  'use strict';
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var hasErrors, stepLine, sicon, openStepSheet;
+  ZS_SMART_PARTS.after(function () {
+    hasErrors = SEC.hasErrors;
+    stepLine = SEC.stepLine;
+    sicon = SEC.sicon;
+    openStepSheet = SEC.openStepSheet;
+  });
+
+  var ZS = window.ZS, esc = ZS.esc, ico = ZS.icoSVG;
+  /* VIEW: the editor's state that more than one file changes (the room
+     being drawn, the screen to redraw into, the open panel). One object,
+     so every file sees the same values (smart-actions.js, rule 4). */
+  var VIEW = {};
+
+  /* ── board limits, quoted from the engine ─────────────────────── */
+  var STEP_MS_CAP = 10000;      /* steps.py: STEP_MS_CAP */
+  var DUR_MIN = 100, DUR_MAX = 30000;   /* schema.py: maxDurationMs */
+  var COOL_MAX = 60000, VAR_MAX = 500, REP_MAX = 10;
+  /* D171: a stick push may vary by up to +-10 points of full deflection */
+  var SVAR_MAX = 10;
+  /* null = "use the config's" (the Translation tab's Stick variance); a
+     number 0..10 is this action's own, 0 meaning "exact, whatever the
+     config says". Rounded to a hundredth because that is what the wire
+     carries (points x 100 + 1). */
+  function stickVarOf(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return null;
+    return Math.round(clamp(v, 0, SVAR_MAX) * 100) / 100;
+  }
+  /* "Switch config to number N". It was 1 to 20, a number from when a Core
+     held eight configs. Since D135 a Core's configs have no count, so the
+     only bound is the one the wire carries: the encoders write the number as
+     a signed 16-bit index (encode.py, zs-profile-encode.js), and the Core
+     reads it as one. The editor offers at least 20, and more when there are
+     more configs to switch to (configNumberTop). */
+  var CONFIG_NUMBER_MAX = 32767;
+  function configNumberTop(cur) {
+    var n = (ZS.PROFILES && ZS.PROFILES.length) || 0;
+    return Math.min(CONFIG_NUMBER_MAX, Math.max(20, n, typeof cur === 'number' ? cur : 1));
+  }
+
+  /* ── small helpers ────────────────────────────────────────────── */
+  function num(v, d) { var n = parseFloat(v); return isFinite(n) ? n : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+  function intOf(v, d) { return Math.round(num(v, d)); }
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  /* The board reads a step's ms through steps.py's ms(), which falls back to
+     the default for a bool or anything non-numeric — so only a real numeric
+     zero carries the "hold, do not tap" meaning. */
+  function isZero(v) { return typeof v === 'number' && v === 0; }
+  /* the shortest tap the board can tell apart from a hold */
+  var TAP_MS_MIN = 1;
+
+  /* A closed detail panel keeps its DOM (it is only translated off-screen), so
+     a poller must check the panel is open AND still showing this screen.
+     Re-declared here because phone-sections.js keeps its copy private. */
+  function screenLive(ns) {
+    var d = document.getElementById('detail');
+    if (!d || !d.classList.contains('open')) return false;
+    var b = document.getElementById('dbody');
+    return !!b && (!ns || b.dataset.ns === ns);
+  }
+
+  /* confirm-on-second-tap for destructive buttons (same idiom as the kit).
+     `say` replaces "Tap again to confirm" when the second tap does more
+     than the button's word says (D134: deleting a linked Smart Action
+     deletes it from every gun it is linked to, and says how many first). */
+  function armConfirm(b, fn, say) {
+    b.addEventListener('click', function () {
+      if (b.dataset.armed === '1') { b.dataset.armed = ''; fn(); return; }
+      b.dataset.armed = '1';
+      /* innerHTML, not textContent: the delete keys wear the set's trash
+         icon (D82), and the mark has to come back with the word */
+      var old = b.innerHTML;
+      b.textContent = say || 'Tap again to confirm';
+      setTimeout(function () {
+        if (b.dataset.armed === '1') { b.dataset.armed = ''; b.innerHTML = old; }
+      }, 2600);
+    });
+  }
+
+  /* Enter/Space on a role="button" row */
+  function kbRow(el, fn) {
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+    });
+  }
+
+  /* ── the control kit, re-declared locally ─────────────────────────
+     Two deliberate differences from phone-sections.js's copy:
+       · no data-bind support — the model owns every value here;
+       · labels use .salab, not .flab. phone.html's wire() derives a
+         localStorage key from the .flab text, and this screen repeats labels
+         ("How long") across steps, which would make them share one key and
+         reload the previous step's number. No .flab means keyFor() returns
+         null and nothing is ever written. Everything else on screen also
+         carries data-nosave="1" for the same reason. */
+  function sh(t) { return '<div class="sh">' + esc(t) + '</div>'; }
+  function card(inner) { return '<div class="grp-card">' + inner + '</div>'; }
+  /* RAW HTML SINK: `t` is inserted unescaped so a note can carry <b> and a
+     coloured dot. Every caller passes a literal or escapes the model values it
+     interpolates — anything from an action, a step or a share code must go
+     through esc() before it gets here. */
+  /* a warning is the shared "!" chip (phone-sections.js warnHTML) so the
+     two files can never grow two disagreeing warnings; everything else is
+     the plain note it always was */
+  /* `full` is D70's third argument: the whole block, ONLY for a sentence
+     that answers something the player just tapped (the recorder's "your
+     board couldn't start"); an advisory warning never passes it */
+  function note(t, kind, full) {
+    if (kind === 'warn' && !full && ZS.warnHTML) return ZS.warnHTML(t);
+    return '<div class="note' + (kind ? ' ' + kind : '') + '">' + t + '</div>';
+  }
+  /* D285 (owner, 2026-10-13: "you explain every script with like a
+     paragraph - just turn that into the question mark thing"): an
+     explanation is never printed on a Scripts screen; it is the "?" fold
+     (phone-sections' helpHTML: bullets per D260, hidden with Show help
+     buttons off per D236). Without helpHTML (a test page that never loaded
+     the kit) it falls back to the plain note, so nothing is ever lost. */
+  function helpNote(id, label, t) {
+    return ZS.helpHTML ? ZS.helpHTML(id, label, t) : note(t);
+  }
+  function btn(label, kind, id) {
+    return '<button class="btn' + (kind ? ' ' + kind : '') + '"' + (id ? ' id="' + id + '"' : '') + '>' + esc(label) + '</button>';
+  }
+  /* the same key with one of the set's icons before its word (D82): the
+     word is still the label, the icon is recognition */
+  function btnI(icon, label, kind, id) {
+    return '<button class="btn' + (kind ? ' ' + kind : '') + '"' + (id ? ' id="' + id + '"' : '') + '>' +
+      sicon(icon) + '<span>' + esc(label) + '</span></button>';
+  }
+  function addbtn(label, id) { return '<div class="addbtn"' + (id ? ' id="' + id + '"' : '') + ' role="button" tabindex="0">' + (sicon('plus') || '＋ ') + esc(label) + '</div>'; }
+  function acc(title, iconName, inner, open, id) {
+    return '<div class="acc' + (open ? ' open' : '') + '"' + (id ? ' id="' + id + '"' : '') + '><div class="ah">' +
+      (iconName ? '<span class="aicon">' + ico(iconName, 20) + '</span>' : '') + esc(title) +
+      '<span class="chev">›</span></div><div class="ab">' + inner + '</div></div>';
+  }
+  /* `sub` is a RAW HTML SINK in both of these (it carries the odd <b>), so a
+     caller feeding it a model field must esc() it first; `label` is escaped. */
+  function fld(label, control, sub) {
+    return '<div class="fld"><div class="salab">' + esc(label) +
+      (sub ? '<em>' + sub + '</em>' : '') + '</div>' + control + '</div>';
+  }
+  function fldCol(label, control, sub) {
+    return '<div class="fld col"><div class="salab">' + esc(label) +
+      (sub ? '<em>' + sub + '</em>' : '') + '</div>' + control + '</div>';
+  }
+  function toggle(on, id, aria) {
+    return '<span class="sw' + (on ? ' on' : '') + '" data-nosave="1" role="switch"' +
+      (id ? ' id="' + id + '"' : '') + ' aria-checked="' + (on ? 'true' : 'false') +
+      '" tabindex="0" aria-label="' + esc(aria || '') + '"></span>';
+  }
+  function svspan(val, min, max, suf, d, field) {
+    return '<span class="stp"><button data-d="-' + d + '" aria-label="decrease">−</button>' +
+      '<b class="sv" data-nosave="1" data-f="' + esc(field) + '" data-min="' + min + '" data-max="' + max + '"' +
+      (suf ? ' data-suffix="' + esc(suf) + '"' : '') + '>' + esc(String(val)) + '</b>' +
+      '<button data-d="' + d + '" aria-label="increase">+</button></span>';
+  }
+  function stepper(label, val, d, min, max, suf, sub, field) {
+    return fld(label, svspan(val, min, max, suf, d, field), sub);
+  }
+  function seg(label, opts, idx, id, sub, disabled) {
+    return fldCol(label, '<div class="seg2" data-nosave="1"' + (id ? ' id="' + id + '"' : '') + '>' +
+      opts.map(function (o, i) {
+        return '<button' + (i === (idx || 0) ? ' class="on"' : '') +
+          (disabled ? ' aria-disabled="true"' : '') + '>' + esc(o) + '</button>';
+      }).join('') + '</div>', sub);
+  }
+  function txtFld(label, val, cls, ph, sub) {
+    return '<div class="fld col"><div class="salab">' + esc(label) + (sub ? '<em>' + sub + '</em>' : '') + '</div>' +
+      '<input class="txt ' + cls + '" data-nosave="1" style="margin-top:10px" value="' + esc(val || '') +
+      '" placeholder="' + esc(ph || '') + '" aria-label="' + esc(label) + '"></div>';
+  }
+
+  /* ══ vocabulary ═══════════════════════════════════════════════════ */
+
+  /* The 28 targets a step may drive: every Button in the board's neutral model
+     plus the eight stick directions and the two pulled triggers. "lt-"/"rt-"
+     are deliberately absent — schema accepts them and parse_target throws them
+     away, so offering them would build a step that does nothing. */
+  var TARGET_SECTIONS = [
+    { h: 'Face buttons',      codes: ['south', 'east', 'west', 'north'] },
+    { h: 'Shoulders',         codes: ['l1', 'r1'] },
+    { h: 'Triggers',          codes: ['lt+', 'rt+'] },
+    { h: 'Stick clicks',      codes: ['l3', 'r3'] },
+    { h: 'D-pad',             codes: ['dpad_up', 'dpad_down', 'dpad_left', 'dpad_right'] },
+    { h: 'System',            codes: ['start', 'select', 'guide', 'touchpad'] },
+    { h: 'Move (left stick)', codes: ['ly+', 'ly-', 'lx-', 'lx+'] },
+    { h: 'Aim (right stick)', codes: ['ry+', 'ry-', 'rx-', 'rx+'] },
+    { h: 'Extras',            codes: ['extra1', 'extra2'] }
+  ];
+  var TARGET_OK = {};
+  TARGET_SECTIONS.forEach(function (s) {
+    s.codes.forEach(function (c) { TARGET_OK[c] = true; });
+  });
+
+  /* Neutral pad control → the exact code the engine matches a trigger on.
+     THIS TABLE MUST AGREE WITH board/agent/zs_agent/mapping/labels.py's
+     CONTROL_SOURCES. The engine compares `a.source != code` on an exact
+     string, so a disagreement here is not a rendering bug — it is an action
+     that never fires. (The board now normalises neutral names itself, so a
+     mismatch is caught rather than silent, but the app should still write the
+     code the board wants.)
+
+     l2/r2 resolve to the ANALOG source, not to BTN_TL2/BTN_TR2. The digital
+     trigger click is a DualSense thing; xpad publishes triggers only as
+     ABS_Z/ABS_RZ and never sends BTN_TL2 at all, so a "fires on R2" action
+     resolved to BTN_TR2 was dead on every Xbox-family pad. The analog source
+     fires past 60% pull and works on both. */
+  var CONTROL_SOURCE = {
+    south: 'BTN_SOUTH', east: 'BTN_EAST', west: 'BTN_WEST', north: 'BTN_NORTH',
+    l1: 'BTN_TL', r1: 'BTN_TR',
+    l2: 'lt', r2: 'rt', lt: 'lt', rt: 'rt',
+    l3: 'BTN_THUMBL', r3: 'BTN_THUMBR',
+    dpad_up: 'BTN_DPAD_UP', dpad_down: 'BTN_DPAD_DOWN',
+    dpad_left: 'BTN_DPAD_LEFT', dpad_right: 'BTN_DPAD_RIGHT',
+    start: 'BTN_START', select: 'BTN_SELECT', guide: 'BTN_MODE',
+    touchpad: 'BTN_TRIGGER_HAPPY1'
+  };
+
+  /* the pad controls offered as a trigger source, in the order a hand finds
+     them; [neutral code for the art/name, the code the engine watches] */
+  var PAD_SOURCES = [
+    ['south', 'BTN_SOUTH'], ['east', 'BTN_EAST'], ['west', 'BTN_WEST'], ['north', 'BTN_NORTH'],
+    ['l1', 'BTN_TL'], ['r1', 'BTN_TR'], ['l2', 'lt'], ['r2', 'rt'],
+    ['l3', 'BTN_THUMBL'], ['r3', 'BTN_THUMBR'],
+    ['dpad_up', 'BTN_DPAD_UP'], ['dpad_down', 'BTN_DPAD_DOWN'],
+    ['dpad_left', 'BTN_DPAD_LEFT'], ['dpad_right', 'BTN_DPAD_RIGHT'],
+    ['start', 'BTN_START'], ['select', 'BTN_SELECT']
+  ];
+
+  /* ── the pad, in the order one hand finds it ────────────────────────
+     Moved here from R.bindings (its PAD_SRC_CODE / PAD_IDX_TARGET pair) so
+     the Buttons screen and the Smart Actions screen are ONE renderer over one
+     model. Each entry:
+
+       [0] the code a BINDING watches   [1] neutral name, for art and words
+       [2] its passthrough target       [3] the code an ACTION watches
+
+     The two trigger rows are the only place [0] and [3] differ, and the
+     difference is real rather than tidy: a binding watches the digital
+     trigger CLICK (BTN_TL2, which only a DualSense sends), while an action
+     watches the ANALOG pull past 60% ("lt", which every pad sends). Under
+     your finger they are one control, so they are one ROW — and the row
+     writes the right code into each of the two lists. */
+  var PAD_ROWS = [
+    ['BTN_SOUTH', 'south', 'south', 'BTN_SOUTH'],
+    ['BTN_EAST', 'east', 'east', 'BTN_EAST'],
+    ['BTN_WEST', 'west', 'west', 'BTN_WEST'],
+    ['BTN_NORTH', 'north', 'north', 'BTN_NORTH'],
+    ['BTN_TL', 'l1', 'l1', 'BTN_TL'],
+    ['BTN_TR', 'r1', 'r1', 'BTN_TR'],
+    ['BTN_TL2', 'l2', 'lt+', 'lt'],
+    ['BTN_TR2', 'r2', 'rt+', 'rt'],
+    ['BTN_THUMBL', 'l3', 'l3', 'BTN_THUMBL'],
+    ['BTN_THUMBR', 'r3', 'r3', 'BTN_THUMBR'],
+    ['BTN_DPAD_UP', 'dpad_up', 'dpad_up', 'BTN_DPAD_UP'],
+    ['BTN_DPAD_DOWN', 'dpad_down', 'dpad_down', 'BTN_DPAD_DOWN'],
+    ['BTN_DPAD_LEFT', 'dpad_left', 'dpad_left', 'BTN_DPAD_LEFT'],
+    ['BTN_DPAD_RIGHT', 'dpad_right', 'dpad_right', 'BTN_DPAD_RIGHT'],
+    ['BTN_START', 'start', 'start', 'BTN_START'],
+    ['BTN_SELECT', 'select', 'select', 'BTN_SELECT']
+  ];
+
+  /* GRID_TARGETS — a flat list of fourteen codes drawn as a wrapping row of
+     identical tiles — is GONE. PAD_TGT_GROUPS replaces it: the same controls
+     in five captioned rows (the 6×5 pad silhouette that came between lasted
+     eleven days — see the comment on PAD_TGT_GROUPS), so you point at a
+     named group instead of reading fourteen tiles that differ only by
+     their label. The half of the old idea that was right is kept: the grid
+     still never moves between the two screens, only what a tap MEANS changes. */
+
+  /* plain-English names for keyboard and mouse sources */
+  var KEY_NAME = {
+    KEY_SPACE: 'Space', KEY_LEFTSHIFT: 'Shift', KEY_RIGHTSHIFT: 'Right Shift',
+    KEY_LEFTCTRL: 'Ctrl', KEY_RIGHTCTRL: 'Right Ctrl', KEY_LEFTALT: 'Alt',
+    KEY_TAB: 'Tab', KEY_ESC: 'Esc', KEY_ENTER: 'Enter', KEY_CAPSLOCK: 'Caps Lock'
+  };
+  var MOUSE_NAME = {
+    BTN_LEFT: 'Left click', BTN_RIGHT: 'Right click', BTN_MIDDLE: 'Middle click',
+    BTN_SIDE: 'Mouse button 4', BTN_EXTRA: 'Mouse button 5'
+  };
+
+  /* Names spelled out only when glyphs.js has not loaded; ZSG owns the real
+     ones. This table has to switch family too — a single frozen family here is
+     how an Xbox config ends up labelling its OUTPUT "Cross". "lt+"/"rt+" carry
+     their own rows because those, not "lt"/"rt", are the codes TARGET_SECTIONS
+     offers, and a missing row renders the raw code on screen. */
+  var FALLBACK_FAM = {
+    ps: {
+      south: 'Cross', east: 'Circle', west: 'Square', north: 'Triangle',
+      l1: 'L1', r1: 'R1', l2: 'L2', r2: 'R2', lt: 'L2', rt: 'R2',
+      'lt+': 'L2', 'rt+': 'R2',
+      start: 'Options', select: 'Create', guide: 'PS'
+    },
+    xb: {
+      south: 'A', east: 'B', west: 'X', north: 'Y',
+      l1: 'LB', r1: 'RB', l2: 'LT', r2: 'RT', lt: 'LT', rt: 'RT',
+      'lt+': 'LT', 'rt+': 'RT',
+      start: 'Menu', select: 'View', guide: 'Guide'
+    }
+  };
+  /* the same words on every pad */
+  var FALLBACK_SHARED = {
+    l3: 'L3', r3: 'R3', touchpad: 'Touchpad', extra1: 'Extra 1', extra2: 'Extra 2',
+    dpad_up: 'D-pad Up', dpad_down: 'D-pad Down',
+    dpad_left: 'D-pad Left', dpad_right: 'D-pad Right',
+    'ly+': 'Left Stick Up', 'ly-': 'Left Stick Down',
+    'lx-': 'Left Stick Left', 'lx+': 'Left Stick Right',
+    'ry+': 'Right Stick Up', 'ry-': 'Right Stick Down',
+    'rx-': 'Right Stick Left', 'rx+': 'Right Stick Right'
+  };
+  /* every table read goes through here: a code like "constructor" would
+     otherwise reach Object.prototype and hand back a function */
+  function has(table, key) { return Object.prototype.hasOwnProperty.call(table, key); }
+  function fallbackName(code, fam) {
+    var c = String(code === undefined || code === null ? '' : code);
+    var f = FALLBACK_FAM[fam] || FALLBACK_FAM.ps;
+    if (has(f, c)) return f[c];
+    if (has(FALLBACK_SHARED, c)) return FALLBACK_SHARED[c];
+    return c;
+  }
+
+  /* ── names and art ────────────────────────────────────────────── */
+
+  /* Which button family names what the CONSOLE receives. The output stage
+     started life Xbox-only, which is why ZSG's out* helpers still answer Xbox
+     when no console is named; a PS5 config genuinely arrives at the console as
+     a DualSense, so `west` there is Square, not X. p.platform is the config's
+     console — phone.html's uiProfile() maps the agent's `console` onto it. */
+  function conFam(p) { return (p && (p.platform === 'ps5' || p.platform === 'ps4')) ? 'ps' : 'xb'; }
+
+  /* a keyboard key or a mouse click the PC receives (binding targets since
+     2026-09-04, PC configs only — see gridHTML). Named and drawn as the key
+     it is, by the same functions the input side uses, so "F key" reads the
+     same whether you press it or send it. BTN_ is only a target for the
+     five mouse buttons; a pad's BTN_SOUTH is never a target ("south" is). */
+  function isKeyTarget(code) {
+    var c = String(code || '');
+    return c.indexOf('KEY_') === 0 || !!MOUSE_NAME[c];
+  }
+  function tgtName(code, p) {
+    if (isKeyTarget(code)) return srcName(code);
+    var Z = window.ZSG;
+    if (Z) return Z.outLabel(code, conFam(p));
+    return fallbackName(code, conFam(p));
+  }
+  function tgtShort(code, p) {
+    if (isKeyTarget(code)) return srcName(code).replace(/ key$/, '').replace(/ mouse button$/, ' click');
+    var Z = window.ZSG;
+    if (Z) return Z.outShort(code, conFam(p));
+    return fallbackName(code, conFam(p));
+  }
+  function tgtSvg(code, p) {
+    if (isKeyTarget(code)) return srcArt(code);
+    var Z = window.ZSG;
+    return Z ? Z.outGlyph(code, conFam(p)) : '';
+  }
+  function tgtArt(code, p) { return '<span class="glyimg">' + tgtSvg(code, p) + '</span>'; }
+
+  /* The INPUT side. Always the pad in your hands (ZSG reads that from the
+     device enumerated on the board, never from the config's platform). */
+  /* mapping/labels.py: REGION_SOURCE_PREFIX + a non-empty body. */
+  var REGION_PREFIX = 'region:';
+  function isRegionSource(code) {
+    var c = String(code == null ? '' : code);
+    return c.indexOf(REGION_PREFIX) === 0 && c.length > REGION_PREFIX.length;
+  }
+  /* "region:weapon=sniper" -> "Screen: weapon is sniper" — the same sentence
+     labels.py's _pretty_region builds, so the app and the board read alike. */
+  function regionName(code) {
+    var body = String(code).slice(REGION_PREFIX.length);
+    var eq = body.indexOf('='), id = body, val = '';
+    if (eq >= 0) { id = body.slice(0, eq); val = body.slice(eq + 1); }
+    id = id.replace(/[_-]/g, ' ').replace(/^\s+|\s+$/g, '');
+    val = val.replace(/^\s+|\s+$/g, '');
+    if (!val) return 'Screen: ' + (id || 'an area');
+    return 'Screen: ' + id + ' is ' + val;
+  }
+
+  function srcName(code) {
+    var c = String(code || '');
+    if (isRegionSource(c)) return regionName(c);
+    if (MOUSE_NAME[c]) return MOUSE_NAME[c];
+    if (KEY_NAME[c]) return KEY_NAME[c];
+    if (c.indexOf('KEY_') === 0) {
+      var k = c.slice(4);
+      return k.length === 1 ? k + ' key' : (k.charAt(0) + k.slice(1).toLowerCase() + ' key');
+    }
+    var low = c.toLowerCase();
+    if (low === 'lt' || low === 'rt') return padName(low) + ' pulled';
+    return padName(c);
+  }
+  function padName(code) {
+    var Z = window.ZSG;
+    if (Z) return Z.label(code);       /* no family: whatever is in your hands */
+    /* Without ZSG there is nothing to read the plugged-in pad from, so the
+       fallback names the pad this product ships against — a DualSense. An
+       unrecognised code surfaces as it arrived rather than lower-cased, so a
+       bad binding is visible instead of looking like a control we know. */
+    var c = String(code || '').toLowerCase().replace(/^btn_/, '');
+    var nm = fallbackName(c, 'ps');
+    return nm === c ? String(code) : nm;
+  }
+  /* The name a 4-up picker TILE shows. 'D-pad Down' truncates to 'D-pad D…'
+     in the .pkgrid, leaving two tiles told apart only by which segment of
+     the glyph is lit — colour/shape alone, which this app never allows. The
+     D-pad glyph drawn above the label already says "D-pad", so the tile
+     shows just the direction; aria-label and title keep the full padName,
+     so a screen reader still hears "D-pad Down". Everywhere else (toasts,
+     sentences, rows) keeps the full name — this is display-width only. */
+  var DPAD_TILE = {
+    dpad_up: 'Up', dpad_down: 'Down', dpad_left: 'Left', dpad_right: 'Right'
+  };
+  function tileName(code) {
+    var c = String(code || '').toLowerCase().replace(/^btn_/, '');
+    return has(DPAD_TILE, c) ? DPAD_TILE[c] : padName(code);
+  }
+  function srcArt(code) {
+    var c = String(code || ''), key = null;
+    if (MOUSE_NAME[c]) key = (c === 'BTN_LEFT') ? 'm-left' : (c === 'BTN_RIGHT') ? 'm-right' :
+      (c === 'BTN_MIDDLE') ? 'm-mid' : 'wkey:' + (c === 'BTN_SIDE' ? 'M4' : 'M5');
+    else if (c.indexOf('KEY_') === 0) {
+      var nm = srcName(c).replace(/ key$/, '');
+      key = nm.length <= 2 ? 'key:' + nm : 'wkey:' + nm;
+    }
+    if (key && typeof ZS.btnArt === 'function') return ZS.btnArt(key);
+    var Z = window.ZSG;
+    return Z ? Z.glyph(c) : '';
+  }
+
+  /* A ready-made action's description has to name real controls, and the right
+     name depends on the rig: "{rt+} " is R2 on a PS5 config and RT on an Xbox
+     one, "{~r2}" is whatever is under your thumb right now. Writing them out
+     longhand is how a library of thirty presets ends up telling a DualSense
+     owner to press RT.
+
+       {rt+} {south} {l1}   an OUTPUT control — what the console receives, so
+                            it follows the console THIS config targets
+       {~r2} {~south}       an INPUT control — the pad in your hands
+
+     Anything not in braces is left alone. The result still goes through esc()
+     at every call site; this only substitutes names, never markup. */
+  function fillNames(text, p) {
+    return String(text == null ? '' : text)
+      .replace(/\{~([a-z0-9_]+)\}/gi, function (m, c) { return padName(c); })
+      .replace(/\{([a-z0-9_]+[+-]?)\}/gi, function (m, c) { return tgtName(c, p); });
+  }
+
+  /* One step can be 10 seconds at most (steps.py STEP_MS_CAP), so "keep this
+     up for 25 seconds" is built as consecutive Waits rather than one illegal
+     step. Returns at least one chunk so a sequence never ends up timeless. */
+  function chunks(total) {
+    var out = [], left = clamp(intOf(total, 0), 0, DUR_MAX);
+    while (left > STEP_MS_CAP) { out.push(STEP_MS_CAP); left -= STEP_MS_CAP; }
+    if (left > 0) out.push(left);
+    return out.length ? out : [1];
+  }
+  function waits(total) {
+    return chunks(total).map(function (ms) { return { k: 'wait', ms: ms }; });
+  }
+
+  /* ══ state ════════════════════════════════════════════════════════ */
+
+  var SA = {};                  /* pid (or pid|scope key) → S */
+
+  /* ══ A ROOM FOR ONE WEAPON (D122) ═════════════════════════════════
+     The Auto Actions tab (auto-actions.js) gives every weapon its own Smart
+     Actions, and it gives them THIS room: the same Smart mappings list, the
+     same Ready-made library, the same editor panel and sheets, so there is
+     one action editor in the app and not two. What changes is WHICH actions
+     the room is about, and that is all a scope is:
+
+       key       names the room ('auto:<item>'), so its state is its own
+       owns(b)   is this board action one of the room's
+       stamp(j)  make a board action written here one of the room's
+       enabledOf(b)  what the room's on/off switch shows for one of them
+       after(doc)    runs inside the same config write, after the list is in
+       title, back, onBack, headHTML, wireHead, mapNote, emptyHTML  its chrome
+       pickTitle     New Smart Action's first question, when the title alone
+                     would read wrong in it (D125: "for Ash", not "on the Ash")
+     and, all optional, for D134 (one Smart Action linked to many guns, and
+     an action for one rarity; auto-actions.js):
+       carry(j, old) inside the write, for each of the room's actions the
+                     document already holds: copy onto `j` what the room does
+                     not write (the link, the tiers), or answer false to
+                     leave the document's copy as it is (another room owns
+                     it now: its gun moved, its rarity changed)
+       rowTags(id)   that action's Smart mappings chips: { html, say }
+       editorTop(id), editorFoot(id), wireEditor(host, id)  the editor's
+                     banner and its linking card, for a saved action
+       deleteSay(id) what the Delete key's second tap says, when it deletes
+                     more than this gun's copy
+
+     The unscoped room (the Smart Actions tab and Mappings) leaves every
+     action carrying `auto` alone: it never lists it, never owns it, and so
+     syncBoard keeps it as somebody else's, exactly as it keeps an action the
+     PC dashboard wrote. That is what keeps the Smart Actions tab exactly as
+     it was. SCOPE is the room being drawn; render() and renderInputs() put
+     it back to null, so every other door into this file is unscoped. */
+  VIEW.SCOPE = null;
+  function isAutoAction(b) {
+    return !!(b && b.auto && typeof b.auto === 'object');
+  }
+  function inRoom(S, b) {
+    return S.scope ? !!S.scope.owns(b) : !isAutoAction(b);
+  }
+  /* A board action on its way out of a scoped room, made the room's. A
+     clone, because `j` may be the raw copy the action keeps. */
+  function roomShape(S, j) {
+    return (S.scope && S.scope.stamp) ? S.scope.stamp(clone(j)) : j;
+  }
+  VIEW.lastRoot = null;          /* #dbody, so callbacks can re-render */
+
+
+  function mintId() {
+    /* Minted ONCE per action and carried for life. An id derived from the list
+       index churns on every reorder, and the old id then looks like a stale
+       phone action and gets deleted off the board. */
+    return 'zs-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function newAction() {
+    return {
+      id: mintId(), name: '', enabled: true, colour: '#58a6ff',
+      trigger: { src: null, follow: 'rt+', gesture: 'press', holdMs: 350, windowMs: 300, tapMs: 250 },
+      holdMode: 'once', gate: 'always', uninterruptible: false,
+      /* cooldown 200, not 500: the shipped presets run 0-200, and a fresh
+         custom whose re-press inside half a second was silently swallowed
+         read as "didn't fire" during exactly the quick double-testing a new
+         action gets (2026-08-04 audit). */
+      varianceMs: 15, maxDurationMs: 10000, cooldownMs: 200, maxRepeats: 1,
+      category: '', group: '', notes: '',
+      steps: [{ k: 'tap', t: ['rt+'], ms: 80 }],
+      raw: null, edited: true
+    };
+  }
+
+  /* The colour is interpolated into a style="" attribute, and it arrives from
+     a share code the user pasted from anywhere. esc() stops the attribute
+     being broken out of, but not extra CSS declarations being appended to it —
+     "red;background-image:url(http://…)" would fetch from a stranger's server,
+     and position/box-shadow can cover the screen. Only a hex colour gets in. */
+  var HEX_COLOUR = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  function safeColour(v, d) {
+    return (typeof v === 'string' && HEX_COLOUR.test(v)) ? v : d;
+  }
+
+  /* fill in anything a stored or pasted action is missing, so every later
+     function can read fields without guarding */
+  function normAction(a) {
+    var d = newAction();
+    a = (a && typeof a === 'object') ? a : {};
+    var tr = (a.trigger && typeof a.trigger === 'object') ? a.trigger : {};
+    var out = {
+      id: (typeof a.id === 'string' && a.id) ? a.id : mintId(),
+      name: typeof a.name === 'string' ? a.name : '',
+      enabled: a.enabled !== false,
+      colour: safeColour(a.colour, d.colour),
+      trigger: {
+        src: typeof tr.src === 'string' && tr.src ? tr.src : null,
+        follow: typeof tr.follow === 'string' && tr.follow ? tr.follow : null,
+        /* "tap" and "release" ride in the model whether or not this board can
+           run them — capability gating happens where they are DRAWN (whenOpts)
+           and where they are SENT (problems / syncBoard), never here. Erasing
+           them on load would mangle a share code from a newer ZeroStick. */
+        gesture: (tr.gesture === 'hold_ms' || tr.gesture === 'double_tap' ||
+                  tr.gesture === 'tap' || tr.gesture === 'release') ? tr.gesture : 'press',
+        holdMs: clamp(intOf(tr.holdMs, 350), 0, 60000),
+        windowMs: clamp(intOf(tr.windowMs, 300), 0, 60000),
+        tapMs: clamp(intOf(tr.tapMs, 250), 0, 60000),
+        /* D280: on no key yet. Turn assist comes with every mouse config,
+           and where its key (X) already does something it arrives here,
+           waiting for the player to pick one (the Activation chip, or the ✕
+           in "Not attached to a button yet"). `home` is the key it is kept
+           under on the board while it waits (see toBoard). */
+        unbound: !!tr.unbound,
+        home: (typeof tr.home === 'string' && tr.home) ? tr.home : null
+      },
+      holdMode: (a.holdMode === 'repeat_while_held' || a.holdMode === 'run_while_held' ||
+                 a.holdMode === 'toggle') ? a.holdMode : 'once',
+      gate: (a.gate === 'hip' || a.gate === 'ads') ? a.gate : 'always',
+      uninterruptible: !!a.uninterruptible,
+      varianceMs: clamp(intOf(a.varianceMs, 15), 0, VAR_MAX),
+      stickVariance: stickVarOf(a.stickVariance),       /* D171, null = config's */
+      /* a REAL numeric zero means "no cap" (engine lane E4) — anything else
+         stays inside the board's 100 ms – 30 s window exactly as before */
+      maxDurationMs: isZero(a.maxDurationMs) ? 0 : clamp(intOf(a.maxDurationMs, 10000), DUR_MIN, DUR_MAX),
+      cooldownMs: clamp(intOf(a.cooldownMs, 500), 0, COOL_MAX),
+      maxRepeats: clamp(intOf(a.maxRepeats, 1), 1, REP_MAX),
+      category: typeof a.category === 'string' ? a.category : '',
+      /* which Ready-made template this came from. It exists so the gallery
+         can say "already on R2" instead of drawing all 31 cards identically
+         whether or not you added one thirty seconds ago, which is what made
+         a duplicate invisible. It TRAVELS to the board now (toBoard) — as
+         local-only it went blind on any device that had not created the
+         action itself, which was the only situation that mattered. */
+      fromTemplate: typeof a.fromTemplate === 'string' ? a.fromTemplate : '',
+      group: typeof a.group === 'string' ? a.group : '',
+      notes: typeof a.notes === 'string' ? a.notes : '',
+      steps: arr(a.steps).map(normStep).filter(function (s) { return !!s; }),
+      timing: 2,
+      raw: a.raw || null,
+      edited: a.edited !== false
+    };
+    if (out.trigger.unbound) { out.trigger.src = null; out.trigger.follow = null; }
+    else if (!out.trigger.src && !out.trigger.follow) out.trigger.follow = 'rt+';
+    /* D231: anything not already in the new timing meaning is converted
+       once, so it runs exactly as it always did */
+    if (a.timing !== 2) migrateTiming(out.steps);
+    /* D170: what the Recoil Workshop made this from (the traced samples and
+       the tuning), so its wrench can re-open it. Carried whole; the engine
+       never reads it, the workshop does (recoil-workshop.js). */
+    if (a.recoil && typeof a.recoil === 'object' && !Array.isArray(a.recoil)) out.recoil = clone(a.recoil);
+    return out;
+  }
+
+  function normStep(s) {
+    if (!s || typeof s !== 'object') return null;
+    var k = s.k;
+    if (k === 'tap' || k === 'hold' || k === 'release' || k === 'trig') {
+      var t = arr(s.t).filter(function (c) { return typeof c === 'string'; });
+      var o = { k: k, t: t };
+      /* a tap floors at 1 ms, never 0: the board reads a press of exactly 0 as
+         a hold that never lets go (steps.py), which is a different step */
+      if (k === 'tap') o.ms = clamp(intOf(s.ms, 80), TAP_MS_MIN, STEP_MS_CAP);
+      if (k === 'trig') { o.keep = !!s.keep; o.ms = clamp(intOf(s.ms, 120), TAP_MS_MIN, STEP_MS_CAP); }
+      return o;
+    }
+    if (k === 'wait') return { k: 'wait', ms: clamp(intOf(s.ms, 120), 0, STEP_MS_CAP) };
+    if (k === 'stick') {
+      var so = {
+        k: 'stick', stick: s.stick === 'left' ? 'left' : 'right',
+        angle: ((intOf(s.angle, 270) % 360) + 360) % 360,
+        dist: clamp(Math.round(num(s.dist, 0.4) * 100) / 100, 0, 1),
+        ms: clamp(intOf(s.ms, 100), 0, STEP_MS_CAP)
+      };
+      /* D189: a turn in deg/s, aim stick only; `dist` stays its stick-%
+         fallback (what a Core without the game's model, or an older one,
+         pushes) */
+      var dv = num(s.dps, NaN);
+      if (so.stick === 'right' && isFinite(dv) && dv > 0) so.dps = clamp(Math.round(dv * 10) / 10, DPS_MIN, DPS_MAX);
+      return so;
+    }
+    if (k === 'sens') return {
+      k: 'sens', which: (s.which === 'left' || s.which === 'right') ? s.which : 'aim',
+      scale: clamp(Math.round(num(s.scale, 1) * 100) / 100, 0, 3),
+      axis: (s.axis === 'x' || s.axis === 'y') ? s.axis : 'both',
+      ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP)
+    };
+    if (k === 'swap') return { k: 'swap', ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP) };
+    /* D170: the Recoil Workshop's step. dx, dy are MOUSE COUNTS (+y down)
+       the Core feeds its mouse translator over ms. */
+    if (k === 'move') return {
+      k: 'move', dx: moveCount(s.dx), dy: moveCount(s.dy),
+      ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP)
+    };
+    if (k === 'config') return {
+      k: 'config',
+      to: (s.to === 'prev') ? 'prev' : (s.to === 'next') ? 'next' : clamp(intOf(s.to, 2), 1, CONFIG_NUMBER_MAX)
+    };
+    /* D280: Turn assist. While the action holds (its button is held), a
+       mouse swipe keeps the camera turning at that speed. gap is when a
+       swipe counts as over (ms), floor the slowest hand that is a swipe
+       (counts/s at 1000 DPI); 0 = the Core's own default for either. */
+    if (k === 'tassist') return {
+      k: 'tassist', gap: clamp(intOf(s.gap, 0), 0, TA_GAP_MAX),
+      floor: clamp(intOf(s.floor, 0), 0, TA_FLOOR_MAX)
+    };
+    if (k === 'unknown') return { k: 'unknown', raw: clone(s.raw) || {} };
+    return null;
+  }
+  /* D280: encode.py's bands for a turnAssist step */
+  var TA_GAP_MAX = 1000, TA_FLOOR_MAX = 20000;
+
+  /* D189: an aim step in degrees per second. The bounds are the encoders'
+     (above 0, at most 4000, the translator's own band). */
+  var DPS_MIN = 0.1, DPS_MAX = 4000;
+  /* the config's measured game (mouseTranslation.resolvedAimModel), or null
+     on the generic map, where deg/s has nothing to be measured against */
+  function aimModelOf(p) {
+    var full = p && ZS.live && ZS.live.full ? ZS.live.full[p.id] : null;
+    var r = full && full.mouseTranslation ? full.mouseTranslation.resolvedAimModel : null;
+    return (window.ZSAIMMODEL && ZSAIMMODEL.usable && ZSAIMMODEL.usable(r)) ? r : null;
+  }
+  /* Settings > General > Show real units (D189, off by default) */
+  function realUnits() {
+    try { return !!(ZS.store && ZS.store.vals && ZS.store.vals['global/global|Show real units'] === '1'); }
+    catch (e) { return false; }
+  }
+  function dpsWord(v) {
+    var n = num(v, 0);
+    return (n >= 100 ? Math.round(n) : Math.round(n * 10) / 10) + '°/s';
+  }
+  /* the stick-% fallback for a turn, from hip's model (null without one) */
+  function fallbackDist(p, s) {
+    var r = aimModelOf(p);
+    var m = r ? ZSAIMMODEL.stickOfDps(r, false, num(s.angle, 0), num(s.dps, 0)) : null;
+    return m == null ? null : clamp(Math.round(m * 100) / 100, 0.01, 1);
+  }
+  /* a stick-% push as a turn rate, hip (null without a model) */
+  function pushDps(p, s) {
+    var r = aimModelOf(p);
+    var t = r ? ZSAIMMODEL.dpsOfStick(r, false, num(s.angle, 0), num(s.dist, 0)) : null;
+    return t ? t.speed : null;
+  }
+
+  /* a move's count: finite, two decimals, inside the Core's 32767 cap */
+  function moveCount(v) {
+    var n = num(v, 0);
+    if (!isFinite(n)) n = 0;
+    return clamp(Math.round(n * 100) / 100, -32767, 32767);
+  }
+
+  /* `seed` is the control the input screen is ABOUT, so a new step starts on
+     the button you are already looking at instead of on the fire trigger. */
+  function defaultStep(kind, seed) {
+    var fire = (typeof seed === 'string' && TARGET_OK[seed]) ? seed : 'rt+';
+    if (kind === 'tap') return { k: 'tap', t: [fire], ms: 80 };
+    if (kind === 'hold') return { k: 'hold', t: [fire] };
+    if (kind === 'release') return { k: 'release', t: [fire] };
+    if (kind === 'wait') return { k: 'wait', ms: 120 };
+    if (kind === 'stick') return { k: 'stick', stick: 'right', angle: 270, dist: 0.4, ms: 100 };
+    if (kind === 'trig') return { k: 'trig', t: ['rt+'], ms: 120, keep: false };
+    if (kind === 'sens') return { k: 'sens', which: 'aim', scale: 0.5, axis: 'both', ms: 0 };
+    if (kind === 'swap') return { k: 'swap', ms: 0 };
+    if (kind === 'config') return { k: 'config', to: 'next' };
+    return { k: 'wait', ms: 120 };
+  }
+
+  /* ── persistence ──────────────────────────────────────────────── */
+
+  function persist(p, S) {
+    /* A new key on purpose: rolling back to the old editor must not read a v2
+       document and mangle it. `dirty` rides along so an edit made with the
+       board unplugged is still owed to it after the app is closed and
+       reopened, which is when it matters most. */
+    ZS.store.vals['sa2|' + (S.skey || p.id)] = { v: 2, actions: S.actions, owned: S.owned, dirty: !!S.dirty };
+    ZS.persistStore();
+  }
+
+  function saFor(p) { return saForScope(p, VIEW.SCOPE); }
+  function saForScope(p, scope) {
+    var skey = p.id + (scope ? '|' + scope.key : '');
+    if (SA[skey]) {
+      /* the same room, reopened: its chrome and callbacks are the caller's
+         latest (a gun renamed in a new catalog, a new onBack) */
+      if (scope) SA[skey].scope = scope;
+      return SA[skey];
+    }
+    var S = {
+      /* which config and which room (D122); SA is keyed by skey */
+      pid: p.id, skey: skey, scope: scope || null,
+      /* ── screen state. Never persisted, never sent anywhere. ──
+         screen  'inputs'    the Buttons list — every input, and what it does
+                 'input'     ONE input's own screen; the sequence editor lives
+                             INSIDE it, which is the whole redesign
+                 'templates' Smart Actions → Ready-made
+                 'index'     Smart Actions → Smart mappings (D85): the
+                             buttons with a Smart Action, Record, and the
+                             Mappings list folded under them
+         home    which of those a back tap from 'input' returns to
+         mapFold whether the Mappings fold on Smart mappings is open
+         mode    'simple' (this button sends another button) or 'sequence' */
+      /* smartTab is NULL until a tab has actually been landed on or chosen —
+         it is not "Ready-made" by default any more. render() reads the null
+         as "nobody has picked yet" and answers it from the config (see
+         §5.7); draw() then writes the real tab back here, so the choice is
+         sticky for the rest of the session exactly as it always was. */
+      screen: 'inputs', home: 'inputs', smartTab: null, mapFold: false,
+      inputSrc: '', mode: 'simple', unsaved: false,
+      actions: [], editIdx: -1, draft: null, step: null,
+      owned: {}, hydrated: false, running: {}, dirty: false,
+      /* ── the editor SHEET's own state ──
+         sheetEditor  the sheet is up: draw() must not rebuild its body
+         keepEditor   a picker is hard-closing the host; the next close is a
+                      TRIP, not a dismissal, so the draft survives it
+         sel          which step the sheet's one control is about
+         page         which palette page, so a repaint lands where you left */
+      sheetEditor: false, keepEditor: false, sel: null, page: 0, gridPage: 0,
+      /* which family the Ready-made tab is filtered to ("all" or a FAMILIES
+         key). Screen state only — never persisted, never sent anywhere. */
+      tplFam: 'all'
+    };
+    var doc = ZS.store.vals['sa2|' + skey];
+    if (doc && Array.isArray(doc.actions)) {
+      S.actions = doc.actions.map(normAction);
+      S.owned = (doc.owned && typeof doc.owned === 'object') ? doc.owned : {};
+      S.dirty = !!doc.dirty;
+      if (S.dirty) watchPending();
+    } else if (!scope) {
+      var old = ZS.store.vals['sa|' + p.id];
+      if (old && Array.isArray(old.actions)) S.actions = migrateV1(old.actions, p);
+    }
+    SA[skey] = S;
+    return S;
+  }
+  /* R.bindings re-syncs through these two after a rebind, and Screen Assist
+     lists "this config's Smart Actions" through the first: both mean the
+     config's own room, whichever room happens to be drawn (D122) */
+  ZS.saState = function (p) { return saForScope(p, null); };
+  /* D189, for dashboard/tools/test-aim-xim.js: the step sheet and the step
+     JSON both ways, so a deg/s aim step is driven exactly as a player's tap
+     drives it. Read-only doors onto functions defined below (hoisted). */
+  ZS.saD189 = {
+    openStepSheet: function (p, S, first, root) { return openStepSheet(p, S, first, root); },
+    normStep: function (s) { return normStep(s); },
+    emitStep: function (s) { return emitStep(s); },
+    fromBoardStep: function (st) { return fromBoardStep(st); },
+    stepLine: function (s, i, steps, p) { return stepLine(s, i, steps, p); }
+  };
+
+  /* ── migration from the old editor's model ────────────────────── */
+
+  var OLD_IDX_TARGET = {
+    0: 'south', 1: 'east', 2: 'west', 3: 'north', 4: 'l1', 5: 'r1', 6: 'lt+', 7: 'rt+',
+    8: 'l3', 9: 'r3', 10: 'dpad_up', 11: 'dpad_down', 12: 'dpad_left', 13: 'dpad_right',
+    14: 'start', 15: 'select'
+  };
+
+  function migrateV1(list, p) {
+    var lostSteps = 0, lostConds = 0;
+    var out = list.map(function (o, idx) {
+      o = o || {};
+      var a = newAction();
+      /* The old editor only minted `aid` when you opened an action and saved
+         it, so anything added straight from its gallery has none — and its
+         sync wrote those to the board under the index-derived id "sa0", "sa1".
+         Minting a fresh id here would orphan that board copy, hydrate() would
+         pull it back as a SECOND row, and Caleb would get two identical turbo
+         sequences firing at once. Claim the id the old sync would have used. */
+      a.id = (typeof o.aid === 'string' && o.aid) ? o.aid : ('sa' + idx);
+      a.name = o.name || 'Action';
+      a.enabled = o.en !== false && o.act !== 'Off';
+      a.colour = o.col || a.colour;
+      a.trigger.follow = OLD_IDX_TARGET[o.trig != null ? o.trig : 7] || 'rt+';
+      a.trigger.src = null;
+      var c = o.cond || 'Held';
+      if (c === 'Held') { a.trigger.gesture = 'press'; a.holdMode = 'repeat_while_held'; }
+      else if (c === 'Double') { a.trigger.gesture = 'double_tap'; a.holdMode = 'once'; }
+      else if (c === 'Hold') { a.trigger.gesture = 'hold_ms'; a.holdMode = 'once'; }
+      else {
+        a.trigger.gesture = 'press'; a.holdMode = 'once';
+        /* "Unheld" and "Release" produced nothing at all before, and the sync
+           then deleted the action off the board. They become a plain press. */
+        if (c === 'Unheld' || c === 'Release') lostConds++;
+      }
+      a.gate = o.act === 'Hip' ? 'hip' : o.act === 'ADS' ? 'ads' : 'always';
+      a.uninterruptible = !!o.unint;
+      a.varianceMs = o.varOn === false ? 0 : 15;
+      a.category = o.cat || '';
+      a.group = (o.grp && o.grp.indexOf('none') < 0) ? o.grp : '';
+      a.steps = [];
+      var pend = null;
+      function flush(ms) {
+        if (!pend) return;
+        a.steps.push({
+          k: 'stick', stick: pend.stick || 'right',
+          angle: ((intOf(pend.angle, 270) % 360) + 360) % 360,
+          dist: clamp(num(pend.dist, 0.3), 0, 1), ms: clamp(intOf(ms, 400), 0, STEP_MS_CAP)
+        });
+        pend = null;
+      }
+      arr(o.steps).forEach(function (s) {
+        var t = s && s.type, tgt = OLD_IDX_TARGET[s && s.oIdx != null ? s.oIdx : 7] || 'rt+';
+        if (t === 'Press') { flush(); a.steps.push({ k: 'hold', t: [tgt] }); }
+        else if (t === 'Release') { flush(); a.steps.push({ k: 'release', t: [tgt] }); }
+        else if (t === 'Tap') { flush(); a.steps.push({ k: 'tap', t: [tgt], ms: 80 }); }
+        else if (t === 'Wait') {
+          if (pend) flush(num(s.v, 80)); else a.steps.push({ k: 'wait', ms: clamp(intOf(s.v, 80), 0, STEP_MS_CAP) });
+        } else if (t === 'Aim Magnitude') {
+          pend = pend || { stick: 'right', angle: 270 };
+          pend.dist = clamp(num(s.v, 20) / 180, 0, 1);
+        } else if (t === 'Aim Angle') { pend = pend || { stick: 'right' }; pend.angle = num(s.v, 180); }
+        else if (t === 'L-Stick Magnitude' || t === 'R-Stick Magnitude') {
+          pend = pend || {}; pend.stick = t.charAt(0) === 'L' ? 'left' : 'right';
+          pend.dist = clamp(num(s.v, 100) / 100, 0, 1);
+        } else if (t === 'L-Stick Angle' || t === 'R-Stick Angle') {
+          pend = pend || {}; pend.stick = t.charAt(0) === 'L' ? 'left' : 'right';
+          pend.angle = num(s.v, 0);
+        } else if (t === 'Turn Assist') {
+          flush(); a.steps.push({ k: 'stick', stick: 'right', angle: 0, dist: 0.5, ms: 400 });
+        } else if (t === 'Modify Aim Sens' || t === 'Modify L Sens' || t === 'Modify R Sens') {
+          flush();
+          a.steps.push({
+            k: 'sens', which: t === 'Modify L Sens' ? 'left' : t === 'Modify R Sens' ? 'right' : 'aim',
+            scale: clamp(num(s.v, 100) / 100, 0, 3),
+            axis: s.o2 === 'X-only' ? 'x' : s.o2 === 'Y-only' ? 'y' : 'both', ms: 0
+          });
+        } else if (t === 'Swap Sticks') { flush(); a.steps.push({ k: 'swap', ms: 0 }); }
+        else if (t === 'Load Config #') { flush(); a.steps.push({ k: 'config', to: clamp(intOf(s.v, 2), 1, CONFIG_NUMBER_MAX) }); }
+        else if (t === 'Load Prev') { flush(); a.steps.push({ k: 'config', to: 'prev' }); }
+        else if (t === 'Load Next') { flush(); a.steps.push({ k: 'config', to: 'next' }); }
+        else lostSteps++;   /* groups, motion, sight override — no board support */
+      });
+      flush();
+      if (o.raw) { a.raw = clone(o.raw); a.edited = o.edited !== false ? true : false; }
+      return normAction(a);
+    });
+    if (lostConds) ZS.toast(lostConds + (lostConds === 1 ? ' action' : ' actions') + ' fired on "release", which the board cannot do — they now fire on press');
+    if (lostSteps) ZS.toast(lostSteps + ' step' + (lostSteps === 1 ? '' : 's') + ' the board has never supported were removed');
+    return out;
+  }
+
+  /* ══ the board's step JSON, in both directions ════════════════════ */
+
+  /* Every emitted step carries exactly ONE discriminator key — steps.py
+     dispatches press → hold → aim → release → wait → sensitivity →
+     swapSticks → loadConfig, so a step with two keys silently loses one. */
+  function emitStep(s) {
+    if (!s) return null;
+    /* ms is floored at 1, never 0 — steps.py reads press+ms:0 as a hold */
+    if (s.k === 'tap') return { press: s.t.slice(), ms: clamp(intOf(s.ms, 80), TAP_MS_MIN, STEP_MS_CAP) };
+    /* never emit ms on a hold: steps.py ignores it, so storing one is a lie */
+    if (s.k === 'hold') return { hold: s.t.slice() };
+    if (s.k === 'release') return { release: s.t.slice() };
+    if (s.k === 'wait') return { wait: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP) };
+    if (s.k === 'stick') {
+      var aimJ = {
+        angle: ((intOf(s.angle, 0) % 360) + 360) % 360,
+        magnitude: clamp(Math.round(num(s.dist, 0) * 100) / 100, 0, 1),
+        stick: s.stick === 'left' ? 'left' : 'right'
+      };
+      /* D189: the turn rate rides beside the stick-% fallback */
+      if (aimJ.stick === 'right' && num(s.dps, 0) > 0) aimJ.dps = clamp(num(s.dps, 0), DPS_MIN, DPS_MAX);
+      return { aim: aimJ, ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP) };
+    }
+    if (s.k === 'trig') return s.keep
+      ? { hold: s.t.slice() }
+      : { press: s.t.slice(), ms: clamp(intOf(s.ms, 120), TAP_MS_MIN, STEP_MS_CAP) };
+    if (s.k === 'sens') return {
+      sensitivity: {
+        which: s.which === 'left' ? 'left' : s.which === 'right' ? 'right' : 'aim',
+        scale: clamp(Math.round(num(s.scale, 1) * 100) / 100, 0, 3),
+        axis: (s.axis === 'x' || s.axis === 'y') ? s.axis : 'both'
+      }, ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP)
+    };
+    /* never emit swapSticks:false — steps.py emits no step at all for it,
+       which silently shortens the sequence */
+    if (s.k === 'swap') return { swapSticks: true, ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP) };
+    if (s.k === 'config') return { loadConfig: s.to };
+    /* D170 */
+    if (s.k === 'move') return { move: [moveCount(s.dx), moveCount(s.dy)], ms: clamp(intOf(s.ms, 0), 0, STEP_MS_CAP) };
+    /* D280: only the tuning that is set travels; {} is the Core's defaults.
+       ms 0 always: it holds until the action ends (the button is let go) */
+    if (s.k === 'tassist') {
+      var ta = {};
+      if (intOf(s.gap, 0) > 0) ta.gapMs = clamp(intOf(s.gap, 0), 0, TA_GAP_MAX);
+      if (intOf(s.floor, 0) > 0) ta.minSpeed = clamp(intOf(s.floor, 0), 0, TA_FLOOR_MAX);
+      return { turnAssist: ta, ms: 0 };
+    }
+    if (s.k === 'unknown') return clone(s.raw);
+    return null;
+  }
+
+
+  /* ══ D231: THE STOPWATCH STARTS THE NEXT STEP (owner, 2026-10-07) ══════
+     "If I say LT pull for 200 ms it does that, then after 200 ms it goes to
+     the next one, so if it's B 80 ms it does B after the 200 ms of LT -
+     UNLESS someone puts a stopwatch: LT 200 ms, then the stopwatch 20 ms,
+     then B 80 ms - then LT is held, after 20 ms LT will still be held for
+     another 180 but B will then start for 80."
+
+     So in the editor's model (`a.steps`, timing 2):
+       · a step with a length runs it, and the next step starts when it ends;
+       · a button press (tap, or a trigger pull that lets go) FOLLOWED BY A
+         WAIT keeps its own full length, and the wait says when the NEXT step
+         starts, counted from the start of that press.
+     The engine runs one step at a time (zs_actions.c), so compileSteps turns
+     that timeline into steps it already has: hold at the start, let go at
+     the end, waits for the gaps. Nothing on the Core changes and nothing is
+     flashed. An action whose steps have no press-then-wait is sent exactly
+     as authored, byte for byte as before.
+
+     The old meaning of a wait after a press was "a gap after it ended".
+     Every action that does not carry timing 2 (stored, on a board, a share
+     code, a Ready-made's build, a recording) is converted ONCE in normAction
+     by adding the press's length to the wait that follows it, so it runs
+     exactly as it always did. A converted action that has an overlap travels
+     with its authored steps beside the compiled ones (toBoard: `authored`,
+     `timing`), which the board's validator carries untouched like `notes`. */
+  function timedPress(s) {
+    return !!s && (s.k === 'tap' || (s.k === 'trig' && !s.keep)) && intOf(s.ms, 0) > 0;
+  }
+  /* a REAL overlap: the stopwatch after a press is shorter than the press,
+     so the next step starts while it is still held. A stopwatch as long as
+     the press or longer overlaps nothing - it is the old "press, then a
+     gap" - and is sent in exactly the old form (oldForm), byte for byte,
+     so no existing config grows (the D124 copy must still fit 16 KB). */
+  function overlapsIn(steps) {
+    for (var i = 0; i + 1 < steps.length; i++) {
+      if (timedPress(steps[i]) && steps[i + 1] && steps[i + 1].k === 'wait' &&
+          intOf(steps[i + 1].ms, 0) < intOf(steps[i].ms, 0)) return true;
+    }
+    return false;
+  }
+  /* new meaning -> old, where nothing overlaps: the gap after the press */
+  function oldForm(steps) {
+    var out = steps.map(clone);
+    for (var i = 0; i + 1 < out.length; i++) {
+      if (timedPress(out[i]) && out[i + 1].k === 'wait') {
+        out[i + 1] = { k: 'wait', ms: Math.max(0, intOf(out[i + 1].ms, 0) - intOf(out[i].ms, 0)) };
+      }
+    }
+    return out;
+  }
+  /* old meaning -> new: the wait after a press now counts from the press's
+     START, so it grows by the press's length */
+  function migrateTiming(steps) {
+    for (var i = 0; i + 1 < steps.length; i++) {
+      if (timedPress(steps[i]) && steps[i + 1].k === 'wait') {
+        var sum = Math.max(0, intOf(steps[i + 1].ms, 0) + intOf(steps[i].ms, 0));
+        /* past one step's cap, the rest is a second wait (audit m19): it
+           used to be clamped, so loading and re-saving an old action
+           shortened its pause by up to 10 s */
+        if (sum > STEP_MS_CAP) {
+          steps[i + 1] = { k: 'wait', ms: STEP_MS_CAP };
+          steps.splice(i + 2, 0, { k: 'wait', ms: Math.min(sum - STEP_MS_CAP, STEP_MS_CAP) });
+          i++;
+        } else {
+          steps[i + 1] = { k: 'wait', ms: sum };
+        }
+      }
+    }
+    return steps;
+  }
+  function stepLen(s) {
+    if (!s) return 0;
+    if (s.k === 'tap' || s.k === 'wait' || s.k === 'stick' || s.k === 'sens' || s.k === 'swap' || s.k === 'move') return intOf(s.ms, 0);
+    if (s.k === 'trig') return s.keep ? 0 : intOf(s.ms, 0);
+    if (s.k === 'unknown' && s.raw) return intOf(s.raw.ms != null ? s.raw.ms : s.raw.wait, 0);
+    return 0;
+  }
+  /* when the whole thing ends, in the new meaning */
+  function timelineEnd(steps) {
+    var t = 0, end = 0;
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i], nx = steps[i + 1];
+      if (timedPress(s)) {
+        end = Math.max(end, t + intOf(s.ms, 0));
+        if (!(nx && nx.k === 'wait')) t += intOf(s.ms, 0);
+      } else {
+        t += stepLen(s);
+      }
+      end = Math.max(end, t);
+    }
+    return end;
+  }
+  /* the authored timeline -> steps the engine runs one at a time */
+  function compileSteps(steps) {
+    if (!overlapsIn(steps)) return oldForm(steps);
+    var ev = [], t = 0, seq = 0, i;
+    for (i = 0; i < steps.length; i++) {
+      var s = steps[i], nx = steps[i + 1];
+      if (timedPress(s)) {
+        var hold = s.k === 'trig' ? { k: 'trig', t: s.t.slice(), ms: 120, keep: true } : { k: 'hold', t: s.t.slice() };
+        /* gen: made here from a timed press, so counted per control below */
+        ev.push({ at: t, o: seq++, s: hold, d: 0, gen: true });
+        ev.push({ at: t + intOf(s.ms, 0), o: seq++, s: { k: 'release', t: s.t.slice() }, d: 0, gen: true });
+        if (!(nx && nx.k === 'wait')) t += intOf(s.ms, 0);
+      } else if (s.k === 'wait') {
+        t += intOf(s.ms, 0);
+      } else {
+        var d = stepLen(s);
+        ev.push({ at: t, o: seq++, s: clone(s), d: d });
+        t += d;
+      }
+    }
+    var end = t, out = [], cur = 0, late = 1e9, held = {};
+    ev.forEach(function (e) { end = Math.max(end, e.at); });
+    function sortEv() { ev.sort(function (x, y) { return x.at - y.at || x.o - y.o; }); }
+    /* one engine step waits at most STEP_MS_CAP (emitStep clamps), so a
+       longer gap is several (audit m17: a long pause came out shortened) */
+    function pushWait(ms) {
+      while (ms > 0) { var w = Math.min(ms, STEP_MS_CAP); out.push({ k: 'wait', ms: w }); ms -= w; }
+    }
+    sortEv();
+    while (ev.length) {
+      var e = ev.shift();
+      var st = clone(e.s);
+      if (e.gen) {
+        /* TWO PRESSES OF ONE CONTROL that overlap (audit m17): the first
+           one's release used to let go while the second still held it. A
+           control is held from its first press to its LAST press's end:
+           counted per control, only the first hold and the last release
+           are sent. */
+        st.t = e.s.t.filter(function (x) {
+          var n = held[x] || 0;
+          if (e.s.k === 'release') { held[x] = Math.max(0, n - 1); return n <= 1; }
+          held[x] = n + 1;
+          return n === 0;
+        });
+        if (!st.t.length) continue;
+      }
+      if (e.at > cur) { pushWait(e.at - cur); cur = e.at; }
+      if (e.d > 0 && (e.s.k === 'stick' || e.s.k === 'sens' || e.s.k === 'swap' || e.s.k === 'move')) {
+        /* a timed stick / sensitivity / swap step that a press starts or
+           ends inside is cut there and carries on (same value), so the
+           press is not made to wait for it. A Recoil pull is cut the same
+           way, its distance shared in proportion (audit m17: uncut, it held
+           the press for the whole pull, three times too long) */
+        var cut = 0;
+        for (i = 0; i < ev.length; i++) {
+          if (ev[i].at > cur && ev[i].at < cur + e.d) { cut = ev[i].at - cur; break; }
+        }
+        if (cut) {
+          var part = clone(e.s), rest = clone(e.s);
+          part.ms = cut;
+          if (e.s.k === 'move') {
+            part.dx = Math.round(intOf(e.s.dx, 0) * cut / e.d);
+            part.dy = Math.round(intOf(e.s.dy, 0) * cut / e.d);
+            rest.dx = intOf(e.s.dx, 0) - part.dx;
+            rest.dy = intOf(e.s.dy, 0) - part.dy;
+          }
+          out.push(part);
+          ev.push({ at: cur + cut, o: late++, s: rest, d: e.d - cut });
+          cur += cut;
+          sortEv();
+          continue;
+        }
+      }
+      if (e.d > 0) st.ms = e.d;
+      out.push(st);
+      cur += e.d;
+    }
+    if (end > cur) pushWait(end - cur);
+    return out;
+  }
+
+  function isTrigTargets(list) {
+    return list.length === 1 && (list[0] === 'lt+' || list[0] === 'rt+');
+  }
+
+  /* A step this editor cannot model becomes {k:'unknown'} rather than being
+     dropped, so a board- or PC-authored action can be reordered and re-saved
+     without being destroyed. */
+  function fromBoardStep(st) {
+    if (!st || typeof st !== 'object') return { k: 'unknown', raw: clone(st) || {} };
+    if (st.press) {
+      var pt = arr(st.press).slice();
+      /* steps.py: a press with ms EXACTLY 0 is not a zero-length tap, it is a
+         hold — "asserts and holds until an explicit release step or the end of
+         the sequence". Reading it as a tap would show Caleb "Tap Cross for
+         0 ms" while the board holds Cross for the whole run. An ABSENT ms is a
+         different thing: the board taps for its own default of 80 ms. */
+      if (isZero(st.ms)) {
+        return isTrigTargets(pt) ? { k: 'trig', t: pt, ms: 120, keep: true } : { k: 'hold', t: pt };
+      }
+      return isTrigTargets(pt)
+        ? { k: 'trig', t: pt, ms: clamp(intOf(st.ms, 80), 1, STEP_MS_CAP), keep: false }
+        : { k: 'tap', t: pt, ms: clamp(intOf(st.ms, 80), 1, STEP_MS_CAP) };
+    }
+    if (st.hold) {
+      var ht = arr(st.hold).slice();
+      return isTrigTargets(ht) ? { k: 'trig', t: ht, ms: 120, keep: true } : { k: 'hold', t: ht };
+    }
+    if (st.aim) {
+      var fa = {
+        k: 'stick', stick: st.aim.stick === 'left' ? 'left' : 'right',
+        angle: ((intOf(st.aim.angle, 0) % 360) + 360) % 360,
+        dist: clamp(num(st.aim.magnitude, 0), 0, 1),
+        ms: clamp(intOf(st.ms, 0), 0, STEP_MS_CAP)
+      };
+      if (fa.stick === 'right' && num(st.aim.dps, 0) > 0) fa.dps = clamp(num(st.aim.dps, 0), DPS_MIN, DPS_MAX);
+      return fa;
+    }
+    if (st.release) return { k: 'release', t: arr(st.release).slice() };
+    if (st.wait != null) return { k: 'wait', ms: clamp(intOf(st.wait, 0), 0, STEP_MS_CAP) };
+    if (st.sensitivity) return {
+      k: 'sens', which: st.sensitivity.which === 'left' ? 'left' : st.sensitivity.which === 'right' ? 'right' : 'aim',
+      scale: clamp(num(st.sensitivity.scale, 1), 0, 3),
+      axis: (st.sensitivity.axis === 'x' || st.sensitivity.axis === 'y') ? st.sensitivity.axis : 'both',
+      ms: clamp(intOf(st.ms, 0), 0, STEP_MS_CAP)
+    };
+    if (st.swapSticks != null) return st.swapSticks
+      ? { k: 'swap', ms: clamp(intOf(st.ms, 0), 0, STEP_MS_CAP) }
+      : { k: 'unknown', raw: clone(st) };
+    if (Array.isArray(st.move) && st.move.length === 2) return {
+      k: 'move', dx: moveCount(st.move[0]), dy: moveCount(st.move[1]),
+      ms: clamp(intOf(st.ms, 0), 0, STEP_MS_CAP)
+    };
+    /* D280: a timed one (ms > 0) is not something this app writes, so it
+       stays the board's own step, untouched */
+    if (st.turnAssist != null && typeof st.turnAssist === 'object' && !Array.isArray(st.turnAssist) &&
+        !intOf(st.ms, 0)) return {
+      k: 'tassist', gap: clamp(intOf(st.turnAssist.gapMs, 0), 0, TA_GAP_MAX),
+      floor: clamp(intOf(st.turnAssist.minSpeed, 0), 0, TA_FLOOR_MAX)
+    };
+    if (st.loadConfig != null) {
+      var lc = st.loadConfig;
+      return { k: 'config', to: (lc === 'prev') ? 'prev' : (lc === 'next') ? 'next' : clamp(intOf(lc, 1), 1, CONFIG_NUMBER_MAX) };
+    }
+    return { k: 'unknown', raw: clone(st) };
+  }
+
+  function fromBoardAction(b, p) {
+    var tr = (b.trigger && typeof b.trigger === 'object') ? b.trigger : {};
+    /* toBoard names an unnamed action after its id, because the board
+       wants a name; read back on a restart or another PC, that made the
+       list say "zs-muepz5y3i6rc" where it had said "Untitled Smart Action"
+       (D127). An app-minted id (mintId) used as the name means no name; a
+       hand-written id stays, since somebody chose it. */
+    var unnamed = !b.name || (b.name === b.id && /^zs-[0-9a-z]{8,}$/.test(String(b.id)));
+    var a = normAction({
+      id: b.id, name: unnamed ? (/^zs-[0-9a-z]{8,}$/.test(String(b.id)) ? '' : b.id) : b.name,
+      enabled: b.enabled !== false,
+      /* #8b949e was a grey from a palette this app no longer has. --muted is
+         #97a3b6 and clears 4.5:1 on all four surfaces of the ladder. */
+      colour: b.categoryColor || '#97a3b6',
+      /* `follows` carries the NEUTRAL intent the phone resolved from. Without
+         it the round trip froze a "follows Fire" action into whatever code was
+         resolved at write time, so on any device without this phone's local
+         storage the row said "Left click" forever and rebinding no longer
+         moved it. The board ignores the field; it exists so the intent can be
+         re-resolved when what is plugged in changes. */
+      trigger: {
+        src: tr.follows ? null : (tr.source || null),
+        follow: tr.follows || null,
+        gesture: tr.activation || 'press', holdMs: tr.holdMs, windowMs: tr.windowMs,
+        tapMs: tr.tapMs,
+        /* D280: waiting for a key; the board's copy keeps it under `source` */
+        unbound: tr.unbound === true, home: tr.unbound === true ? (tr.source || null) : null
+      },
+      holdMode: b.holdMode, gate: b.activation, uninterruptible: b.uninterruptible,
+      varianceMs: b.varianceMs, maxDurationMs: b.maxDurationMs,
+      cooldownMs: b.cooldownMs, maxRepeats: b.maxRepeats,
+      stickVariance: b.stickVariance,
+      category: b.category, group: b.group, notes: b.notes,
+      /* read back so the duplicate mark survives the round trip; normAction
+         type-guards it, so a board that has never heard of the field just
+         leaves it empty and tplIdOf() falls through to the name */
+      fromTemplate: b.fromTemplate,
+      recoil: b.recoil,
+      /* D231: an action sent with its authored timeline reads back as it
+         was built; anything else is in the old meaning and converts */
+      timing: (b.timing === 2 && Array.isArray(b.authored)) ? 2 : undefined,
+      steps: (b.timing === 2 && Array.isArray(b.authored)) ? b.authored.map(fromBoardStep) : arr(b.steps).map(fromBoardStep)
+    });
+    a.raw = clone(b);
+    a.edited = false;   /* untouched board actions go back byte-for-byte */
+    return a;
+  }
+
+  /* ── the trigger source ───────────────────────────────────────── */
+
+  /* Which device has to be plugged in for a source code to ever arrive.
+     Mirrors mapping/labels.source_device_class on the board. */
+  /* Delegates to ZS.srcDeviceClass (phone.html), which is now the ONE copy of
+     this table in the app — the same answer the input-type gate uses when it
+     decides whether to draw a row at all. Two copies could disagree, and the
+     way that shows up is a bind hidden by one screen and left running by
+     another.
+
+     A WATCHED SCREEN AREA is not a control: "region:weapon=sniper" means "the
+     area called weapon currently reads sniper" (mapping/labels.py
+     REGION_SOURCE_PREFIX / is_region_source). No device sends it, so every
+     is-that-plugged-in question below is the wrong question — answering it
+     painted "Nothing on your board sends region:ammo" over an action the
+     board runs perfectly, and blocked the save that would have fixed it.
+
+     '' from there means "not recognised"; this file has always called that
+     'unknown', and haveClass()/the orphan test still read that word. */
+  function srcClass(code) {
+    return ZS.srcDeviceClass(code) || 'unknown';
+  }
+  function isPadSource(code) { return srcClass(code) === 'controller'; }
+
+  /* Is a device of this class plugged into the board right now? `null` means
+     we do not know yet (board offline, first poll outstanding) — and unknown
+     must never turn into a confident "no". */
+  function haveClass(cls) {
+    var have = (typeof ZS.deviceClasses === 'function') ? ZS.deviceClasses() : null;
+    /* An empty set is unknown, not "nothing attached" — enumeration may not
+       have finished, and in simulation the one device reports kind "other".
+       Checked here as well as in devbar so a wrong answer there cannot paint
+       every action red. */
+    if (!have) return null;
+    var any = false, k;
+    for (k in have) { if (Object.prototype.hasOwnProperty.call(have, k)) { any = true; break; } }
+    if (!any) return null;
+    return !!have[cls];
+  }
+
+  /* ── can "only while aiming" ever be true? ──────────────────────────
+     The board decides ADS from ONE field: mouseTranslation.adsBinding, read
+     every tick by MouseTranslationStage (core/stages.py) as
+     resolver.is_held(that code). The shipped default is "BTN_RIGHT" — the
+     RIGHT MOUSE BUTTON — because the default profile is a mouse-and-keyboard
+     one and every config is cloned from it.
+
+     So on a pad-only rig, an action gated "only while aiming down sights"
+     can never open its gate, no matter what you hold. Same silent shape as
+     the trigger bug: it saves, it validates, and it does nothing. Reported as
+     an error below rather than left to be discovered in a match.
+
+     "hip" is NOT affected: if ADS is never true, "only when NOT aiming" is
+     always true, which is harmless. Only the "ads" gate can be stranded.
+
+     Returns true / false / null, and null means "we cannot tell" (board
+     offline, profile not loaded, device list still unknown) — which must
+     never be reported as broken. */
+  /* D413 (the owner, 2026-10-20: "make LT and L2 aim by default too,
+     always, and right click - all of them should count as aiming"): the
+     Core counts as aiming the config's own source, the mouse's right click
+     and a controller's L2 / LT pulled, always. So the gate can never open
+     only when NONE of them can happen: no controller and no mouse is
+     plugged in, and the config's own source is nothing a plugged-in device
+     sends. true can open, false never, null unknown. */
+  function adsGateOK(p) {
+    var pad = haveClass('controller'), mouse = haveClass('mouse');
+    if (pad === true || mouse === true) return true;
+    var full = ZS.live.full[p.id];
+    var mt = full && full.mouseTranslation;
+    var own = (mt && typeof mt.adsBinding === 'string') ? mt.adsBinding : '';
+    if (own) {
+      var cls = srcClass(own);
+      if (cls !== 'unknown') {
+        var have = haveClass(cls);
+        if (have === true) return true;
+        if (have === null) return null;
+      }
+    }
+    if (pad === null || mouse === null) return null;
+    return false;
+  }
+  function adsBindingName(p) {
+    var full = ZS.live.full[p.id];
+    var mt = full && full.mouseTranslation;
+    var code = (mt && typeof mt.adsBinding === 'string') ? mt.adsBinding : '';
+    return code ? srcName(code) : '';
+  }
+
+  /* The board's own verdict on one action's trigger, from /status
+     actionDiagnostics (see actions/sequences.ActionSequencer.diagnostics).
+     The board knows exactly which codes the attached devices emit, so it is
+     the authority — but only about the config it is RUNNING, and only about
+     the source it currently holds. Two guards, both of which matter:
+
+       * ids are unique per config, not globally, so a verdict from the active
+         config must not be pinned on a same-named action in another one;
+       * once the user changes the trigger in the editor, the board is still
+         reporting the OLD source until the write lands. Applying that would
+         mark the fixed action broken and block the very save that fixes it. */
+  function boardDiag(p, id, src) {
+    var st = ZS.live && ZS.live.status;
+    if (!st || !st.actionDiagnostics) return null;
+    var active = st.activeProfile && st.activeProfile.id;
+    if (!active || active !== p.id) return null;
+    var list = arr(st.actionDiagnostics);
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i];
+      if (!d || d.id !== id) continue;
+      if (src && d.source !== src && d.requestedSource !== src) return null;
+      return d;
+    }
+    return null;
+  }
+
+  /* ── THE fix ──────────────────────────────────────────────────────
+     What the board matches a trigger on is a RAW code from a real device. What
+     the app thinks in is a neutral control. Everything below turns the second
+     into the first, and it is the single place where getting it wrong means an
+     action that saves, validates, shows a green "runs on your board" dot and
+     then does nothing at all.
+
+     A "follow" trigger means "whatever fires this control". The old code
+     answered that by scanning the profile's bindings for the first entry whose
+     target matched — and the DEFAULT profile (which every config is cloned
+     from) binds Fire and Aim to the MOUSE:
+
+         {"source": "BTN_LEFT",  "target": "rt+"}     mouse left  -> fire
+         {"source": "BTN_RIGHT", "target": "lt+"}     mouse right -> ADS
+
+     so on a controller-only rig every ready-made template — all ten of them
+     follow rt+ or lt+ — was written to the board as "fires on BTN_LEFT" and
+     could never fire. That is why Caleb's actions read "Left click" and
+     "Space": nobody chose those, the resolver did.
+
+     The pad's own control is the right answer whenever a pad is plugged in,
+     and it is also the SAFEST default: gamepad passthrough (mapping/bindings.py
+     GAMEPAD_PASSTHROUGH) means a pad control drives its own target whether or
+     not anything else is bound to it, so R2 always fires Fire. A binding only
+     wins when its device is attached and no pad is. */
+  function emitSource(p, tr) {
+    if (tr.unbound) return '';        /* D280: on no key yet */
+    if (tr.follow) {
+      var base = String(tr.follow).replace(/[+-]$/, '');
+      var native = CONTROL_SOURCE[base] || '';
+      var full = ZS.live.full[p.id], binds = arr(full && full.bindings);
+      var padBind = '', otherBind = '';
+      for (var i = 0; i < binds.length; i++) {
+        var t = String(binds[i].target || '').replace(/[+-]$/, '');
+        var s = binds[i].source;
+        if (t !== base || !s) continue;
+        if (isPadSource(s)) { if (!padBind) padBind = s; }
+        else if (!otherBind) otherBind = s;
+      }
+      /* D128: in a config that hides the pad (Mouse + Keyboard) a followed
+         button is the key or click the player bound to it, even with a pad
+         plugged in: that is the picture the trigger picker drew in the
+         button's corner, and the pad is not what this config is played
+         with. lt / rt keep their own source below, because the engine
+         already starts an action on them from anything bound to them. */
+      var mine = (window.ZS_SA_MNK && base !== 'lt' && base !== 'rt' &&
+                  !ZS.inputShows(p.input, 'controller')) ? ZS_SA_MNK.boundTo(p, base) : '';
+      if (mine) return mine;
+      /* An explicit PAD binding for this control is unambiguous — use it. */
+      if (padBind) return padBind;
+      /* Otherwise the pad's own control, unless we know there is no pad and
+         there IS a keyboard/mouse binding to follow instead. */
+      if (native && haveClass('controller') !== false) return native;
+      if (otherBind && srcClass(otherBind) !== 'unknown' &&
+          haveClass(srcClass(otherBind)) !== false) return otherBind;
+      return native || otherBind || 'BTN_SOUTH';
+    }
+    return tr.src || '';
+  }
+
+  /* The sentence in the editor used to read the INTENT ("your Fire button")
+     and never the resolved code, so it said "when you press your Fire button"
+     over an action wired to a mouse. Say both: what it follows AND what that
+     is on the thing in your hands. */
+  function triggerName(p, a) {
+    if (a.trigger.follow) {
+      var b = String(a.trigger.follow).replace(/[+-]$/, '');
+      var what = (b === 'rt') ? 'your Fire button'
+               : (b === 'lt') ? 'your Aim button' : padName(b);
+      var res = srcName(emitSource(p, a.trigger));
+      return res && res !== what ? (what + ' (' + res + ')') : what;
+    }
+    return srcName(a.trigger.src || emitSource(p, a.trigger));
+  }
+
+  /* ── phone action → board action ──────────────────────────────── */
+
+  function toBoard(p, a) {
+    /* two fields are both spelled "activation" and mean different things:
+       trigger.activation is the GESTURE, activation is the aim-mode GATE */
+    var out = {
+      id: a.id,
+      name: (a.name || '').trim() || a.id,
+      enabled: a.enabled !== false,
+      trigger: {
+        source: emitSource(p, a.trigger),
+        /* a while-you-hold action always starts on a plain press
+           (sequences.py forces it), so say so rather than store a lie */
+        activation: a.holdMode === 'once' ? a.trigger.gesture : 'press'
+      },
+      steps: compileSteps(a.steps).map(emitStep).filter(function (s) { return !!s; }),
+      holdMode: a.holdMode,
+      activation: a.gate,
+      uninterruptible: !!a.uninterruptible,
+      varianceMs: clamp(intOf(a.varianceMs, 0), 0, VAR_MAX),
+      /* 0 means "no cap" and only ever reaches a board whose /capabilities
+         advertises infiniteDuration — problems() raises a structural error
+         otherwise and syncBoard withholds on structural errors */
+      maxDurationMs: a.maxDurationMs === 0 ? 0 : clamp(intOf(a.maxDurationMs, 10000), DUR_MIN, DUR_MAX),
+      cooldownMs: clamp(intOf(a.cooldownMs, 0), 0, COOL_MAX),
+      maxRepeats: clamp(intOf(a.maxRepeats, 1), 1, REP_MAX)
+    };
+    /* Keep the neutral intent beside the resolved code. The board matches on
+       `source`; `follows` is how the phone (and any other app) knows the user
+       asked for "whatever fires Fire" rather than for this literal button, so
+       it can re-resolve when the rig changes instead of freezing. */
+    if (a.trigger.follow) out.trigger.follows = String(a.trigger.follow);
+    /* D280: ON NO KEY YET. The board's schema wants a source on every
+       action, so it is kept under its home key and marked; it is always
+       sent switched OFF, and an action that is off never reaches the Core
+       (both encoders skip it), so it cannot fire and X keeps doing what the
+       player bound it to. Picking a key clears the mark (retrigger). */
+    if (a.trigger.unbound) {
+      out.trigger.source = a.trigger.home || 'KEY_X';
+      out.trigger.unbound = true;
+      out.enabled = false;
+      delete out.trigger.follows;
+    }
+    if (a.holdMode === 'once' && a.trigger.gesture === 'hold_ms') out.trigger.holdMs = clamp(intOf(a.trigger.holdMs, 350), 0, 60000);
+    if (a.holdMode === 'once' && a.trigger.gesture === 'double_tap') out.trigger.windowMs = clamp(intOf(a.trigger.windowMs, 300), 0, 60000);
+    /* tapMs only ever travels beside activation:"tap", so gating the gesture
+       gates the field with it */
+    if (a.holdMode === 'once' && a.trigger.gesture === 'tap') out.trigger.tapMs = clamp(intOf(a.trigger.tapMs, 250), 0, 60000);
+    if (a.category) out.category = a.category;
+    /* D171: only when the action sets its own, so every other action (and
+       the config's bytes on a Core) stays exactly as it was */
+    if (stickVarOf(a.stickVariance) !== null) out.stickVariance = stickVarOf(a.stickVariance);
+    if (a.colour) out.categoryColor = a.colour;
+    if (a.group) out.group = a.group;
+    if (a.notes) out.notes = a.notes;
+    /* D231: what the player built, when the engine runs a compiled form */
+    if (overlapsIn(a.steps)) {
+      out.timing = 2;
+      out.authored = a.steps.map(emitStep).filter(function (s) { return !!s; });
+    }
+    /* WAS LOCAL-ONLY, AND THAT WAS THE BUG. Keeping "which ready-made this
+       came from" on the phone meant the gallery went blind the moment the
+       actions came back off the board instead of out of localStorage — a
+       fresh phone, a cleared store, a second device — which is precisely
+       when you most need to be told a template is already on a button.
+       The engine never reads it; schema.py's action validator type-checks
+       only the keys it names and carries the rest untouched, the same way
+       it already carries `follows` and `notes`. One string, and it makes
+       the duplicate mark true on every device instead of on this one. */
+    if (a.fromTemplate) out.fromTemplate = a.fromTemplate;
+    /* D170: the workshop's record rides with the action, for the wrench.
+       The validator carries keys it does not name, as it carries notes. */
+    if (a.recoil) out.recoil = clone(a.recoil);
+    return out;
+  }
+
+  /* An UNTOUCHED action goes back to the board byte-for-byte. On/off is the
+     one thing the list may change without opening the editor, so it is the one
+     field allowed to be written here — but only when the raw action already
+     carried it, or when the switch is genuinely off. Writing "enabled": true
+     onto a hand-written action that never had the key is a diff for nothing,
+     and it broke byte-identity for exactly the actions this branch exists to
+     protect. `false` is always written, because the board's default is true. */
+  function toBoardOrRaw(p, a) {
+    if (a.raw && !a.edited) {
+      var kept = clone(a.raw);
+      if (has(kept, 'enabled') || a.enabled === false) kept.enabled = a.enabled !== false;
+      return kept;
+    }
+    return toBoard(p, a);
+  }
+
+  /* ── sync: MERGE, never replace ───────────────────────────────── */
+
+  function syncBoard(p, S) {
+    if (ZS.live.online === false || !ZS.live.full[p.id]) {
+      /* The list PROMISES these are "sent when it comes back", so the debt has
+         to be remembered — and the row must not paint a green "runs on your
+         board" dot over a board that has never seen the action. */
+      S.dirty = true;
+      watchPending();
+      return;
+    }
+    var acts = [], mine = {}, keepIds = {}, builtById = {};
+    /* STRUCTURAL errors only decide withholding. Live-state errors (device
+       unplugged right now, active-config diagnostics, ads gate) still block
+       nothing here: the board runs its own diagnosis and reports honestly,
+       while withholding on them was how a keyboard-triggered custom died the
+       moment the phone glanced at a pad-only instant (2026-08-04 audit). */
+    S.actions.forEach(function (a) {
+      if (hasErrors(a, p, S, true)) {
+        /* Never SEND a broken action — but never DELETE one either. hydrate()
+           marks every board action as owned, and an owned id that is missing
+           from `mine` falls through both branches below and is written out of
+           existence. Plenty of actions the board runs happily are errors here:
+           a lone {"loadConfig":2}, a deliberate {"press":[],"ms":400} no-op, a
+           hand-written hold/release pair. So anything that came off the board
+           goes back exactly as the board already has it. Only a phone-authored
+           action that has never been sent is allowed to stay unsent. */
+        if (a.raw && a.raw.id) {
+          var kept = clone(a.raw);
+          /* on/off is the one thing the list can change without opening the
+             editor, so the switch still has to work on one of these — but the
+             key is only WRITTEN when it was already there or the switch is
+             off, same rule as toBoardOrRaw, so an untouched action is not
+             rewritten just for passing through here. */
+          if (has(kept, 'enabled') || a.enabled === false) kept.enabled = a.enabled !== false;
+          kept = roomShape(S, kept);
+          acts.push(kept); mine[kept.id] = true;
+        } else if (a.id && S.owned[a.id]) {
+          /* A phone-authored custom that already lives on the board but never
+             got its raw copy: the board's own entry must survive this write.
+             Without this, the owned id passed the foreign filter's `!S.owned`
+             test and the PUT erased it — the "my custom actions just vanish"
+             bug, found 2026-08-04. */
+          keepIds[a.id] = true;
+        }
+        return;
+      }
+      var j = roomShape(S, toBoardOrRaw(p, a));
+      acts.push(j); mine[j.id] = true; S.owned[j.id] = true;
+      builtById[j.id] = j;
+    });
+    /* audit M14: which call this is, so an answer can tell whether a later
+       edit has queued another write since (that one settles the debt) */
+    var seq = S.syncSeq = (S.syncSeq || 0) + 1;
+    var composed = null, goneOut = null, theirsOut = null;
+    /* D257: a Script saves at once - only settings wait for the Save key */
+    var sent = (ZS.putProfileAuto || ZS.putProfileDebounced)(p.id, function (f) {
+      var existing = arr(f.accessibilityActions);
+      /* D134: a scoped room writes only what it owns of an action. What it
+         does not write (a link to other guns, the rarities it is for) is
+         the document's, and is carried over from the copy being replaced;
+         an action another room owns by now (its gun moved, its rarity
+         changed) is left exactly as the document has it. Asked here, on the
+         FRESH document, because a link written a moment ago by another
+         screen is only in this one. */
+      var leave = {}, out = acts, had = {};
+      existing.forEach(function (x) { if (x && x.id) had[x.id] = x; });
+      /* AUDIT M13: THE BOARD'S NEWER COPY WINS over an untouched local one.
+         This phone's list is a copy, and another screen or another device
+         (the PC app and the phone on the same Core) may have changed or
+         deleted an action since it was read. An action this phone has NOT
+         edited is only re-sent to carry it over unchanged, so when the
+         document no longer matches the copy this phone last saw, the
+         document's is the newer truth: changed elsewhere, it is left as the
+         document has it; deleted elsewhere, it stays deleted. Writing the
+         stale copy reverted the one and brought back the other. */
+      var byId = {}, gone = {}, theirs = {};
+      S.actions.forEach(function (a) { if (a && a.id) byId[a.id] = a; });
+      out = out.filter(function (j) {
+        var a = byId[j.id];
+        if (!a || a.edited || !a.raw) return true;
+        if (!had[j.id]) { gone[j.id] = true; return false; }
+        if (canon(had[j.id]) !== canon(a.raw)) { leave[j.id] = true; theirs[j.id] = had[j.id]; return false; }
+        return true;
+      });
+      if (S.scope && S.scope.carry) {
+        out = out.filter(function (j) {
+          if (!had[j.id] || S.scope.carry(j, had[j.id]) !== false) return true;
+          leave[j.id] = true;
+          return false;
+        });
+      }
+      /* Only ids this phone owns may disappear — and even an owned id is kept
+         when the phone flagged it keep-not-replace above. An action written by
+         the PC dashboard or by hand on the board is never dropped just because
+         this app could not express it. */
+      var foreign = existing.filter(function (x) {
+        return x && x.id && (leave[x.id] || (!mine[x.id] && (!S.owned[x.id] || keepIds[x.id])));
+      });
+      f.accessibilityActions = foreign.concat(out);
+      /* a scoped room's own bookkeeping, in the SAME write (D122: the Auto
+         Actions tab re-ties each weapon's picture to its actions here) */
+      if (S.scope && S.scope.after) S.scope.after(f);
+      /* what this write carries, per action; it becomes each action's raw
+         copy only once the Core has answered (below) */
+      composed = {};
+      for (var id in builtById) {
+        if (has(builtById, id) && !leave[id] && !gone[id]) composed[id] = builtById[id];
+      }
+      goneOut = gone; theirsOut = theirs;
+    });
+    /* AUDIT M14: the debt is cleared on the Core's ANSWER, not when the write
+       is composed. It used to be cleared inside the mutator, so a write the
+       link lost (COM17 drops about one line in hundreds; "timed out") was
+       recorded as delivered: the row went green and nothing re-sent it.
+       A write the Core REFUSED is not retried (it would be refused again
+       every 4 s); LIVE.saveError says it on the rows (D127), and the next
+       edit sends it again. */
+    if (!sent || typeof sent.then !== 'function') return;
+    sent.then(function (j) {
+      if (!composed) return;            /* never composed: nothing went out */
+      if (j && j.ok) {
+        /* What the Core holds now: remember it as each action's raw copy,
+           so from here on customs ride the same keep-the-board-copy path
+           presets always had, and toBoardOrRaw passes them through
+           byte-identical until the next real edit. An action edited again
+           while this write was in flight keeps its mark: its newer shape is
+           not what the Core has. */
+        S.actions.forEach(function (a) {
+          var j2 = a && a.id && has(composed, a.id) ? composed[a.id] : null;
+          if (!j2) return;
+          var now = roomShape(S, toBoardOrRaw(p, a));
+          a.raw = clone(j2);
+          if (JSON.stringify(now) === JSON.stringify(j2)) a.edited = false;
+        });
+        /* and the list learns what the document said (M13, above) */
+        adoptBoardCopies(p, S, theirsOut, goneOut);
+        if (S.syncSeq === seq) S.dirty = false;
+        persist(p, S);          /* so the debt is not re-owed on the next open */
+        return;
+      }
+      var err = String((j && (j.error || (j.errors && j.errors[0]))) || '');
+      if (!j || ZS.live.online === false || /unreachable|timed out|could not save/i.test(err)) {
+        S.dirty = true;         /* owed, and re-sent by retryPending */
+        persist(p, S);
+        watchPending();
+      } else if (S.syncSeq === seq) {
+        S.dirty = false;        /* refused: told on the rows, not re-sent */
+        persist(p, S);
+      }
+    });
+  }
+  ZS.syncActions = syncBoard;
+
+  /* An edit made while the board was away is still owed to it, and nothing
+     else in the app pushes one: the reconnect path calls loadLive(), which
+     overwrites the phone's copy FROM the board rather than sending to it. */
+  var RETRY_MS = 4000;
+  var retryTimer = null;
+  function retryPending() {
+    var owing = false;
+    for (var id in SA) {
+      if (!Object.prototype.hasOwnProperty.call(SA, id)) continue;
+      var S = SA[id];
+      if (!S.dirty) continue;
+      var p = (typeof ZS.prof === 'function') ? ZS.prof(S.pid || id) : null;
+      /* a config deleted since owes nothing (audit m18): it kept this timer
+         running for the rest of the session */
+      if (!p && typeof ZS.prof === 'function') { S.dirty = false; delete SA[id]; continue; }
+      if (p) syncBoard(p, S);
+      if (S.dirty) owing = true;
+    }
+    if (!owing && retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+  }
+  function watchPending() {
+    if (retryTimer || typeof setInterval !== 'function') return;
+    retryTimer = setInterval(retryPending, RETRY_MS);
+  }
+
+  /* sync FIRST: it is what decides whether this edit is still owed to the
+     board, and persist() is what writes that debt down */
+  function saveAll(p, S) { syncBoard(p, S); persist(p, S); }
+
+  /* ══ a "follows" trigger, re-resolved (audit M16) ══════════════════
+     A follow trigger stores an intent ("whatever fires Fire"), and the code
+     it resolves to depends on the bindings and on what is plugged in. An
+     action the Core already has goes back byte-for-byte (toBoardOrRaw), so
+     a binding moved on Mappings left the Core firing it from the OLD key
+     while every screen drew it on the new one. Any action whose resolved
+     source differs from the copy the Core holds is marked edited here and
+     sent. One body for every caller: the device list changing
+     (21-rooms-exports), a binding saved, a staged change thrown away
+     (13-join). Returns whether anything was sent. */
+  function reresolve(p, S) {
+    if (!p || !S || !S.actions) return false;
+    var changed = false;
+    for (var i = 0; i < S.actions.length; i++) {
+      var a = S.actions[i];
+      if (!a || !a.trigger || !a.trigger.follow) continue;
+      if (a.edited) continue;      /* already queued to be re-sent */
+      var have = a.raw && a.raw.trigger && a.raw.trigger.source;
+      if (!have) continue;         /* never reached the board; nothing to correct */
+      var want = emitSource(p, a.trigger);
+      if (want && want !== have) { a.edited = true; changed = true; }
+    }
+    if (changed) saveAll(p, S);
+    return changed;
+  }
+  /* every room of one config (the Scripts tab and each weapon's, D122) */
+  function reresolveConfig(pid) {
+    var any = false;
+    for (var key in SA) {
+      if (!has(SA, key)) continue;
+      var S = SA[key];
+      if ((S.pid || key) !== pid) continue;
+      var p = (typeof ZS.prof === 'function') ? ZS.prof(pid) : null;
+      if (p && reresolve(p, S)) any = true;
+    }
+    return any;
+  }
+
+  /* key order is not meaning: a copy read back from the Core's sidecar may
+     order its keys differently from the one this phone wrote */
+  function canon(x) {
+    if (Array.isArray(x)) return '[' + x.map(canon).join(',') + ']';
+    if (x && typeof x === 'object') {
+      return '{' + Object.keys(x).sort().map(function (k) { return JSON.stringify(k) + ':' + canon(x[k]); }).join(',') + '}';
+    }
+    return JSON.stringify(x);
+  }
+  function boardModel(p, S, b) {
+    var a = fromBoardAction(b, p);
+    if (S.scope && S.scope.enabledOf) a.enabled = !!S.scope.enabledOf(b);
+    return a;
+  }
+  /* the board's copies replace untouched local ones; ids gone from it leave
+     the list. The action open in the editor is never pulled out from under
+     it: its index is found again by id. Returns whether anything changed. */
+  function adoptBoardCopies(p, S, theirs, gone) {
+    var editingId = (S.editIdx >= 0 && S.actions[S.editIdx]) ? S.actions[S.editIdx].id : null;
+    var changed = false, kept = [];
+    S.actions.forEach(function (a) {
+      var id = a && a.id;
+      if (id && id !== editingId && gone && has(gone, id)) { delete S.owned[id]; changed = true; return; }
+      if (id && id !== editingId && theirs && has(theirs, id)) { kept.push(boardModel(p, S, theirs[id])); changed = true; return; }
+      kept.push(a);
+    });
+    if (!changed) return false;
+    S.actions = kept;
+    if (editingId) {
+      S.editIdx = -1;
+      for (var i = 0; i < kept.length; i++) if (kept[i].id === editingId) S.editIdx = i;
+    }
+    return true;
+  }
+
+  /* THE PHONE'S LIST, BROUGHT UP TO THE BOARD'S (audit M13). It used to run
+     once per session and only ADD unknown ids, so an edit or a delete made
+     on another screen or device never reached this list, and the next save
+     wrote the stale list back over it. It now runs on every look at the
+     room, and does work only when the room's part of the document changed:
+       - an id the board has and this phone does not: added (as before);
+       - an action this phone has NOT edited whose board copy differs from
+         the one it last saw: the board's copy replaces it;
+       - an action this phone has not edited that was on the board (it has
+         a raw copy) and is gone from it now: it leaves the list.
+     A room that still OWES the board something (S.dirty: edits or deletes
+     made while it was away) changes nothing but the first add of the
+     session: its list is the newer one, and retryPending delivers it. */
+  function hydrate(p, S) {
+    var full = ZS.live.full[p.id];
+    if (ZS.live.online === false || !full) return;
+    var first = !S.hydrated;
+    S.hydrated = true;
+    var board = {}, mineNow = [];
+    arr(full.accessibilityActions).forEach(function (b) {
+      if (!b || !b.id || !inRoom(S, b)) return;   /* another room's (D122) */
+      board[b.id] = b; mineNow.push(b);
+    });
+    var sig = canon(mineNow);
+    if (!first && sig === S.boardSig) return;
+    S.boardSig = sig;
+    var changed = false;
+    if (!S.dirty) {
+      var theirs = {}, gone = {};
+      S.actions.forEach(function (a) {
+        if (!a || !a.id || a.edited || !a.raw) return;
+        var b = board[a.id];
+        if (!b) gone[a.id] = true;
+        else if (canon(b) !== canon(a.raw)) theirs[a.id] = b;
+      });
+      changed = adoptBoardCopies(p, S, theirs, gone);
+    }
+    if (first || !S.dirty) {
+      var known = {};
+      S.actions.forEach(function (a) { known[a.id] = true; });
+      mineNow.forEach(function (b) {
+        if (known[b.id]) return;
+        S.actions.push(boardModel(p, S, b));
+        S.owned[b.id] = true;
+        changed = true;
+      });
+    }
+    if (changed) persist(p, S);   /* store only — nothing on the board changed */
+  }
+
+  /* what the other parts use from this one */
+  SEC.CONTROL_SOURCE = CONTROL_SOURCE;
+  SEC.COOL_MAX = COOL_MAX;
+  SEC.DPS_MAX = DPS_MAX;
+  SEC.DPS_MIN = DPS_MIN;
+  SEC.DUR_MAX = DUR_MAX;
+  SEC.DUR_MIN = DUR_MIN;
+  SEC.PAD_ROWS = PAD_ROWS;
+  SEC.PAD_SOURCES = PAD_SOURCES;
+  SEC.REP_MAX = REP_MAX;
+  SEC.SA = SA;
+  SEC.STEP_MS_CAP = STEP_MS_CAP;
+  SEC.SVAR_MAX = SVAR_MAX;
+  SEC.TAP_MS_MIN = TAP_MS_MIN;
+  SEC.TARGET_OK = TARGET_OK;
+  SEC.TARGET_SECTIONS = TARGET_SECTIONS;
+  SEC.VAR_MAX = VAR_MAX;
+  SEC.VIEW = VIEW;
+  SEC.ZS = ZS;
+  SEC.acc = acc;
+  SEC.addbtn = addbtn;
+  SEC.adsBindingName = adsBindingName;
+  SEC.adsGateOK = adsGateOK;
+  SEC.aimModelOf = aimModelOf;
+  SEC.armConfirm = armConfirm;
+  SEC.arr = arr;
+  SEC.boardDiag = boardDiag;
+  SEC.btn = btn;
+  SEC.btnI = btnI;
+  SEC.card = card;
+  SEC.clamp = clamp;
+  SEC.clone = clone;
+  SEC.conFam = conFam;
+  SEC.configNumberTop = configNumberTop;
+  SEC.defaultStep = defaultStep;
+  SEC.dpsWord = dpsWord;
+  SEC.emitSource = emitSource;
+  SEC.esc = esc;
+  SEC.fallbackDist = fallbackDist;
+  SEC.fillNames = fillNames;
+  SEC.fld = fld;
+  SEC.fromBoardAction = fromBoardAction;
+  SEC.fromBoardStep = fromBoardStep;
+  SEC.has = has;
+  SEC.haveClass = haveClass;
+  SEC.hydrate = hydrate;
+  SEC.ico = ico;
+  SEC.intOf = intOf;
+  SEC.isAutoAction = isAutoAction;
+  SEC.isKeyTarget = isKeyTarget;
+  SEC.isPadSource = isPadSource;
+  SEC.kbRow = kbRow;
+  SEC.migrateV1 = migrateV1;
+  SEC.mintId = mintId;
+  SEC.newAction = newAction;
+  SEC.normAction = normAction;
+  SEC.compileSteps = compileSteps;
+  SEC.migrateTiming = migrateTiming;
+  SEC.overlapsIn = overlapsIn;
+  SEC.timelineEnd = timelineEnd;
+  SEC.timedPress = timedPress;
+  SEC.normStep = normStep;
+  SEC.note = note;
+  SEC.helpNote = helpNote;
+  SEC.num = num;
+  SEC.padName = padName;
+  SEC.persist = persist;
+  SEC.pushDps = pushDps;
+  SEC.realUnits = realUnits;
+  SEC.saFor = saFor;
+  SEC.saveAll = saveAll;
+  SEC.reresolve = reresolve;
+  SEC.reresolveConfig = reresolveConfig;
+  SEC.screenLive = screenLive;
+  SEC.seg = seg;
+  SEC.sh = sh;
+  SEC.srcArt = srcArt;
+  SEC.srcClass = srcClass;
+  SEC.srcName = srcName;
+  SEC.stepper = stepper;
+  SEC.stickVarOf = stickVarOf;
+  SEC.svspan = svspan;
+  SEC.syncBoard = syncBoard;
+  SEC.tgtArt = tgtArt;
+  SEC.tgtName = tgtName;
+  SEC.tgtShort = tgtShort;
+  SEC.tgtSvg = tgtSvg;
+  SEC.tileName = tileName;
+  SEC.toBoard = toBoard;
+  SEC.toggle = toggle;
+  SEC.triggerName = triggerName;
+  SEC.txtFld = txtFld;
+  SEC.waits = waits;
+});

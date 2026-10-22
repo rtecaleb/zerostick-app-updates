@@ -1,0 +1,40 @@
+{
+  "zerostickGamePack": 1,
+  "id": "mlb-the-show-25",
+  "name": "MLB The Show 25",
+  "aliases": [
+    "MLB 25",
+    "The Show 25",
+    "MLB The Show",
+    "The Show",
+    "MLB"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "mlb-the-show-25.png",
+    "tall": "mlb-the-show-25-tall.png"
+  },
+  "aimPreset": null,
+  "notes": "MLB The Show 25 is not sold on Steam, so its picture is the PlayStation Store's own 16:9 banner for the game, which Sony's San Diego Studio supplies; see art/SOURCES.md.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for MLB The Show 25 are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "No measured mouse turn rates for MLB The Show 25 are in the repo yet. This block sets nothing, so a mouse config starts on the same neutral mouse settings every new config gets.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "Nothing has been measured for MLB The Show 25 with a stick in one hand and a mouse in the other. This block sets nothing: the neutral settings every new config gets.",
+      "config": {}
+    }
+  }
+}

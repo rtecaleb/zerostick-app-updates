@@ -1,0 +1,144 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   zs-anim.css — entrances and transitions for the phone app.
+
+   Companion to zs-anim.js, and loaded LAST so its reduced-motion overrides
+   out-cascade the blanket animation kills in zs-brand.css §7 and phone.html
+   (body.a11y-motion). Nothing here fires by itself: every class below is
+   applied by zs-anim.js at a moment it has proven to be real navigation, so
+   if the JS fails to load this file is inert and the app looks as it did.
+
+   THE POLL TRAP (why the classes are on children, not containers): screens
+   re-render via innerHTML on an ~8s poll and on board events. These
+   animations only ever run because zs-anim.js put a class on a freshly
+   created node after checking its navigation discriminator — a refresh
+   creates new nodes WITHOUT the class, so nothing replays. There is no
+   always-armed "animate anything that appears" rule in this file.
+
+   Compositor-friendly only: transform + opacity, one deliberate exception
+   (the accordion height, which is a user-initiated disclosure — see §3).
+
+   NAMESPACE: this file's entrance class is `zs-anim-in` (+`zs-anim-in-s`).
+   phone.html separately owns `zs-in` (editor-menu rows) and `zs-enter` (the
+   home boot reveal) with its own keyframes and its own reduced-motion story.
+   The names are deliberately distinct so neither layer can restyle, replay
+   or reduced-override the other's animation; zs-anim.js additionally defers
+   at runtime wherever the in-page system has already decorated a surface.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ══ 1. ENTRANCES ═════════════════════════════════════════════════════════
+   Rows/cards rise 8px and fade in on the settle curve. The stagger delay is
+   set inline per element by zs-anim.js (delay = index × step, clamped at
+   ~190ms so item 8+ of a long list starts together — a 40-row screen settles
+   in under half a second instead of 1.4s).
+
+   fill-mode: both — a delayed row must sit at its `from` state (invisible)
+   until its turn, or the stagger reads as a flicker. zs-anim.js removes the
+   class on animationend, releasing the filled transform so a press-dip is
+   never blocked by a finished keyframe. */
+
+@keyframes zs-rise {
+  from { opacity: 0; transform: translateY(var(--zs-rise, 8px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes zs-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.zs-anim-in {
+  animation-name: zs-rise;
+  animation-duration: 260ms;               /* --t-calm */
+  animation-timing-function: var(--ease-settle, cubic-bezier(.22, 1, .36, 1));
+  animation-fill-mode: both;
+}
+/* dense grids (picker-sheet cells): smaller rise, quicker */
+.zs-anim-in-s {
+  --zs-rise: 6px;
+  animation-duration: 200ms;
+}
+
+/* Nested sheet content swap (remap sheet → button picker) — the sheet is
+   already open, so it must NOT re-spring or re-stagger: a plain crossfade. */
+.zs-swap {
+  animation: zs-fade-in 170ms linear both;
+}
+
+
+/* ══ 2. TAB INDICATOR GHOST ═══════════════════════════════════════════════
+   .subtabs re-renders wholesale on every tab tap, so the accent highlight
+   normally teleports. zs-anim.js injects this transient pill at the OLD
+   tab's geometry and slides it (translateX only) onto the new one while it
+   fades, reading as the selection travelling. It is pure decoration layered
+   on top — the renderer's own .on styling is untouched, so if the JS dies
+   mid-flight the next re-render simply wipes the orphan. */
+
+.zs-tabghost {
+  position: absolute;                       /* .subtabs is sticky ⇒ positioned */
+  pointer-events: none;
+  border-radius: var(--r-ctl, 10px);
+  background: var(--accent, #6f9bff);
+  opacity: .32;
+  will-change: transform;
+  transition: transform 220ms var(--ease-settle, cubic-bezier(.22, 1, .36, 1)),
+              opacity 220ms linear;
+}
+
+
+/* ══ 3. ACCORDION DISCLOSURE ══════════════════════════════════════════════
+   zs-anim.js measures the body and drives inline height 0 ⇄ measured px.
+   Height is a layout property — the one deliberate exception to the
+   compositor rule, because it is only ever user-initiated (accordion
+   headers are never toggled by the poll), lasts 240ms, and touches a single
+   contained element. The content fades with it. */
+
+.zs-acc-anim {
+  overflow: hidden !important;
+  transition: height 240ms var(--ease-settle, cubic-bezier(.22, 1, .36, 1)),
+              opacity 190ms linear;
+}
+
+
+/* ══ 4. REDUCED MOTION ════════════════════════════════════════════════════
+   Both signals — the OS setting (prefers-reduced-motion) and the app's own
+   switch (body.a11y-motion, a LIVE class check by definition in CSS) — get
+   the same non-vestibular equivalent: entrances become a simple ≤120ms fade,
+   staggers collapse to 0 (the 0ms delay in the shorthand is !important, so
+   it beats the inline animation-delay zs-anim.js set). Travel goes, the
+   "something new is here" signal stays — reduced motion is fades, never
+   nothing.
+
+   These out-rank zs-brand.css §7's blanket `animation-duration:.01ms` clamp
+   and phone.html's `body.a11y-motion *{animation:none}` kill by later-file +
+   higher specificity, which is exactly why this file must stay loaded last. */
+
+@media (prefers-reduced-motion: reduce) {
+  .zs-anim-in, .zs-anim-in-s {
+    animation: zs-fade-in 100ms linear 0ms 1 both !important;
+  }
+  .zs-swap {
+    animation: zs-fade-in 100ms linear 0ms 1 both !important;
+  }
+  .zs-acc-anim { transition: none; }
+  .zs-tabghost { display: none !important; }
+
+  /* B2 fix (pre-existing bug, animation map Part 4): zs-brand.css swaps the
+     scanning reticle's rotation for a calm opacity breathe under PRM — and
+     then its own blanket clamp in the same media block crushes that breathe
+     to .01ms, leaving the reticle fully static and "scanning" and "idle"
+     nearly indistinguishable. Re-assert the breathe from the later file.
+     (Under body.a11y-motion the reticle is deliberately static — its three
+     states stay distinguishable by shape: dim / bright segmented / solid
+     ring + dot. That is the designed behaviour, not a bug.) */
+  .zs-ret-scanning {
+    animation: zs-ret-breathe 2s ease-in-out infinite !important;
+  }
+}
+
+body.a11y-motion .zs-anim-in,
+body.a11y-motion .zs-anim-in-s {
+  animation: zs-fade-in 100ms linear 0ms 1 both !important;
+}
+body.a11y-motion .zs-swap {
+  animation: zs-fade-in 100ms linear 0ms 1 both !important;
+}
+body.a11y-motion .zs-tabghost { display: none !important; }

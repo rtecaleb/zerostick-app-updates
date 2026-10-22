@@ -1,0 +1,729 @@
+/* smart-actions/02-validate.js — what this board can run, what is wrong, and the plain sentence.
+ *
+ * The capabilities block (/capabilities on an EXO, the caps on a Core's
+ * /status), problems() and hasErrors(), and the one-line English description
+ * of an action (stepLine, the sentence under every row).
+ *
+ * Tests: test-smart-actions.js, test-smart-list.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('validate', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var adsBindingName = SEC.adsBindingName, adsGateOK = SEC.adsGateOK, arr = SEC.arr,
+      boardDiag = SEC.boardDiag, COOL_MAX = SEC.COOL_MAX, dpsWord = SEC.dpsWord,
+      DUR_MAX = SEC.DUR_MAX, DUR_MIN = SEC.DUR_MIN, emitSource = SEC.emitSource,
+      esc = SEC.esc, has = SEC.has, haveClass = SEC.haveClass, intOf = SEC.intOf,
+      num = SEC.num, pushDps = SEC.pushDps, realUnits = SEC.realUnits,
+      REP_MAX = SEC.REP_MAX, SA = SEC.SA, screenLive = SEC.screenLive,
+      srcClass = SEC.srcClass, srcName = SEC.srcName, STEP_MS_CAP = SEC.STEP_MS_CAP,
+      stickVarOf = SEC.stickVarOf, syncBoard = SEC.syncBoard, TARGET_OK = SEC.TARGET_OK,
+      tgtName = SEC.tgtName, triggerName = SEC.triggerName, VAR_MAX = SEC.VAR_MAX,
+      ZS = SEC.ZS;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var nsOf, draw;
+  ZS_SMART_PARTS.after(function () {
+    nsOf = SEC.nsOf;
+    draw = SEC.draw;
+  });
+
+  /* ══ what THIS board can run — /capabilities, actions block ═════════
+     schema.validate on the board REJECTS an activation or holdMode it does
+     not know (schema.py), so "send it and hope it is ignored" is impossible
+     for the new trigger shapes. The rule is structural: a WHEN option the
+     board has not advertised is never DRAWN, never SENT, and a pasted code
+     that carries one is named as needing a board update. An absent block —
+     an old board, or no board yet — means today's exact five options. */
+  /* AUDIT M11: a Core has no /capabilities route. What it runs is what its
+     profile format carries, and the encoder's own tables say that
+     (zs-profile-encode.js ENUM_ACTIVATION, ENUM_HOLD_MODE; maxDurationMs 0
+     on a continuous mode): every gesture and hold mode, and "never give up".
+     Without this, every Core hid three of the eight WHEN options and
+     withheld any Script that used one (a share code, say) for ever. The old
+     A7S recorder door stays off: the Core records through D130's own. */
+  var CORE_ACTIONS = {
+    gestures: ['press', 'hold_ms', 'double_tap', 'release', 'tap'],
+    holdModes: ['once', 'repeat_while_held', 'run_while_held', 'toggle'],
+    infiniteDuration: true, recorder: false
+  };
+  function onCore() { return typeof ZS.productId === 'function' && ZS.productId() === 'core'; }
+  function capsActions() {
+    if (onCore()) return CORE_ACTIONS;
+    var c = ZS.live && ZS.live.caps;
+    return (c && typeof c === 'object' && c.actions && typeof c.actions === 'object')
+      ? c.actions : null;
+  }
+  function capList(name) {
+    var a = capsActions();
+    return (a && Array.isArray(a[name])) ? a[name] : [];
+  }
+  function hasGesture(g) {
+    /* the three the board has always run are never gated */
+    if (g === 'press' || g === 'hold_ms' || g === 'double_tap') return true;
+    return capList('gestures').indexOf(g) >= 0;
+  }
+  function hasHoldMode(m) {
+    if (m === 'once' || m === 'repeat_while_held' || m === 'run_while_held') return true;
+    return capList('holdModes').indexOf(m) >= 0;
+  }
+  function capRecorder() { var a = capsActions(); return !!(a && a.recorder === true); }
+  function capInfinite() { var a = capsActions(); return !!(a && a.infiniteDuration === true); }
+
+  /* does this action lean on anything an old board would reject? */
+  function usesGatedFeature(a) {
+    if (!a) return false;
+    if (a.holdMode === 'toggle') return true;
+    if (a.maxDurationMs === 0) return true;
+    /* a continuous mode always starts on a plain press (toBoard forces it),
+       so the gesture only travels when the mode is "once" */
+    return a.holdMode === 'once' &&
+      (a.trigger.gesture === 'tap' || a.trigger.gesture === 'release');
+  }
+
+  /* One fetch per connect, cached at ZS.live.caps, marked stale when the
+     board drops so a reconnect re-asks. Called from draw(), so the answer is
+     in hand by the time anyone opens the When sheet. When the answer CHANGES,
+     any action that was withheld for using a gated feature is owed a re-send
+     (syncBoard withholds on the structural error problems() raises). */
+  var capsBusy = false, capsStale = true, capsSig = null;
+  function ensureCaps(p, root) {
+    if (ZS.live.online === false) { capsStale = true; return; }
+    /* a Core answers from its format (above) and has no route to ask */
+    if (onCore()) return;
+    if (capsBusy || !capsStale) return;
+    capsBusy = true;
+    ZS.api('/capabilities').then(function (j) {
+      capsBusy = false;
+      /* ANY answer is final for this connection (audit M11/E3): a board
+         without the route was asked again on every 500 ms poll */
+      capsStale = false;
+      if (!j || !j.ok || !j.data) return;
+      ZS.live.caps = j.data;
+      var sig = JSON.stringify(capsActions());
+      if (sig === capsSig) return;
+      capsSig = sig;
+      for (var pid in SA) {
+        if (!Object.prototype.hasOwnProperty.call(SA, pid)) continue;
+        var S2 = SA[pid], any = false, i;
+        for (i = 0; i < S2.actions.length; i++) {
+          if (usesGatedFeature(S2.actions[i])) { any = true; break; }
+        }
+        if (!any) continue;      /* nothing gated → nothing was ever withheld */
+        /* the room's CONFIG, not its key: a weapon's room is keyed
+           pid|auto:... and ZS.prof of that is nothing (audit m20) */
+        var p2 = (typeof ZS.prof === 'function') ? ZS.prof(S2.pid || pid) : null;
+        if (p2) syncBoard(p2, S2);
+      }
+      /* the WHEN list and the recorder buttons are drawn from this answer */
+      if (root && p && screenLive(nsOf(root, p))) draw(root, p);
+    });
+  }
+
+  /* ══ validation ═══════════════════════════════════════════════════
+     Everything the old editor got wrong, it got wrong silently. These are the
+     traps, named in plain English, shown before you can save. */
+
+  /* The editor sheet suppresses this one, and only this one: the tile's name
+     already reads "Name it" in the place you would fix it, so printing the
+     same instruction as a sentence above Save is the pre-emptive nagging the
+     skill's Forms guidance warns about — and it would be the one line of
+     prose on a brand-new sequence's authoring surface. Everywhere ELSE (the
+     list, the board-sync check) it still shows, because there the tile is
+     not on screen. */
+  var NO_NAME_MSG = 'Give this sequence a name so you can find it later.';
+
+  /* ONE STRING, TWO HOMES. This warning already existed, but it was only ever
+     rendered by errorsHTML — i.e. inside the draft editor of one of the two
+     clashing sequences. The duplicate was CREATED in the Ready-made gallery
+     and REPORTED somewhere you had no reason to visit. Now the gallery's own
+     Add sheet prints it too, above the button that would make the second one. */
+  var DUP_WHEN_MSG = 'Two sequences on this button both run when you press it. They ' +
+    'will both fire at once — give one of them a different “When”.';
+
+  /* PURE: does `a` collide with anything already in `list`? Same resolved
+     source AND the same "When", which is exactly the pair the board merges.
+     Returns the clashing action so a caller can name it, or null. */
+  function dupWhen(list, a, p) {
+    var mySrc = emitSource(p, a.trigger), hit = null;
+    if (!mySrc) return null;
+    arr(list).forEach(function (o) {
+      if (hit || !o || o.id === a.id || o.enabled === false) return;
+      if (emitSource(p, o.trigger) !== mySrc) return;
+      if (o.holdMode !== a.holdMode) return;
+      if (a.holdMode === 'once' && o.trigger.gesture !== a.trigger.gesture) return;
+      hit = o;
+    });
+    return hit;
+  }
+
+  /* how much clock a step puts on the timeline. release / hold / config take
+     none, and an action made only of those finishes on the tick it starts. */
+  function stepTime(s) {
+    if (!s) return 0;
+    if (s.k === 'tap' || s.k === 'wait' || s.k === 'stick' || s.k === 'sens' || s.k === 'swap' ||
+        s.k === 'move') return intOf(s.ms, 0);
+    if (s.k === 'trig') return s.keep ? 0 : intOf(s.ms, 0);
+    if (s.k === 'unknown') {
+      /* build_steps appends NOTHING for swapSticks:false, so its ms is time
+         the board never spends — counting it would draw a timeline that does
+         not exist. */
+      if (boardDrops(s)) return 0;
+      return intOf(s.raw && (s.raw.ms != null ? s.raw.ms : s.raw.wait), 0);
+    }
+    return 0;
+  }
+
+  /* A step the board parses but then throws away. steps.py's swapSticks arm is
+     `if st.get("swapSticks")` — a false one produces no Step at all, so the
+     sequence is quietly one step shorter than it reads here. */
+  function boardDrops(s) {
+    return !!s && s.k === 'unknown' && !!s.raw && s.raw.swapSticks === false;
+  }
+
+  /* Takes no clock, but the console still sees it. sequences.py fires a config
+     load the moment its step STARTS and collects it at the sequencer level
+     (not per-run) precisely so a one-step switch survives its run finishing on
+     the same tick — so "this takes no time" is not a fault for one of these. */
+  /* D280: Turn assist is the same kind of step: it takes no clock of its
+     own and lasts exactly as long as its button is held. */
+  function instantEffect(s) { return !!s && (s.k === 'config' || s.k === 'tassist'); }
+
+  /* D231: the timeline's end - a press followed by a wait overlaps the
+     steps after it, so the steps' lengths no longer simply add up */
+  function totalTime(a) {
+    return SEC.timelineEnd(a.steps);
+  }
+  /* the eight things a board step may be (schema.py) */
+  var STEP_KEYS = ['press', 'hold', 'release', 'wait', 'aim', 'sensitivity', 'swapSticks', 'loadConfig', 'move',
+    'turnAssist'];   /* D280 */
+  function knownStepKey(raw) {
+    if (!raw || typeof raw !== 'object') return false;
+    for (var i = 0; i < STEP_KEYS.length; i++) if (raw[STEP_KEYS[i]] != null) return true;
+    return false;
+  }
+
+  /* D270: a recorded stick back at the centre is a Let-go of both its
+     axes ({"release":["lx+","ly+"]}, what the Core's recorder writes and
+     the engine plays). 'left' / 'right' when a step's targets are exactly
+     one stick's two axes, else null, so it can be said as the stick. */
+  function stickLetGo(s) {
+    var t = (s && s.t) || [];
+    if (t.length !== 2) return null;
+    var pair = [String(t[0]).replace(/[+-]$/, ''), String(t[1]).replace(/[+-]$/, '')].sort().join(',');
+    return pair === 'lx,ly' ? 'left' : pair === 'rx,ry' ? 'right' : null;
+  }
+
+  function stickOf(code) {
+    var c = String(code || '');
+    if (c.indexOf('lx') === 0 || c.indexOf('ly') === 0) return 'left';
+    if (c.indexOf('rx') === 0 || c.indexOf('ry') === 0) return 'right';
+    return null;
+  }
+
+  function problems(a, p, S) {
+    var out = [], i, j, s;
+    /* `live` marks an error that depends on VOLATILE state — what is plugged
+       in right now, the active config's board diagnostics, the current ads
+       binding. The editor blocks on them like any error, but the SYNC path
+       must not: a valid action the board would run fine was being withheld
+       (and, via the owned-id filter, silently DELETED off the board) because
+       the phone was glancing at a moment when the keyboard was unplugged.
+       The board's own _diagnose reports can't-fire states honestly — sending
+       is safe; deleting was the bug that ate every custom action. */
+    function err(msg, idx, live) { out.push({ level: 'error', msg: msg, stepIdx: idx, live: !!live }); }
+    function warn(msg, idx) { out.push({ level: 'warn', msg: msg, stepIdx: idx }); }
+
+    /* A warning, not an error. A beginner who has just built a sequence from
+       a button should not be stopped at the door by a naming rule — and they
+       are not: toBoard() falls back to the action's id, so an unnamed
+       sequence saves and runs exactly as it reads. */
+    if (!(a.name || '').trim()) warn(NO_NAME_MSG);
+    if (!a.steps.length) err('Add at least one step — an action with no steps does nothing.');
+    /* D280: a Script waiting for a key is a fact, not a fault: it is
+       saved, off, and one tap from a key (the Activation chip) */
+    if (a.trigger.unbound) warn('This is not on a key yet. Tap Activation to choose the key that starts it.');
+    else if (!emitSource(p, a.trigger)) err('Choose the button that starts this action.');
+
+    for (i = 0; i < a.steps.length; i++) {
+      s = a.steps[i];
+      var n = i + 1;
+      if (s.k === 'tap' || s.k === 'hold' || s.k === 'release' || s.k === 'trig') {
+        if (!s.t.length) err('Step ' + n + ' has no button chosen.', i);
+        for (j = 0; j < s.t.length; j++) {
+          if (s.t[j] === 'lt-' || s.t[j] === 'rt-') err('Step ' + n + ' uses a trigger pushed backwards, which the board throws away. Pick the trigger again.', i);
+          else if (!TARGET_OK[s.t[j]]) {
+            /* D128: a key or a click is a step target on a Core; sa-mnk.js
+               says whether it can arrive, and on anything else it is an
+               error in its own words rather than "a control nobody knows" */
+            var kp = window.ZS_SA_MNK ? ZS_SA_MNK.stepKeyProblem(p, s.t[j], n) : null;
+            if (kp === null) err('Step ' + n + ' uses a control the board does not know ("' + s.t[j] + '"). Pick it again.', i);
+            else if (kp && kp.level === 'error') err(kp.msg, i);
+            else if (kp) warn(kp.msg, i);
+          }
+        }
+      }
+      if (stepTime(s) > STEP_MS_CAP || intOf(s.ms, 0) > STEP_MS_CAP) err('Step ' + n + ' can be at most 10 seconds — that is the board’s limit.', i);
+      if (s.k === 'stick' && num(s.dist, 0) < 0.01) err('Step ' + n + ' pushes the stick 0% of the way, so it would do nothing. Set a distance.', i);
+      /* D280: the latch is the Core's engine; the EXO's board would refuse
+         the step, and the whole config with it */
+      if (s.k === 'tassist' && !onCore()) err('Step ' + n + ' is Turn assist, which runs on the ZeroStick Core only.', i);
+      if (s.k === 'unknown') {
+        /* An unknown step is passed through untouched so a board- or
+           PC-authored action survives being reordered here. But if it carries
+           none of the eight things a step can be, the board rejects the WHOLE
+           config — every other action in it would stop working. Better to say
+           so than to have the save quietly bounce. */
+        if (boardDrops(s)) warn('Step ' + n + ' switches stick-swapping OFF. Your board has no step for that — it is kept here, but nothing happens when it is reached.', i);
+        else if (knownStepKey(s.raw)) warn('Step ' + n + ' came from somewhere else and this app cannot show it. It will be saved exactly as it is.', i);
+        else err('Step ' + n + ' is not something your board understands, and it would refuse this whole config. Delete that step.', i);
+      }
+    }
+
+    /* the single most important check: a sequence with no time on it either
+       ends on the tick it starts, or spins until the engine's runaway guard
+       force-ends it. A config switch is the one exception — it happens the
+       instant its step begins, so a one-step "switch config" is a real action
+       even though nothing about it is ever sent to the console. */
+    if (a.steps.length && totalTime(a) === 0) {
+      var instant = false;
+      for (i = 0; i < a.steps.length; i++) if (instantEffect(a.steps[i])) instant = true;
+      if (!instant) err('Nothing here takes any time, so the console would never see it. Add a Wait, or give a step a length.');
+      if (a.holdMode === 'repeat_while_held') err('Repeating steps that take no time would spin your board. Give at least one step a length.');
+    }
+
+    /* ── the shapes only a NEWER board can run ──────────────────────
+       schema.validate on the board rejects an unknown activation or holdMode
+       outright, so sending one would bounce the whole config. These arrive by
+       share code (or by a board downgrade), never from this editor's own
+       controls — the gated WHEN options are not drawn without the capability. */
+    var NEEDS_UPDATE = 'Your board needs an update before it can run this — ' +
+      'it arrived in a share code from a newer ZeroStick.';
+    if (a.holdMode === 'once' && a.trigger.gesture === 'tap' && !hasGesture('tap')) err(NEEDS_UPDATE);
+    if (a.holdMode === 'once' && a.trigger.gesture === 'release' && !hasGesture('release')) err(NEEDS_UPDATE);
+    if (a.holdMode === 'toggle' && !hasHoldMode('toggle')) err(NEEDS_UPDATE);
+    if (a.maxDurationMs === 0 && !capInfinite()) err(NEEDS_UPDATE);
+    /* mirrors the board's own cross-check: "never give up" only means
+       something on a sequence that keeps running */
+    if (a.maxDurationMs === 0 && a.holdMode === 'once')
+      err('“Never give up” only works on a sequence that keeps running — a play-once sequence would never end. Set a “Give up after” time.');
+    /* ...and the board's second one (schema.py UNSTOPPABLE_PROBLEM, the same
+       sentence word for word). A while-held action that ignores letting go
+       AND never gives up has no way left to end: a Hold as its last step kept
+       its button pressed until the player unplugged or switched configs.
+       Both engines now cap it at 10 seconds whatever arrives; this stops it
+       being built in the first place. Toggle is exempt, because its off press
+       always works. */
+    if (a.maxDurationMs === 0 && a.uninterruptible &&
+        (a.holdMode === 'repeat_while_held' || a.holdMode === 'run_while_held'))
+      err('“Always finish” cannot be combined with “Never give up” on an action that runs while you hold its button. Letting go is the only thing that could stop it, and “Always finish” ignores letting go, so the button would stay pressed until you unplug or switch configs. Set a “Give up after” time, or turn off “Always finish”.');
+
+    if (a.maxDurationMs !== 0 && (a.maxDurationMs < DUR_MIN || a.maxDurationMs > DUR_MAX)) err('"Give up after" must be between 100 ms and 30 seconds.');
+    if (a.cooldownMs < 0 || a.cooldownMs > COOL_MAX) err('"Wait before it can fire again" must be between 0 and 60 seconds.');
+    if (a.varianceMs < 0 || a.varianceMs > VAR_MAX) err('"Timing wobble" must be between 0 and 500 ms.');
+    if (a.maxRepeats < 1 || a.maxRepeats > REP_MAX || a.maxRepeats !== Math.round(a.maxRepeats)) err('"How many times" must be a whole number from 1 to 10.');
+
+    if (S) {
+      var dupes = 0;
+      S.actions.forEach(function (o) { if (o.id === a.id) dupes++; });
+      if (dupes > 1) err('Two actions share the same id — re-create one of them.');
+
+      /* Two sequences on ONE input that also share a "When" both fire on the
+         same press. Nothing in schema.py enforces a unique trigger.source (on
+         purpose — one button doing several jobs is a feature), so the board
+         will happily run both and merge them. Before the Buttons list existed
+         you could not even see that you had done it. */
+      var clash = dupWhen(S.actions, a, p);
+      if (clash) warn(DUP_WHEN_MSG);
+    }
+
+    /* ── the turbo that is really one long press ────────────────────
+       MEASURED against actions/sequences.py at the real 250 Hz output rate:
+       a "keeps looping" sequence of one 100 ms tap on Circle produces ONE
+       press held for 100% of the two seconds you hold the trigger. Not a bug
+       in the engine — _advance releases the finished step's targets and
+       re-asserts the wrapped step's inside the SAME call, so no tick ever
+       sees the gap. The console gets a solid hold.
+
+       It is the exact silent failure this file exists to end: it saves, it
+       validates, the board runs it, the row shows a green dot, and the thing
+       the user asked for ("over and over") never happens. So it is said out
+       loud, with the fix in the sentence.
+
+       Sticks are exempt: a looping stick push IS meant to be continuous — a
+       recoil script is built precisely that way, and warning there would bury
+       the one warning that matters. Only buttons and the two triggers count. */
+    if (a.holdMode === 'repeat_while_held' && a.steps.length) {
+      var first = a.steps[0], firstTargets = {}, anyFirst = false;
+      if (first.k === 'tap' || first.k === 'hold' || first.k === 'trig') {
+        for (i = 0; i < first.t.length; i++) {
+          if (!stickOf(first.t[i])) { firstTargets[first.t[i]] = true; anyFirst = true; }
+        }
+      }
+      if (anyFirst) {
+        /* Walk the list keeping the set asserted DURING each step, the way the
+           RUNNER does — and the runner has one flat set per run, not a stack.
+           _advance releases a TIMED press's own targets when it ends
+           (`if step.kind == "press" and step.dur_s > 0: _release_targets`), and
+           it does not care that an earlier Hold put the same control there. So
+           a Hold followed by a timed tap of the SAME control comes out not
+           held, and the tap's gap is real.
+
+           That is not a detail: Caleb's own "Untitled action" is exactly
+           hold RT → tap RT 80 ms → wait 80, and it measures 13 distinct pulls
+           at 51% duty on the real sequencer. Modelling the hold as surviving
+           the tap would have painted a warning over a macro that works. */
+        var on = {}, gap = false;
+        for (i = 0; i < a.steps.length; i++) {
+          s = a.steps[i];
+          var during = {}, c, timedPress = null;
+          for (c in on) { if (has(on, c)) during[c] = true; }
+          if (s.k === 'hold' || (s.k === 'trig' && s.keep)) {
+            for (j = 0; j < s.t.length; j++) { on[s.t[j]] = true; during[s.t[j]] = true; }
+          } else if (s.k === 'release') {
+            for (j = 0; j < s.t.length; j++) { delete on[s.t[j]]; delete during[s.t[j]]; }
+          } else if (s.k === 'tap' || (s.k === 'trig' && !s.keep)) {
+            for (j = 0; j < s.t.length; j++) during[s.t[j]] = true;
+            if (stepTime(s) > 0) timedPress = s.t;
+          }
+          if (stepTime(s) > 0) {
+            var touches = false;
+            for (c in firstTargets) { if (has(firstTargets, c) && during[c]) touches = true; }
+            if (!touches) gap = true;
+          }
+          /* the runner drops the step's own targets when a timed press ends */
+          if (timedPress) { for (j = 0; j < timedPress.length; j++) delete on[timedPress[j]]; }
+        }
+        if (!gap) {
+          warn('This loops with no gap in it, so the console would see one long ' +
+               'press instead of a series of them. Add a Wait after the last ' +
+               'step — the Helpers key (the wrench) can work the length out from a fire rate.');
+        }
+      }
+    }
+
+    /* warnings: allowed to save, worth knowing */
+    if (a.holdMode === 'repeat_while_held' && a.maxRepeats > 1) warn('"How many times" is ignored while you hold the trigger — it just keeps looping.');
+    if (a.holdMode === 'run_while_held' && a.uninterruptible) warn('"Always finish" cancels "stops when you let go". It will run to the end anyway.');
+    if (a.trigger.gesture !== 'press' && a.holdMode !== 'once') warn('While-you-hold actions always start on a plain press.');
+
+    var held = {}, stickHeld = {};
+    for (i = 0; i < a.steps.length; i++) {
+      s = a.steps[i];
+      if (s.k === 'hold' || (s.k === 'trig' && s.keep)) s.t.forEach(function (c) { held[c] = i; });
+      /* a stick step of length 0 holds its stick; letting go of that stick's
+         axes is its natural end (a recording's return to the centre) */
+      if (s.k === 'stick') { if (intOf(s.ms, 0) === 0) stickHeld[s.stick] = i; else delete stickHeld[s.stick]; }
+      if (s.k === 'release') s.t.forEach(function (c) {
+        if (held[c] == null && stickOf(c) && stickHeld[stickOf(c)] != null) return;
+        if (held[c] == null) warn('Step ' + (i + 1) + ' lets go of ' + tgtName(c, p) + ', but nothing held it down.', i);
+        else delete held[c];
+      });
+    }
+    Object.keys(held).forEach(function (c) {
+      warn('You hold ' + tgtName(c, p) + ' and never let go — it releases when the action ends.', held[c]);
+    });
+
+    var totMs = totalTime(a) * (a.holdMode === 'once' ? a.maxRepeats : 1);
+    if (a.maxDurationMs > 0 && totMs > a.maxDurationMs) warn('This takes ' + dur(totMs) + ' but gives up after ' + dur(a.maxDurationMs) + ', so the end would be cut off.');
+
+    /* An aim step writes BOTH axes of its stick, so a SECOND one clashes with
+       the first — but only while the first is still asserted. sequences.py
+       releases a timed press at its theoretical end (_advance), so steps that
+       each carry a length run one after another and never overlap: a recoil
+       pattern or a small circle is four or eight stick steps in a row and is
+       completely correct. Only a step left holding (a length of 0, or a Hold
+       on a stick direction) is still in the way when the next one arrives.
+       This used to warn on every multi-step stick sequence, which made the one
+       warning that matters indistinguishable from noise. */
+    var sticks = {}, byStick = {};
+    function stickClash(which, at) {
+      /* a held push that a later push on the same stick replaces is how a
+         stick is MOVED (a recording is one held push after another): only a
+         Hold on a stick direction underneath it is worth a word */
+      if (sticks[which] != null && byStick[which] && a.steps[at] && a.steps[at].k === 'stick') return;
+      if (sticks[which] != null) {
+        warn('Step ' + (sticks[which] + 1) + ' is still pushing the ' +
+          (which === 'left' ? 'move' : 'aim') + ' stick when step ' + (at + 1) +
+          ' takes it over — the later one wins.', at);
+      }
+    }
+    for (i = 0; i < a.steps.length; i++) {
+      s = a.steps[i];
+      if (s.k === 'stick') {
+        stickClash(s.stick, i);
+        /* a length of 0 means "keep pushing until a later step or the end" */
+        if (intOf(s.ms, 0) === 0) { sticks[s.stick] = i; byStick[s.stick] = true; } else delete sticks[s.stick];
+      } else if (s.k === 'hold') {
+        s.t.forEach(function (c) {
+          var st = stickOf(c);
+          if (st) { stickClash(st, i); sticks[st] = i; byStick[st] = false; }
+        });
+      } else if (s.k === 'tap') {
+        s.t.forEach(function (c) {
+          var st = stickOf(c);
+          if (st) { stickClash(st, i); delete sticks[st]; }
+        });
+      } else if (s.k === 'release') {
+        s.t.forEach(function (c) {
+          var st = stickOf(c);
+          if (st) delete sticks[st];
+        });
+      }
+    }
+
+    /* ── can this trigger ever fire? ────────────────────────────────
+       This used to be a warning, gated on `!a.trigger.follow` AND on
+       p.input === 'controller' — and p.input is 'mnk' on every config cloned
+       from the default, so it never appeared at all. It is now an ERROR, and
+       it is decided by what is actually PLUGGED IN rather than by a field in
+       the config, because an action whose trigger no device can send is not
+       suspicious: it is guaranteed dead.
+
+       Deliberately NOT auto-migrated. There is no honest mapping from Space
+       to a pad button — the default profile happens to bind Space to Cross,
+       but silently re-pointing a macro at Cross means it fires every time you
+       jump, and a disabled player discovering that mid-game is a worse problem
+       than one that does not fire. The editor names the fault, and the picker
+       is one tap away. Visible and reversible beats clever and silent. */
+    var src = emitSource(p, a.trigger);
+    var cls = srcClass(src);
+    var boardSays = boardDiag(p, a.id, src);
+    if (!src) {
+      /* already reported by the required-field check above */
+    } else if (cls === 'screen') {
+      /* a watched screen area: no device sends it, so no device question below
+         has a true answer. The board's own diagnostics still get the last word
+         a few lines down, and they know about regions. */
+      if (boardSays && !boardSays.canFire) {
+        err(boardSays.message || 'Your board says this action cannot fire.', null, true);
+      }
+    } else if (cls === 'unknown') {
+      err('Nothing on your board sends “' + src + '”, so this action can never start. Pick its button again.');
+    } else if (haveClass(cls) === false) {
+      err('This action starts on ' + srcName(src) + ', and no ' +
+          (cls === 'keyboard' ? 'keyboard' : cls === 'mouse' ? 'mouse' : 'controller') +
+          ' is connected — it will never fire. Tap “What starts this action?” to pick a button on your controller.',
+          null, true);
+    } else if (boardSays && !boardSays.canFire) {
+      /* The board is the authority: it knows exactly which codes the devices
+         in your hands can emit, which the app can only approximate. */
+      err(boardSays.message || 'Your board says this action cannot fire.', null, true);
+    }
+
+    /* ── and can its aim-mode gate ever open? ──────────────────────── */
+    if (a.gate === 'ads' && adsGateOK(p) === false) {
+      /* D413: L2 / LT and the right click always aim, so this is only
+         when neither a controller nor a mouse is plugged in */
+      err('This is set to run only while you are aiming down sights, but nothing ' +
+          'plugged in can aim: plug in your controller (L2 / LT aims) or a mouse ' +
+          '(the right click aims), or set “Aim mode” back to “Any time”.', null, true);
+    }
+    return out;
+  }
+
+  function hasErrors(a, p, S, structuralOnly) {
+    var ps = problems(a, p, S);
+    for (var i = 0; i < ps.length; i++) {
+      if (ps[i].level !== 'error') continue;
+      if (structuralOnly && ps[i].live) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /* ══ the plain-English sentence ═══════════════════════════════════ */
+
+  function dur(ms) {
+    ms = Math.round(num(ms, 0));
+    if (ms < 1000) return ms + ' ms';
+    var s = Math.round(ms / 100) / 10;
+    return s + (s === 1 ? ' second' : ' seconds');
+  }
+  function pctOf(x) { return Math.round(num(x, 0) * 100) + '%'; }
+  function andList(list) {
+    if (!list.length) return '';
+    if (list.length === 1) return list[0];
+    return list.slice(0, list.length - 1).join(', ') + ' and ' + list[list.length - 1];
+  }
+  var DIR_WORD = {
+    0: 'right', 45: 'up and to the right', 90: 'straight up', 135: 'up and to the left',
+    180: 'left', 225: 'down and to the left', 270: 'straight down', 315: 'down and to the right'
+  };
+  function dirWord(deg) {
+    var n = (Math.round(deg / 45) * 45) % 360;
+    return (Math.abs(deg - n) <= 2 && DIR_WORD[n]) ? DIR_WORD[n] : ('at ' + Math.round(deg) + '°');
+  }
+  function farWord(d) {
+    var v = Math.round(num(d, 0) * 100);
+    if (v >= 99) return 'all the way';
+    if (v >= 48 && v <= 52) return 'half way';
+    return v + '% of the way';
+  }
+  function tgtNames(list, p) {
+    return list.map(function (c) { return tgtName(c, p); });
+  }
+
+  function stepLine(s, i, steps, p) {
+    if (!s) return '';
+    var names, k = s.k;
+    if (k === 'tap') {
+      names = andList(tgtNames(s.t, p));
+      return (s.t.length > 1 ? 'Press ' + names + ' together for ' : 'Tap ' + names + ' for ') + dur(s.ms);
+    }
+    if (k === 'hold') {
+      names = andList(tgtNames(s.t, p));
+      var freed = -1;
+      for (var j = i + 1; j < steps.length; j++) {
+        if (steps[j].k === 'release') {
+          for (var m = 0; m < s.t.length; m++) if (steps[j].t.indexOf(s.t[m]) >= 0) { freed = j; break; }
+        }
+        if (freed >= 0) break;
+      }
+      return 'Press and hold ' + names + (freed >= 0 ? ' (let go at step ' + (freed + 1) + ')' : ' (held until the whole thing ends)');
+    }
+    if (k === 'release' && stickLetGo(s)) return 'Let go of the ' + (stickLetGo(s) === 'left' ? 'move' : 'aim') + ' stick (back to the centre)';
+    if (k === 'release') return 'Let go of ' + andList(tgtNames(s.t, p));
+    if (k === 'wait') {
+      /* D231: after a press, the stopwatch starts the next step while
+         the press is still held */
+      if (i > 0 && steps && SEC.timedPress(steps[i - 1])) return 'Start the next step ' + dur(s.ms) + ' after that press began (it keeps its full length)';
+      return 'Wait ' + dur(s.ms);
+    }
+    if (k === 'stick' && num(s.dps, 0) > 0) {
+      /* D189: a turn rate, the same in any calibrated game */
+      return 'Turn the camera ' + dirWord(s.angle) + ' at ' + dpsWord(s.dps) +
+        (intOf(s.ms, 0) > 0 ? ', for ' + dur(s.ms) : ', and keep turning');
+    }
+    if (k === 'stick') {
+      var asDps = (realUnits() && s.stick !== 'left') ? pushDps(p, s) : null;
+      return 'Push the ' + (s.stick === 'left' ? 'move' : 'aim') + ' stick ' + dirWord(s.angle) +
+        ', ' + farWord(s.dist) + (asDps != null ? ' (about ' + dpsWord(asDps) + ')' : '') +
+        (intOf(s.ms, 0) > 0 ? ', for ' + dur(s.ms) : ', and keep it there');
+    }
+    if (k === 'trig') {
+      var side = (s.t[0] === 'lt+') ? 'left' : 'right';
+      return 'Pull the ' + side + ' trigger all the way' + (s.keep ? ' and keep it pulled' : ' for ' + dur(s.ms));
+    }
+    if (k === 'sens') {
+      var which = s.which === 'left' ? 'move' : 'aim';
+      var sc = num(s.scale, 1), head;
+      if (sc === 0) head = 'Freeze the ' + which + ' stick';
+      else if (sc === 0.5) head = 'Make ' + which + 'ing half as fast';
+      else if (sc === 2) head = 'Make ' + which + 'ing twice as fast';
+      else head = 'Set ' + which + ' speed to ' + pctOf(sc);
+      return head + (s.axis === 'x' ? ' — left and right only' : s.axis === 'y' ? ' — up and down only' : '') +
+        (intOf(s.ms, 0) > 0 ? ' for ' + dur(s.ms) : ' until the action ends');
+    }
+    if (k === 'swap') return 'Swap the two sticks over' + (intOf(s.ms, 0) > 0 ? ' for ' + dur(s.ms) : ' until the action ends');
+    if (k === 'move') return moveLine(s);
+    /* D280 */
+    if (k === 'tassist') return 'Turn assist: a mouse swipe keeps the camera turning at that speed ' +
+      'until you swipe again or let go' + (intOf(s.gap, 0) > 0 ? ' (a swipe ends after ' + dur(s.gap) + ' still)' : '');
+    if (k === 'config') return s.to === 'next' ? 'Switch to the next config'
+      : s.to === 'prev' ? 'Switch to the config before this one' : 'Switch to config number ' + s.to;
+    if (boardDrops(s)) return 'Turn stick-swapping off — your board has no step for that, so nothing happens here';
+    return 'A step this app does not understand — it will be kept exactly as it is';
+  }
+
+  /* D170: a recoil move in words. +y is DOWN (the mouse's own sense), so a
+     positive dy pulls the aim down, which is what cancels a climb. */
+  function moveLine(s) {
+    var dx = num(s.dx, 0), dy = num(s.dy, 0), parts = [];
+    if (Math.abs(dy) >= 0.05) parts.push((dy > 0 ? 'down ' : 'up ') + (Math.round(Math.abs(dy) * 10) / 10));
+    if (Math.abs(dx) >= 0.05) parts.push((dx > 0 ? 'right ' : 'left ') + (Math.round(Math.abs(dx) * 10) / 10));
+    var what = parts.length ? 'Pull the aim ' + parts.join(' and ') + ' mouse counts' : 'Hold the aim still';
+    return what + (intOf(s.ms, 0) > 0 ? ', smoothly over ' + dur(s.ms) : ', at once') + ' (Anti-Recoil Lab)';
+  }
+
+  function sentence(a, p) {
+    var T = triggerName(p, a);
+    var lead, leadHTML;
+    var Tb = '<b>' + esc(T) + '</b>';
+    if (a.holdMode === 'repeat_while_held') {
+      lead = 'While you hold ' + T + ' down, this repeats over and over:';
+      leadHTML = 'While you hold ' + Tb + ' down, this repeats over and over:';
+    } else if (a.holdMode === 'run_while_held') {
+      lead = 'While you hold ' + T + ' down this runs, and stops the instant you let go:';
+      leadHTML = 'While you hold ' + Tb + ' down this runs, and stops the instant you let go:';
+    } else if (a.holdMode === 'toggle') {
+      lead = 'Press ' + T + ' and this starts. Press it again and it stops:';
+      leadHTML = 'Press ' + Tb + ' and this starts. Press it again and it stops:';
+    } else if (a.trigger.gesture === 'tap') {
+      lead = 'When you give ' + T + ' a quick tap (under ' + dur(a.trigger.tapMs) + '):';
+      leadHTML = 'When you give ' + Tb + ' a quick tap (under ' + esc(dur(a.trigger.tapMs)) + '):';
+    } else if (a.trigger.gesture === 'release') {
+      lead = 'When you let go of ' + T + ':';
+      leadHTML = 'When you let go of ' + Tb + ':';
+    } else if (a.trigger.gesture === 'hold_ms') {
+      lead = 'When you hold ' + T + ' for ' + dur(a.trigger.holdMs) + ':';
+      leadHTML = 'When you hold ' + Tb + ' for ' + esc(dur(a.trigger.holdMs)) + ':';
+    } else if (a.trigger.gesture === 'double_tap') {
+      lead = 'When you tap ' + T + ' twice within ' + dur(a.trigger.windowMs) + ':';
+      leadHTML = 'When you tap ' + Tb + ' twice within ' + esc(dur(a.trigger.windowMs)) + ':';
+    } else {
+      lead = 'When you press ' + T + ':';
+      leadHTML = 'When you press ' + Tb + ':';
+    }
+    var lines = a.steps.map(function (s, i) { return stepLine(s, i, a.steps, p); });
+    var tail = [];
+    if (a.gate === 'hip') tail.push('Only when you are NOT aiming down sights.');
+    if (a.gate === 'ads') tail.push('Only while you are aiming down sights.');
+    if (a.maxRepeats > 1 && a.holdMode !== 'repeat_while_held') tail.push('It plays ' + a.maxRepeats + ' times each time you fire it.');
+    if (a.cooldownMs > 0) tail.push('After it finishes it will not fire again for ' + dur(a.cooldownMs) + '.');
+    if (a.uninterruptible) tail.push('Once it starts it always finishes, even if you let go.');
+    if (a.varianceMs > 0) tail.push('Timing wobbles by up to ' + a.varianceMs + ' ms so it does not look robotic.');
+    if (stickVarOf(a.stickVariance) === null) tail.push('Each stick push varies by up to ±1% (the default) so it is not the same every time.');
+    else if (stickVarOf(a.stickVariance) > 0) tail.push('Each stick push varies by up to ±' + stickVarOf(a.stickVariance) + '% so it is not the same every time.');
+    else if (stickVarOf(a.stickVariance) === 0) tail.push('Stick pushes are exact every time, whatever the config says.');
+    if (a.maxDurationMs === 0) tail.push('It never gives up on its own — it runs until you stop it, switch configs, or unplug.');
+    else tail.push('It gives up after ' + dur(a.maxDurationMs) + ' no matter what.');
+    if (a.enabled === false) tail.push('This action is switched OFF — it is saved, but nothing will happen.');
+    return { lead: lead, leadHTML: leadHTML, lines: lines, tail: tail };
+  }
+
+  /* THE SCRIPT'S DESCRIPTION BEHIND A "?" (owner, 2026-10-14: "you still
+     haven't removed all this text on scripts and added question marks").
+     The same words oneLiner() says, as bullets: when it runs, each step,
+     then the rules. The row's aria-label still says it all. */
+  function descQH(a, p) {
+    var s = sentence(a, p);
+    var pts = [s.leadHTML].concat(s.lines.map(function (x) { return esc(x); }))
+      .concat(s.tail.map(function (x) { return esc(x); }));
+    var body = '<ul class="qhlist">' + pts.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>';
+    if (window.ZS && ZS.helpHTML) {
+      return '<span class="sadesc">' + ZS.helpHTML('sa-desc-' + (a.id || a.name || ''), (a.name || 'this script'), body) + '</span>';
+    }
+    return '';
+  }
+  SEC.descQH = descQH;
+
+  /* one line for the list row */
+  function oneLiner(a, p) {
+    var s = sentence(a, p);
+    return s.lead + (s.lines.length ? ' ' + s.lines.join(', ') + '.' : '');
+  }
+
+  /* what the other parts use from this one */
+  SEC.DUP_WHEN_MSG = DUP_WHEN_MSG;
+  SEC.NO_NAME_MSG = NO_NAME_MSG;
+  SEC.capInfinite = capInfinite;
+  SEC.capRecorder = capRecorder;
+  SEC.dirWord = dirWord;
+  SEC.dupWhen = dupWhen;
+  SEC.dur = dur;
+  SEC.ensureCaps = ensureCaps;
+  SEC.hasErrors = hasErrors;
+  SEC.hasGesture = hasGesture;
+  SEC.hasHoldMode = hasHoldMode;
+  SEC.oneLiner = oneLiner;
+  SEC.problems = problems;
+  SEC.sentence = sentence;
+  SEC.stepLine = stepLine;
+  SEC.stickLetGo = stickLetGo;
+  SEC.totalTime = totalTime;
+});

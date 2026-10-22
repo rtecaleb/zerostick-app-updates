@@ -1,0 +1,552 @@
+# Where the Rainbow Six Siege catalog comes from
+
+Everything here was read on **2026-09-23**. `catalog.json` in this folder is the
+list, in the two-kind form (`kinds`: Operators and Guns, see `../README.md`);
+this file says where every fact and every picture in it came from.
+
+**Pictures: publisher artwork only (decision D116).** Every picture in
+`operators/` and `weapons/` is Ubisoft's own image, downloaded from Ubisoft's
+image server staticctf.ubisoft.com, which is where Ubisoft's official Siege site
+(ubisoft.com) serves it on that operator's page. None came from a fan wiki,
+Fandom, an esports site or an image search. They are Ubisoft's copyright (Solid
+Snake's icon is also Konami's: the operator pages carry a Konami copyright
+notice for him), used in the app
+to identify the operator or the gun, the same risk the owner accepted for the
+game pictures in D116. Delete a `.png` and set that item's `image` to `null` and
+the app shows its placeholder instead; nothing else changes.
+
+- **`operators/`: the operator's official icon**, the square badge the game shows
+  on its operator select screen and in the HUD, exactly as Ubisoft serves it on
+  the operator's page (files named `r6s-operators-badge-<name>.png` or
+  `Y<year>S<season>_BADGE_<Name>_L.png`), copied byte for byte: 201 x 201 for
+  58 operators, 104 x 104 for the 20 whose page was made or remade recently.
+  Transparent outside the badge. The operator portraits on the same pages (the
+  tall character pictures) were **not** taken: the format has one picture per
+  item, and the icon is what the Core would see on screen.
+- **`weapons/`: the gun's official loadout silhouette**, white with black detail
+  on a transparent background (the style the game draws its weapon icons in),
+  from the Loadout section of an operator's page, where Ubisoft serves it at
+  290 x 100. Trimmed to the gun with 2 px spare, kept at its natural size (so no
+  bigger than 290 x 100, well inside 480 x 300) and in its original PNG colour
+  mode. The CCE Shield MK2's picture is served as AVIF and was converted to PNG.
+
+Every item has a picture: 78 operators and 117 guns. None is `null`.
+
+## What is in Siege today
+
+- **Current season: Year 11 Season 3: Operation Split Fire**, live since
+  September 1, 2026 ([Seasons page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons), [Split Fire season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/splitfire), [Ubisoft News](https://news.ubisoft.com/en-us/article/4qqpGJZSWrrS3Ko2hYvviK/rainbow-six-siege-operation-split-fire-new-operator-noor-3v3-arcade-mode-wasteland-circuit-event-and-more)). It added **Noor**, an Egyptian Defender with
+  the Horus Lance Launcher, and changed no gun in anyone's loadout (its only
+  loadout change is a gadget swap for Dokkaebi).
+- **Newest patch: Y11S3.1**, September 22, 2026 ([Y11S3.1 patch notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3WMly2DNZqv1GpUK9GNGm5/y11s31-patch-notes)): balance and bug fixes,
+  no loadout change.
+- **The seasons since Siege X**, from Ubisoft's [Seasons page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons) and each season's page, with
+  every change to a gun loadout:
+  - Year 10 Season 1, Operation Prep Phase (March 2025): Rauora (417, M249;
+    Reaper MK2, GSh-18; the first operator page to list the Reaper MK2).
+  - Year 10 Season 2, Operation Daybreak (June 2025): the launch of Siege X;
+    Clash remastered; "Changed the order in which weapons and devices appear
+    in the loadout of most Operators" ([Daybreak season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/daybreak)).
+  - Year 10 Season 3, Operation High Stakes (September 2025): Denari, with the
+    new Glaive-12. Reaper MK2 added to Sledge, Oryx, Pulse, Ying and Rook;
+    Super Shorty to Wamai; TCSG12 to Sentry; SR-25 to Striker; Bailiff 410
+    removed from Fenrir and Super Shorty from Lesion ([High Stakes season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/highstakes), [Y10S3 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4czc3hlHtXrd27crELGDcc/y10s3-designers-notes)). Y10S3.3 added the P-10C to Jäger and the
+    Keratos .357 to Bandit ([Y10S3.3 patch notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4RsdLNZbYZ3wIrcgaDpkuF/y10s33-patch-notes)).
+  - Year 10 Season 4, Operation Tenfold Pursuit (December 2025): Thatcher
+    remastered; the new PMR90A2 added to Thatcher, Nøkk, Hibana and Capitão;
+    ITA12S to Thermite; Reaper MK2 to Maverick ([Tenfold Pursuit season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/tenfoldpursuit)). Y10S4.2 gave Mozzie the
+    Super Shorty back ([Y10S4.2 patch notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3HSeMj81P0CL3m0N8FS5tK/y10s42-patch-notes)).
+  - Year 11 Season 1, Operation Silent Hunt (March 2026): Solid Snake, with
+    the new TACIT .45; T-95 LSW added to Flores ([Silent Hunt season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/silenthunt), [Y11S1 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/5fWCjoCU8toUJiBdMSj0UA/y11s1-designers-notes)).
+  - Year 11 Season 2, Operation System Override (June 2026): Dokkaebi
+    remastered; the new XK23 for Dokkaebi, Rauora and Sens ([System Override season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/systemoverride), [Y11S2 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2MNhboDBmsQKkWb5p8zqsg/y11s2-designers-notes)).
+  - Year 11 Season 3, Operation Split Fire (September 2026): Noor.
+
+Counts: **78 operators** (39 Attackers, 39 Defenders) and **117 guns** in 12
+groups: Assault Rifles 27, Submachine Guns 20, Light Machine Guns 8, Marksman Rifles 7, Sniper Rifles 1, Shotguns 15, Slug Shotguns 4, Shields 4, Machine Pistols 6, Handguns 21, Revolvers 3, Hand Cannons 1.
+
+## The loadouts
+
+Each operator item carries `loadout: {primary, secondary}`, the ids of the guns
+that operator can pick, and each gun carries `usedBy`, the operators who can
+pick it. The two always agree (the build checks both directions).
+
+- **Where they come from: the operator's own page on ubisoft.com** (its Loadout
+  section, Primary Weapon and Secondary Weapon), read 2026-09-23. The table
+  below gives the page for every operator.
+- **Checked against every loadout change Ubisoft published from Year 10 Season
+  1 to Y11S3.1** (the list above; also the Y10S1 designer's notes and addendum,
+  Y10S1.2, Y10S1.3, Y10S2 designer's notes, Y10S2.0 addendum, Y10S2.3, Y10S3 addendum, Y10S3.1, Y10S3.2, Y10S4.1,
+  Y10S4 addendum, Y11S1.1 to Y11S1.3, Y11S2.1 to Y11S2.3, Y11S2.2 designer's
+  notes and Y11S3 addendum, none of which moves a gun). The pages carry every change except one: **the
+  XK23 is not yet on Rauora's or Sens' page**, though the Y11S2 designer's notes
+  add it to both ("Primary weapons: Added XK23") and the System Override page
+  says "In addition to Dokkaebi, Rauora and Sens now also have the XK23 as a new
+  primary weapon". It is in their loadouts, last, and both are marked uncertain
+  for its position.
+- **The weapon lists in this season's own notes agree with the pages**: the
+  Y11S3 designer's notes (SMG-12: Dokkaebi, Vigil, Warden; SPSMG9: Clash, Kali;
+  AR-15.50: Maverick, Tubarão; Mk 14 EBR: Aruni, Dokkaebi) and the Y11S3.1 patch
+  notes, dated 2026-09-22 (M1014: Ace, Castle, Pulse, Thermite; SPAS-15:
+  Caveira, Thunderbird).
+- **Order inside a loadout** is the order the operator's page lists them (for
+  Rauora and Sens, with the XK23 after them). Daybreak changed the in-game order
+  for most operators and Ubisoft does not say what it is now, so **the page's
+  order is not confirmed as the game's**. The newest pages (Dokkaebi, remade for
+  System Override, Thatcher's for Tenfold Pursuit, Flores' for Silent Hunt) put
+  the newly added gun last.
+- **Blackbeard has no secondary weapon.** Since his Year 9 Season 4 remaster his
+  H.U.L.L. Adaptable Shield is carried with his primary, and both his page and
+  the [Collision Point season page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/collisionpoint) list no Secondary Weapon for him. His `secondary` is empty.
+- **Shields are primary weapons in Siege**, so Montagne (Le Roc Shield), Blitz
+  (G52-Tactical Shield), Clash (CCE Shield MK2) and Fuze (Ballistic Shield) have
+  them in `primary`, and they are in the Guns kind as a Shields group. They are
+  not guns; the group is there so a shield operator's loadout is complete.
+
+## How the lists are organised, and what is not confirmed
+
+- **Operators** are in two groups, Attackers and Defenders, from the Side on
+  each operator's page (the pages also split the roster 39 and 39 under those
+  two headings). Inside each: **alphabetical, accents folded** (Capitão with the
+  Cs, Jäger with the Js, Nøkk before Nomad). **The in-game operator select
+  screen's order was not confirmed** from any official page; Ubisoft's own site
+  lists operators newest first, which the game does not.
+- **`from` on an operator** is the season they joined, named as Ubisoft's
+  [Seasons page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons) names it ("Year 11 Season 3: Operation Split Fire"; Ubisoft names the seasons from
+  Year 6 Season 1 to Year 7 Season 1 without "Operation"). The Seasons page starts at
+  Year 1 Season 1, Operation Black Ice; the 20 operators it never introduces
+  are the December 2015 launch roster, marked "Launch (2015)". Striker and
+  Sentry replaced the Recruit in Year 9 Season 2, Operation New Blood. `from` on
+  a gun is `null`.
+- **Gun groups are the game's own weapon classes** as Ubisoft defined them in
+  the [Year 9 Season 1 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3jBlCdtRBQx2sCjmY2umNu/y9s1-designers-notes) (Assault Rifle, Submachine Gun, Light Machine Gun, Marksman Rifle,
+  Sniper Rifle, Shotgun, Slug Shotgun, Machine Pistol, Handgun, Revolver, Hand
+  Cannon: "New classes: Revolver, Sniper Rifle, Slug Shotgun"), plus Shields.
+  **The group order is ours** (primary classes, shields, then secondary
+  classes), and so is the order inside a group (alphabetical).
+- **Class labels.** The operator pages print an older, coarser label under
+  each gun; where an official note puts a gun in one of the newer classes, the
+  note wins:
+  - Revolvers: .44 Vendetta, Keratos .357 and LFP586, named as the Revolvers in
+    the [Y9S1.3 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2D4HsYOBEEg0wEW5dim34o/y9s13-designers-notes) (the pages say Handgun).
+  - Slug Shotguns: Glaive-12 (the [Y10S3.3 patch notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4RsdLNZbYZ3wIrcgaDpkuF/y10s33-patch-notes) buff it "to match other slug shotguns")
+    and TCSG12 (the Y10S3 designer's notes "add a Slug Shotgun" to Sentry:
+    "Added TCSG12"); ACS12 and BOSG.12.2 by inference from the Y9S1 designer's
+    notes (marked uncertain).
+  - Sniper Rifle: CSRX 300 (marked uncertain; the page says Marksman Rifle).
+  - Marksman Rifle: AR-15.50, called a DMR by the [Y11S3 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/PONCuRt8LaCr3O31NkBQb/y11s3-designers-notes) (marked uncertain; the
+    pages say Assault Rifle).
+  - Blank on the page, class from Ubisoft's text: XK23 Assault Rifle (Y11S2
+    designer's notes), PMR90A2 Marksman Rifle (Tenfold Pursuit: "the PMR90A2
+    marksman rifle"), Reaper MK2 Machine Pistol (Y10S3 designer's notes: "less
+    lethal than other Machine Pistols"), UZK50Gi Submachine Gun (Y10S2
+    designer's notes: Submachine Guns, "High caliber (e.g. UZK50GI)"), 9x19VSN
+    Submachine Gun (Kapkan's and Tachanka's pages), TACIT .45 and Luison
+    Handguns (marked uncertain).
+- **Primary or secondary.** The format has no field for it; an operator's
+  `loadout` says which. Every class is one or the other except Shotguns (the
+  ITA12S and Super Shorty are secondaries) and Slug Shotguns (the Glaive-12 is
+  a secondary).
+
+## Names
+
+Operator and gun names are spelt as Ubisoft spells them on the operator pages,
+except where those pages set a name in capitals or slip, below. The game draws
+names in capitals, so capitalisation never changes what the owner sees on
+screen.
+
+| printed | where | the catalog uses | because |
+|---|---|---|---|
+| NØKK, CAPITÃO | their operator pages and the operator list | Nøkk, Capitão | Ubisoft's running text ("Thatcher, Nøkk, Hibana, and Capitão", Tenfold Pursuit season page) |
+| "Azami " (trailing space) | Azami's page | Azami | trimmed |
+| 9X19SVN | Azami's page | 9x19VSN | Kapkan's and Tachanka's pages; the real VSN; one gun, one id |
+| POF9 | Sens' page, Vector Glare season page | POF-9 | Y9S1.3 and Y11S2 designer's notes and the Y11S1.1 patch notes, which head the gun's own balance entry "POF-9" |
+| .44 MAG SEMI-AUTO, .44 VENDETTA | Nomad's, Kaid's and Deimos' pages | .44 Mag Semi-Auto, .44 Vendetta | Y9S1.3 designer's notes |
+| LE ROC SHIELD, CCE SHIELD MK2 | Montagne's and Clash's pages | Le Roc Shield, CCE Shield MK2 | Y11S3.1 patch notes ("Montagne's Le Roc Shield"); Clash's by the same rule |
+| Commando-9 | Ubisoft News article on Split Fire | Commando 9 | every operator page |
+| MK14 EBR, MK 14 EBR | Y11S3 notes | Mk 14 EBR | the operator pages |
+| Vector.45 ACP, 556XI, P10 Roni, UZK50GI | designer's notes | Vector .45 ACP, 556xi, P10 RONI, UZK50Gi | the operator pages |
+
+Ids follow `../README.md`. One exception to the slug rule: **Nøkk's id is
+`attackers.nokk`**. The letter ø has no accent to drop, so the slug rule turns
+it into `n_kk`; `nokk` is Ubisoft's own address for her page and what anyone
+would type. `node dashboard/tools/test-game-data.js` prints it as a note (an id
+that differs from its name's slug), which is expected.
+
+## Uncertain
+
+- `attackers.rauora` (Rauora): Loadout: Ubisoft's operator page does not list the XK23 yet; the Year 11 Season 2 designer's notes added it to this operator's primary weapons, so it is included, placed last because its place in the game's own order is not confirmed.
+- `attackers.sens` (Sens): Loadout: Ubisoft's operator page does not list the XK23 yet; the Year 11 Season 2 designer's notes added it to this operator's primary weapons, so it is included, placed last because its place in the game's own order is not confirmed.
+- `marksman_rifles.ar_15_50` (AR-15.50): Class: Ubisoft's operator pages label it Assault Rifle, but the Year 11 Season 3 designer's notes call it and the Mk 14 EBR DMRs; filed as a Marksman Rifle.
+- `sniper_rifles.csrx_300` (CSRX 300): Class: Ubisoft's operator page labels it Marksman Rifle; Siege has had a Sniper Rifle class since Year 9 Season 1 and Ubisoft calls the CSRX 300 a bolt-action sniper rifle, but no official page names the class's members; filed as a Sniper Rifle.
+- `slug_shotguns.acs12` (ACS12): Class: Ubisoft's operator pages label it Shotgun; the Year 9 Season 1 designer's notes give Defenders the Magnified scope only on Slug Shotguns, Marksman Rifles and some SMGs and list the ACS12 among them, so it is filed as a Slug Shotgun.
+- `slug_shotguns.bosg_12_2` (BOSG.12.2): Class: Ubisoft's operator pages label it Shotgun; the Year 9 Season 1 designer's notes give Defenders the Magnified scope only on Slug Shotguns, Marksman Rifles and some SMGs and list the BOSG.12.2 among them, so it is filed as a Slug Shotgun.
+- `handguns.luison` (Luison): Class: Ubisoft's operator page leaves the class blank; Caveira's suppressed pistol, filed as a Handgun.
+- `handguns.tacit_45` (TACIT .45): Class: Ubisoft's operator page leaves the class blank; the Silent Hunt season page calls it a sidearm, so it is filed as a Handgun.
+
+## Operators
+
+Side and loadout from the operator's page (the first link); `from` from the
+season page (the second). Guns are listed in the page's order.
+
+| operator | side | joined | primary | secondary | loadout source |
+|---|---|---|---|---|---|
+| Ace | Attacker | Year 5 Season 2: Operation Steel Wave | AK-12, M1014 | P9 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ace) |
+| Amaru | Attacker | Year 4 Season 3: Operation Ember Rise | G8A1, SuperNova | Gonne-6, SMG-11, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru) |
+| Ash | Attacker | Launch (2015) | G36C, R4-C | 5.7 USG, M45 MEUSOC | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash) |
+| Blackbeard | Attacker | Year 1 Season 2: Operation Dust Line | Mk17 CQB, SR-25 | none | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blackbeard) |
+| Blitz | Attacker | Launch (2015) | G52-Tactical Shield | P12 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blitz) |
+| Brava | Attacker | Year 8 Season 1: Operation Commanding Force | PARA-308, CAMRS | USP40, Super Shorty | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava) |
+| Buck | Attacker | Year 1 Season 1: Operation Black Ice | C8-SFW, CAMRS | Mk1 9mm | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/buck) |
+| Capitão | Attacker | Year 1 Season 3: Operation Skull Rain | M249, PARA-308, PMR90A2 | Gonne-6, PRB92 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao) |
+| Deimos | Attacker | Year 9 Season 1: Operation Deadly Omen | AK-74M, M590A1 | .44 Vendetta | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/deimos) |
+| Dokkaebi | Attacker | Year 2 Season 4: Operation White Noise | BOSG.12.2, Mk 14 EBR, XK23 | C75 Auto, Gonne-6, SMG-12 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi) |
+| Finka | Attacker | Year 3 Season 1: Operation Chimera | 6P41, SASG-12, Spear .308 | GSh-18, PMM | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka) |
+| Flores | Attacker | Year 6 Season 1: Crimson Heist | AR33, SR-25, T-95 LSW | GSh-18 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores) |
+| Fuze | Attacker | Launch (2015) | AK-12, 6P41, Ballistic Shield | PMM, GSh-18 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) |
+| Glaz | Attacker | Launch (2015) | OTs-03 | PMM, Gonne-6, Bearing 9 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/glaz) |
+| Gridlock | Attacker | Year 4 Season 1: Operation Burnt Horizon | F90, M249 SAW | Super Shorty, SDP 9mm | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock) |
+| Grim | Attacker | Year 7 Season 3: Operation Brutal Swarm | 552 Commando, SG-CQB | Bailiff 410, P229 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim) |
+| Hibana | Attacker | Year 1 Season 4: Operation Red Crow | SuperNova, Type-89, PMR90A2 | Bearing 9, P229 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) |
+| Iana | Attacker | Year 5 Season 1: Operation Void Edge | ARX200, G36C | Gonne-6, Mk1 9mm | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iana) |
+| IQ | Attacker | Launch (2015) | AUG A2, 552 Commando, G8A1 | P12 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq) |
+| Jackal | Attacker | Year 2 Season 1: Operation Velvet Shell | C7E, PDW9, ITA12L | USP40, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal) |
+| Kali | Attacker | Year 4 Season 4: Operation Shifting Tides | CSRX 300 | SPSMG9, C75 Auto, P226 Mk 25 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali) |
+| Lion | Attacker | Year 3 Season 1: Operation Chimera | 417, SG-CQB, V308 | LFP586, P9 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion) |
+| Maverick | Attacker | Year 3 Season 3: Operation Grim Sky | AR-15.50, M4 | 1911 TACOPS, C75 Auto, Reaper MK2 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick) |
+| Montagne | Attacker | Launch (2015) | Le Roc Shield | P9, LFP586 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/montagne) |
+| Nøkk | Attacker | Year 4 Season 2: Operation Phantom Sight | FMG-9, SIX12 SD, PMR90A2 | 5.7 USG, D-50 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk) |
+| Nomad | Attacker | Year 3 Season 4: Operation Wind Bastion | AK-74M, ARX200 | PRB92, .44 Mag Semi-Auto | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad) |
+| Osa | Attacker | Year 6 Season 3: Crystal Guard | 556xi, PDW9 | PMM | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/osa) |
+| Ram | Attacker | Year 8 Season 3: Operation Heavy Mettle | LMG-E, R4-C | Mk1 9mm | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ram) |
+| Rauora | Attacker | Year 10 Season 1: Operation Prep Phase | 417, M249, XK23 | Reaper MK2, GSh-18 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora), [Y11S2 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2MNhboDBmsQKkWb5p8zqsg/y11s2-designers-notes) (XK23) |
+| Sens | Attacker | Year 7 Season 2: Operation Vector Glare | 417, POF-9, XK23 | SDP 9mm | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sens), [Y11S2 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2MNhboDBmsQKkWb5p8zqsg/y11s2-designers-notes) (XK23) |
+| Sledge | Attacker | Launch (2015) | L85A2, M590A1 | P226 Mk 25, Reaper MK2 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sledge) |
+| Solid Snake | Attacker | Year 11 Season 1: Operation Silent Hunt | F2, PMR90A2 | TACIT .45 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solid-snake) |
+| Striker | Attacker | Year 9 Season 2: Operation New Blood | M4, M249, SR-25 | 5.7 USG, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/striker) |
+| Thatcher | Attacker | Launch (2015) | AR33, L85A2, M590A1, PMR90A2 | P226 Mk 25 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thatcher) |
+| Thermite | Attacker | Launch (2015) | 556xi, M1014 | 5.7 USG, M45 MEUSOC, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thermite) |
+| Twitch | Attacker | Launch (2015) | F2, 417, SG-CQB | P9, LFP586 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/twitch) |
+| Ying | Attacker | Year 2 Season 3: Operation Blood Orchid | T-95 LSW, SIX12 | Q-929, Reaper MK2 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ying) |
+| Zero | Attacker | Year 5 Season 3: Operation Shadow Legacy | MP7, SC3000K | 5.7 USG, Gonne-6 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zero) |
+| Zofia | Attacker | Year 2 Season 4: Operation White Noise | LMG-E, M762 | RG15 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zofia) |
+| Alibi | Defender | Year 3 Season 2: Operation Para Bellum | Mx4 Storm, ACS12 | Keratos .357, Bailiff 410 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi) |
+| Aruni | Defender | Year 5 Season 4: Operation Neon Dawn | P10 RONI, Mk 14 EBR | PRB92 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/aruni) |
+| Azami | Defender | Year 7 Season 1: Demon Veil | 9x19VSN, ACS12 | D-50 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/azami) |
+| Bandit | Defender | Launch (2015) | MP7, M870 | P12, Keratos .357 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/bandit) |
+| Castle | Defender | Launch (2015) | UMP45, M1014 | 5.7 USG, Super Shorty, M45 MEUSOC | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/castle) |
+| Caveira | Defender | Year 1 Season 3: Operation Skull Rain | M12, SPAS-15 | Luison | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/caveira) |
+| Clash | Defender | Year 3 Season 3: Operation Grim Sky | CCE Shield MK2 | P-10C, SPSMG9, Super Shorty | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/clash) |
+| Denari | Defender | Year 10 Season 3: Operation High Stakes | Scorpion EVO 3 A1, FMG-9 | Glaive-12, P226 Mk 25 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/denari) |
+| Doc | Defender | Launch (2015) | MP5, P90, SG-CQB | P9, LFP586, Bailiff 410 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/doc) |
+| Echo | Defender | Year 1 Season 4: Operation Red Crow | MP5SD, SuperNova | Bearing 9, P229 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/echo) |
+| Ela | Defender | Year 2 Season 3: Operation Blood Orchid | Scorpion EVO 3 A1, FO-12 | RG15 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ela) |
+| Fenrir | Defender | Year 8 Season 2: Operation Dread Factor | MP7, SASG-12 | 5.7 USG | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fenrir) |
+| Frost | Defender | Year 1 Season 1: Operation Black Ice | Super 90, 9mm C1 | Mk1 9mm, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/frost) |
+| Goyo | Defender | Year 4 Season 3: Operation Ember Rise | Vector .45 ACP, TCSG12 | P229 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/goyo) |
+| Jäger | Defender | Launch (2015) | M870, 416-C Carbine | P12, P-10C | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jager) |
+| Kaid | Defender | Year 3 Season 4: Operation Wind Bastion | AUG A3, TCSG12 | .44 Mag Semi-Auto, LFP586 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kaid) |
+| Kapkan | Defender | Launch (2015) | 9x19VSN, SASG-12 | PMM, GSh-18 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kapkan) |
+| Lesion | Defender | Year 2 Season 3: Operation Blood Orchid | SIX12 SD, T-5 SMG | Q-929 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lesion) |
+| Maestro | Defender | Year 3 Season 2: Operation Para Bellum | ALDA 5.56, ACS12 | Keratos .357, Bailiff 410 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maestro) |
+| Melusi | Defender | Year 5 Season 2: Operation Steel Wave | MP5, Super 90 | ITA12S, RG15 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/melusi) |
+| Mira | Defender | Year 2 Season 1: Operation Velvet Shell | Vector .45 ACP, ITA12L | USP40, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mira) |
+| Mozzie | Defender | Year 4 Season 1: Operation Burnt Horizon | Commando 9, P10 RONI | SDP 9mm, Super Shorty | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mozzie) |
+| Mute | Defender | Launch (2015) | MP5K, M590A1 | P226 Mk 25, SMG-11 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mute) |
+| Noor | Defender | Year 11 Season 3: Operation Split Fire | Commando 9, ALDA 5.56 | 1911 TACOPS, Bailiff 410 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/noor) |
+| Oryx | Defender | Year 5 Season 1: Operation Void Edge | SPAS-12, T-5 SMG | Bailiff 410, Reaper MK2, USP40 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/oryx) |
+| Pulse | Defender | Launch (2015) | UMP45, M1014 | 5.7 USG, M45 MEUSOC, Reaper MK2 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/pulse) |
+| Rook | Defender | Launch (2015) | MP5, P90, SG-CQB | Reaper MK2, P9, LFP586 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rook) |
+| Sentry | Defender | Year 9 Season 2: Operation New Blood | Commando 9, M870, TCSG12 | C75 Auto, Super Shorty | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sentry) |
+| Skopós | Defender | Year 9 Season 3: Operation Twin Shells | PCX-33 | P229 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/skopos) |
+| Smoke | Defender | Launch (2015) | M590A1, FMG-9 | P226 Mk 25, SMG-11 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/smoke) |
+| Solis | Defender | Year 7 Season 4: Operation Solar Raid | ITA12L, P90 | SMG-11 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solis) |
+| Tachanka | Defender | Launch (2015) | DP27, 9x19VSN | PMM, GSh-18, Bearing 9 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tachanka) |
+| Thorn | Defender | Year 6 Season 4: High Calibre | UZK50Gi, M870 | 1911 TACOPS, C75 Auto | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thorn) |
+| Thunderbird | Defender | Year 6 Season 2: North Star | SPAS-15, Spear .308 | Bearing 9, Q-929, ITA12S | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thunderbird) |
+| Tubarão | Defender | Year 8 Season 4: Operation Deep Freeze | MPX, AR-15.50 | P226 Mk 25 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tubarao) |
+| Valkyrie | Defender | Year 1 Season 2: Operation Dust Line | MPX, SPAS-12 | D-50 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/valkyrie) |
+| Vigil | Defender | Year 2 Season 4: Operation White Noise | K1A, BOSG.12.2 | C75 Auto, SMG-12 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/vigil) |
+| Wamai | Defender | Year 4 Season 4: Operation Shifting Tides | AUG A2, MP5K | Super Shorty, P12, Keratos .357 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/wamai) |
+| Warden | Defender | Year 4 Season 2: Operation Phantom Sight | M590A1, MPX | P-10C, SMG-12 | [operator page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/warden) |
+
+## Pictures
+
+Every picture was fetched on **2026-09-23** from staticctf.ubisoft.com, the
+image server of Ubisoft's official Siege site. "Icon" is the operator's badge,
+copied byte for byte. "Silhouette" is the gun's loadout icon, trimmed to the gun.
+"Shown on" is the ubisoft.com page that displays that exact file.
+
+### Operators
+
+| file | operator | picture | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| operators/ace.png | Ace | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/dgG7GmXY1HgfeEE2gI1H9/06bd3917c8fc19f61654490019ef25fb/Y5S2_BADGE_Ace_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ace) | 2026-09-23 |
+| operators/amaru.png | Amaru | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2K1uxROLvHGxOIOMpNRFeU/7b4afc5ded3d1b9a937d1b504b5d4d0d/Y4S3_BADGE_Amaru_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru) | 2026-09-23 |
+| operators/ash.png | Ash | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/58Y4Q2x7msL8uQUoiA7LGM/b204acc9c5a015029140723ef2e435bb/Y0R6_BADGE_Ash_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash) | 2026-09-23 |
+| operators/blackbeard.png | Blackbeard | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4BTbmcs1EtoUbnpk5Am22Y/b7bd4d0708245c78b98455505c0d51a8/Y1S2_BADGE_Blackbeard_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blackbeard) | 2026-09-23 |
+| operators/blitz.png | Blitz | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2YTGfm1Df9PtldLcGodcTV/9a235b550cdf5066d686cef750eba090/Y0R6_BADGE_Blitz_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blitz) | 2026-09-23 |
+| operators/brava.png | Brava | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1JTzualMKZVGfdROg4XKh8/7989454e62b7972bfd88f09097cc148f/r6s-operators-badge-brava.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava) | 2026-09-23 |
+| operators/buck.png | Buck | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2oZZBEZzVLFpRY7Mp85MWq/f62287872dd61b4e0697a93d703b2beb/Y1S1_BADGE_Buck_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/buck) | 2026-09-23 |
+| operators/capitao.png | Capitão | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/73R4IrWJyn0xdkJ0fjOODA/fc70d200a7530dccae2847ab7962e394/Y1S3_BADGE_Capitao_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao) | 2026-09-23 |
+| operators/deimos.png | Deimos | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/18uYWtYnEjmMQBTTdkIfWF/ba8c07729ff3c6de5872ffbcdc7956fb/r6s-operators-badge-deimos.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/deimos) | 2026-09-23 |
+| operators/dokkaebi.png | Dokkaebi | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/aoQeHLohcuqvubBoyrzsM/d4a230ecba495c58c5521e10d5d84baa/Y2S4_BADGE_Dokkaebi_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi) | 2026-09-23 |
+| operators/finka.png | Finka | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6CzQHWePD3Mi8HE5bdx5ic/2a6b5a6cc653ebf99d062725368eae2a/Y3S1_BADGE_Finka_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka) | 2026-09-23 |
+| operators/flores.png | Flores | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/75vqJXXKCM2EDO0iiNqRDe/d6289dc9a4fed72ef72b9c1e11738456/Y6S1_BADGE_Flores_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores) | 2026-09-23 |
+| operators/fuze.png | Fuze | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1wkdQ0viuTEguji14qXMJG/5858418baa8cca04a6e42a2d6256c093/Y0R6_BADGE_Fuze_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) | 2026-09-23 |
+| operators/glaz.png | Glaz | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5UAZVgyOutPh6bLTV3fGXf/c59d484fd599d09a947ec423b2119620/Y0R6_BADGE_Glaz_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/glaz) | 2026-09-23 |
+| operators/gridlock.png | Gridlock | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5LIyheUROsdMDkX6o0zh6R/f201ce65af771459c374ef71c89827b4/Y4S1_BADGE_Gridlock_LL.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock) | 2026-09-23 |
+| operators/grim.png | Grim | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5VoAYPvRZXIwjcwTD3PWaZ/b9748f007c0c116ca1bcd77b0f91e766/r6s-operators-badge-grim.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim) | 2026-09-23 |
+| operators/hibana.png | Hibana | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1TSA4pMR58vgfrEai69REl/f82b1eba6694b4aa77259d3d0fe8cc08/Y1S4_BADGE_Hibana_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| operators/iana.png | Iana | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6deSi1vse5iJTkErFksrGq/75bf1038e9698b6b2be75aa0493b092d/Y5S1_BADGE_Iana_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iana) | 2026-09-23 |
+| operators/iq.png | IQ | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4xnVj2iZB8Otchiw7j69UO/13c864a4e2eb976c1978dc79411b450c/Y0R6_BADGE_IQ_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq) | 2026-09-23 |
+| operators/jackal.png | Jackal | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/28k7LKWK70lxib7CimPJaZ/f34b2065811df8f0339838922f8c94b1/Y2S1_BADGE_Jackal_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal) | 2026-09-23 |
+| operators/kali.png | Kali | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6r1hk1EunQirF1IcY4TG8T/0d3fbb7508a7747fd51249b1b8ea9779/Y4S4_BADGE_Kali_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali) | 2026-09-23 |
+| operators/lion.png | Lion | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3gfdjXFezusaerCakMpfQ2/4565b28edd241b7fd3b0eba9c97d54f2/Y3S1_BADGE_Lion_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion) | 2026-09-23 |
+| operators/maverick.png | Maverick | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3DXiYgVT71qGscYmFMgayj/d6c40a7dabdfecb92b637bec83003a58/Y3S3_BADGE_Maverick_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick) | 2026-09-23 |
+| operators/montagne.png | Montagne | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7qWONT0mrNYtUZVTVVT8Yj/e0da552d6bb6548ddf74cf4cc44d75c5/Y0R6_BADGE_Montagne_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/montagne) | 2026-09-23 |
+| operators/nokk.png | Nøkk | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2qfSHHTdCRVhx9EWycVDNr/9e361e73fb91e571f7470de21edf5c7a/Y4S2_BADGE_Nokk_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk) | 2026-09-23 |
+| operators/nomad.png | Nomad | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/UxfU1gJDoZGDrzT3iBsIp/b1aa522cc08e4631b9a857b52afa4f99/Y3S4_BADGE_Nomad_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad) | 2026-09-23 |
+| operators/osa.png | Osa | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5tt27EFHYjiDLo2qbYEgXG/2f1acbb8209e45b136ca7b0e2e5eb1f9/r6s-operators-badge-osa.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/osa) | 2026-09-23 |
+| operators/ram.png | Ram | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3YQiStwC1Qo4wKWmgK6XCH/ac8a0fea30f2996f96ca31b17a0039fa/r6s-operators-badge-ram.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ram) | 2026-09-23 |
+| operators/rauora.png | Rauora | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/T2BrSyMgBBSjM7rs8T53b/0f8d6842d4440fc06d450789c273381b/r6s-operators-badge-rauora.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora) | 2026-09-23 |
+| operators/sens.png | Sens | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7pqZFaPgQwaLi1pFKuAv7e/d3d9af214737fe6a069e5346c50bfd20/r6s-operators-badge-sens.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sens) | 2026-09-23 |
+| operators/sledge.png | Sledge | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4lgK1mOTVAoBhoj5qjYuyd/83c83d56e977f96ac0e9621c0d1c07d2/Y0R6_BADGE_Sledge_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sledge) | 2026-09-23 |
+| operators/solid_snake.png | Solid Snake | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7l8uzV1767cot7GpTcnK7t/9be16729f34b76e97dbcbbd0a81bd74c/r6s-operators-badge-solidsnake.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solid-snake) | 2026-09-23 |
+| operators/striker.png | Striker | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2ZC6qMkmnam9bLc1fZJJ0C/fd0719a5b03789e65aa7f41e7c2dc49c/r6s-operators-badge-striker.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/striker) | 2026-09-23 |
+| operators/thatcher.png | Thatcher | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5NbqTdEPmYy9qOZmN9StVT/38b3b2a70cfb4ffbfe6e8a6bd8654d1d/r6s-operators-badge-thatcher.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thatcher) | 2026-09-23 |
+| operators/thermite.png | Thermite | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6tow5mqLao5TrJVL52csSc/46aa934c9f3f02189e9c04df0114a081/Y0R6_BADGE_Thermite_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thermite) | 2026-09-23 |
+| operators/twitch.png | Twitch | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3YgCpOSM2R4SDgExstxm7P/ff84e6ac53bd9f690deee78870f9c23b/Y0R6_BADGE_Twitch_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/twitch) | 2026-09-23 |
+| operators/ying.png | Ying | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6ZVB1OJxNgs0pR0Fd7Kzt0/74721fe9fd743167508f98dc280a17a3/Y2S2_BADGE_Ying_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ying) | 2026-09-23 |
+| operators/zero.png | Zero | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4ZbzOZt1Sur77RZTFwYVJ4/30037e84b2948449652547f06df146e0/Y5S3_BADGE_Zero_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zero) | 2026-09-23 |
+| operators/zofia.png | Zofia | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1k09nbCCu2avlIWpK3cJz9/35d60746d67750230f2a020a7be78795/Y2S3_BADGE_Zofia_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zofia) | 2026-09-23 |
+| operators/alibi.png | Alibi | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3DgGV3hETnXiEvVFOYZrbm/55a6be47761b5cf2c7ff8aaa7991cc7f/Y3S2_BADGE_Alibi_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi) | 2026-09-23 |
+| operators/aruni.png | Aruni | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5rOLCYQOh5HH0Nv6NHe38H/29681f901ff71ae5decb5ccb1b9f8a29/Y5S4_BADGE_Aruni_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/aruni) | 2026-09-23 |
+| operators/azami.png | Azami | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7KWTXHTk8rxLS5qtyX4Xu4/b51f8691b932fd2b83260ef3fbcd1154/r6s-operators-badge-azami.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/azami) | 2026-09-23 |
+| operators/bandit.png | Bandit | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4Vasjq82J1TNjNE38J7LmV/e1725f8d9ea2b85565e40b54faac85b8/Y0R6_BADGE_Bandit_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/bandit) | 2026-09-23 |
+| operators/castle.png | Castle | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/kzznLctjOsXJZAg0F2HPB/dea28fa008515d6ddaa0d2659f4dc253/Y0R6_BADGE_Castle_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/castle) | 2026-09-23 |
+| operators/caveira.png | Caveira | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4H1dOkcdZIKblKkAWjD390/10e57f4829eabda30f4aa1044e49893d/Y1S3_BADGE_Caveira_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/caveira) | 2026-09-23 |
+| operators/clash.png | Clash | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7G4lGl5HPLFTTUdcZW8UOK/3901b44cf2a9423486ffd78531e42f87/Y3S3_BADGE_Clash_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/clash) | 2026-09-23 |
+| operators/denari.png | Denari | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/17XNHqqrkLQ7lYFqciEwmP/21d50fb6c296d26a47f8dd84dd19298b/r6s-operators-badge-denari.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/denari) | 2026-09-23 |
+| operators/doc.png | Doc | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/71Nl3v0LqHyo9eXV6xTFQd/1ba4f057b6acad3ec700ca9e60b53d6c/Y0R6_BADGE_Doc_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/doc) | 2026-09-23 |
+| operators/echo.png | Echo | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3MRqAdUybJ7GR9gX4wPAI4/992938a70a4e53b91478358634e77ca7/Y1S4_BADGE_Echo_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/echo) | 2026-09-23 |
+| operators/ela.png | Ela | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7zbkJJWMCOj04DNhYDz994/d2cba213d30d7b8cf2ba8cd568c78f20/Y2S3_BADGE_Ela_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ela) | 2026-09-23 |
+| operators/fenrir.png | Fenrir | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4vtvBhY56S2slW3y0eKsMp/6a0f41807549ad1aa503112d4ad05a52/r6s-operators-badge-fenrir.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fenrir) | 2026-09-23 |
+| operators/frost.png | Frost | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1OWFtfiEXleLSENciCSQQR/8fcced59c0125073e506f2dee0201015/Y1S1_BADGE_Frost_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/frost) | 2026-09-23 |
+| operators/goyo.png | Goyo | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6AAY4FZt5piHdabOdDokE4/f7f8bd90c20b8a429c78a08684b75aca/Y4S3_BADGE_Goyo_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/goyo) | 2026-09-23 |
+| operators/jager.png | Jäger | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1cCvTmKwnnovVmpZmDyPkA/b064f5ad6b9e7398d820d9ea90ff9366/Y0R6_BADGE_Jager_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jager) | 2026-09-23 |
+| operators/kaid.png | Kaid | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5Qblb1ZqAqkN3Wa0Qw5qBq/05630c80672105a1195282d276e8eb05/Y3S4_BADGE_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kaid) | 2026-09-23 |
+| operators/kapkan.png | Kapkan | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/797q7C5YA89eFqw4RB40ka/f9435d1b4d13d41472e22d305c961cb9/Y0R6_BADGE_Kapkan_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kapkan) | 2026-09-23 |
+| operators/lesion.png | Lesion | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2CWYSySnPAhsOHdq2OLSjv/f9e54debcfa0c8fe76012d9097b98e6e/Y2S2_BADGE_Lesion_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lesion) | 2026-09-23 |
+| operators/maestro.png | Maestro | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/XK43imgD0tc0xrk0tgTCQ/0402cc95cbd525debafa1aab0fdd8385/Y3S2_BADGE_Maestro_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maestro) | 2026-09-23 |
+| operators/melusi.png | Melusi | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/74H52a9GMql8wamIy6WqH5/9fddba49258152835da7cdac8c566663/Y5S2_BADGE_Melusi_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/melusi) | 2026-09-23 |
+| operators/mira.png | Mira | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/u1KR6aogjLncAtaVOciTc/ba730583f9c20cad6d3ca996d366a707/Y2S1_BADGE_Mira_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mira) | 2026-09-23 |
+| operators/mozzie.png | Mozzie | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/15hUu2PsypX2c1LIJFQNUT/8538c52057420dbf3995cf3117b155c5/Y4S1_BADGE_Mozzie_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mozzie) | 2026-09-23 |
+| operators/mute.png | Mute | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3exeHnxH1tmUmQTequWRKa/e1b6c6f057eb24722dd7860af0276316/Y0R6_BADGE_Mute_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mute) | 2026-09-23 |
+| operators/noor.png | Noor | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6DHgKOCoB9bcrQJiOjvQad/8b60ed79e3ce1dd3a352a0d1018cc604/r6s-operators-badge-noor.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/noor) | 2026-09-23 |
+| operators/oryx.png | Oryx | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7mLA8GY9ZKlUfDXrfo9Nek/e3dfd0759414f36866a8c80b61a67722/Y5S1_BADGE_Oryx_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/oryx) | 2026-09-23 |
+| operators/pulse.png | Pulse | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/ChAeJzdmwxuvhZTrV81rK/8c16116f4c719a3df864df6639e2f52e/Y0R6_BADGE_Pulse_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/pulse) | 2026-09-23 |
+| operators/rook.png | Rook | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3Yk1noMd9re0RLlrXJSWtR/7a55e80593c487827293a114835dba63/Y0R6_BADGE_Rook_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rook) | 2026-09-23 |
+| operators/sentry.png | Sentry | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3RhB8rT969t71r0b3iiiQo/3bf85d17ade85b4e5943712b664b6166/r6s-operators-badge-sentry.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sentry) | 2026-09-23 |
+| operators/skopos.png | Skopós | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/k0AOat3ISkt7WMR6X4dJg/aa4596095d3861f7de24e007730e3f89/r6s-operators-badge-skopos.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/skopos) | 2026-09-23 |
+| operators/smoke.png | Smoke | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6mOMxoc3t27R9Gr9wFtt6T/f5f90a6be6a6710bee686ce69df29906/Y0R6_BADGE_Smoke_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/smoke) | 2026-09-23 |
+| operators/solis.png | Solis | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6YOBUP5JMskklFx9nDJQ49/d9d4b0968f581597feaa0ef4ec0891f3/r6s-operators-badge-solis.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solis) | 2026-09-23 |
+| operators/tachanka.png | Tachanka | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7hpI2mcmvyjC2vG6ieltLo/f217b1dc449c0514b55e471193a38c91/Y0R6_BADGE_Tachanka_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tachanka) | 2026-09-23 |
+| operators/thorn.png | Thorn | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1pzBJsbL1vQT8is7B0Xjxz/440335c080e54ca28eba24858361a03a/r6s-operators-badge-thorn.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thorn) | 2026-09-23 |
+| operators/thunderbird.png | Thunderbird | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/YQfDJ42B2IKcKnb0lRaXq/0cedb53c439b0fe448be95713a836b29/r6s-operators-badge-thunderbird.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thunderbird) | 2026-09-23 |
+| operators/tubarao.png | Tubarão | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/43VtYmfmTtLwwKDGhalSCO/9673bb50e981ba2684cd649534f00de7/r6s-operators-badge-tubarao.png | icon, 104 x 104 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tubarao) | 2026-09-23 |
+| operators/valkyrie.png | Valkyrie | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/44qXJmZmAwaD4w44JnPuOx/c54c8b9d3a6813ab8ce3e3f1dd4ef408/Y1S2_BADGE_Valkyrie_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/valkyrie) | 2026-09-23 |
+| operators/vigil.png | Vigil | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/56A3hXhWZdwO623g3ejeku/a40a0582a7841abfeed723d8fbe238d3/Y2S4_BADGE_Vigil_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/vigil) | 2026-09-23 |
+| operators/wamai.png | Wamai | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1vQZ4WsAjhc6M7qNOS4ahQ/92fc4d89632fb87aec0f102d7adbfe26/Y4S4_BADGE_Wamai_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/wamai) | 2026-09-23 |
+| operators/warden.png | Warden | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/hx1Ljf1qIWbjpgCNmfJbu/2217283b569ef316dc12b93e86649f8f/Y4S2_BADGE_Warden_L.png | icon, 201 x 201 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/warden) | 2026-09-23 |
+
+### Guns
+
+| file | gun | picture | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/416_c_carbine.png | 416-C Carbine | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2I86r2a2QD8EHTZVZnxcxy/2913450ba952a16c29fac1f5ce58ba1a/416-C_Carbine.png | silhouette, 192 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jager) | 2026-09-23 |
+| weapons/552_commando.png | 552 Commando | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1LT0N89YaOHvRwn3Pphr8K/02d4a3da9cda132d8201fd134f24fede/552_Commando.png | silhouette, 244 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq) | 2026-09-23 |
+| weapons/556xi.png | 556xi | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2dgpAeAWb3SkZV7rxDbVdQ/fa32323256b7c6f8a1977d3f71e7d4b2/556xi.png | silhouette, 240 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/osa), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thermite) | 2026-09-23 |
+| weapons/ak_12.png | AK-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7KAZZgnpqD07y47jVVXEuh/e0d7e67101f8f966aa6e1c59e835454f/AK-12.png | silhouette, 246 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ace), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) | 2026-09-23 |
+| weapons/ak_74m.png | AK-74M | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1j5HiQP8aFphTe65fqDdg0/23eecb5c603c5ba9f59fc6cbc5e4a531/AK-74M.png | silhouette, 202 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/deimos), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad) | 2026-09-23 |
+| weapons/ar33.png | AR33 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/16U6xEvX8I5xQd9duveBLN/45d22960872cfa3fb6be9eb47fa0be4e/AR33.png | silhouette, 266 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thatcher) | 2026-09-23 |
+| weapons/arx200.png | ARX200 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6VgkPBsr1WApI3rWc9kcM0/b18b8e25f3e951e8e722213f2ee59eb0/ARX200.png | silhouette, 250 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iana), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad) | 2026-09-23 |
+| weapons/aug_a2.png | AUG A2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1eO39zRe8XxJXH1KZiIWhM/02049ced0fbfa630833e8b0d3c03de07/AUG_A2.png | silhouette, 197 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/wamai) | 2026-09-23 |
+| weapons/c7e.png | C7E | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/63vTDjkXeKq7rOoSBhoJD4/08603e6603d564e0fa38af9ec86b7c1f/C7E.png | silhouette, 244 x 71 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal) | 2026-09-23 |
+| weapons/c8_sfw.png | C8-SFW | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1itXpz2GnvdwwRyhX1SYa2/b58ff71048fa3bb5ed09d5d935dc90f4/C8-SFW.png | silhouette, 207 x 75 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/buck) | 2026-09-23 |
+| weapons/commando_9.png | Commando 9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4P9dpUph5w3MSsLNnW6be/04baba24990fcb75a9c0bcfd01b7d190/Commando_9.png | silhouette, 184 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mozzie), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/noor) | 2026-09-23 |
+| weapons/f2.png | F2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5HTvw1cJInVAGxOLXR0war/2f142437f5c0944fdcfcce8a03c37676/F2.png | silhouette, 190 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solid-snake), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/twitch) | 2026-09-23 |
+| weapons/f90.png | F90 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/62tE3th2ThcGHlrcqWkmEX/d69c9de199542e25fa55f6d293f15671/r6-operator-weapon-ar-f90.png | silhouette, 274 x 100 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock) | 2026-09-23 |
+| weapons/g36c.png | G36C | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2SZoqSXKoNPvZFIJsFsDE5/cb109885bf19c8697abf832f10cfd9a6/G36C.png | silhouette, 171 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iana) | 2026-09-23 |
+| weapons/l85a2.png | L85A2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5vYQpoyk36foDzDq49jBd0/1479a2d7189e545555ceccecf6bd7cc3/L85A2.png | silhouette, 218 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sledge), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thatcher) | 2026-09-23 |
+| weapons/m4.png | M4 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3jhi90ycmuc8mAiuSXFoCi/bcf354459e7becd6ede52ee97917c832/M4.png | silhouette, 234 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/striker) | 2026-09-23 |
+| weapons/m762.png | M762 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4oWAgi7tgQP1Tq0HooRtye/9109a74921ee17610d4bd85a61582823/M762.png | silhouette, 236 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zofia) | 2026-09-23 |
+| weapons/mk17_cqb.png | Mk17 CQB | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4LytczDQmu0M63gO2WtCCm/331ef3b1938352ae71d7c0bd23de3596/Mk17_CQB.png | silhouette, 218 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blackbeard) | 2026-09-23 |
+| weapons/para_308.png | PARA-308 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6ub8y2Cs5EYhVPfDWuVVkW/82ca131a41ee4ba2e0b75f2dc52ed9e3/PARA-308.png | silhouette, 244 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao) | 2026-09-23 |
+| weapons/pcx_33.png | PCX-33 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/jKFNRujDQyioHLu0PULiR/a3dce57946beba1378566c386cfa0270/pcx-33.png | silhouette, 234 x 67 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/skopos) | 2026-09-23 |
+| weapons/pof_9.png | POF-9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1bhuAox7U6aHN6UriXsAry/3c213cd27f5f64ba01a29b42e5b24ac5/POF9.png | silhouette, 258 x 84 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sens) | 2026-09-23 |
+| weapons/r4_c.png | R4-C | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/dQbqK9VxczuiscwBDSkT8/777a062f6095dde0371eab5200dcb451/R4-C.png | silhouette, 214 x 75 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ram) | 2026-09-23 |
+| weapons/sc3000k.png | SC3000K | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7x7eDTm2NNpfGiFMrfQqEX/9898e74c780537be3ca6d88db32ea21e/F2000.png | silhouette, 214 x 94 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zero) | 2026-09-23 |
+| weapons/spear_308.png | Spear .308 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/29LjYuJ4s6yA8k9Uv2u28C/89ec812559e7d74b7c269279f4c46d92/Spear_.308.png | silhouette, 180 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thunderbird) | 2026-09-23 |
+| weapons/type_89.png | Type-89 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7wLf325q9amF8bnVP1QGr0/2faff1a197f90dcded4472852a317d6b/Type-89.png | silhouette, 276 x 71 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| weapons/v308.png | V308 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5YBZe76NUDO32eF66wW90g/488c315743d59230962a4d67618223d6/V308.png | silhouette, 198 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion) | 2026-09-23 |
+| weapons/xk23.png | XK23 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/dCYPVIvbfXebjPV2K3uaz/83e2cfbc3533b38b83ba3b3febef6677/XK23.png | silhouette, 215 x 91 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora) | 2026-09-23 |
+| weapons/9mm_c1.png | 9mm C1 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/60sbThKtOpNOwKu3OP0oGV/672fd9263f7786402a0d855273473a6f/9mm_C1.png | silhouette, 278 x 67 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/frost) | 2026-09-23 |
+| weapons/9x19vsn.png | 9x19VSN | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/42gH96xTTYaTZsfXI3c0wL/a7edbf11af97091ee884b68e59fe6a4f/9x19VSN.png | silhouette, 174 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kapkan), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tachanka) | 2026-09-23 |
+| weapons/aug_a3.png | AUG A3 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3W9XJdMOgpHSw55HfwRSAv/cf8f220678d503e6c3e535c00b2e636a/AUG_A3.png | silhouette, 194 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kaid) | 2026-09-23 |
+| weapons/fmg_9.png | FMG-9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/0oneJNsBR06QjuowxwtHG/bd3b391c6eec2bd615f2ed83197a13ac/FMG-9.png | silhouette, 152 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/denari) | 2026-09-23 |
+| weapons/k1a.png | K1A | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5mUa2p8WXbiyD71qUI8sGk/ed753b6f0ae30ab5737486dfcf32ee9f/K1A.png | silhouette, 202 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/vigil) | 2026-09-23 |
+| weapons/m12.png | M12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4FxqA5pa8JY9QQ7FEcjwPw/ffc779fcde5b970e7b95db6653637dab/M12.png | silhouette, 199 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/caveira) | 2026-09-23 |
+| weapons/mp5.png | MP5 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/60YbOvSBQt6ZUlu8YDXoZm/51ef3857b2986de700262432e8433714/MP5.png | silhouette, 186 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/doc), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/melusi) | 2026-09-23 |
+| weapons/mp5k.png | MP5K | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1pk8nOI7ybQjYOSI4fuzOm/fcd78df0f729be545e75c09aae85c360/MP5K.png | silhouette, 196 x 92 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mute), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/wamai) | 2026-09-23 |
+| weapons/mp5sd.png | MP5SD | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5HaMldwFltBwiiyDDfkPpD/6de3aa9aaa17458e7f6186ba59b8deff/MP5SD.png | silhouette, 204 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/echo) | 2026-09-23 |
+| weapons/mp7.png | MP7 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3a4dgTWGdiJqALhtRp4pKy/f2568d3de3cfe7e4b53179e8653cd2a2/MP7.png | silhouette, 151 x 71 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zero), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/bandit) | 2026-09-23 |
+| weapons/mpx.png | MPX | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5HFewpAJ8npDDCKFnEadhL/d398bb477d6b56fe41bfdb5862ed31c0/MPX.png | silhouette, 148 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tubarao), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/valkyrie) | 2026-09-23 |
+| weapons/mx4_storm.png | Mx4 Storm | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4qRh1frGkQZxNyeKA4D6n1/20f89cd1d9953f06207b7340ea77fb17/Mx4_Storm.png | silhouette, 185 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi) | 2026-09-23 |
+| weapons/p10_roni.png | P10 RONI | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7K86OBjL3zmYWt0ZvUcCLj/16a947334e39f27da177d787773593e4/r6-operator-weapon-smg-p10roni.png | silhouette, 280 x 99 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/aruni), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mozzie) | 2026-09-23 |
+| weapons/p90.png | P90 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4nGrNspOvII2oS3lEMkg5x/2398a493c298bc654f97c58767aa40f3/P90.png | silhouette, 182 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/doc), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rook) | 2026-09-23 |
+| weapons/pdw9.png | PDW9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4yYCuRnduMq35CTHfq6wwU/b7d49cdbcb05917e014c99efeaadd33b/PDW9.png | silhouette, 134 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/osa) | 2026-09-23 |
+| weapons/scorpion_evo_3_a1.png | Scorpion EVO 3 A1 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6OdwaLWxcnFvhlVwWbP2Du/4f7e94bdb6d34d5c0aa7b7b147b4092e/Scorpion_EVO_3_A1.png | silhouette, 230 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/denari), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ela) | 2026-09-23 |
+| weapons/t_5_smg.png | T-5 SMG | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1Ne8bvX8BdCALevWKMllQN/4baa3e79d323de134dd182e0272b9c3b/T-5_SMG.png | silhouette, 136 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lesion), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/oryx) | 2026-09-23 |
+| weapons/ump45.png | UMP45 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6X2EZPq2s8UKrP67uxz5FI/f0df4c57d5890c79311e4eb62d4470e7/UMP45.png | silhouette, 151 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/castle), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/pulse) | 2026-09-23 |
+| weapons/uzk50gi.png | UZK50Gi | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5WMIsPUWTXprZnAwctPsTt/f1c652b681e7e9ba6ba66bcd29e12a76/uzk50gi.png | silhouette, 224 x 65 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thorn) | 2026-09-23 |
+| weapons/vector_45_acp.png | Vector .45 ACP | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7D1cDf13FqUhoLihzvuPln/068aa7e507155598449c58c0a49a90d6/Vector_.45_ACP.png | silhouette, 134 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/goyo), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mira) | 2026-09-23 |
+| weapons/6p41.png | 6P41 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1wxS2HOCvoPAfnJEDFWjfw/7feddb98582ec37b500243d3f3e19eca/6P41.png | silhouette, 273 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) | 2026-09-23 |
+| weapons/alda_5_56.png | ALDA 5.56 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/39yB6TFl9ph6Rb4bDV4lqK/7f9b3abf8dff19bacc026a7212849ca4/ALDA_5.56.png | silhouette, 272 x 66 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maestro), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/noor) | 2026-09-23 |
+| weapons/dp27.png | DP27 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7LoT7yAe0LK7bDOeq6MZZM/33995bc704667674af1b73fe962d4c7c/Primary_gun_DP27.png | silhouette, 290 x 52 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tachanka) | 2026-09-23 |
+| weapons/g8a1.png | G8A1 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4TIb7oeJesaROOOfTlCBaZ/ffd6a802f9a779a0d39b2122c49b3254/G8A1.png | silhouette, 270 x 64 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq) | 2026-09-23 |
+| weapons/lmg_e.png | LMG-E | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7JVJIew6t3iKwgByvrFXyi/7ba44dfda28b525506633e453104a604/LMG-E.png | silhouette, 158 x 70 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ram), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zofia) | 2026-09-23 |
+| weapons/m249.png | M249 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7z8UpVPS3P14OC1oL9dDIn/39c0c657f154218003fd4b2a9250b92f/M249.png | silhouette, 262 x 71 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora) | 2026-09-23 |
+| weapons/m249_saw.png | M249 SAW | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3p0oG7GsLIoHaRullf7xsF/e2a9e135af63e8897355023cd34538c4/M249_SAW.png | silhouette, 272 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock) | 2026-09-23 |
+| weapons/t_95_lsw.png | T-95 LSW | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/23HCxaNTRUHBlFAvCTMZQm/fe319cc164fac034a29e9b114ae7d5cb/T-95_LSW.png | silhouette, 186 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ying) | 2026-09-23 |
+| weapons/417.png | 417 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5djkS4YtAtOF0vBmg0T60x/ea2b1ff7e5367e66c99bc7ad7e95bfe3/417.png | silhouette, 240 x 70 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora) | 2026-09-23 |
+| weapons/ar_15_50.png | AR-15.50 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4lGGEGZLkbldz114Wl5hCo/78a04c46654f80fae03e730bd79f3563/AR-15.50.png | silhouette, 226 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/tubarao) | 2026-09-23 |
+| weapons/camrs.png | CAMRS | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4dBzqVVmnpv1DZi91LAnEN/e374b4ea289fc992280b943cdbb94d60/CAMRS.png | silhouette, 278 x 61 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/buck) | 2026-09-23 |
+| weapons/mk_14_ebr.png | Mk 14 EBR | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6KIMqp5dA95z1RI3PrG9jv/eb939638169811a3fa858a44e6e5d97e/Mk_14_EBR.png | silhouette, 264 x 58 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/aruni) | 2026-09-23 |
+| weapons/ots_03.png | OTs-03 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4fXznwDtLt61VCF8QIF4N3/34e2e6d6c33d4c504c945bdd13c322f6/OTs-03.png | silhouette, 268 x 66 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/glaz) | 2026-09-23 |
+| weapons/pmr90a2.png | PMR90A2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/g1CRNF5Bg8mYPXY8qxsTt/a3fd65c5715d31c8afeb9fad9c478be5/PMR90A2.png | silhouette, 268 x 56 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| weapons/sr_25.png | SR-25 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3H3sICdj6BK8LhtQPRd2aJ/26826ebba73e0e5fd503256d069f3256/SR-25.png | silhouette, 282 x 67 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blackbeard), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores) | 2026-09-23 |
+| weapons/csrx_300.png | CSRX 300 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7tUB9ZNXJhdN6ejAkCEeFQ/99691bcc19f641cf872925905d08a539/CSRX_300.png | silhouette, 217 x 52 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali) | 2026-09-23 |
+| weapons/fo_12.png | FO-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4TDWnhbgvLkc6HBWDJp2ST/f50cbd83d6d295ab59f17f7e21d713bc/FO-12.png | silhouette, 138 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ela) | 2026-09-23 |
+| weapons/ita12l.png | ITA12L | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4Y6ziRzm9RiPii83fm8BV1/1f472744d2c2dec8d9206f4d8733d92c/ITA12L.png | silhouette, 280 x 64 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mira) | 2026-09-23 |
+| weapons/ita12s.png | ITA12S | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5G4DroaSdqHzJWCe7qqbHZ/5dd2e03f853182c78a1e7fcbc642f0cf/ITA12S.png | silhouette, 186 x 75 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal) | 2026-09-23 |
+| weapons/m1014.png | M1014 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2pUiVbwNnQnDTesmWXktqW/f27c1fab9a354bb89cbe309a688f5e02/M1014.png | silhouette, 280 x 59 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ace), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thermite) | 2026-09-23 |
+| weapons/m590a1.png | M590A1 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2zRHmgqENNiZqXQxC9Rsbj/e6542407c642f9b7c5a4546afb6db30a/M590A1.png | silhouette, 280 x 58 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/deimos), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sledge) | 2026-09-23 |
+| weapons/m870.png | M870 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2rkU6g4Rlg0e0U4rczWGTV/a51589a54c43f476d8eb984c0ea881e9/M870.png | silhouette, 264 x 71 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/bandit), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jager) | 2026-09-23 |
+| weapons/sasg_12.png | SASG-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2Q6mL4CbifmIgifV2yV3Hi/2bb2b323f055b03a2c1ba516c262c24e/SASG-12.png | silhouette, 224 x 68 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fenrir) | 2026-09-23 |
+| weapons/sg_cqb.png | SG-CQB | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5JoL3b36Fsztt9Q2XYmrbJ/dacec96948d3f8fe92914a69b9aac593/SG-CQB.png | silhouette, 280 x 63 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion) | 2026-09-23 |
+| weapons/six12.png | SIX12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2v6MwsHwjOZ5Muid53lyfN/e5f1c4997db93abfe3ac356fce23376c/SIX12.png | silhouette, 218 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ying) | 2026-09-23 |
+| weapons/six12_sd.png | SIX12 SD | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1GTua079Xbtkpjhx96sRsW/079ed1a71a0d12b5e48e1b0d40b87110/SIX12_SD.png | silhouette, 224 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lesion) | 2026-09-23 |
+| weapons/spas_12.png | SPAS-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7Hp6Fbss6uI59OT4nZNB6e/a4d09954803cb2580353cfa03e8c778b/SPAS-12.png | silhouette, 280 x 56 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/oryx), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/valkyrie) | 2026-09-23 |
+| weapons/spas_15.png | SPAS-15 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/CyofBgipHq4RTafvPFWd4/bc3d0ecc871b70e57735855f852efacf/SPAS-15.png | silhouette, 260 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/caveira), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thunderbird) | 2026-09-23 |
+| weapons/super_90.png | Super 90 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1TLWSu0xHJlAsfEfafeC9X/f9647e70a18962bf1627095c8b46832e/Super_90.png | silhouette, 270 x 72 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/frost), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/melusi) | 2026-09-23 |
+| weapons/super_shorty.png | Super Shorty | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7Dq8LDmIxAveRqXM17orUW/8169927dba6976cee92cc53c7b0960aa/r6-operator-weapon-sa-supershorty.png | silhouette, 195 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock) | 2026-09-23 |
+| weapons/supernova.png | SuperNova | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2tpjCRFLcc3hogjJGbKDsi/5ad0ab63b7245022aca5c1c1fb42d473/SuperNova.png | silhouette, 278 x 60 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| weapons/acs12.png | ACS12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/13z63kT1NLzn1U99o7WC4T/8655d3200f24b87246c36f2622603457/ACS12_PB.png | silhouette, 210 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/azami) | 2026-09-23 |
+| weapons/bosg_12_2.png | BOSG.12.2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2ZjVndetsX8WEn5ZfyUQa0/e3a781be7eab22876d25f748e8fd0f5a/BOSG.12.2.png | silhouette, 273 x 62 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/vigil) | 2026-09-23 |
+| weapons/glaive_12.png | Glaive-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1vhycVQvB7uCsUpVE2jAw1/ed60286111e0049a3f312a81e828476f/glaive-12.png | silhouette, 137 x 82 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/denari) | 2026-09-23 |
+| weapons/tcsg12.png | TCSG12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2NDbY7BTBJ9R09LUilTlRf/3728337cd3ba14ed6ab9de0c22e879af/TCSG12.png | silhouette, 185 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/goyo), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kaid) | 2026-09-23 |
+| weapons/ballistic_shield.png | Ballistic Shield | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2C21gwsjOka5Rwp8qSM5hA/a38937032260bce4f690fb9bb8adf4c0/Ballistic_Shield.png | silhouette, 48 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) | 2026-09-23 |
+| weapons/cce_shield_mk2.png | CCE Shield MK2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/31W7L9jDgiPp267Ejt3zYf/ebd5d0fed00a7a1df4fb8d5ebe8ea27c/CCE_Shield.avif | silhouette, 42 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/clash) | 2026-09-23 |
+| weapons/g52_tactical_shield.png | G52-Tactical Shield | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7qmWjGZayvK4t6E80Gvu7g/8b789d6d639744dce100c2cfb9709e6a/G52-Tactical_Shield.png | silhouette, 48 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blitz) | 2026-09-23 |
+| weapons/le_roc_shield.png | Le Roc Shield | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1bmXJOakdA6SOrGxBKA70T/1e489e366d6db287f475963df2040d3d/Extendable-Shield.png | silhouette, 45 x 61 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/montagne) | 2026-09-23 |
+| weapons/bearing_9.png | Bearing 9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/4mdftEOh5Vu9KhhpgKLKrT/abedcc75868774018295ec2a08a7b3de/Bearing_9.png | silhouette, 154 x 92 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/glaz), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| weapons/c75_auto.png | C75 Auto | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3wUuefwPjU705mZkTdJ9UH/8ccb11884cfa34c176ac5500af139177/C75_Auto.png | silhouette, 86 x 75 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali) | 2026-09-23 |
+| weapons/reaper_mk2.png | Reaper MK2 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5RC060K72yG2OXMq43lgrv/83df616f6d4a2dde6293cc97449159eb/reaper-mk2.png | silhouette, 90 x 100 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/rauora) | 2026-09-23 |
+| weapons/smg_11.png | SMG-11 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3WExw7Kepz9uAiWAbWW457/875fc631a3cf9fcc2849d9db2989cbcd/SMG-11.png | silhouette, 142 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/mute) | 2026-09-23 |
+| weapons/smg_12.png | SMG-12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/EwJgB7KdgOb6dDm7ro33u/b73f0890f992c1a365210f08efcc6db5/SMG-12.png | silhouette, 152 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/dokkaebi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/vigil) | 2026-09-23 |
+| weapons/spsmg9.png | SPSMG9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5EtwSgylXckBNg4n6gDR9J/bc6fc6c5c12ae11da59aee95828ebd76/SPSMG9.png | silhouette, 132 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/clash) | 2026-09-23 |
+| weapons/44_mag_semi_auto.png | .44 Mag Semi-Auto | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6W3Jz0YcQzbZ6BOPr7VVel/4c67f342964132a652f7d5821e887050/.44_Mag_Semi-Auto.png | silhouette, 128 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kaid) | 2026-09-23 |
+| weapons/1911_tacops.png | 1911 TACOPS | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/189UukZ6fVnvQR6LJtLYry/6eec29603d5b7b0ca8cab6ac0ef083ac/1911_TACOPS.png | silhouette, 98 x 68 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/maverick), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/noor) | 2026-09-23 |
+| weapons/5_7_usg.png | 5.7 USG | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/tkYcSAJSe5yGkeUhzZqBO/e81feb86df4a7eb6951052bec26b6ed7/5.7_USG.png | silhouette, 103 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk) | 2026-09-23 |
+| weapons/bailiff_410.png | Bailiff 410 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/N8FLbo4fsNyBe8msKgRhT/8f403dc0b58087bcafab786dd95ba33f/Bailiff_410.png | silhouette, 92 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi) | 2026-09-23 |
+| weapons/d_50.png | D-50 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6mMQRDsrComRFa7bC6cNkG/8cd17e545e3d28dcc11a040d000cfa16/D-50.png | silhouette, 132 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nokk), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/azami) | 2026-09-23 |
+| weapons/gsh_18.png | GSh-18 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5s5Q33j3MNcXf9lwfxfd7m/4eb3a6af1d431481b6ddcec44fbc7602/GSh-18.png | silhouette, 99 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/flores) | 2026-09-23 |
+| weapons/luison.png | Luison | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/5cSDFUWb8P1BAQUgnTozeM/fd3a3348f42c95d6afa9f105ae23f2e5/Luison.png | silhouette, 178 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/caveira) | 2026-09-23 |
+| weapons/m45_meusoc.png | M45 MEUSOC | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3u5cecgWYl3WuJK50mKEGd/a4a0eb15c710edfc0d29e98c2ee7ea33/M45_MEUSOC.png | silhouette, 108 x 74 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ash), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/thermite) | 2026-09-23 |
+| weapons/mk1_9mm.png | Mk1 9mm | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3tWoNeF3jQYs3w4EOydQYs/434409c96693df1fd3e969d778e70795/Mk1_9mm_BI.png | silhouette, 110 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/buck), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iana) | 2026-09-23 |
+| weapons/p_10c.png | P-10C | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2l4qwB50zSFhFZVYRLNwqg/20df8114f69f96f2adc54779ccc5bbaa/P-10C.png | silhouette, 90 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/clash), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jager) | 2026-09-23 |
+| weapons/p12.png | P12 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2mpM7rah7rwEW0bViIirUC/ed9caa4db58421519fa4db390b1aa164/P12.png | silhouette, 111 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/blitz), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/iq) | 2026-09-23 |
+| weapons/p226_mk_25.png | P226 Mk 25 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/RTQvPQcywlRwUS1FjIKCX/6fc72fee2191c2e723276bc10ae4114e/P226_Mk_25.png | silhouette, 95 x 73 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/kali), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sledge) | 2026-09-23 |
+| weapons/p229.png | P229 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/76ja0RxqzHW9PpvWgpG7Sk/cb753b50b20fe67deaef54d8b2a46b54/P229.png | silhouette, 107 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/grim), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/hibana) | 2026-09-23 |
+| weapons/p9.png | P9 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6Fd1cl17KA0CtgodEiiY6v/d0f145ea72f2aacbd04260ba7d8f1c74/P9.png | silhouette, 99 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ace), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion) | 2026-09-23 |
+| weapons/pmm.png | PMM | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/3y4LIwwm8YNQHAv8oOkWCK/a2375901cee34e68fa39c976d85de8aa/PMM.png | silhouette, 96 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/finka), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/fuze) | 2026-09-23 |
+| weapons/prb92.png | PRB92 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/dl28J1HsE7mzhj66pmd5D/b8d8fc48d2dde13154047de94abbd8ca/PRB92.png | silhouette, 114 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/nomad) | 2026-09-23 |
+| weapons/q_929.png | Q-929 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2fRVszR5yGDHbV0AL8muso/0838dac90b66aa810daa49d36382fb64/Q-929.png | silhouette, 111 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ying), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lesion) | 2026-09-23 |
+| weapons/rg15.png | RG15 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2LNSsp7B7wUnnPUweir7Jm/9f66d53be7a63a17a55253a0bea6eec1/RG15.png | silhouette, 86 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/zofia), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/ela) | 2026-09-23 |
+| weapons/sdp_9mm.png | SDP 9mm | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/Tgsdyz3XEqmgUYi9aZZgb/6755f4da7af7a7179ffab92acf8d477e/SDP_9mm.png | silhouette, 117 x 94 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/gridlock), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/sens) | 2026-09-23 |
+| weapons/tacit_45.png | TACIT .45 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/6IMvC7a7IdpJWoMXjjloTE/be8a688d5c64478a254514d48b7bbf47/TACIT_45.png | silhouette, 197 x 86 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/solid-snake) | 2026-09-23 |
+| weapons/usp40.png | USP40 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/7FxemzWRtlpAhK9MyKp1Gp/817cc25b6b7c3575dc1ba53a6a8170a9/USP40.png | silhouette, 104 x 77 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/brava), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/jackal) | 2026-09-23 |
+| weapons/44_vendetta.png | .44 Vendetta | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/2kx8YFXaz4l9A3iJctZ33h/30f25aff1e25daf0dff88d258423adcf/44VENDETTA.png | silhouette, 141 x 93 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/deimos) | 2026-09-23 |
+| weapons/keratos_357.png | Keratos .357 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/15caVAsSCr8Rsb5Hid36uc/59632c4f90727931041ced62a620018b/Keratos_.357.png | silhouette, 119 x 76 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/alibi), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/bandit) | 2026-09-23 |
+| weapons/lfp586.png | LFP586 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/1zc7UtdBfCZakwbiYqBvSz/1fd3f1584de38ca7c9315d498f094276/LFP586.png | silhouette, 144 x 78 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/lion), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/montagne) | 2026-09-23 |
+| weapons/gonne_6.png | Gonne-6 | https://staticctf.ubisoft.com/J3yJr34U2pZ2Ieem48Dwy9uqj5PNUQTn/23AlSVw8MwI1y3ZakEfqgW/c4561ae6e8da8db2627a146b8b55ee6c/GONNE-6_HUD_Icon__1_.png | silhouette, 269 x 87 | [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/amaru), [page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators/capitao) | 2026-09-23 |
+
+## Community sites, used only to cross-check
+
+Nothing in the catalog was taken from these.
+
+- [Dexerto's Rainbow Six operators list](https://www.dexerto.com/wikis/rainbow-six/operators/),
+  read 2026-09-23: its 39 Attackers are ours; its Defenders are ours without
+  Noor (it had not added him yet). Same spellings apart from capitals.
+- [COGconnected on Year 11 Season 3](https://cogconnected.com/2026/09/rainbow-six-siege-year-11-season-3-is-here-with-new-defender-modes-and-more/)
+  (read as a search summary): Split Fire launched September 1, 2026; Noor carries the
+  Commando 9 or ALDA 5.56 and the 1911 TACOPS or Bailiff 410. Matches his page.
+- Liquipedia refused the request (HTTP 403) and was not used.
+
+## Official pages read
+
+"Dated" is the date the page shows. Every page was read on 2026-09-23. Besides
+these, all 78 operator pages (linked in the Operators table) and the operator
+list, [Operators](https://www.ubisoft.com/en-us/game/rainbow-six/siege/game-info/operators).
+
+| page | dated | what it gave |
+|---|---|---|
+| [Seasons](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons) | Y11S3 | every season from Year 1 Season 1 with its operators (the `from` of every operator); Split Fire launching September 1 |
+| [Operation Split Fire](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/splitfire) | Y11S3 | Noor's loadout; this season's balance (no gun added or removed) |
+| [Ubisoft News: Operation Split Fire](https://news.ubisoft.com/en-us/article/4qqpGJZSWrrS3Ko2hYvviK/rainbow-six-siege-operation-split-fire-new-operator-noor-3v3-arcade-mode-wasteland-circuit-event-and-more) | 2026-09 | launch date September 1, 2026; Noor |
+| [Y11S3 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/PONCuRt8LaCr3O31NkBQb/y11s3-designers-notes) | 2026-08-17 | Dokkaebi's gadget swap; AR-15.50 and Mk 14 EBR called DMRs; operators affected for SMG-12, SPSMG9, AR-15.50, Mk 14 EBR |
+| [Y11S3 Patch Notes Addendum](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/6HzsdnbOYovXelORy4mB7z/y11s3-patch-notes-addendum) | 2026-09-01 | fixes only |
+| [Y11S3.1 Patch Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3WMly2DNZqv1GpUK9GNGm5/y11s31-patch-notes) | 2026-09-22 | operators affected for M1014 and SPAS-15; no loadout change |
+| [Operation System Override](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/systemoverride) | Y11S2 | XK23 for Dokkaebi, Rauora and Sens |
+| [Y11S2 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2MNhboDBmsQKkWb5p8zqsg/y11s2-designers-notes) | 2026-05-18 | "Primary weapons: Added XK23" for Dokkaebi, Rauora and Sens; XK23 is an Assault Rifle |
+| [Y11S2.1](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/7tAny5W9p4yrHmIiH51noI/y11s21-patch-notes), [Y11S2.2](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3IoMKS8f3AHlOwBQXfiytt/y11s22-midseason-patch-notes), [Y11S2.2 designer's notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/77rztlEyeqhZVqROCW0ZV7/designers-notes-y11s22-midseason-update), [Y11S2.3](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2EIn06EmkAIG7su2fpITue/y11s23-patch-notes) | 2026-06-23 to 2026-08-04 | no gun added to or removed from anyone |
+| [Operation Silent Hunt](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/silenthunt) | Y11S1 | Solid Snake's loadout; TACIT .45 a "sidearm" |
+| [Y11S1 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/5fWCjoCU8toUJiBdMSj0UA/y11s1-designers-notes) | 2026-02-16 | T-95 LSW added to Flores |
+| [Y11S1.1](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/1e0rA6EwYGMNvMTSM9hmTA/y11s11-patch-notes), [Y11S1.2](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/ivbm7sXcU7iG89d7wQtlx/y11s12-patch-notes), [Y11S1.3](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4QxsAbVufpV8j2TCybpb5Z/y11s13-patch-notes) | 2026-03-24 to 2026-05-05 | the POF-9 spelling; balance and gadget changes, no gun moved |
+| [Operation Tenfold Pursuit](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/tenfoldpursuit) | Y10S4 | PMR90A2 (a marksman rifle) for Thatcher, Nøkk, Hibana, Capitão; ITA12S for Thermite; Reaper MK2 for Maverick |
+| [Y10S4.1](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3aYq6D0VHo1HJ5ZNfLtiNs/y10s41-patch-notes), [Y10S4 addendum](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/7Ev8Ec9hPvcCC8Qn7zlotD/y10s4-patch-notes-addendum) | 2025-12 | no loadout change |
+| [Y10S4.2 Patch Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3HSeMj81P0CL3m0N8FS5tK/y10s42-patch-notes) | 2026-01-20 | Super Shorty back to Mozzie |
+| [Operation High Stakes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/highstakes) | Y10S3 | Denari and the Glaive-12; Reaper MK2 (a machine pistol) for five operators; Wamai, Sentry, Striker, Fenrir changes |
+| [Y10S3 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4czc3hlHtXrd27crELGDcc/y10s3-designers-notes) | 2025-08-18 | every High Stakes loadout change with its reason, incl. Super Shorty removed from Lesion; TCSG12 a Slug Shotgun; Reaper MK2 a Machine Pistol |
+| [Y10S3 addendum](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/1gy7bEMyfiEMDmkZhTzTyb/y10s3-patch-notes-addendum), [Y10S3.1](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/5NU5MpUyV3W8iN0kVt0pr8/y10s31-patch-notes), [Y10S3.2](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/37BPFK3ZKisFFeRzq7mpPc/y10s32-patch-notes) | 2025-09-02 to 2025-09-30 | no gun moved |
+| [Y10S3.3 Patch Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4RsdLNZbYZ3wIrcgaDpkuF/y10s33-patch-notes) | 2025-10-14 | P-10C added to Jäger, Keratos .357 to Bandit; the Glaive-12 is a slug shotgun |
+| [Operation Daybreak](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/daybreak) | Y10S2 | Siege X; loadout order changed for most operators |
+| [Y10S2 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/8dJbwMqIt5Y8lZgwJRjWZ/y10s2-designers-notes), [Y10S2.0 addendum](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/ixjnXu9g80eFVW3X7cNFF/y10s20-patch-notes-addendum), [Y10S2.3](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/15u8e17UKbO1RDm0lXhfXx/y10s23-patch-notes) | 2025-05-19 to 2025-07-15 | no gun moved; class examples (UZK50GI a Submachine Gun, POF-9 an Assault Rifle) |
+| [Operation Prep Phase](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/prepphase) | Y10S1 | Rauora's loadout, with the Reaper MK2 |
+| [Y10S1 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/11OmVXw4ysjxBGg3lY6HtB/y10s1-designers-notes), [Y10S1 addendum](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/7gp7yFPZJLTjyJs1pCSVI3/y10s1-patch-notes-addendum), [Y10S1.2](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/1T6bSlv03vnlIl69xjl6Pd/y10s12-patch-notes), [Y10S1.3](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3adVE0FPbli42OBNXPdrr3/y10s13-patch-notes) | 2025-02-18 to 2025-04-15 | no gun moved |
+| [Operation Collision Point](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/collisionpoint) | Y9S4 | Blackbeard's remastered loadout, no secondary |
+| [Y9S1 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/3jBlCdtRBQx2sCjmY2umNu/y9s1-designers-notes) | 2024-02-26 | the weapon classes; which Defender guns take the Magnified scope |
+| [Y9S1.3 Designer's Notes](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/2D4HsYOBEEg0wEW5dim34o/y9s13-designers-notes) | 2024-04-30 | the Revolvers; official class lists for Assault Rifles and LMGs |
+| [Operation Skull Rain](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons/skullrain) | Y1S3 | Caveira's Luison |
+
+## Update the list when a season changes it
+
+Siege adds an operator or a gun, or moves guns between operators, most seasons
+(early March, June, September, December) and sometimes mid-season.
+
+1. Read the new season's page (from [the Seasons page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/seasons)) and its designer's notes and patch
+   notes on [Ubisoft's news page](https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates). Look for "LOADOUT", "Primary weapons: Added", "Secondary
+   weapons" and new operators.
+2. A new operator: add it to its side's group in alphabetical place, id
+   `attackers.<slug>` or `defenders.<slug>`, `from` the season's name, its
+   `loadout`, and its icon from its operator page (the `r6s-operators-badge-...`
+   image) saved as `operators/<slug>.png`, with a row in the Operators pictures
+   table.
+3. A new gun: add it to its class's group with `usedBy`, and its silhouette
+   from the Loadout section of an operator's page, trimmed, saved as
+   `weapons/<slug>.png`, with a row in the Guns pictures table.
+4. A gun added to or removed from an operator: change both that operator's
+   `loadout` and the gun's `usedBy`. They must agree.
+5. Ids never change and are never reused (see `../README.md`).
+6. Set `asOf` and `season`, then run `node dashboard/tools/test-game-data.js`.

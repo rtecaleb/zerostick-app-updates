@@ -1,0 +1,66 @@
+/* zs-host.js — WHO IS HOSTING THIS PAGE (window.ZSHOST, D335).
+ *
+ * The app runs on its own (the PC exe, a browser, the phone app) and, since
+ * EXO Studio 0.13 (Studio D297), INSIDE EXO Studio as its "My EXO" tab.
+ * Studio owns the connection to the EXO there (its own USB link answers
+ * every fetch('/agent'+path)), its own theme and its own window, so a few of
+ * the app's own things would only be in the way: the connect and pairing
+ * gates, the device list, the developer door, the window-size report, the
+ * Theme picker. docs/MY-EXO-APP-HOOKS.md (Studio's handoff) lists them.
+ *
+ * ONE PLACE DECIDES, the way PRODUCTS / productHides() does for a Core next
+ * to an EXO: every consumer asks ZSHOST.hides('<id>') and never reads the
+ * URL itself, so this file is the whole list a reviewer has to read.
+ *
+ * How the page learns it is hosted: `?host=studio` in its URL (Studio's
+ * bundle.py QUERY), or window.ZS_HOST === 'studio', which Studio's
+ * injected script (myexo/inject.js) already sets at document creation, so
+ * a Studio that has not added the query word yet is recognised too.
+ *
+ * LOADED IN <head>, BEFORE THE D271 "coming soon" gate in phone.html, which
+ * is the first thing that asks. Sets one global and reads nothing else of
+ * the app. ES5, a classic script, like the rest of the app.
+ */
+(function () {
+  'use strict';
+  var q = '';
+  try { q = String((window.location && window.location.search) || ''); } catch (e) { q = ''; }
+  var studio = /[?&]host=studio(?:&|#|$)/.test(q) || window.ZS_HOST === 'studio';
+
+  /* What a host does for itself, so the app draws none of it.
+       exoGate       the D271 "coming soon" redirect to the device list
+                     (Studio only ever opens the EXO's page)
+       connectGate   the Bluetooth / USB connect gates (#blegate) and the
+                     Web Serial shim: Studio's link answers /agent itself
+       devicePicker  any way back to the device list (devices.html): More >
+                     Your devices, the app-bar device switcher, More > Lock
+                     developer access
+       devPreview    the developer "Preview without connecting" door
+       studioDoor    Studio room's "Open EXO Studio" card (it IS open)
+       viewport      the exe's window-size report (POST /zs/viewport)
+       themePicker   Settings > Access > Theme: the host's theme wins
+                     (zsTheme.setHost), so the segment says who decides
+       legalScreen   the app's own Terms / Privacy agreement (zs-legal.js):
+                     Studio's agreement covers the app (owner, A-6) and is
+                     handed over by zsLegal.acceptFromHost; until it is,
+                     the app shows "Waiting for EXO Studio..." instead
+     Not listed because this page never draws them: the calibrator and
+     dongle tiles and WiFi join (devices.html / dongle/), and an
+     "Update the app" item (the app has none; the exe updates itself). */
+  var HIDES = {
+    studio: ['exoGate', 'connectGate', 'devicePicker', 'devPreview', 'studioDoor',
+             'viewport', 'themePicker', 'legalScreen']
+  };
+  var id = studio ? 'studio' : '';
+  var list = HIDES[id] || [];
+
+  window.ZSHOST = {
+    /* '' when the app is on its own, else the host's id */
+    id: id,
+    studio: studio,
+    /* the host's name, for the one sentence that names it */
+    name: studio ? 'EXO Studio' : '',
+    hides: function (what) { return list.indexOf(what) >= 0; },
+    list: function () { return list.slice(); }
+  };
+})();

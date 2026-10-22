@@ -1,0 +1,732 @@
+/* glyphs.js — one source of truth for controller button names and art.
+ *
+ * The app grew up Xbox-first, so "A / B / X / Y" ended up hardcoded in a dozen
+ * screens. The pad in Caleb's hands is a DualSense. Reading "press A" while
+ * holding a pad that has no A button is exactly the translation an
+ * accessibility device should be doing for you, not asking you to do in your
+ * head. So:
+ *
+ *   INPUT side  → name the pad you are HOLDING    ZSG.label / short / glyph
+ *   OUTPUT side → name what the CONSOLE receives  ZSG.outLabel / outShort
+ *
+ * "The pad you are holding" comes from devbar.js, which sets ZS.padFamily from
+ * the device actually enumerated on the board. While a pad IS enumerated the
+ * glyphs follow the plastic, never the profile — a config can say PS5 with an
+ * Xbox pad plugged in. With no pad enumerated there is no plastic to follow,
+ * and the config's own console is a far better guess than a blanket "Xbox";
+ * see currentFamily().
+ *
+ * CODES ARE THE BOARD'S, EXACTLY.  Everything this file offers is a string the
+ * agent already accepts, because anything else is dropped in silence on the
+ * board and the user just sees a setting that does nothing:
+ *
+ *   buttons  common/model.py Button — south, east, west, north, l1, r1, l3,
+ *            r3, start, select, guide, touchpad, dpad_up/down/left/right,
+ *            extra1, extra2.
+ *   targets  what a binding or an action step may DRIVE (mapping/bindings.py
+ *            and actions/steps.py): every button above, a SIGNED stick axis
+ *            ("ly+" = up, "rx-" = left), and a full trigger pull "lt+"/"rt+".
+ *            Both parsers demand the sign, so a bare "lx" is never offered.
+ *            "lt-"/"rt-" assert nothing and are never offered either.
+ *   sources  what may START a Smart Action (actions/triggers.py): any button,
+ *            plus the analog triggers "lt"/"rt" — bare, because the board
+ *            thresholds the raw 0..1 axis. Sticks are NOT trigger sources:
+ *            with no rest position, "held" would mean nothing.
+ *
+ * There is deliberately no "l2"/"r2" code: the board has no such button. L2 and
+ * R2 are the PlayStation NAMES for the analog triggers, so they live in the name
+ * tables and are reached from lt/rt through ANALOG_OF. A stray "l2" arriving
+ * from older UI code normalises to "lt+" rather than vanishing.
+ *
+ * Mouse and keyboard codes stay themselves. A prefixed evdev code names the
+ * device it came from — BTN_LEFT is the mouse, KEY_UP is the arrow key — so
+ * neither is ever folded into the pad's shorthand (see normCode).
+ *
+ * Self-contained on purpose: it borrows the authentic art from
+ * phone-sections.js when that file is loaded, and falls back to its own pill
+ * SVG when it is not, so load order never matters and the file can be tested
+ * headless.
+ */
+(function () {
+  'use strict';
+
+  /* how often the family watchdog re-checks; only runs while someone listens */
+  var WATCH_MS = 750;
+
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* Lookups are plain objects, so a code like "constructor" or "toString" would
+     otherwise hit Object.prototype and hand back a function. Every table read
+     goes through here. */
+  function has(table, key) {
+    return Object.prototype.hasOwnProperty.call(table, key);
+  }
+
+  /* ── families ─────────────────────────────────────────────────── */
+
+  /* Xbox is the last resort only because it is the one family every console
+     and PC understands. Nothing should REACH it — see currentFamily. */
+  function normFamily(f) {
+    var s = String(f === undefined || f === null ? '' : f).toLowerCase();
+    if (s === 'ps' || s === 'ps5' || s === 'ps4' || s === 'playstation') return 'ps';
+    if (s === 'nin' || s === 'ns' || s === 'switch' || s === 'switch2' || s === 'nintendo') return 'nin';
+    return 'xb';
+  }
+
+  /* normFamily's blanket Xbox answer is right for the OUTPUT side (a PC config
+     really is XInput) but is a guess about the INPUT side: a "pc" platform says
+     nothing about the pad in your hands. This variant refuses to guess, so
+     currentFamily can move on to a better witness (the last pad ever seen). */
+  function strictFamily(f) {
+    var s = String(f === undefined || f === null ? '' : f).toLowerCase();
+    if (s === 'ps' || s === 'ps5' || s === 'ps4' || s === 'playstation') return 'ps';
+    if (s === 'nin' || s === 'ns' || s === 'switch' || s === 'switch2' || s === 'nintendo') return 'nin';
+    if (s === 'xb' || s === 'xbox') return 'xb';
+    return '';
+  }
+
+  /* the console the config on screen targets, when the app can tell us */
+  function configPlatform() {
+    var Z = window.ZS;
+    if (!Z || typeof Z.prof !== 'function') return '';
+    var p = null;
+    try { p = Z.prof(Z.editId || Z.activeId); } catch (e) { p = null; }
+    return (p && p.platform) || '';
+  }
+
+  /* devbar.js only knows a family while the board is answering and a pad is
+     enumerated, so ZS.padFamily is empty most of the time the PC app is open.
+     Defaulting THAT to Xbox is how "press A" ends up on screen with a
+     DualSense in your hands — the exact bug this file exists to end. The
+     chain, in order of how much each witness actually knows about the pad:
+       connected pad → the config's console (strictly: pc says nothing)
+       → the last pad ever seen (devbar persists it) → Xbox. */
+  function currentFamily() {
+    var Z = window.ZS;
+    var f = Z ? Z.padFamily : null;
+    if (f === 'ps' || f === 'xb' || f === 'nin') return f;
+    f = strictFamily(configPlatform());
+    if (f) return f;
+    f = Z ? Z.lastPadFamily : null;
+    if (f === 'ps' || f === 'xb' || f === 'nin') return f;
+    return 'xb';
+  }
+
+  /* an explicit family argument wins; omitted means "whatever is plugged in" */
+  function famOf(family) {
+    if (family === undefined || family === null || family === '') return currentFamily();
+    return normFamily(family);
+  }
+
+  /* ── names ────────────────────────────────────────────────────── */
+
+  /* [label, short] per family. Only the controls whose NAME differs by family
+     live here; d-pad, sticks and the extras are shared below.
+
+     The l2/r2/zl-style rows are NAMES ONLY — the trigger has no button code on
+     the board, so nothing ever asks for "l2"; ANALOG_OF routes lt/rt here.
+     The face-button short forms use the same characters phone-sections.js
+     draws (OUT.ps5), so a chip and a table row cannot disagree. */
+  var NAMES = {
+    ps: {
+      south: ['Cross', '✕'], east: ['Circle', '◯'],
+      west:  ['Square', '▢'], north: ['Triangle', '△'],
+      l1: ['L1', 'L1'], r1: ['R1', 'R1'],
+      l2: ['L2', 'L2'], r2: ['R2', 'R2'],
+      l3: ['L3', 'L3'], r3: ['R3', 'R3'],
+      /* DualSense calls it Create; DualShock 4 called it Share. Create wins
+         because the DualSense is the pad this product ships against. */
+      start: ['Options', 'OPT'], select: ['Create', 'CRE'],
+      guide: ['PS', 'PS'], touchpad: ['Touchpad', 'TP']
+    },
+    xb: {
+      south: ['A', 'A'], east: ['B', 'B'], west: ['X', 'X'], north: ['Y', 'Y'],
+      l1: ['LB', 'LB'], r1: ['RB', 'RB'],
+      l2: ['LT', 'LT'], r2: ['RT', 'RT'],
+      l3: ['LS', 'LS'], r3: ['RS', 'RS'],
+      start: ['Menu', 'MENU'], select: ['View', 'VIEW'],
+      guide: ['Guide', 'XB'], touchpad: ['Touchpad', 'TP'],
+      /* the Series X|S pad's Share button is the board's extra1 (common/
+         model.py: "paddles / capture button"); on any other pad extra1
+         keeps the shared "Extra 1" (D279) */
+      extra1: ['Share', 'SHARE']
+    },
+    nin: {
+      /* the famous swap: Nintendo's east button is A, its south is B */
+      south: ['B', 'B'], east: ['A', 'A'], west: ['Y', 'Y'], north: ['X', 'X'],
+      l1: ['L', 'L'], r1: ['R', 'R'],
+      l2: ['ZL', 'ZL'], r2: ['ZR', 'ZR'],
+      l3: ['L3', 'L3'], r3: ['R3', 'R3'],
+      start: ['Plus', '+'], select: ['Minus', '-'],
+      guide: ['Home', 'HOME'], touchpad: ['Touchpad', 'TP']
+    }
+  };
+
+  /* same words on every pad */
+  var SHARED = {
+    dpad_up:    ['D-pad Up', '↑'],
+    dpad_down:  ['D-pad Down', '↓'],
+    dpad_left:  ['D-pad Left', '←'],
+    dpad_right: ['D-pad Right', '→'],
+    extra1: ['Extra 1', 'X1'],
+    extra2: ['Extra 2', 'X2'],
+    lx: ['Left Stick X', 'LX'],
+    ly: ['Left Stick Y', 'LY'],
+    rx: ['Right Stick X', 'RX'],
+    ry: ['Right Stick Y', 'RY']
+  };
+
+  /* The analog triggers borrow the family's L2/LT/ZL name row rather than
+     duplicating it — one physical control, one set of names. */
+  var ANALOG_OF = { lt: 'l2', rt: 'r2' };
+
+  /* Mouse & keyboard is a headline feature here, so the mouse's own buttons
+     arrive as evdev BTN_ codes alongside the pad's. [label, short, art]; the
+     names match mapping/labels.py so this app and the board's capture screen
+     call the same button the same thing. */
+  var MOUSE = {
+    btn_left:   ['Mouse Left', 'M1', 'm-left'],
+    btn_right:  ['Mouse Right', 'M2', 'm-right'],
+    btn_middle: ['Mouse Middle', 'M3', 'm-mid'],
+    btn_side:   ['Mouse Side', 'M4', null],
+    btn_extra:  ['Mouse Extra', 'M5', null]
+  };
+
+  /* signed stick targets: which way the stick is pushed */
+  var STICK_DIR = {
+    'lx+': ['Left Stick Right', 'L→', 'ls-right'],
+    'lx-': ['Left Stick Left',  'L←', 'ls-left'],
+    'ly+': ['Left Stick Up',    'L↑', 'ls-up'],
+    'ly-': ['Left Stick Down',  'L↓', 'ls-down'],
+    'rx+': ['Right Stick Right', 'R→', 'rs-right'],
+    'rx-': ['Right Stick Left',  'R←', 'rs-left'],
+    'ry+': ['Right Stick Up',    'R↑', 'rs-up'],
+    'ry-': ['Right Stick Down',  'R↓', 'rs-down']
+  };
+
+  /* ── art keys (into phone-sections.js glyphSVG) ───────────────── */
+
+  /* Keys here name ART in phone-sections.js, not board codes — "l2" is that
+     file's trigger pill, reached from lt/rt via ANALOG_OF. */
+  var ART = {
+    /* 'ps-share' is the DualShock name of the drawing; the chip still says
+       Create, and glyph() rewrites the announced name to match. */
+    ps: { south:'ps-cross', east:'ps-circle', west:'ps-square', north:'ps-triangle',
+          l1:'l1', r1:'r1', l2:'l2', r2:'r2', l3:'l3', r3:'r3',
+          start:'ps-options', select:'ps-share' },
+    xb: { south:'xb-a', east:'xb-b', west:'xb-x', north:'xb-y',
+          l1:'lb', r1:'rb', l2:'lt', r2:'rt', l3:'l3', r3:'r3',
+          start:'xb-menu', select:'xb-view' },
+    /* no Nintendo art drawn yet — those controls pill from their short name,
+       which reads correctly (L, ZR, +) even without bespoke SVG */
+    nin: { l3:'l3', r3:'r3' }
+  };
+
+  var SHARED_ART = {
+    dpad_up:'dp-up', dpad_down:'dp-down', dpad_left:'dp-left', dpad_right:'dp-right'
+  };
+
+  /* ── code normalisation ───────────────────────────────────────── */
+
+  /* Everything that might reach us for the same control: evdev names, the
+     printed letters of other families, and the informal shorthands already
+     scattered through the UI. Single-letter face buttons are deliberately NOT
+     aliased — "A" means a different button on every pad, so guessing would be
+     worse than failing.
+
+     The trigger aliases land on "lt+"/"rt+" — a full pull — because that is
+     what the board's parsers accept; "l2" is not a code it knows. */
+  var ALIAS = {
+    tl:'l1', tr:'r1', tl2:'lt+', tr2:'rt+', thumbl:'l3', thumbr:'r3',
+    lb:'l1', rb:'r1', zl:'lt+', zr:'rt+', l:'l1', r:'r1',
+    l2:'lt+', r2:'rt+',
+    ls:'l3', rs:'r3',
+    mode:'guide', home:'guide', ps:'guide', xbox:'guide',
+    back:'select', share:'select', create:'select', view:'select',
+    options:'start', menu:'start', plus:'start', minus:'select',
+    cross:'south', circle:'east', square:'west', triangle:'north',
+    /* the DualSense touchpad click, reported under a name of its own
+       (mapping/labels.py BTN_TRIGGER_HAPPY1) */
+    trigger_happy1:'touchpad',
+    dpup:'dpad_up', dpdown:'dpad_down', dpleft:'dpad_left', dpright:'dpad_right',
+    up:'dpad_up', down:'dpad_down', left:'dpad_left', right:'dpad_right'
+  };
+
+  /* Keyboard codes that are really a PAD control: the DualSense capture button
+     arrives as KEY_RECORD (mapping/labels.py). Everything else on a keyboard is
+     just a key and must keep its prefix — see normCode. */
+  var KEY_PAD = { record: 'extra1' };
+
+  function normCode(code) {
+    var c = String(code === undefined || code === null ? '' : code).trim().toLowerCase();
+    if (c.indexOf('btn_') === 0) {
+      /* A prefixed evdev mouse button keeps its prefix: BTN_LEFT is the mouse,
+         not the D-pad, and BTN_EXTRA is a mouse thumb button, not the pad's
+         extra2. Folding those into the pad aliases would put a controller
+         glyph on a mouse binding — the exact lie this file exists to stop. */
+      if (has(MOUSE, c)) return c;
+      c = c.slice(4);
+    }
+    if (c.indexOf('abs_') === 0) c = c.slice(4);
+    if (c.indexOf('key_') === 0) {
+      /* Same rule for the keyboard, and it matters more: unprefixed "up" and
+         "r" are pad shorthand, so a blanket strip would turn the arrow key
+         KEY_UP into the D-pad and KEY_R into R1. Only the keys a PAD reports
+         convert; the rest stay keys and surface as themselves. */
+      var body = c.slice(4);
+      return has(KEY_PAD, body) ? KEY_PAD[body] : c;
+    }
+    var sign = '';
+    var last = c.charAt(c.length - 1);
+    if (last === '+' || last === '-') { sign = last; c = c.slice(0, c.length - 1); }
+    if (has(ALIAS, c)) {
+      c = ALIAS[c];
+      /* an alias may carry its own sign ("zl" → "lt+"); that sign wins, so a
+         stray one on the way in cannot make "lt++" */
+      var aliased = c.charAt(c.length - 1);
+      if (aliased === '+' || aliased === '-') sign = '';
+    }
+    return c + sign;
+  }
+
+  function baseOf(code) {
+    var last = code.charAt(code.length - 1);
+    return (last === '+' || last === '-') ? code.slice(0, code.length - 1) : code;
+  }
+
+  function pairFor(code, fam) {
+    if (has(STICK_DIR, code)) return [STICK_DIR[code][0], STICK_DIR[code][1]];
+    if (has(MOUSE, code)) return [MOUSE[code][0], MOUSE[code][1]];
+    var base = baseOf(code);
+    /* a pulled trigger is just the trigger; lt-/rt- never reach the board */
+    if (has(ANALOG_OF, base)) base = ANALOG_OF[base];
+    /* the family's own name first: extra1 is "Share" on an Xbox pad and
+       the shared "Extra 1" everywhere else */
+    if (has(NAMES, fam) && has(NAMES[fam], base)) return NAMES[fam][base];
+    if (has(SHARED, base)) return SHARED[base];
+    return null;
+  }
+
+  /* The pad the board actually has plugged in, or '' — no config console,
+     no last-seen guess. Only a real pad says which buttons are in a hand:
+     the Series pad's Share button is offered while one is connected
+     (D279), and never because a config merely targets an Xbox. */
+  function padDetected() {
+    var Z = window.ZS;
+    var f = Z ? Z.padFamily : null;
+    return (f === 'ps' || f === 'xb' || f === 'nin') ? f : '';
+  }
+
+  /* THE HOME BUTTON WEARS THE PAD IN YOUR HAND (D279). The owner: draw the
+     PS home on a PlayStation pad and the Xbox guide on an Xbox pad, picked
+     by the detected controller, falling back to the config's console. So
+     for `guide` alone the connected pad beats the family the caller asked
+     for — even on the OUTPUT side, where every other button follows the
+     console — and the caller's family (the console) is the fallback. Its
+     name moves with its picture, so a tile never shows the PS house over
+     the word "Guide". extra1 follows the same rule: it is the Share button
+     of the Series pad in your hand, offered BECAUSE that pad is connected,
+     so it is named after the pad even on a PS5 config. */
+  var HAND_CODES = { guide: 1, extra1: 1 };
+  function guideFam(code, fam) {
+    if (!has(HAND_CODES, baseOf(code))) return fam;
+    return padDetected() || fam;
+  }
+
+  function artKey(code, fam) {
+    if (has(STICK_DIR, code)) return STICK_DIR[code][2];
+    if (has(MOUSE, code)) return MOUSE[code][2];
+    var base = baseOf(code);
+    if (has(ANALOG_OF, base)) base = ANALOG_OF[base];
+    if (has(SHARED_ART, base)) return SHARED_ART[base];
+    if (has(ART, fam) && has(ART[fam], base)) return ART[fam][base];
+    return null;
+  }
+
+  /* ── the pill fallback (same shape as glyphSVG's own) ─────────── */
+
+  function pillSVG(text, aria) {
+    var t = String(text === undefined || text === null ? '' : text) || '?';
+    var n = t.length;
+    var fs = n <= 2 ? 8.5 : (n <= 4 ? 6.5 : 5.2);
+    var y = Math.round((12 + fs * 0.36) * 10) / 10;
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" role="img" aria-label="' + esc(aria || t) + '">' +
+      '<rect x="1.8" y="6.5" width="20.4" height="11" rx="5.5" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>' +
+      '<text x="12" y="' + y + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fs +
+      '" font-weight="700" fill="#e6edf3"' + (n <= 2 ? ' letter-spacing="0.5"' : '') + '>' + esc(t) + '</text>' +
+      '</svg>';
+  }
+
+  /* phone-sections.js bakes ITS name into the art's aria-label, so the Create
+     button announces as "Share button" while the chip beside it reads Create.
+     A screen reader has to say what the eye sees, so the announced name is
+     replaced with the label we are actually showing. Replaced with a function
+     so a "$" in a name cannot be read as a substitution pattern. */
+  function withAria(svg, name) {
+    return String(svg).replace(/aria-label="[^"]*"/, function () {
+      return 'aria-label="' + esc(name) + '"';
+    });
+  }
+
+  /* ── public API ───────────────────────────────────────────────── */
+
+  function label(code, family) {
+    var c = normCode(code);
+    var fam = guideFam(c, famOf(family));
+    var pair = pairFor(c, fam);
+    /* unknown code: show it rather than swallow it, so a bad binding is
+       visible in the UI instead of rendering as an empty row */
+    return pair ? pair[0] : String(code === undefined || code === null ? '' : code);
+  }
+
+  function short(code, family) {
+    var c = normCode(code);
+    var fam = guideFam(c, famOf(family));
+    var pair = pairFor(c, fam);
+    return pair ? pair[1] : String(code === undefined || code === null ? '' : code);
+  }
+
+  /* The real drawing first (padcaps.js — Kenney's CC0 pack, D80): one
+     picture per board code and family, white drawn as currentColor. It
+     announces the same name the chip beside it shows (Create, not Share),
+     which is the whole of withAria's contract, so it is given the label up
+     front. The pack has no `guide` — the PS logo, the Xbox sphere and the
+     Nintendo home mark are trademarks — so padcaps.js draws OUR generic
+     home glyphs for it (D279: a house, or a ring with a plain cross), and
+     the touchpad borrows the DualSense's picture on every family. Anything
+     else it lacks (an unknown code) falls through to the art below or the
+     text pill, exactly as before. Width and height ride along
+     as ATTRIBUTES, the same way the pill carried its 22, so every size rule
+     already written for a glyph keeps working; a bare <svg> with neither
+     would default to 300×150. */
+  function padcap(c, fam, name) {
+    var P = window.ZSPAD;
+    if (!P || typeof P.svg !== 'function' || !P.has(c, fam)) return '';
+    var art = P.svg(c, fam, ' width="24" height="24" role="img" aria-label="' + esc(name) + '"');
+    /* the pack marks its art decorative; here it IS the control's picture */
+    return art ? art.replace(' aria-hidden="true"', '') : '';
+  }
+
+  function glyph(code, family) {
+    var c = normCode(code);
+    var fam = guideFam(c, famOf(family));
+    var real = padcap(c, fam, label(c, fam));
+    if (real) return real;
+    var key = artKey(c, fam);
+    if (key && typeof window.glyphSVG === 'function') {
+      return withAria(window.glyphSVG(key), label(c, fam));
+    }
+    return pillSVG(short(c, fam), label(c, fam));
+  }
+
+  /* one HTML chip: art plus its name. The class is a styling hook; the inline
+     style keeps it laid out correctly before anyone adds CSS for it. */
+  function chip(code, family) {
+    var fam = famOf(family);
+    var c = normCode(code);
+    return '<span class="zsg-chip" style="display:inline-flex;align-items:center;gap:6px">' +
+      '<span class="glyimg">' + glyph(c, fam) + '</span>' +
+      '<span class="zsg-lab">' + esc(label(c, fam)) + '</span></span>';
+  }
+
+  /* Picker order: how a hand finds them, not alphabetical. Every entry is a
+     string the board accepts as a TARGET — the axes carry their sign, and the
+     triggers appear once, as the full pull "lt+"/"rt+", because that is the
+     only trigger target there is. */
+  var ORDER = [
+    ['south','face'], ['east','face'], ['west','face'], ['north','face'],
+    ['l1','shoulder'], ['r1','shoulder'],
+    ['lt+','trigger'], ['rt+','trigger'],
+    ['l3','stick'], ['r3','stick'],
+    ['dpad_up','dpad'], ['dpad_down','dpad'], ['dpad_left','dpad'], ['dpad_right','dpad'],
+    ['start','system'], ['select','system'], ['guide','system'], ['touchpad','system'],
+    ['extra1','extra'], ['extra2','extra'],
+    ['lx+','axis'], ['lx-','axis'], ['ly+','axis'], ['ly-','axis'],
+    ['rx+','axis'], ['rx-','axis'], ['ry+','axis'], ['ry-','axis']
+  ];
+
+  /* Same control, two spellings. A step DRIVES the trigger to full ("lt+");
+     a Smart Action WATCHES the raw analog axis ("lt") and the board decides
+     for itself how far counts as pulled. */
+  var TRIGGER_SOURCE_OF = { 'lt+': 'lt', 'rt+': 'rt' };
+
+  function list(family) {
+    var fam = famOf(family);
+    var out = [];
+    for (var i = 0; i < ORDER.length; i++) {
+      var code = ORDER[i][0];
+      out.push({ code: code, label: label(code, fam), short: short(code, fam), group: ORDER[i][1] });
+    }
+    return out;
+  }
+
+  /* Everything a Smart Action may fire FROM (actions/triggers.py): the buttons,
+     plus the two analog triggers. Stick directions are absent on purpose — a
+     stick has no rest position, so "hold it to fire" has no meaning. */
+  function sources(family) {
+    var fam = famOf(family);
+    var out = [];
+    for (var i = 0; i < ORDER.length; i++) {
+      var code = ORDER[i][0];
+      if (has(STICK_DIR, code)) continue;
+      if (has(TRIGGER_SOURCE_OF, code)) code = TRIGGER_SOURCE_OF[code];
+      out.push({ code: code, label: label(code, fam), group: ORDER[i][1] });
+    }
+    return out;
+  }
+
+  /* Everything a step may DRIVE (actions/steps.py parse_target): every button,
+     the signed stick directions, and a full trigger pull. Same set as list();
+     it exists as its own name because a caller picking a step TARGET is asking
+     a different question from one drawing the whole pad. */
+  function targets(family) {
+    return list(family);
+  }
+
+  /* Anything describing what the CONSOLE receives must call these, never
+     label(): the output is named after the console this config targets, not
+     the pad in your hands. Pass the config's `platform` ("ps5" / "xbox" /
+     "pc"). It started life Xbox-only — which is why an omitted console still
+     answers Xbox, and why that is still right for a PC config. */
+  function outLabel(code, con) { return label(code, normFamily(con)); }
+  function outShort(code, con) { return short(code, normFamily(con)); }
+  function outGlyph(code, con) { return glyph(code, normFamily(con)); }
+
+  /* ── family change notification ───────────────────────────────── */
+
+  var listeners = [];
+  var lastFam = null;
+  var watchdog = null;
+
+  function fire() {
+    var f = currentFamily();
+    if (f === lastFam) return;
+    lastFam = f;
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i](f); } catch (e) {}
+    }
+  }
+
+  /* ZS.onPadFamilyChange is a SINGLE SLOT, not a listener list, so chain
+     whatever is already in it instead of stealing it. */
+  function hook() {
+    if (!window.ZS) return;
+    var prev = window.ZS.onPadFamilyChange;
+    if (prev && prev.__zsg) return;
+    var mine = function (f) {
+      if (typeof prev === 'function') { try { prev(f); } catch (e) {} }
+      fire();
+    };
+    mine.__zsg = true;
+    window.ZS.onPadFamilyChange = mine;
+  }
+
+  function onFamilyChange(cb) {
+    if (typeof cb !== 'function') return function () {};
+    listeners.push(cb);
+    /* Only the FIRST subscriber sets the baseline. Re-reading it here would
+       swallow a change that arrived between two subscribes: the second
+       subscriber would quietly mark it as already seen and the first would
+       never be told to redraw. */
+    if (lastFam === null) lastFam = currentFamily();
+    hook();
+    /* Any file loading after us can overwrite that single slot, and ZS may not
+       exist yet when the first listener registers, so a slow poll backs the
+       hook up. It only runs while something is actually listening. */
+    if (!watchdog && typeof setInterval === 'function') {
+      watchdog = setInterval(function () { hook(); fire(); }, WATCH_MS);
+    }
+    return function () {
+      for (var i = 0; i < listeners.length; i++) {
+        if (listeners[i] === cb) { listeners.splice(i, 1); break; }
+      }
+      if (!listeners.length && watchdog) { clearInterval(watchdog); watchdog = null; }
+    };
+  }
+
+  window.ZSG = {
+    family: currentFamily,
+    label: label,
+    short: short,
+    glyph: glyph,
+    chip: chip,
+    list: list,
+    sources: sources,
+    targets: targets,
+    outLabel: outLabel,
+    outShort: outShort,
+    outGlyph: outGlyph,
+    onFamilyChange: onFamilyChange,
+    /* the pad really plugged in ('ps' / 'xb' / 'nin'), or '' (D279) */
+    padDetected: padDetected,
+    /* normalise an evdev/informal code to the board's neutral vocabulary */
+    code: normCode
+  };
+
+  /* ── self-check — set window.ZSG_SELFTEST before this file loads ── */
+
+  if (window.ZSG_SELFTEST) {
+    var fails = [];
+    var eq = function (got, want, what) {
+      if (got !== want) fails.push(what + ' → got "' + got + '", want "' + want + '"');
+    };
+    var ok = function (cond, what) { if (!cond) fails.push(what); };
+
+    eq(label('south', 'ps'), 'Cross', "label('south','ps')");
+    eq(label('south', 'xb'), 'A', "label('south','xb')");
+    eq(label('south', 'nin'), 'B', "label('south','nin')");
+    eq(label('east', 'nin'), 'A', "label('east','nin')");
+    eq(short('south', 'ps'), '✕', "short('south','ps')");
+    eq(short('north', 'ps'), '△', "short('north','ps')");
+    eq(label('select', 'ps'), 'Create', "label('select','ps')");
+    eq(label('start', 'xb'), 'Menu', "label('start','xb')");
+    /* lt/rt wear the family's trigger name — L2 on the pad Caleb holds */
+    eq(label('lt', 'ps'), 'L2', "label('lt','ps')");
+    eq(label('lt+', 'ps'), 'L2', "label('lt+','ps')");
+    eq(label('lt+', 'xb'), 'LT', "label('lt+','xb')");
+    eq(label('rt', 'nin'), 'ZR', "label('rt','nin')");
+    eq(label('ly+', 'ps'), 'Left Stick Up', "label('ly+','ps')");
+    eq(label('ry-', 'xb'), 'Right Stick Down', "label('ry-','xb')");
+    /* the output side follows the CONSOLE, never the pad in your hands: a PS5
+       handed `west` shows Square on its own screen, whatever you are holding */
+    eq(outLabel('south'), 'A', "outLabel('south') with no console");
+    eq(outLabel('l1'), 'LB', "outLabel('l1') with no console");
+    eq(outLabel('west', 'ps5'), 'Square', "outLabel('west','ps5')");
+    eq(outLabel('west', 'xbox'), 'X', "outLabel('west','xbox')");
+    eq(outLabel('west', 'pc'), 'X', "outLabel('west','pc')");
+    eq(outShort('north', 'ps5'), '△', "outShort('north','ps5')");
+    eq(outLabel('rt+', 'ps5'), 'R2', "outLabel('rt+','ps5')");
+    eq(outLabel('rt+', 'xbox'), 'RT', "outLabel('rt+','xbox')");
+    /* aliases fold onto the board's vocabulary — no bare "l2" survives */
+    eq(normCode('BTN_THUMBL'), 'l3', "code('BTN_THUMBL')");
+    eq(normCode('LB'), 'l1', "code('LB')");
+    eq(normCode('ABS_LY-'), 'ly-', "code('ABS_LY-')");
+    eq(normCode('BTN_TL2'), 'lt+', "code('BTN_TL2')");
+    eq(normCode('ZR'), 'rt+', "code('ZR')");
+    eq(normCode('l2'), 'lt+', "code('l2')");
+    eq(normCode('tl2+'), 'lt+', "code('tl2+') does not double the sign");
+    eq(normCode('BTN_TRIGGER_HAPPY1'), 'touchpad', "code('BTN_TRIGGER_HAPPY1')");
+    eq(normCode('KEY_RECORD'), 'extra1', "code('KEY_RECORD')");
+    eq(label('BTN_SOUTH', 'ps'), 'Cross', "label('BTN_SOUTH','ps')");
+    /* a mouse button is a mouse button, never the D-pad */
+    eq(normCode('BTN_LEFT'), 'btn_left', "code('BTN_LEFT')");
+    eq(label('BTN_LEFT', 'ps'), 'Mouse Left', "label('BTN_LEFT','ps')");
+    eq(label('BTN_EXTRA', 'ps'), 'Mouse Extra', "label('BTN_EXTRA','ps')");
+    /* and an arrow key is a key, not the D-pad; a plain "up" still is the D-pad */
+    eq(normCode('KEY_UP'), 'key_up', "code('KEY_UP')");
+    eq(label('KEY_UP', 'ps'), 'KEY_UP', "label('KEY_UP','ps')");
+    eq(normCode('KEY_R'), 'key_r', "code('KEY_R')");
+    eq(normCode('up'), 'dpad_up', "code('up')");
+    /* inherited property names are not codes */
+    eq(normCode('constructor'), 'constructor', "code('constructor')");
+    eq(label('constructor', 'ps'), 'constructor', "label('constructor','ps')");
+    /* unknown codes surface instead of vanishing */
+    eq(label('nonsense', 'ps'), 'nonsense', "label('nonsense','ps')");
+    eq(list('ps').length, ORDER.length, 'list() length');
+    eq(list('ps')[0].code, 'south', 'list()[0].code');
+
+    /* Every code offered must be one the board accepts, or the setting the
+       user makes is silently dropped. Buttons are literal Button values; an
+       axis must carry its sign and a trigger must be a "+" pull. */
+    var BUTTON_CODES = ' south east west north l1 r1 l3 r3 start select guide ' +
+      'dpad_up dpad_down dpad_left dpad_right touchpad extra1 extra2 ';
+    var isButton = function (c) { return BUTTON_CODES.indexOf(' ' + c + ' ') !== -1; };
+    var badTarget = [], badSource = [];
+    var tl = targets('ps');
+    for (var ti = 0; ti < tl.length; ti++) {
+      var tc = tl[ti].code;
+      if (!isButton(tc) && !has(STICK_DIR, tc) && tc !== 'lt+' && tc !== 'rt+') {
+        badTarget.push(tc);
+      }
+    }
+    var sl = sources('ps');
+    for (var si = 0; si < sl.length; si++) {
+      var sc = sl[si].code;
+      if (!isButton(sc) && sc !== 'lt' && sc !== 'rt') badSource.push(sc);
+    }
+    ok(!badTarget.length, 'targets() offers only board targets (bad: ' + badTarget.join(',') + ')');
+    ok(!badSource.length, 'sources() offers only board sources (bad: ' + badSource.join(',') + ')');
+    eq(targets('ps').length, ORDER.length, 'targets() length');
+    eq(sources('ps').length, 20, 'sources() length (18 buttons + lt + rt)');
+    eq(sources('ps')[6].code, 'lt', "sources()[6].code");
+    eq(sources('ps')[6].label, 'L2', "sources()[6].label");
+    ok(list('ps')[0].label === 'Cross', 'list() labels the pad in your hands');
+    ok(glyph('south', 'ps').indexOf('<svg') === 0, 'glyph() returns SVG');
+    /* what a screen reader announces has to match what the chip shows */
+    ok(glyph('select', 'ps').indexOf('aria-label="Create"') !== -1,
+       'glyph() announces the visible name');
+    /* with the CC0 pack loaded the controls are pictures (D80); the guide
+       button wears OUR generic home glyph (D279, padcaps.js OURS: a house
+       on PlayStation, a ring with a straight cross on Xbox, never the
+       vendors' marks), and the touchpad has its picture on every family */
+    if (window.ZSPAD) {
+      ok(glyph('l1', 'ps').indexOf('class="padcap') !== -1, 'glyph(l1) draws the pack art');
+      ok(glyph('rt+', 'xb').indexOf('pc-rt') !== -1, 'glyph(rt+) folds onto the trigger drawing');
+      ok(glyph('BTN_TL2', 'ps').indexOf('pc-lt') !== -1, 'glyph(BTN_TL2) reaches the pack through the alias table');
+      ok(glyph('select', 'ps').indexOf('aria-hidden') === -1, 'the picture is not hidden from a screen reader');
+      ok(glyph('touchpad', 'ps').indexOf('pc-touchpad') !== -1, 'glyph(touchpad) draws the touchpad');
+      ok(glyph('touchpad', 'xb').indexOf('pc-touchpad') !== -1,
+         'glyph(touchpad, xb) borrows the DualSense picture instead of a pill');
+      /* no pad plugged in, so the family asked for decides (see guideFam) */
+      var zsHeld = window.ZS;
+      window.ZS = { padFamily: null };
+      var gp = glyph('guide', 'ps'), gx = glyph('guide', 'xb');
+      window.ZS = zsHeld;
+      ok(gp.indexOf('pc-ps pc-guide') !== -1 && gp.indexOf('aria-label="PS"') !== -1,
+         'glyph(guide, ps) draws the generic home glyph, announced as PS');
+      ok(gx.indexOf('pc-xb pc-guide') !== -1 && gx.indexOf('aria-label="Guide"') !== -1,
+         'glyph(guide, xb) draws the generic ring-and-cross glyph, announced as Guide');
+      ok(gp !== gx, 'the PlayStation and Xbox home glyphs differ');
+      ok(gx.indexOf('#') === -1 && gp.indexOf('#') === -1,
+         'the home glyphs carry no brand colour (currentColor only)');
+      ok(glyph('extra1', 'xb').indexOf('pc-extra1') !== -1, "glyph(extra1, xb) draws the Xbox Share button");
+      ok(glyph('BTN_LEFT', 'ps').indexOf('padcap') === -1, 'a mouse button never wears pad art');
+    }
+    /* extra1 is the Series pad's Share on Xbox, "Extra 1" elsewhere */
+    eq(label('extra1', 'xb'), 'Share', "label('extra1','xb')");
+    eq(label('extra1', 'ps'), 'Extra 1', "label('extra1','ps')");
+    eq(outLabel('extra1', 'xbox'), 'Share', "outLabel('extra1','xbox')");
+    ok(chip('south', 'ps').indexOf('Cross') !== -1, 'chip() carries the label');
+    ok(esc('<b>&"') === '&lt;b&gt;&amp;&quot;', 'esc() escapes');
+    var un = onFamilyChange(function () {});
+    ok(typeof un === 'function', 'onFamilyChange() returns an unsubscribe');
+    un();  /* leave no watchdog timer behind — the self-check must not linger */
+
+    /* the fallback chain: pad → config console (strict) → last-seen → Xbox */
+    var savedZS = window.ZS;
+    window.ZS = { padFamily: null, lastPadFamily: null };
+    eq(currentFamily(), 'xb', 'family(): nothing known ends at Xbox');
+    window.ZS.lastPadFamily = 'ps';
+    eq(currentFamily(), 'ps', 'family(): last-seen pad beats the Xbox default');
+    window.ZS.padFamily = 'nin';
+    eq(currentFamily(), 'nin', 'family(): the connected pad beats everything');
+    /* D279: the home button follows the CONNECTED pad even on the output
+       side; with none connected it follows the family asked for (the
+       config's console) — and no other button moves with it */
+    window.ZS.padFamily = 'ps';
+    eq(outLabel('guide', 'xbox'), 'PS', "outLabel('guide','xbox') with a DualSense in hand");
+    eq(outLabel('south', 'xbox'), 'A', "outLabel('south','xbox') still follows the console");
+    eq(padDetected(), 'ps', 'padDetected() reads the connected pad');
+    window.ZS.padFamily = 'xb';
+    eq(outLabel('guide', 'ps5'), 'Guide', "outLabel('guide','ps5') with an Xbox pad in hand");
+    window.ZS.padFamily = null;
+    eq(outLabel('guide', 'ps5'), 'PS', "outLabel('guide','ps5') with no pad: the console");
+    eq(outLabel('guide', 'xbox'), 'Guide', "outLabel('guide','xbox') with no pad: the console");
+    eq(padDetected(), '', 'padDetected() never guesses');
+    window.ZS = savedZS;
+    eq(strictFamily('pc'), '', "strictFamily('pc') refuses to guess");
+    eq(strictFamily('ps5'), 'ps', "strictFamily('ps5')");
+    eq(strictFamily('xbox'), 'xb', "strictFamily('xbox')");
+    eq(normFamily('pc'), 'xb', "normFamily('pc') stays Xbox for the output side");
+
+    window.ZSG_SELFTEST_RESULT = { pass: fails.length === 0, failures: fails };
+    if (window.console) {
+      if (fails.length) console.error('ZSG self-check FAILED:\n  ' + fails.join('\n  '));
+      else console.log('ZSG self-check passed (' + ORDER.length + ' controls, 3 families)');
+    }
+  }
+})();

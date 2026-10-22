@@ -1,0 +1,331 @@
+/* sections/14-manual-cal.js — manual velocity calibration on a Core (D181).
+ *
+ * openCoreVcal: the hand-driven sweep (/calibration/start|stop|status) and
+ * zs-vcal.js's assembly of the sweeps into a model. Reached only through
+ * ZS.openCoreVcal since D178 took its button off the Translation tab.
+ * Firmware: main/zs_run_vcal.c, components/zs_vcal.
+ *
+ * Also offers on ZS:          ZS.openCoreVcal
+ * Core / board routes:        /calibrate/status, /calibration/start, /calibration/status,
+ *                             /calibration/stop
+ * Tests:                      test-translation-tab.js (D218: parked, no Measure keys); the firmware
+ *                             half is host suite vcal
+ *
+ * D218: in GPC mode and in EXO Studio's mode the Core refuses every sweep
+ * (409 "Switch to normal mode to calibrate."), so the sheet says that and
+ * draws no Measure key (SEC.calParked, 13-calibrate.js).
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('manual-cal', function (SEC) {
+  /* from the files before this one */
+  var armConfirm = SEC.armConfirm, btn = SEC.btn, card = SEC.card, esc = SEC.esc,
+      note = SEC.note, sh = SEC.sh, ZS = SEC.ZS, CAL_RUNS = SEC.CAL_RUNS,
+      calIcon = SEC.calIcon, calParked = SEC.calParked, calParkedHTML = SEC.calParkedHTML;
+
+  /* ══ MANUAL CALIBRATION on a Core (D181) ═════════════════════════════
+     XIM's Reticle Velocity Calibration, by hand, under the automatic
+     Calibrate card. The A7S sheet above (openCal) was the bones: the same
+     four sweeps (CAL_RUNS), the same icons, the same "line up, pull your fire
+     trigger, turn, pull again" and the same refusals, now answered by the
+     Core's /calibration/... (firmware components/zs_vcal). What changed for
+     the Core:
+       - the DEAD ZONE is known and shown: the last measured one by default
+         (the config's measured translator, else the latest Calibrate run),
+         editable, and sent with every sweep, so a slow sweep at a locked
+         stick already IS a full-stick number. No reference sweep, no packs.
+       - the result is not mouseTranslation.calibration: it is the SAME
+         translator the automatic Calibrate writes (resolvedAimModel,
+         needsCalibration false), with the one it replaces kept in
+         previousAimModel for D178's Restore.
+     The bookkeeping is zs-vcal.js (pure, Node-tested). */
+  var VC_DRAFT = {};          /* pid -> the sweeps so far, kept across closes */
+  var VC_FORCES = [0, 0.35, 0.45, 0.55, 0.7];
+  function vcDraft(pid){
+    if(!VC_DRAFT[pid]) VC_DRAFT[pid] = { runs: {}, dz: null, dzFrom: '', force: null, turns: 1 };
+    return VC_DRAFT[pid];
+  }
+  function openCoreVcal(p, found){
+    var pid = p.id;
+    var d = vcDraft(pid);
+    var run = null, busy = false, msg = '', msgKind = '', pollIv = null, firstOpen = true;
+    var calResult = null;
+    function mtOf(){ return ((ZS.live.full[pid] || {}).mouseTranslation) || {}; }
+    function online(){ return ZS.live.online !== false && !!ZS.live.full[pid]; }
+    function say(t, k){ msg = t || ''; msgKind = k || ''; }
+    function pct(v){ return Math.round(v * 100); }
+    function zones(){
+      if(!d.dz){
+        var h = ZSVCAL.defaultDeadzone(mtOf(), calResult, 'hip');
+        var a = ZSVCAL.defaultDeadzone(mtOf(), calResult, 'ads');
+        d.dz = { hip: h.dz, ads: a.dz };
+        d.dzFrom = h.from;
+      }
+      if(d.force === null) d.force = ZSVCAL.defaultForce(d.dz.hip);
+      return d.dz;
+    }
+    var FROM = {
+      measured: 'measured by Calibrate for this translator',
+      calibrate: 'from your last Calibrate run',
+      typed: 'the number you set',
+      translator: 'what the translator assumes',
+      none: 'not known yet: set it to your game’s'
+    };
+    function stopPoll(){ if(pollIv){ clearInterval(pollIv); pollIv = null; } }
+    function startPoll(){
+      stopPoll();
+      pollIv = setInterval(function(){
+        if(!run){ stopPoll(); return; }
+        ZS.api('/calibration/status').then(function(j){
+          if(!run || busy) return;
+          var st = (j && j.ok && j.data) || null;
+          var c = st && st.calibrating;
+          if(st && !c && st.calibrationResult){ stopPoll(); collect(); return; }
+          if(st && !c){
+            stopPoll(); run = null;
+            say('The Core is not running that sweep any more. Nothing was stored.', 'warn');
+            draw(); return;
+          }
+          var el = document.getElementById('vc-live');
+          if(!el || !c) return;
+          var line = c.armed ? 'waiting for your fire trigger…'
+            : 'recording · ' + Math.round((c.elapsedMs || 0) / 1000) + ' s';
+          var v = Number(c.degPerSec);
+          if(!c.armed && isFinite(v) && v > 0) line += ' · so far about ' + Math.round(v) + ' °/s';
+          el.textContent = line;
+        });
+      }, 700);
+    }
+    function startRun(r){
+      if(!online()){ ZS.toast('Your Core is offline'); return; }
+      if(busy || run) return;
+      var z = zones();
+      var dz = r.mode === 'ads' ? z.ads : z.hip;
+      var body = ZSVCAL.law(mtOf(), r.mode, dz);
+      body.kind = 'velocity'; body.mode = r.mode; body.axis = r.axis; body.armed = true;
+      body.force = d.force; body.turns = r.axis === 'x' ? d.turns : 1;
+      busy = true;
+      ZS.api('/calibration/start', 'POST', body).then(function(j){
+        busy = false;
+        if(!j || j.ok === false){
+          say('The Core would not start that sweep: '+esc((j && j.error) || 'no answer'), 'warn');
+          draw(); return;
+        }
+        run = { key: r.key, mode: r.mode, axis: r.axis, row: r.row };
+        say('', '');
+        draw();
+      });
+    }
+    function adopt(j, key, row){
+      var data = j && j.data;
+      if(!j || j.ok === false || !data || !(data.degPerS > 0)){
+        say('<b>Nothing was stored.</b> '+esc((j && j.error) || 'The Core did not answer.'), 'warn');
+        draw(); return;
+      }
+      d.runs[key] = data;
+      var cal = ZSVCAL.assemble({ runs: d.runs, dz: zones(), mt: mtOf() }).calibration;
+      say('<b>'+esc(row)+' measured: '+Math.round(cal[key] || data.degPerS)+' °/s</b> at full stick'+
+        (data.stickForce ? ' (swept at a locked '+pct(data.stickForce)+'% stick)' : '')+'.', '');
+      draw();
+    }
+    function collect(){
+      if(!run || busy) return;
+      var key = run.key, row = run.row;
+      busy = true; stopPoll();
+      ZS.api('/calibration/stop', 'POST', {}).then(function(j){
+        busy = false; run = null;
+        adopt(j, key, row);
+      });
+    }
+    function cancelRun(){
+      if(!run) return;
+      stopPoll(); run = null; busy = false;
+      ZS.api('/calibration/stop', 'POST', { cancel: true, discard: true });
+      say('Sweep cancelled. Nothing was changed.', '');
+      draw();
+    }
+    function useIt(){
+      var z = zones();
+      var res = ZSVCAL.assemble({ runs: d.runs, dz: z, mt: mtOf() });
+      var why = ZSVCAL.ready(res.calibration);
+      if(why){ ZS.toast(why); return; }
+      var name = ((found && found.pack && found.pack.name) || 'Your game')+' (measured by hand)';
+      var id = (found && found.pack && found.pack.id) || 'game';
+      ZS.putProfileDebounced(pid, function(f){
+        if(!f.mouseTranslation) f.mouseTranslation = {};
+        var mt = f.mouseTranslation;
+        var rm = ZSVCAL.toModel(res.calibration, z, mt, name, id);
+        /* D178: keep what it replaces, so Restore is one tap */
+        var cur = mt.resolvedAimModel;
+        mt.previousAimModel = (cur && typeof cur === 'object') ? cur : 'standard';
+        mt.resolvedAimModel = rm;
+        if(window.ZSAIMMODEL && ZSAIMMODEL.markChoice) ZSAIMMODEL.markChoice(mt, 'manual calibration');
+      });
+      ZS.toast('Hand-measured translator on');
+      say('<b>Your translator now uses these numbers.</b> The one it replaced is one tap away: '+
+        '<b>Restore previous translator</b> on the Translation screen.', '');
+      draw();
+      setTimeout(function(){ if(ZS.redrawOpenScreen) ZS.redrawOpenScreen(); }, 900);
+    }
+
+    function buttonHTML(r, cal){
+      var v = cal[r.key];
+      return '<button class="btn" id="vc-'+r.key+'"'+(online() ? '' : ' disabled')+
+        ' aria-label="'+esc(r.lab.replace('Calibrate ', 'Measure ')+(v ? ', measured, '+Math.round(v)+' degrees a second' : ', not measured'))+'"'+
+        ' style="position:relative;margin-top:0;padding:12px 8px 11px">'+
+        '<span aria-hidden="true" style="position:absolute;top:6px;right:9px;font-size:14px;'+
+          'line-height:1;color:'+(v ? 'var(--green)' : 'var(--muted)')+'">'+(v ? '✓' : '–')+'</span>'+
+        calIcon(r.axis)+
+        '<span style="display:block;font-size:12.5px;margin-top:3px">'+esc(r.lab.replace('Calibrate ', 'Measure '))+'</span>'+
+        '</button>';
+    }
+    function group(title, mode, cal){
+      return sh(title)+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+        CAL_RUNS.filter(function(r){ return r.mode === mode; }).map(function(r){ return buttonHTML(r, cal); }).join('')+
+        '</div>';
+    }
+    function stp(label, id, val, sub){
+      return '<div class="fld"><div class="flab">'+esc(label)+'<em>'+esc(sub)+'</em></div>'+
+        '<span class="stp"><button data-vc="'+id+'" data-d="-1" aria-label="less">−</button>'+
+        '<b class="sv" id="vc-'+id+'-v" style="font-variant-numeric:tabular-nums">'+esc(val)+'</b>'+
+        '<button data-vc="'+id+'" data-d="1" aria-label="more">+</button></span></div>';
+    }
+    function zoneText(v){ return (Math.round(v * 1000) / 10)+'%'; }
+    function settingsHTML(){
+      var z = zones();
+      return sh('Before you start')+
+        card(stp('Game dead zone', 'dzh', zoneText(z.hip), FROM[d.dzFrom] || '')+
+          stp('Dead zone aiming down sights', 'dza', zoneText(z.ads), 'usually the same as hip fire')+
+          stp('Stick while measuring', 'force', d.force ? pct(d.force)+'%' : 'Yours',
+            d.force ? 'held at exactly this, so a turn is slow and steady' : 'your own stick, as you push it')+
+          stp('Full turns for X', 'turns', String(d.turns), 'more turns, smaller error'));
+    }
+    function stepsHTML(){
+      return card('<div style="padding:2px 0;font-size:12.5px;line-height:1.6;color:var(--muted)">'+
+        '<div><b style="color:var(--text)">1</b> Open a <b style="color:var(--text)">private match</b>, aim assist off.</div>'+
+        '<div style="margin-top:6px"><b style="color:var(--text)">2</b> <b style="color:var(--accent)">For X:</b> put your '+
+          'crosshair on something you will recognise, roughly level. <b style="color:var(--accent)">For Y:</b> look '+
+          'straight down at your feet.</div>'+
+        '<div style="margin-top:6px"><b style="color:var(--text)">3</b> Tap a Measure button, then <b style="color:var(--text)">pull '+
+          'your fire trigger</b> to start and again to finish.</div></div>');
+    }
+    function runningHTML(){
+      var yy = run.axis === 'y';
+      return note('<b>'+esc(run.row)+'</b> is waiting for you. While it records, the other direction is held still, '+
+          'so the whole sweep counts as '+(yy ? 'up and down' : 'left and right')+'.')+
+        card('<div style="padding:14px">'+
+          '<div style="color:var(--accent);font-weight:700;font-size:14.5px">Pull your fire trigger to start, then turn.</div>'+
+          '<div style="margin-top:8px;font-size:12.5px;line-height:1.55;color:var(--muted)">'+
+            (yy ? 'Push <b>up</b> until your crosshair <b>stops</b> at the sky, then pull the trigger again. '+
+                  'Both ends are stops the game makes, so you cannot go too far.'
+                : 'Turn <b>'+(d.turns > 1 ? d.turns+' full turns' : 'one full turn')+'</b> and stop exactly back on your '+
+                  'landmark, then pull the trigger again. Going slowly or pausing is fine: only where you stop matters.')+
+            (d.force ? ' Your stick is held at '+pct(d.force)+'% while you push.' : '')+
+          '</div>'+
+          '<div id="vc-live" aria-live="polite" style="margin-top:10px;font-size:12.5px;color:var(--muted);'+
+            'font-variant-numeric:tabular-nums">waiting for your fire trigger…</div>'+
+        '</div>')+
+        btn('Done', 'primary', 'vc-done')+
+        btn('Cancel', null, 'vc-cancel');
+    }
+    function valuesHTML(res){
+      var rows = CAL_RUNS.map(function(r){
+        var v = res.calibration[r.key];
+        return '<div class="stat"><span>'+esc(r.row)+'</span><b style="font-variant-numeric:tabular-nums">'+
+          (v ? Math.round(v)+' °/s' : 'not measured')+'</b></div>';
+      }).join('');
+      var why = ZSVCAL.ready(res.calibration);
+      return sh('Your numbers')+card(rows)+
+        (res.problems.length ? note(res.problems.map(esc).join('<br><br>'), 'warn', true) : '')+
+        (why ? '<div class="xsub" style="margin:6px 2px">'+esc(why)+'</div>' : '')+
+        '<button class="btn primary" id="vc-use"'+(why ? ' disabled' : '')+'>Use these numbers</button>'+
+        btn('Clear these sweeps', 'ghost', 'vc-clear');
+    }
+    function sheetHTML(){
+      /* D285: the explanation is the "?" */
+      var h = (ZS.helpHTML ? ZS.helpHTML('mc-what', 'Calibrate by hand',
+        'Teaches the translator how fast your game really turns, measured by your own hand. '+
+        'The automatic Calibrate does the same by itself.') : '');
+      if(!online()) h += note('Your Core is offline. The sweeps are measured on the Core.', 'warn', true);
+      if(run) return h + runningHTML();
+      var res = ZSVCAL.assemble({ runs: d.runs, dz: zones(), mt: mtOf() });
+      /* D218: no sweep starts while GPC mode or EXO Studio has the capture */
+      if(calParked && calParked()){
+        /* sweeps taken before still count (Use these numbers needs no capture) */
+        return h + calParkedHTML() + (Object.keys(d.runs || {}).length ? valuesHTML(res) : '');
+      }
+      h += stepsHTML()+ settingsHTML()+
+        group('Hip fire', 'hip', res.calibration)+
+        group('Aiming down sights', 'ads', res.calibration);
+      if(msg) h += note(msg, msgKind, true);
+      return h + valuesHTML(res);
+    }
+    function nudge(id, dir){
+      var z = zones();
+      function step(v){ return Math.max(0, Math.min(0.5, Math.round((v + dir * 0.005) * 1000) / 1000)); }
+      if(id === 'dzh'){ z.hip = step(z.hip); d.dzFrom = 'typed'; }
+      if(id === 'dza'){ z.ads = step(z.ads); }
+      if(id === 'force'){
+        var i = VC_FORCES.indexOf(d.force);
+        if(i < 0){
+          /* a default force between the steps: move to the next one out */
+          i = 0;
+          while(i < VC_FORCES.length && VC_FORCES[i] < d.force) i++;
+          i = dir > 0 ? i : i - 1;
+        } else {
+          i += dir;
+        }
+        d.force = VC_FORCES[Math.max(0, Math.min(VC_FORCES.length - 1, i))];
+      }
+      if(id === 'turns') d.turns = Math.max(1, Math.min(5, d.turns + dir));
+      draw();
+    }
+    function wire(body){
+      CAL_RUNS.forEach(function(r){
+        var b = body.querySelector('#vc-'+r.key);
+        if(b) b.addEventListener('click', function(){ startRun(r); });
+      });
+      body.querySelectorAll('[data-vc]').forEach(function(b){
+        b.addEventListener('click', function(){ nudge(b.getAttribute('data-vc'), Number(b.getAttribute('data-d'))); });
+      });
+      var dn = body.querySelector('#vc-done');
+      if(dn) dn.addEventListener('click', collect);
+      var cn = body.querySelector('#vc-cancel');
+      if(cn) cn.addEventListener('click', cancelRun);
+      var us = body.querySelector('#vc-use');
+      if(us) us.addEventListener('click', useIt);
+      var cl = body.querySelector('#vc-clear');
+      if(cl) armConfirm(cl, function(){ d.runs = {}; say('Sweeps cleared. Your translator was not changed.', ''); draw(); });
+      if(run) startPoll();
+    }
+    function onClose(){
+      stopPoll();
+      /* closing the sheet mid-sweep must never leave the stick held */
+      if(run){ run = null; ZS.api('/calibration/stop', 'POST', { cancel: true, discard: true }); }
+    }
+    function draw(){
+      var body = ZS.sheetOpen('Manual calibration', sheetHTML(), firstOpen ? onClose : null);
+      firstOpen = false;
+      wire(body);
+    }
+    /* the latest auto-Calibrate result is the second place the zone comes
+       from: ask once, then draw (and draw anyway if it does not answer) */
+    if(d.dz){ draw(); return; }
+    var drawn = false;
+    function first(){ if(!drawn){ drawn = true; draw(); } }
+    ZS.api('/calibrate/status').then(function(j){
+      var data = j && j.ok && j.data;
+      var r = data && data.result;
+      if(r && typeof r === 'object' && data.valid !== false && r.valid !== false) calResult = r;
+      first();
+    }, first);
+    setTimeout(first, 1500);
+  }
+  ZS.openCoreVcal = openCoreVcal;
+
+  /* what the other screen files use from this one */
+  SEC.openCoreVcal = openCoreVcal;
+});

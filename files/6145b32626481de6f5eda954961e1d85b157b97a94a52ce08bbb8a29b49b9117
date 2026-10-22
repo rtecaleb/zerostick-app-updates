@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "made": "2026-10-10T09:53:22",
+  "signing_key": {
+    "name": "dse-dev",
+    "key_id": "59beec1102979b4c",
+    "production": false
+  },
+  "images": [
+    {
+      "product": "dongle",
+      "file": "zs_dongle_ota.signed.bin",
+      "version": "0.9.0",
+      "chip": "CH592F",
+      "chip_id": "0x92",
+      "size": 206184,
+      "sha256": "de820217041e01128b723eaa9e41bef255ff1b7180ee02f03cfb528623399760",
+      "crc32": "2d7cd4d4",
+      "phone_ops": "0x30-0x34",
+      "notes": "First Bluetooth dongle firmware: controller calibration from the phone app, Script Edition scripts and stick-flex link, signed updates."
+    },
+    {
+      "product": "flex",
+      "file": "zs_flex_ota.signed.bin",
+      "version": "1.0.0",
+      "chip": "CH592D",
+      "chip_id": "0x92",
+      "size": 162068,
+      "sha256": "bf73a8e42326a6c4625fdd8e16ad12d8c72582b31d29db4d65b99e9463c9cdef",
+      "crc32": "58c6905e",
+      "phone_ops": "0x38-0x3C",
+      "notes": "First stick-flex firmware: recoil and aim patterns, self-calibration, signed updates through the dongle."
+    }
+  ]
+}

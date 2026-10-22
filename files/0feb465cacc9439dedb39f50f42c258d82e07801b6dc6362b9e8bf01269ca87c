@@ -1,0 +1,345 @@
+/* zs-frame.js — the adapter's message framing, shared by every transport
+ * (window.ZSFRAME).
+ *
+ * ES5 ONLY, same discipline as the other modules here: Promises are used
+ * (library, not syntax) but there is no arrow function, template literal or
+ * let/const anywhere in this file.
+ *
+ * ── Why this file exists ─────────────────────────────────────────────────────
+ *
+ * The app speaks ONE request/response protocol to an adapter: a message id,
+ * FIRST/LAST/GZIP/ERROR flags, and a JSON body. It was written for Bluetooth
+ * (zs-ble.js) and then the Core's USB link (zs-serial.js, D104) turned out to
+ * carry EXACTLY the same frames, one per text line. Two transports with a
+ * private copy each of the chunking and the reassembly would drift the day
+ * somebody fixed a bug in one of them, and a framing mismatch produces
+ * garbage that looks like a hardware fault. So the frame logic lives here,
+ * once, and both transports call it. Neither transport may define its own.
+ *
+ * This is the browser half of a contract with three other files that must
+ * agree byte for byte:
+ *     board/agent/zs_agent/ble/protocol.py                           (the A7S)
+ *     firmware/lite-p4/components/ble_link/include/ble_link_frame.h  (the Core)
+ *     docs/CORE-USB-LINK.md                                          (the wire)
+ *
+ * ── The frame ────────────────────────────────────────────────────────────────
+ *
+ *     byte 0   message id   1..255. 0 is reserved for unsolicited pushes.
+ *     byte 1   flags        FIRST 0x01, LAST 0x02, GZIP 0x04, ERROR 0x08
+ *     byte 2+  payload      a slice of the (optionally gzipped) message body
+ *
+ * A message that fits in one chunk carries FIRST|LAST. The GZIP and ERROR
+ * flags are read from the FIRST frame, because only the opening frame is
+ * guaranteed to have been produced with the whole payload in hand.
+ */
+(function () {
+  'use strict';
+
+  /* Must match protocol.py and ble_link_frame.h. */
+  var HEADER = 2;
+  var FLAG_FIRST = 0x01;
+  var FLAG_LAST = 0x02;
+  var FLAG_GZIP = 0x04;
+  var FLAG_ERROR = 0x08;
+  /* 20-byte ATT payload minus our 2-byte header: the only chunk that is safe
+     on a Bluetooth link before the MTU is negotiated. protocol.py calls it
+     SAFE_CHUNK. */
+  var SAFE_CHUNK = 18;
+  /* 247 - 3 - HEADER: the payload once a BLE 4.2 link is up, and the size the
+     Core's ble_link_frame.c is built around. The USB link keeps it as a
+     convention so that one C file serves both links (CORE-USB-LINK.md). */
+  var DEFAULT_CHUNK = 242;
+  var PROTOCOL_VERSION = 1;
+
+  /* ── chunking ──────────────────────────────────────────────────────────── */
+
+  function encodeFrames(msgId, payloadBytes, chunk) {
+    var frames = [];
+    var total = payloadBytes.length;
+    var pos = 0;
+    /* The client never gzips: compressing in JS would cost more than it saves
+       on the small requests a UI makes, and CompressionStream is not
+       everywhere. The ADAPTER gzips its answers, which is where the volume is. */
+    while (true) {
+      var end = Math.min(pos + chunk, total);
+      var flags = 0;
+      if (pos === 0) { flags |= FLAG_FIRST; }
+      if (end >= total) { flags |= FLAG_LAST; }
+      var buf = new Uint8Array(HEADER + (end - pos));
+      buf[0] = msgId;
+      buf[1] = flags;
+      buf.set(payloadBytes.subarray(pos, end), HEADER);
+      frames.push(buf);
+      pos = end;
+      if (flags & FLAG_LAST) { break; }
+    }
+    return frames;
+  }
+
+  function concat(chunks, size) {
+    var out = new Uint8Array(size);
+    var at = 0;
+    for (var i = 0; i < chunks.length; i++) {
+      out.set(chunks[i], at);
+      at += chunks[i].length;
+    }
+    return out;
+  }
+
+  /* gzip, via the platform. DecompressionStream ships in every browser that
+     has Web Bluetooth or Web Serial, but it is still feature-detected: an
+     unsupported browser must produce a clear message, not a mystery parse
+     failure. */
+  function gunzip(bytes) {
+    if (typeof DecompressionStream === 'undefined') {
+      return Promise.reject(new Error(
+        'This browser cannot decompress the adapter\'s reply.'));
+    }
+    var ds = new DecompressionStream('gzip');
+    var stream = new Response(bytes).body.pipeThrough(ds);
+    return new Response(stream).arrayBuffer().then(function (ab) {
+      return new Uint8Array(ab);
+    });
+  }
+
+  /* ── reassembly ────────────────────────────────────────────────────────── */
+
+  /* One per link. feed() takes one frame's bytes and returns null until a
+     message is complete, then {id, flags, bytes} where `flags` are the FIRST
+     frame's (see the header comment for why). Never throws on bad input: a
+     frame from the other end is untrusted, and the right answer to nonsense
+     is to drop it and carry on, not to kill the link.
+
+       - a FIRST for an id already in flight replaces the old half (the peer
+         gave up on it: reconnect, reload, crash), newest intent wins;
+       - a continuation with no beginning is dropped (we joined mid-stream). */
+  function Reassembler() {
+    this.partial = {};
+  }
+  Reassembler.prototype.feed = function (bytes) {
+    if (!bytes || bytes.length < HEADER) { return null; }
+    var id = bytes[0];
+    var flags = bytes[1];
+    var body = bytes.subarray(HEADER);
+    if (flags & FLAG_FIRST) {
+      this.partial[id] = { chunks: [], size: 0, flags: flags };
+    }
+    var part = this.partial[id];
+    if (!part) { return null; }
+    part.chunks.push(body);
+    part.size += body.length;
+    if (!(flags & FLAG_LAST)) { return null; }
+    delete this.partial[id];
+    return { id: id, flags: part.flags, bytes: concat(part.chunks, part.size) };
+  };
+  /* Forget everything in flight. Called when a link drops, so the next
+     session cannot inherit half of a message from the last one. */
+  Reassembler.prototype.reset = function () {
+    this.partial = {};
+  };
+  /* The ids of the messages that are half in (for a caller that just lost a
+     line: those messages can no longer complete correctly). */
+  Reassembler.prototype.openIds = function () {
+    var out = [];
+    for (var k in this.partial) {
+      if (Object.prototype.hasOwnProperty.call(this.partial, k)) { out.push(Number(k)); }
+    }
+    return out;
+  };
+
+  /* ── the requests in flight (one table per link) ──────────────────────────
+     Shared by zs-ble.js and zs-serial.js since the 2026-10-10 overhaul (M24):
+     both used to hand out ids by counting 1..255 and wrapping, with no check
+     that the id was free, and both timers did an unconditional
+     `delete pending[id]`. With a poll backlog (an unanswered link queues
+     hundreds of polls) an id came round again while its first request was
+     still waiting, so a late answer resolved an unrelated request (a poll's
+     body handed to a config read), and the OLD request's timer then deleted
+     the NEW request's entry.
+
+       - open() hands out the next id that is neither in flight nor
+         QUARANTINED. An id whose request timed out is quarantined for
+         QUARANTINE_MS, because its answer may still be on the way and must
+         land on nothing rather than on whoever reuses the id. When every id
+         is busy, open() returns null and the caller refuses ("link busy")
+         instead of overwriting a live entry.
+       - every exit (answer, timeout, cancel, link loss) removes the entry
+         ONLY if it is still the same entry. */
+  var QUARANTINE_MS = 60000;
+  function PendingTable() {
+    this.next = 1;
+    this.live = {};     /* id -> entry */
+    this.late = {};     /* id -> when it timed out */
+  }
+  PendingTable.prototype.open = function (timeoutMs) {
+    var now = Date.now();
+    var id = 0, pass, n, c;
+    /* first pass respects the quarantine; the second only refuses a live id,
+       so a link that timed out 255 times in a minute still works */
+    for (pass = 0; pass < 2 && !id; pass++) {
+      c = this.next;
+      for (n = 0; n < 255; n++) {
+        if (!this.live[c] && (pass === 1 || !this.late[c] || now - this.late[c] >= QUARANTINE_MS)) {
+          id = c;
+          break;
+        }
+        c = (c >= 255) ? 1 : c + 1;            /* 0 is telemetry's */
+      }
+    }
+    if (!id) { return null; }
+    this.next = (id >= 255) ? 1 : id + 1;
+    delete this.late[id];
+    var self = this;
+    var entry = { id: id };
+    entry.promise = new Promise(function (resolve, reject) {
+      entry.resolve = resolve;
+      entry.reject = reject;
+    });
+    entry.timer = setTimeout(function () {
+      if (self.live[id] !== entry) { return; }
+      delete self.live[id];
+      self.late[id] = Date.now();
+      entry.reject(new Error('the adapter did not answer in time'));
+    }, timeoutMs);
+    this.live[id] = entry;
+    return entry;
+  };
+  /* An answer arrived for `id`: the entry it belongs to, removed from the
+     table, or null (timed out already, or a duplicate). */
+  PendingTable.prototype.take = function (id) {
+    var e = this.live[id];
+    if (!e) { delete this.late[id]; return null; }
+    delete this.live[id];
+    clearTimeout(e.timer);
+    return e;
+  };
+  /* Give up on one request (a write failed, the caller aborted, its reply
+     was lost). Quarantined like a timeout: its answer may still come. */
+  PendingTable.prototype.cancel = function (entry, err) {
+    if (!entry || this.live[entry.id] !== entry) { return false; }
+    delete this.live[entry.id];
+    clearTimeout(entry.timer);
+    this.late[entry.id] = Date.now();
+    entry.reject(err);
+    return true;
+  };
+  /* The link is gone: fail everything, forget the quarantine (a new session
+     cannot receive the old one's answers). */
+  PendingTable.prototype.failAll = function (why) {
+    var live = this.live;
+    this.live = {};
+    this.late = {};
+    for (var k in live) {
+      if (Object.prototype.hasOwnProperty.call(live, k)) {
+        clearTimeout(live[k].timer);
+        live[k].reject(new Error(why));
+      }
+    }
+  };
+  PendingTable.prototype.count = function () {
+    var n = 0;
+    for (var k in this.live) {
+      if (Object.prototype.hasOwnProperty.call(this.live, k)) { n++; }
+    }
+    return n;
+  };
+
+  /* A completed message → Promise of {id, obj, error, text}. `obj` is null
+     when the body was not JSON; `text` is kept so the caller can show what
+     actually arrived. Rejects only when a gzipped body will not inflate. */
+  function decodeMessage(msg) {
+    var isErr = !!(msg.flags & FLAG_ERROR);
+    var after = (msg.flags & FLAG_GZIP) ? gunzip(msg.bytes)
+      : Promise.resolve(msg.bytes);
+    return after.then(function (plain) {
+      var text = new TextDecoder('utf-8').decode(plain);
+      var obj = null;
+      try { obj = JSON.parse(text); } catch (e) { obj = null; }
+      return { id: msg.id, obj: obj, error: isErr, text: text };
+    });
+  }
+
+  window.ZSFRAME = {
+    HEADER: HEADER,
+    FLAG_FIRST: FLAG_FIRST,
+    FLAG_LAST: FLAG_LAST,
+    FLAG_GZIP: FLAG_GZIP,
+    FLAG_ERROR: FLAG_ERROR,
+    SAFE_CHUNK: SAFE_CHUNK,
+    DEFAULT_CHUNK: DEFAULT_CHUNK,
+    PROTOCOL_VERSION: PROTOCOL_VERSION,
+    encodeFrames: encodeFrames,
+    concat: concat,
+    gunzip: gunzip,
+    Reassembler: Reassembler,
+    PendingTable: PendingTable,
+    QUARANTINE_MS: QUARANTINE_MS,
+    decodeMessage: decodeMessage
+  };
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     The framing has to agree with protocol.py and ble_link_frame.h byte for
+     byte. These assert the half that lives in the browser; test_ble_protocol.py
+     and the firmware's host tests assert the other two. */
+  if (typeof window !== 'undefined') {
+    (function () {
+      /* The self-test runs at LOAD, and the dashboard's test harness loads
+         every script phone.html loads into a bare Node VM, which has no
+         TextEncoder. The honest result there is "not tested here", not a
+         load crash that fails an unrelated suite (same rule as zs-ble.js). */
+      if (typeof TextEncoder === 'undefined') {
+        window.ZSFRAME_SELFTEST_RESULT = {
+          pass: true, failures: [],
+          skipped: 'no TextEncoder in this environment (test harness)'
+        };
+        return;
+      }
+      var fail = [];
+      function ck(c, m) { if (!c) { fail.push(m); } }
+
+      var payload = new TextEncoder().encode('{"m":"GET","p":"/status"}');
+      var one = encodeFrames(7, payload, DEFAULT_CHUNK);
+      ck(one.length === 1, 'a short request should be one frame');
+      ck(one[0][0] === 7, 'the message id must be byte 0');
+      ck((one[0][1] & FLAG_FIRST) && (one[0][1] & FLAG_LAST),
+        'a single frame must carry FIRST and LAST');
+
+      var many = encodeFrames(9, new Uint8Array(1000), SAFE_CHUNK);
+      ck(many.length === Math.ceil(1000 / SAFE_CHUNK),
+        'wrong frame count at the worst-case MTU');
+      ck((many[0][1] & FLAG_FIRST) && !(many[0][1] & FLAG_LAST),
+        'only the first frame carries FIRST');
+      ck((many[many.length - 1][1] & FLAG_LAST),
+        'the last frame must carry LAST');
+
+      /* An empty body must still produce one frame, or the adapter waits for
+         a LAST that never comes. Same invariant as the Python side. */
+      ck(encodeFrames(1, new Uint8Array(0), 20).length === 1,
+        'an empty payload must still produce exactly one frame');
+
+      /* Reassembly is the inverse of chunking, whatever the chunk size. */
+      var r = new Reassembler();
+      var got = null;
+      for (var i = 0; i < many.length; i++) {
+        var m = r.feed(many[i]);
+        ck(i === many.length - 1 ? !!m : m === null,
+          'the message must complete on the LAST frame and not before');
+        if (m) { got = m; }
+      }
+      ck(got && got.id === 9 && got.bytes.length === 1000,
+        'a chunked message must come back whole under its own id');
+      ck(r.feed(new Uint8Array([9, FLAG_LAST, 1])) === null,
+        'a continuation with no beginning must be dropped');
+      ck(r.feed(new Uint8Array([9])) === null,
+        'a frame shorter than the header must be dropped');
+
+      ck(FLAG_FIRST === 1 && FLAG_LAST === 2 && FLAG_GZIP === 4 &&
+        FLAG_ERROR === 8, 'flag values must match protocol.py');
+      ck(HEADER === 2, 'header size must match protocol.py');
+      ck(SAFE_CHUNK === 18, 'SAFE_CHUNK must match protocol.py (20 - HEADER)');
+      ck(DEFAULT_CHUNK === 242, 'DEFAULT_CHUNK must match ble_link_frame.h');
+
+      window.ZSFRAME_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

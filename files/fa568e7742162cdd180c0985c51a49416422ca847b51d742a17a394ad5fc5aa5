@@ -1,0 +1,205 @@
+/* sections/00-glyph-svg.js — buttons, keycaps and the logo, drawn as inline SVG.
+ *
+ * glyphSVG(key) draws a controller button or a mouse part ("ps-cross", "xb-a",
+ * "l2", "dp-up", "m-left", "rs-up"...), keycapSVG(label) and keycapWideSVG(label)
+ * a keyboard key, zsLogoSVG() the ZeroStick mark. They prefer the Kenney CC0
+ * drawings in padcaps.js / keycaps.js (D80) and draw their own only where that
+ * pack has nothing (the guide button, the mouse).
+ *
+ * GLOBAL FUNCTIONS, unlike every other file in sections/: glyphs.js,
+ * smart-actions.js and phone.html call them by name, exactly as when they sat at
+ * the top of phone-sections.js (split 2026-10-02; phone-sections.js is now the
+ * loader and explains the rest of this folder).
+ * Tests: test-icons3d.js, test-settings-icons.js, test-render.js.
+ */
+/* ZeroStick phone-app preview — section renderers.
+   Each renderer returns HTML or {html, after(root,p)}. Controls use the kit in
+   phone.html; ZS.wire(root, ns) attaches behaviour + localStorage persistence.
+   Visual prototype — device wiring comes later; anything mocked says so. */
+
+/* ═══ controller button glyphs (inline SVG, authentic colours) ═══ */
+function glyphSVG(key) {
+  'use strict';
+  var k = String(key === undefined || key === null ? '' : key).toLowerCase();
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var NAMES = { 'ps-cross':'Cross button','ps-circle':'Circle button','ps-square':'Square button','ps-triangle':'Triangle button',
+    'xb-a':'A button','xb-b':'B button','xb-x':'X button','xb-y':'Y button',
+    'l3':'L3 stick click','r3':'R3 stick click','dp-up':'D-pad up','dp-down':'D-pad down','dp-left':'D-pad left','dp-right':'D-pad right',
+    'ps-options':'Options button','ps-share':'Share button','xb-menu':'Menu button','xb-view':'View button',
+    'm-left':'left mouse button','m-right':'right mouse button','m-mid':'middle mouse button',
+    'ls-up':'left stick up','ls-down':'left stick down','ls-left':'left stick left','ls-right':'left stick right',
+    'rs-up':'right stick up','rs-down':'right stick down','rs-left':'right stick left','rs-right':'right stick right',
+    'm-move':'aim with mouse' };
+  /* The real drawing first (padcaps.js — Kenney's CC0 pack, D80). An art key
+     maps back to the board's code; a 'ps-'/'xb-' prefix names the family,
+     an unprefixed key is that control on the pad in your HANDS (ZSG's
+     chain: connected pad → the config's console → last seen → Xbox). The
+     guide button is not an art key here: it is drawn by ZSG.glyph('guide'),
+     which reaches padcaps.js's own generic home glyphs (D279; the PS logo,
+     the Xbox sphere and the Nintendo home mark are trademarks and never
+     drawn). The mouse keys are not the pack's business, so those fall
+     through to the drawings below unchanged.
+     Width and height ride as attributes, like the pill's 22, so every size
+     rule written for a glyph keeps working. */
+  var PADKEY = { 'ps-cross':'south', 'ps-circle':'east', 'ps-square':'west', 'ps-triangle':'north',
+    'xb-a':'south', 'xb-b':'east', 'xb-x':'west', 'xb-y':'north',
+    'ps-options':'start', 'ps-share':'select', 'xb-menu':'start', 'xb-view':'select',
+    'l1':'l1', 'r1':'r1', 'lb':'l1', 'rb':'r1', 'l2':'lt', 'r2':'rt', 'lt':'lt', 'rt':'rt',
+    'l3':'l3', 'r3':'r3', 'touchpad':'touchpad',
+    'dp-up':'dpad_up', 'dp-down':'dpad_down', 'dp-left':'dpad_left', 'dp-right':'dpad_right',
+    'ls-up':'ly+', 'ls-down':'ly-', 'ls-left':'lx-', 'ls-right':'lx+',
+    'rs-up':'ry+', 'rs-down':'ry-', 'rs-left':'rx-', 'rs-right':'rx+' };
+  var P = window.ZSPAD;
+  if (P && typeof P.svg === 'function' && Object.prototype.hasOwnProperty.call(PADKEY, k)) {
+    var pfam = k.indexOf('ps-') === 0 ? 'ps' : (k.indexOf('xb-') === 0 ? 'xb' : '');
+    if (!pfam) {
+      if (window.ZSG && typeof ZSG.family === 'function') pfam = ZSG.family();
+      else if (window.ZS && typeof ZS.padFam === 'function') pfam = ZS.padFam();
+      else pfam = 'xb';
+    }
+    var pcode = PADKEY[k];
+    var pextra = ' width="24" height="24" role="img" aria-label="' +
+      esc(NAMES[k] || k.toUpperCase() + ' button') + '"';
+    var part = P.svg(pcode, pfam, pextra);
+    /* a touchpad is a DualSense control whichever pad is in hand */
+    if (!part && pcode === 'touchpad') part = P.svg(pcode, 'ps', pextra);
+    /* the pack marks its art decorative; here it IS the control's picture */
+    if (part) return part.replace(' aria-hidden="true"', '');
+  }
+  var HEAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" role="img" aria-label="' + esc(NAMES[k] || (k?k.toUpperCase()+' button':'button')) + '">';
+  var TAIL = '</svg>';
+  var FONT = 'Arial,Helvetica,sans-serif';
+  var BASE = '<circle cx="12" cy="12" r="10" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>';
+  function txt(s, y, size, color, spacing) {
+    return '<text x="12" y="' + y + '" text-anchor="middle" font-family="' + FONT + '" font-size="' + size + '" font-weight="700" fill="' + color + '"' + (spacing ? ' letter-spacing="' + spacing + '"' : '') + '>' + esc(s) + '</text>';
+  }
+  function pill(label) {
+    var n = label.length;
+    var fs = n <= 2 ? 8.5 : (n <= 4 ? 6.5 : 5.2);
+    var y = Math.round((12 + fs * 0.36) * 10) / 10;
+    return HEAD
+      + '<rect x="1.8" y="6.5" width="20.4" height="11" rx="5.5" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>'
+      + txt(label, y, fs, '#e6edf3', n <= 2 ? 0.5 : 0) + TAIL;
+  }
+  if (k === 'ps-cross')    return HEAD + BASE + '<path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5" fill="none" stroke="#7DA9D8" stroke-width="2" stroke-linecap="round"/>' + TAIL;
+  if (k === 'ps-circle')   return HEAD + BASE + '<circle cx="12" cy="12" r="4.6" fill="none" stroke="#E06C75" stroke-width="2"/>' + TAIL;
+  if (k === 'ps-square')   return HEAD + BASE + '<rect x="8" y="8" width="8" height="8" rx="1.2" fill="none" stroke="#D66BA0" stroke-width="2" stroke-linejoin="round"/>' + TAIL;
+  if (k === 'ps-triangle') return HEAD + BASE + '<path d="M12 7.4 L16.4 15.2 L7.6 15.2 Z" fill="none" stroke="#4EC9A8" stroke-width="2" stroke-linejoin="round"/>' + TAIL;
+  if (k === 'xb-a' || k === 'xb-b' || k === 'xb-x' || k === 'xb-y') {
+    var lc = { a:'#6DBF44', b:'#D65454', x:'#4C8DE0', y:'#E8C13C' };
+    var ch = k.charAt(3);
+    return HEAD + BASE + txt(ch.toUpperCase(), 15.9, 11, lc[ch]) + TAIL;
+  }
+  if (' l1 r1 l2 r2 lb rb lt rt '.indexOf(' ' + k + ' ') !== -1) return pill(k.toUpperCase());
+  if (k === 'l3' || k === 'r3')
+    return HEAD + BASE + '<circle cx="12" cy="12" r="6.6" fill="none" stroke="#4f5d6e" stroke-width="1.6"/>' + txt(k.toUpperCase(), 14.5, 7, '#e6edf3') + TAIL;
+  if (k === 'dp-up' || k === 'dp-down' || k === 'dp-left' || k === 'dp-right') {
+    var plus = '<path d="M8.6 3.6 H15.4 V8.6 H20.4 V15.4 H15.4 V20.4 H8.6 V15.4 H3.6 V8.6 H8.6 Z" fill="#1a212b" stroke="#2b3442" stroke-width="1.6" stroke-linejoin="round"/>';
+    var hl = '';
+    if (k === 'dp-up')    hl = '<rect x="9.8" y="4.8" width="4.4" height="6.2" rx="1.4" fill="#58a6ff"/>';
+    if (k === 'dp-down')  hl = '<rect x="9.8" y="13" width="4.4" height="6.2" rx="1.4" fill="#58a6ff"/>';
+    if (k === 'dp-left')  hl = '<rect x="4.8" y="9.8" width="6.2" height="4.4" rx="1.4" fill="#58a6ff"/>';
+    if (k === 'dp-right') hl = '<rect x="13" y="9.8" width="6.2" height="4.4" rx="1.4" fill="#58a6ff"/>';
+    return HEAD + plus + hl + TAIL;
+  }
+  if (k === 'ps-options' || k === 'xb-menu')
+    return HEAD + BASE + '<path d="M8.6 9.2 H15.4 M8.6 12 H15.4 M8.6 14.8 H15.4" fill="none" stroke="#e6edf3" stroke-width="1.7" stroke-linecap="round"/>' + TAIL;
+  if (k === 'ps-share')
+    return HEAD + BASE + '<path d="M12 16.4 V8.2 M8.9 10.9 L12 7.8 L15.1 10.9" fill="none" stroke="#e6edf3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' + TAIL;
+  if (k === 'xb-view')
+    return HEAD + BASE + '<rect x="7" y="7" width="7" height="7" rx="1.6" fill="none" stroke="#e6edf3" stroke-width="1.6"/><rect x="10" y="10" width="7" height="7" rx="1.6" fill="#1a212b" stroke="#e6edf3" stroke-width="1.6"/>' + TAIL;
+  if (k === 'm-left' || k === 'm-right' || k === 'm-mid') {
+    var body = '<rect x="7" y="3.6" width="10" height="16.8" rx="5" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>';
+    var zone = '';
+    if (k === 'm-left')  zone = '<path d="M12 3.6 A5 5 0 0 0 7 8.6 V11 H12 Z" fill="#58a6ff"/>';
+    if (k === 'm-right') zone = '<path d="M12 3.6 A5 5 0 0 1 17 8.6 V11 H12 Z" fill="#58a6ff"/>';
+    var seams = '<path d="M12 3.6 V11 M7 11 H17" fill="none" stroke="#2b3442" stroke-width="1.6"/>';
+    var wheel = (k === 'm-mid')
+      ? '<rect x="10.8" y="5.6" width="2.4" height="5" rx="1.2" fill="#58a6ff"/>'
+      : '<rect x="10.9" y="5.8" width="2.2" height="4.6" rx="1.1" fill="#12171e"/>';
+    return HEAD + body + zone + seams + wheel + TAIL;
+  }
+  /* analog stick seen from above: ls-up/down/left/right, rs-up/down/left/right */
+  if (' ls-up ls-down ls-left ls-right rs-up rs-down rs-left rs-right '.indexOf(' ' + k + ' ') !== -1) {
+    var sdir = k.substring(3);
+    var sdx = 0, sdy = 0;
+    if (sdir === 'up')    sdy = -3.4;
+    if (sdir === 'down')  sdy = 3.4;
+    if (sdir === 'left')  sdx = -3.4;
+    if (sdir === 'right') sdx = 3.4;
+    var sring = '<circle cx="12" cy="12" r="9" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>';
+    var sknob = '<circle cx="' + (12 + sdx) + '" cy="' + (12 + sdy) + '" r="4.4" fill="#58a6ff"/>';
+    var schev = '';
+    if (sdir === 'up')    schev = '<path d="M9.4 3.9 L12 1.4 L14.6 3.9" fill="none" stroke="#58a6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (sdir === 'down')  schev = '<path d="M9.4 20.1 L12 22.6 L14.6 20.1" fill="none" stroke="#58a6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (sdir === 'left')  schev = '<path d="M3.9 9.4 L1.4 12 L3.9 14.6" fill="none" stroke="#58a6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (sdir === 'right') schev = '<path d="M20.1 9.4 L22.6 12 L20.1 14.6" fill="none" stroke="#58a6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    var sside = '<text x="3.4" y="23" text-anchor="middle" font-family="' + FONT + '" font-size="5" font-weight="700" fill="#e6edf3">' + (k.charAt(0) === 'l' ? 'L' : 'R') + '</text>';
+    return HEAD + sring + sknob + schev + sside + TAIL;
+  }
+  /* m-move: mouse silhouette with motion arrows either side (aim with mouse) */
+  if (k === 'm-move') {
+    var mvbody = '<rect x="7" y="3.6" width="10" height="16.8" rx="5" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>';
+    var mvseams = '<path d="M12 3.6 V11 M7 11 H17" fill="none" stroke="#2b3442" stroke-width="1.6"/>';
+    var mvwheel = '<rect x="10.9" y="5.8" width="2.2" height="4.6" rx="1.1" fill="#12171e"/>';
+    var mvarrows = '<path d="M4.6 8.8 L2.2 12 L4.6 15.2 M19.4 8.8 L21.8 12 L19.4 15.2" fill="none" stroke="#58a6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+    return HEAD + mvbody + mvseams + mvwheel + mvarrows + TAIL;
+  }
+  return pill((k || '?').toUpperCase());
+}
+
+function keycapSVG(label) {
+  'use strict';
+  var t = String(label === undefined || label === null ? '' : label);
+  if (t.length === 0) t = '?';
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var n = t.length;
+  var fs = n <= 2 ? 9 : (n <= 3 ? 7 : (n <= 5 ? 5.5 : 4.5));
+  var y = Math.round((12 + fs * 0.36) * 10) / 10;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" role="img" aria-label="' + esc(t) + ' key">'
+    + '<rect x="2" y="3.2" width="20" height="17.6" rx="4" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>'
+    + '<text x="12" y="' + y + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fs + '" font-weight="700" fill="#e6edf3">' + esc(t) + '</text>'
+    + '</svg>';
+}
+
+function keycapWideSVG(label) {
+  'use strict';
+  var t = String(label === undefined || label === null ? '' : label);
+  if (t.length === 0) t = '?';
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var n = t.length;
+  var fs = n <= 6 ? 7.5 : (n <= 8 ? 6 : 5);
+  var y = Math.round((12 + fs * 0.36) * 10) / 10;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 24" width="36" height="22" role="img" aria-label="' + esc(t) + ' key">'
+    + '<rect x="2" y="3.2" width="36" height="17.6" rx="4" fill="#1a212b" stroke="#2b3442" stroke-width="1.6"/>'
+    + '<text x="20" y="' + y + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fs + '" font-weight="700" fill="#e6edf3">' + esc(t) + '</text>'
+    + '</svg>';
+}
+
+/* ═══ the ZeroStick logo ═══
+   OUR mark, not a console family's — which is why it is a plain function here
+   and deliberately NOT part of window.ZSMARK. ZSMARK answers "which console
+   family is this config?"; this answers "what app am I in?", and mixing the
+   two would put the product's own logo one typo away from appearing on a
+   config row.
+
+   This is what is left of the old consoleArt(). Its family branches are gone:
+   consoleArt('xbox') was a green circle with two crossing curved strokes —
+   an Xbox sphere lookalike in Xbox green — and consoleArt('ps5') was the four
+   PlayStation face symbols in their own colours. Both are somebody else's
+   trade dress on a commercial accessory, and both contradicted the doctrine
+   this codebase already had in controller-art.js:73 ("The text IS the brand
+   mark. Plain names, no stylisation, no logo."). Every family mark now comes
+   from marks.js, where the art is an honest hardware fact instead. */
+function zsLogoSVG() {
+  var ACC = '#58a6ff';
+  var MUT = '#8b98a5';
+  var CAP = ' fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  return '<svg viewBox="0 0 24 24" width="20" height="20" '
+    + 'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    + '<circle cx="12" cy="12" r="8.6" stroke="#e6edf3" stroke-width="1.6"' + CAP + '/>'
+    + '<path d="M9.4 9.8 A3.4 3.4 0 0 1 11.7 8.6" stroke="' + ACC + '" stroke-width="1.5"' + CAP + '/>'
+    + '<circle cx="12" cy="12" r="0.9" fill="' + MUT + '"/>'
+    + '<circle cx="14.4" cy="9.6" r="2.2" fill="' + ACC + '"/></svg>';
+}
+window.zsLogoSVG = zsLogoSVG;

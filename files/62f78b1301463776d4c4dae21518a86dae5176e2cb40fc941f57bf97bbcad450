@@ -1,0 +1,538 @@
+/* ZeroStick EXO — the desktop dashboard.
+   Shares the product palette with the phone app (see zs-brand.css for why the
+   accent is Ion Cyan and not blue), but keeps its own stylesheet: several
+   class names here (.card, .row, .badge) mean different things from the ones
+   in phone.html, so loading the shared sheet would restyle the wrong things.
+
+   --blue stays PlayStation. --accent is the product. They used to be the same
+   value, which is why every active control in this app looked like a link. */
+:root {
+  --bg: #080b11;
+  --panel: #0f151e;
+  --panel-2: #171f2b;
+  --line: #212b39;
+  --text: #e8f0f8;
+  --muted: #8695a8;
+  --green: #3fb950;
+  --amber: #e0a33a;
+  --red: #ff6259;
+  --blue: #58a6ff;
+  --grey: #5a6779;
+  --accent: #6f9bff;
+  --accent-ink: #041a2e;
+  --ion-wash: rgba(111, 155, 255, .13);
+  --ion-glow: rgba(111, 155, 255, .30);
+  --radius: 12px;
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+/* Present to a screen reader, absent to the eye. The brand lockup already
+   shows the product name, so the <h1> would print it twice — but removing the
+   heading entirely leaves the page with no outline to navigate by. */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Glass, with content scrolling under it rather than an opaque strip that
+   eats a fixed band of the window. The hard 1px rule is replaced by a short
+   fade (::after), which is what reads as depth instead of as a table border. */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 22px;
+  background: linear-gradient(180deg, rgba(20, 27, 38, .80), rgba(8, 11, 17, .66));
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+.topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 11, 17, .55), rgba(8, 11, 17, 0));
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topbar { background: var(--panel); backdrop-filter: none;
+            -webkit-backdrop-filter: none; border-bottom: 1px solid var(--line); }
+  .topbar::after { display: none; }
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo { font-size: 26px; color: var(--accent); display: flex; }
+/* The vector mark, filled in by zs-mark.js. Height-led so it sits on the
+   topbar baseline whatever the artwork's aspect ratio. */
+.brand .logo svg { height: 26px; width: auto; display: block; }
+.brand .logo .zs-m { fill: var(--accent); }
+.brand .logo .zs-w { fill: var(--text); }
+.brand h1 { margin: 0; font-size: 18px; letter-spacing: -.016em; }
+.brand .sub { margin: 0; font-size: 12px; color: var(--muted); letter-spacing: .004em; }
+
+.status { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.status .updated { color: var(--grey); }
+.status .auto { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.dot-grey { background: var(--grey); }
+
+button {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  /* Feedback on press, not on release. Transform rather than colour so it
+     survives high-contrast mode, where colour changes get overridden. */
+  transition: transform 90ms var(--ease-settle),
+              border-color 170ms var(--ease-settle),
+              background-color 170ms var(--ease-settle);
+}
+button:hover { border-color: var(--accent); }
+button:active { transform: scale(.972); }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:active { transform: none; opacity: .62; }
+}
+
+.banner {
+  margin: 16px 22px 0;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: rgba(248, 81, 73, .12);
+  border: 1px solid rgba(248, 81, 73, .4);
+  color: #ffb4ae;
+  font-size: 14px;
+}
+.hidden { display: none; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding: 22px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.card h2 {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card .body { padding: 6px 16px 14px; }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(42, 50, 61, .5);
+}
+.row:last-child { border-bottom: none; }
+.row .k { color: var(--muted); }
+.row .v { text-align: right; font-variant-numeric: tabular-nums; }
+.mono { font-family: "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 13px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.b-green { background: rgba(63,185,80,.15); color: #56d364; border-color: rgba(63,185,80,.35); }
+.b-amber { background: rgba(210,153,34,.15); color: #e3b341; border-color: rgba(210,153,34,.35); }
+.b-red   { background: rgba(248,81,73,.15); color: #ff7b72; border-color: rgba(248,81,73,.35); }
+.b-grey  { background: rgba(110,118,129,.15); color: #adbac7; border-color: rgba(110,118,129,.35); }
+.b-blue  { background: rgba(88,166,255,.15); color: #79c0ff; border-color: rgba(88,166,255,.35); }
+
+.hero {
+  padding: 14px 16px 4px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.note { color: var(--muted); font-size: 12.5px; padding: 2px 16px 10px; }
+
+.dev {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42,50,61,.5);
+}
+.dev:last-child { border-bottom: none; }
+.dev .ico { width: 22px; text-align: center; opacity: .9; }
+.dev .name { flex: 1; }
+.dev .hnd { color: var(--grey); font-size: 12px; }
+
+.empty { color: var(--muted); font-style: italic; padding: 10px 0; }
+
+.foot {
+  text-align: center;
+  color: var(--grey);
+  font-size: 12px;
+  padding: 8px 22px 28px;
+}
+
+.card.wide { grid-column: 1 / -1; }
+.slot { padding: 12px 2px; border-bottom: 1px solid rgba(42, 50, 61, .5); }
+.slot:last-of-type { border-bottom: none; }
+.slot-head { display: flex; align-items: center; gap: 10px; }
+.slot-ico { font-size: 20px; width: 26px; text-align: center; }
+.slot-title { font-weight: 600; font-size: 15px; }
+.slot-port { color: var(--muted); font-size: 12px; }
+.slot-head .badge { margin-left: auto; }
+.slot-detail { color: var(--muted); font-size: 13px; padding-left: 36px; margin-top: 4px; }
+
+.pulse { animation: pulse .8s ease; }
+@keyframes pulse { from { background: var(--ion-wash); } to { background: transparent; } }
+
+/* PlayStation account panel (persistent — not part of the auto-refresh grid) */
+#psn-panel { max-width: 1400px; margin: 22px auto 0; padding: 0 22px; }
+#psn-panel:empty { display: none; }
+.psn-steps { padding: 6px 16px 4px; }
+.psn-step { display: flex; gap: 12px; padding: 10px 0; align-items: flex-start; }
+.psn-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--panel-2); border: 1px solid var(--line);
+  color: var(--muted); font-size: 12px; flex: none; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+.psn-hint { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.psn-inline { display: flex; gap: 8px; flex-wrap: wrap; }
+.psn-inline input {
+  flex: 1; min-width: 240px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); padding: 7px 10px; font-size: 13px; font-family: inherit;
+}
+.psn-inline input:focus { outline: none; border-color: var(--accent); }
+.psn-inline input:disabled { opacity: .5; }
+.psn-msg { padding: 8px 0 2px; font-size: 13px; color: var(--muted); }
+.psn-msg.bad { color: #ff7b72; }
+.psn-msg.good { color: #56d364; }
+
+/* PlayStation setup wizard */
+.wz { padding: 6px 16px 14px; }
+.wz-step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(42, 50, 61, .5); }
+.wz-step:last-child { border-bottom: none; }
+.wz-mark {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+}
+.wz-done .wz-mark { background: rgba(63,185,80,.15); border-color: rgba(63,185,80,.4); color: #56d364; }
+.wz-active .wz-mark { background: var(--ion-wash); border-color: var(--accent); color: var(--accent); }
+.wz-content { flex: 1; min-width: 0; }
+.wz-title { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.wz-locked .wz-title, .wz-locked .wz-mark { opacity: .5; }
+.wz-body { color: var(--muted); font-size: 13.5px; }
+.wz-line { margin: 6px 0; color: var(--text); }
+.wz-muted { color: var(--muted); font-style: italic; }
+.wz-hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.wz-actions { margin: 10px 0; }
+.wz-sub { margin-top: 10px; }
+.wz-steps { margin: 8px 0; padding-left: 20px; color: var(--text); }
+.wz-steps li { margin: 4px 0; }
+.wz-link { background: none; border: none; color: var(--accent); cursor: pointer; padding: 4px 0; font-size: 13px; }
+.wz-link:hover { text-decoration: underline; border-color: transparent; }
+
+/* Device-agent panel (persistent, tabbed — public/agent.js) */
+#agent-panel { max-width: 1400px; margin: 22px auto 0; padding: 0 22px; }
+#agent-panel:empty { display: none; }
+#agent-panel .card h2 { gap: 10px; }
+.ag-tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ag-tab {
+  border: 1px solid transparent; border-bottom: none; background: none;
+  color: var(--muted); border-radius: 8px 8px 0 0; padding: 7px 14px;
+}
+.ag-tab:hover { color: var(--text); border-color: transparent; }
+.ag-tab-on { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+.ag-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-top: 8px; }
+@media (max-width: 760px) { .ag-grid2 { grid-template-columns: 1fr; } }
+.ag-sticks { display: flex; gap: 18px; justify-content: center; }
+.ag-trigbars { display: flex; gap: 18px; margin: 10px 0; }
+.ag-trig { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 12px; color: var(--muted); }
+.ag-bar { flex: 1; height: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.ag-bar > div { height: 100%; width: 0; background: var(--accent); transition: width .05s linear; }
+.ag-live-buttons { min-height: 26px; margin: 6px 0; }
+.ag-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.ag-kill { border-color: rgba(63,185,80,.4); }
+.ag-kill-off { background: rgba(248,81,73,.2); border-color: rgba(248,81,73,.5); color: #ff7b72; font-weight: 700; }
+.ag-map-row { display: flex; gap: 8px; align-items: center; padding: 5px 0; }
+.ag-arrow { color: var(--grey); }
+.ag-in {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); padding: 6px 9px; font-size: 13px; font-family: inherit;
+}
+.ag-in:focus { outline: none; border-color: var(--accent); }
+.ag-map-row input.ag-in { width: 170px; font-family: "SF Mono", Consolas, monospace; }
+.ag-del { color: #ff7b72; border-color: rgba(248,81,73,.35); }
+.ag-role { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 5px 8px; }
+.ag-slider { margin: 10px 0; }
+.ag-slider label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 3px; }
+.ag-slider input[type=range] { width: 100%; }
+.ag-check { display: inline-flex; align-items: center; gap: 6px; margin: 8px 14px 0 0; font-size: 13px; color: var(--muted); }
+#ag-curve { background: var(--panel-2); border-radius: 8px; max-width: 100%; }
+.ag-ev { font-size: 12px; color: var(--muted); padding: 1px 0; }
+.ag-logs { max-height: 220px; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 6px; }
+.ag-profile-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.ag-live-events-wrap { margin-top: 12px; }
+
+/* ---- Top-level view nav (Play / Setup / Board) ---- */
+.topnav {
+  display: flex; gap: 8px; max-width: 1400px; margin: 16px auto 0; padding: 0 22px;
+  flex-wrap: wrap;
+}
+.nav-btn {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 18px; font-size: 14px; font-weight: 600; color: var(--muted);
+}
+.nav-btn:hover { color: var(--text); border-color: var(--line); }
+.nav-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.nav-debug { margin-left: auto; }
+.nav-debug.nav-on { background: var(--grey); border-color: var(--grey); }
+.view { display: none; }
+.view-active { display: block; }
+.view[data-view="board"] .grid { padding-top: 16px; }
+
+/* ---- Agent tab bar: divider before the debug tabs ---- */
+.ag-tab-sep {
+  align-self: center; margin: 0 4px 0 12px; padding-left: 12px;
+  border-left: 1px solid var(--line); color: var(--grey);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+}
+.ag-tab-debug { color: var(--grey); font-weight: 500; }
+.ag-tab-debug.ag-tab-on { background: var(--panel-2); color: var(--text); }
+
+/* ---- Smart actions builder ---- */
+.ag-h3 { margin: 18px 0 6px; font-size: 15px; }
+.ag-smart-editor {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+.ag-field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; max-width: 420px; }
+.ag-field > label { font-size: 12.5px; color: var(--muted); }
+.ag-steps-box { margin: 6px 0; }
+.ag-step-detail { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.ag-rec { border-color: rgba(248,81,73,.4); color: #ff7b72; font-weight: 600; }
+.ag-rec-on { background: rgba(248,81,73,.2); border-color: rgba(248,81,73,.6); animation: recpulse 1s infinite; }
+@keyframes recpulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* ---- PlayStation-style button icons ---- */
+.ag-btn-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; padding: 0 9px; border-radius: 8px;
+  font-weight: 700; font-size: 15px; background: var(--panel); border: 1px solid var(--line);
+}
+.ps-cross { color: #7aa7ff; border-color: #3a5a9a; }
+.ps-circle { color: #ff7b8a; border-color: #9a3a45; }
+.ps-square { color: #e39bff; border-color: #7a3a9a; }
+.ps-triangle { color: #5fe3b0; border-color: #2a7a5a; }
+.ps-dp { color: var(--muted); }
+.ps-bump, .ps-stk, .ps-sys { color: var(--muted); }
+/* Xbox face-button colours (same underlying positions as PS cross/circle/…) */
+.xb-a { color: #5fe3b0; border-color: #2a7a5a; }
+.xb-b { color: #ff7b8a; border-color: #9a3a45; }
+.xb-x { color: #7aa7ff; border-color: #3a5a9a; }
+.xb-y { color: #ffd34d; border-color: #9a7a2a; }
+.ag-src-kb { color: var(--muted); font-size: 12px; }
+
+/* ---- Configs tab: console badges, cards, create wizard, share ---- */
+.ag-con-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); white-space: nowrap; }
+.con-ps5 { color: #7aa7ff; border-color: #3a5a9a; }
+.con-xbox { color: #5fe3b0; border-color: #2a7a5a; }
+.con-pc { color: #e39bff; border-color: #7a3a9a; }
+.ag-config-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ag-config-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.ag-config-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ag-config-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ag-config-title { font-size: 15px; font-weight: 700; }
+.ag-config-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ag-active-tag { color: #4ac26b; font-size: 12.5px; font-weight: 600; align-self: center; }
+.ag-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.ag-primary:hover { filter: brightness(1.08); }
+.ag-con-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.ag-con-card { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 6px;
+  background: var(--panel-2); border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; }
+.ag-con-card.on { border-color: var(--accent); background: var(--ion-wash); }
+.ag-con-art { font-size: 26px; }
+.ag-con-name { font-size: 12px; font-weight: 600; text-align: center; }
+.ag-con-glyphs { font-size: 13px; color: var(--muted); }
+.ag-sheet { max-width: 480px; }
+.ag-share { width: 100%; min-height: 96px; resize: vertical; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--text); padding: 8px 10px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
+
+/* ---- Scenarios template gallery ---- */
+.ag-scn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 8px 0 4px; }
+.ag-scn-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+  padding: 12px 13px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; min-height: 0; }
+.ag-scn-card:hover { border-color: var(--accent); }
+.ag-scn-ico { font-size: 22px; }
+.ag-scn-name { font-size: 14px; font-weight: 700; }
+.ag-scn-desc { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.ag-scn-tag { font-size: 11px; color: #4ac26b; margin-top: 2px; }
+
+/* ---- Smart-action list: category chip, disabled state, advanced ---- */
+.ag-act-row.ag-act-off { opacity: .5; }
+.ag-cat-chip { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  color: var(--cat); border: 1px solid var(--cat); vertical-align: middle; }
+.ag-adv { margin: 6px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; }
+.ag-adv > summary { cursor: pointer; padding: 8px 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+/* ---- Refresh-rate selector (Aim tab) ---- */
+.ag-rate-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; }
+.ag-rate-btn { font-weight: 600; min-width: 74px; }
+.ag-rate-btn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---- Controller connection banner (always visible) ---- */
+.ag-pad-banner { border-radius: 10px; padding: 9px 12px; margin: 6px 0 2px; font-size: 13px; line-height: 1.4; }
+.ag-pad-banner:empty { display: none; }
+.ag-pad-banner.ok { background: rgba(63,185,80,.12); border: 1px solid rgba(63,185,80,.4); color: #4ac26b; }
+.ag-pad-banner.bad { background: rgba(248,81,73,.10); border: 1px solid rgba(248,81,73,.4); color: #ff9b93; }
+
+/* ---- Live virtual controller (overview) ---- */
+#ag-vc { width: 100%; max-width: 460px; display: block; margin: 4px auto 8px; }
+.vc-btn, .vc-face { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; transition: fill .05s ease, stroke .05s ease; }
+.vc-face { stroke-width: 2.5; }
+.vc-f-cro { stroke: #3a5a9a; } .vc-f-cir { stroke: #9a3a45; }
+.vc-f-sqr { stroke: #7a3a9a; } .vc-f-tri { stroke: #2a7a5a; }
+.vc-btn.vc-on, .vc-face.vc-on { fill: var(--accent); stroke: var(--accent); }
+.vc-g { fill: var(--muted); font-size: 15px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.vc-on + .vc-g { fill: #fff; }
+.vc-lbl { fill: var(--grey); font-size: 8.5px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.vc-trig-bg { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.vc-trig-fill { fill: var(--green); }
+.vc-well { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.vc-well-on { stroke: var(--accent); stroke-width: 3.5; }
+.vc-dot { fill: var(--accent); transition: cx .04s linear, cy .04s linear; }
+
+/* ---- Detected-controller banner (mapping tab) ---- */
+.ag-detect {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; margin: 4px 0 10px; font-size: 13.5px;
+}
+.ag-detect-ico { font-size: 18px; }
+
+/* ---- Tap-to-pick source/target buttons in the mapping rows ---- */
+.ag-map-pick { display: inline-flex; align-items: center; gap: 7px; min-width: 120px; }
+.ag-pick-lbl { color: var(--muted); font-size: 12.5px; }
+
+/* ---- Source picker tabs (Controller / Keyboard / Mouse) ---- */
+.ag-src-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.ag-src-tab {
+  flex: 1; padding: 8px 6px; font-size: 13px; font-weight: 600; color: var(--muted);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+}
+.ag-src-tab-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* Press-to-find: the cell for the physical button you just pressed */
+.ag-picker-cell.ag-pick-hot {
+  border-color: var(--accent); background: var(--ion-wash);
+  box-shadow: 0 0 0 2px var(--accent); animation: pickpulse .45s ease;
+}
+@keyframes pickpulse { 0% { transform: scale(1); } 50% { transform: scale(1.07); } 100% { transform: scale(1); } }
+
+/* ---- Aim step: 3x3 direction compass + strength ---- */
+.ag-aim-pad {
+  display: grid; grid-template-columns: repeat(3, 30px); grid-auto-rows: 30px; gap: 3px;
+}
+.ag-aim-dir {
+  padding: 0; min-height: 0; min-width: 0; font-size: 15px; line-height: 1;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+}
+.ag-aim-dir:hover { border-color: var(--accent); }
+.ag-aim-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.ag-aim-spacer { display: inline-block; }
+.ag-aim-mag { width: 110px; vertical-align: middle; }
+
+/* ---- Button picker popup (touch-friendly) ---- */
+.ag-picker-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+}
+.ag-picker {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px; max-width: 440px; width: 100%; max-height: 85vh; overflow: auto;
+}
+.ag-picker-title { font-weight: 600; margin-bottom: 12px; }
+.ag-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.ag-picker-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 6px; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 10px; cursor: pointer;
+}
+.ag-picker-cell:hover { border-color: var(--accent); }
+.ag-picker-label { font-size: 11px; color: var(--muted); }
+.ag-picker-cancel { margin-top: 12px; width: 100%; padding: 12px; }
+
+/* ---- Smart action step rows ---- */
+.ag-step-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; flex-wrap: wrap; }
+.ag-btn-pick { padding: 5px 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.ag-btn-pick:hover { border-color: var(--accent); }
+.ag-ms { width: 80px; }
+.ag-unit { color: var(--muted); font-size: 12.5px; }
+
+/* ---- Mobile-first: this UI is primarily an iPhone/Android app ---- */
+.nav-btn, .ag-tab, .ag-in, button { min-height: 40px; }
+@media (max-width: 640px) {
+  .topbar { padding: 10px 14px; }
+  .brand h1 { font-size: 16px; }
+  .status { font-size: 12px; gap: 8px; }
+  .topnav { padding: 8px 12px 0; }
+  .nav-btn { flex: 1; text-align: center; padding: 12px 6px; font-size: 13px; }
+  .nav-debug { margin-left: 0; }
+  .ag-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .ag-tabs::-webkit-scrollbar { display: none; }
+  .ag-tab { white-space: nowrap; padding: 11px 13px; }
+  .ag-tab-sep { display: none; }
+  .grid { grid-template-columns: 1fr; padding: 14px; gap: 12px; }
+  #psn-panel, #agent-panel { padding: 0 12px; }
+  .ag-grid2 { grid-template-columns: 1fr; }
+  .card .body { padding: 6px 12px 12px; }
+  button { padding: 11px 15px; }
+  .ag-in { padding: 10px 11px; font-size: 15px; }
+  .ag-field { max-width: none; }
+  .ag-sticks svg { width: 100px; height: 100px; }
+}
+
+/* Box connection control (dev proxy vs direct-to-box for the standalone app) */
+.ag-conn-btn { font-size: 12px; padding: 5px 10px; margin-left: 8px; font-weight: 600; }
+.ag-conn-on { border-color: rgba(63,185,80,.45); color: #56d364; }

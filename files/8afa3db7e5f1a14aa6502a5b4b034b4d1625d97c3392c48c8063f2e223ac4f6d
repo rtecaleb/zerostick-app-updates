@@ -1,0 +1,397 @@
+/* smart-actions/08-editor-view.js — the editor view: "When", the binding tile, the disclosure rules.
+ *
+ * The When control (one list, five options: whenOpts, whenOptOf), the binding
+ * tile (bindBadges: an unset property renders nothing) and the two disclosure
+ * rules.
+ *
+ * Tests: test-smart-actions.js (self-check), test-mnk-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('editor-view', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var emitSource = SEC.emitSource, esc = SEC.esc, note = SEC.note, srcArt = SEC.srcArt,
+      srcName = SEC.srcName, triggerName = SEC.triggerName, ZS = SEC.ZS,
+      hasErrors = SEC.hasErrors, hasGesture = SEC.hasGesture,
+      hasHoldMode = SEC.hasHoldMode, NO_NAME_MSG = SEC.NO_NAME_MSG,
+      problems = SEC.problems, sicon = SEC.sicon, COLOURS = SEC.COLOURS,
+      deadMsg = SEC.deadMsg, deadNote = SEC.deadNote, syncBadge = SEC.syncBadge;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var rowName;
+  ZS_SMART_PARTS.after(function () {
+    rowName = SEC.rowName;
+  });
+
+  /* ══ editor view ══════════════════════════════════════════════════ */
+
+  /* STEP_ICON and previewHTML lived here and are GONE.
+
+     STEP_ICON named the icon for a numbered word-row; the strip's own
+     marks (the icon set: MARK_WAIT, MARK_AIM…) replace it, and they are
+     pictures of the step rather than a stock glyph beside a sentence.
+
+     previewHTML drew a blue card of English above the builder — a lead, an
+     <ol> of every step in words, and a tail. The plain-English machinery it
+     used (sentence / stepLine / oneLiner) is untouched and keeps its three
+     right homes: LIST ROWS, where you are scanning and have not opened it;
+     the READY-MADE preview, where you are deciding on something you have
+     never seen; and TOASTS, which confirm and vanish. It is gone from the
+     authoring surface only. Prose where you are reading, pictures where you
+     are building. */
+
+  /* `hideName` is the editor sheet: the tile's own "Name it" placeholder is
+     that message, in the place you fix it. */
+  function errorsHTML(a, p, S, hideName) {
+    /* `hideName` is the editor sheet, which also carries the tile — and the
+       tile's own "▲ Will not fire — …" line quotes the same board
+       diagnostic this list does, with the one-tap fix attached. One sheet was
+       saying it twice, 700px apart. The tile keeps it (it is where the fix
+       lives); the summary keeps everything the tile does not say. */
+    var dm = hideName ? deadMsg(a, p, S) : '';
+    var ps = problems(a, p, S).filter(function (x) {
+      if (hideName && x.msg === NO_NAME_MSG) return false;
+      /* an empty box (a new script starts empty, owner 2026-10-07) already
+         says "Tap a button below to add the first step"; a "Fix this
+         first" chip saying it again in amber reads as a mistake the player
+         made by opening it. Nothing stepless is ever written (smartSave). */
+      if (hideName && !a.steps.length && /^Add at least one step/.test(String(x.msg))) return false;
+      if (dm && String(x.msg).indexOf(dm) === 0) return false;
+      return true;
+    });
+    if (!ps.length) return '<div id="sa-errors" class="saerr" role="alert" aria-live="polite"></div>';
+    var h = '<div id="sa-errors" class="saerr" role="alert" aria-live="polite">';
+    ps.forEach(function (x) {
+      h += note((x.level === 'error' ? '<b>Fix this first:</b> ' : '') + esc(x.msg), 'warn');
+    });
+    return h + '</div>';
+  }
+
+  /* stepRowHTML — the numbered word rows with ↑ ↓ ✕ — is GONE. The strip
+     plus the ‹ ✕ › nav triple replace it: the strip IS the list, and the
+     nav says "move through it, delete this one" by being there. Reorder is
+     not lost — openStepSheet keeps its ↑/↓ (#sk-up / #sk-down). */
+
+  /* ══ the "When" control — ONE list, five options ══════════════════
+     This replaces two controls that secretly interacted: a "What you do with
+     it" segment (press / hold / double tap) and a "While you hold it" radio
+     group (once / repeat / run-while-held), where the segment greyed itself
+     out whenever the radio was not "once". Two axes shown as two controls is
+     a beginner trap; XIM shows one flat list and is plainly right.
+
+     Each option is one (gesture, holdMode) pair the board already runs, and
+     the badge says whether it plays once or keeps going — dot AND word, never
+     colour alone.
+
+     Three of the eight are CAPABILITY-GATED: "quickly" (tap), "let go"
+     (release) and "until I press it again" (toggle) only exist on a board
+     whose /capabilities advertises them, because schema.validate on an older
+     board REJECTS the unknown enum value and would bounce the whole config.
+     An option the board has not advertised is simply not in the list — an old
+     board sees today's exact five. */
+  var WHEN_ALL = [
+    { g: 'press', h: 'once', n: 'When I press it',
+      s: 'plays once, the moment the button goes down', b: 'once', bi: 'once' },
+    { g: 'tap', h: 'once', n: 'When I press it quickly', needGesture: 'tap',
+      s: 'a quick tap only — a long press does nothing here, so the same button can hold a different sequence', b: 'once', bi: 'once' },
+    { g: 'hold_ms', h: 'once', n: 'When I hold it down',
+      s: 'plays once, after you have held it for a moment — you set how long', b: 'once', bi: 'once' },
+    { g: 'double_tap', h: 'once', n: 'When I tap it twice',
+      s: 'plays once, if the two taps land close together', b: 'once', bi: 'once' },
+    { g: 'release', h: 'once', n: 'When I let go of it', needGesture: 'release',
+      s: 'plays once, the moment the button comes back up', b: 'once', bi: 'once' },
+    { g: 'press', h: 'repeat_while_held', n: 'Over and over while I hold it',
+      s: 'keeps looping until you let go. This is what people mean by turbo.', b: 'repeats', bi: 'repeat' },
+    { g: 'press', h: 'run_while_held', n: 'Only while I hold it',
+      s: 'runs while you hold it, and stops the instant you let go', b: 'holds', bi: 'repeat' },
+    { g: 'press', h: 'toggle', n: 'Until I press it again', needHold: 'toggle',
+      s: 'one press starts it, the next press stops it — nothing to keep held down', b: 'latched', bi: 'repeat' }
+  ];
+  function whenAvail(o) {
+    if (o.needGesture && !hasGesture(o.needGesture)) return false;
+    if (o.needHold && !hasHoldMode(o.needHold)) return false;
+    return true;
+  }
+  /* the options THIS board can run, in the fixed order above */
+  function whenOpts() {
+    var out = [], i;
+    for (i = 0; i < WHEN_ALL.length; i++) if (whenAvail(WHEN_ALL[i])) out.push(WHEN_ALL[i]);
+    return out;
+  }
+
+  /* Which option an action IS — a (gesture, holdMode) PAIR lookup over the
+     FULL table, never an index into the drawn list: the drawn list shrinks
+     with the board's capabilities, and a pasted action must still name its
+     own option truthfully while problems() says the board cannot run it.
+     Total by construction: a while-held mode is decided by holdMode alone
+     (sequences.py forces the gesture to "press" for those), so an action that
+     arrived from the board with an odd pair still lands on the option the
+     board will actually run. */
+  function whenOptOf(a) {
+    var h = a.holdMode, g = a.trigger.gesture, i;
+    if (h !== 'once') g = 'press';
+    for (i = 0; i < WHEN_ALL.length; i++) {
+      if (WHEN_ALL[i].h === h && WHEN_ALL[i].g === g) return WHEN_ALL[i];
+    }
+    return WHEN_ALL[0];
+  }
+  function setWhenOpt(a, o) {
+    o = o || WHEN_ALL[0];
+    a.trigger.gesture = o.g;
+    a.holdMode = o.h;
+    /* "never give up" is only legal on the continuous modes — switching back
+       to a play-once option quietly restores the default rather than leaving
+       an invisible 0 behind a hidden control */
+    if (o.h === 'once' && a.maxDurationMs === 0) a.maxDurationMs = 10000;
+  }
+  /* the once / repeat badge, borrowed from XIM's Input Condition menu —
+     the set's ① for once and its loop for everything that keeps going
+     (D82; it was the characters ① and ∞) */
+  function repeatBadge(a) {
+    if (a.holdMode === 'once') return { mark: sicon('once', '1'), say: 'runs once' };
+    return { mark: sicon('repeat', 'loop'), say: a.holdMode === 'repeat_while_held' ? 'repeats while you hold it'
+      : a.holdMode === 'toggle' ? 'runs until you press it again' : 'runs while you hold it' };
+  }
+
+  /* ══ THE BINDING TILE ═════════════════════════════════════════════
+     XIM's best single idea, mapped onto our own fields. Four properties
+     sit at four FIXED positions round the input's own picture, so you
+     learn the layout once and never read a label again. Ours differ from
+     theirs only where the domain differs — see the table beside the CSS.
+
+     THE RULE: a badge marks a departure from normal, never the presence
+     of a value. Press-once, any time, untagged, human timing draws NO
+     badges at all — a bare picture and a name. */
+
+  /* one 16px mark per non-default When option. Built by the same mark()
+     factory the strip already uses, so there is no new asset file. */
+  function bmark(inner) {
+    return '<svg viewBox="0 0 48 48" width="12" height="12" aria-hidden="true" focusable="false" ' +
+      'fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" ' +
+      'stroke-linejoin="round">' + inner + '</svg>';
+  }
+  var DOT = '<circle cx="14" cy="24" r="4.5" fill="currentColor" stroke="none"/>';
+  var MK_QUICK  = bmark(DOT + '<path d="M25 26l5 5 10-12"/>');
+  var MK_HOLD   = bmark(DOT + '<path d="M26 12v24"/><path d="M34 16v16"/>');
+  var MK_DOUBLE = bmark(DOT + '<circle cx="32" cy="24" r="4.5" fill="currentColor" stroke="none"/>');
+  var MK_LETGO  = bmark(DOT + '<path d="M30 32V14"/><path d="M24 20l6-6 6 6"/>');
+  var MK_TURBO  = bmark('<path d="M12 24a12 12 0 1 1 6 10.4"/><path d="M12 14v10h10"/>');
+  var MK_WHILE  = bmark('<path d="M12 12v24"/><path d="M22 24h16"/><path d="M32 17l7 7-7 7"/>');
+  var MK_LATCH  = bmark('<rect x="10" y="20" width="28" height="16" rx="4"/><path d="M18 20v-4a6 6 0 0 1 12 0"/>');
+  var MK_ADS    = bmark('<circle cx="24" cy="24" r="12"/><path d="M24 6v8"/><path d="M24 34v8"/>' +
+    '<path d="M6 24h8"/><path d="M34 24h8"/>');
+  var MK_HIP    = bmark('<circle cx="24" cy="24" r="12"/><path d="M11 37L37 11"/>');
+  var MK_EXACT  = bmark('<path d="M10 36L24 10l14 26z"/><path d="M24 16v12"/>');
+  var MK_TAG    = bmark('<path d="M8 8h16l16 16-16 16L8 24z"/><circle cx="17" cy="17" r="2.5" fill="currentColor" stroke="none"/>');
+
+  /* (gesture/holdMode) → {mark, word, say}. A missing entry means NORMAL,
+     which is exactly how the render-nothing rule is enforced. */
+  var WHEN_BADGE = {
+    'tap/once':                 { m: MK_QUICK,  w: 'quick',  s: 'only on a quick tap' },
+    'hold_ms/once':             { m: MK_HOLD,   w: 'hold',   s: 'only when you hold it' },
+    'double_tap/once':          { m: MK_DOUBLE, w: '×2',     s: 'only on a double tap' },
+    'release/once':             { m: MK_LETGO,  w: 'let go', s: 'when you let go' },
+    'press/repeat_while_held':  { m: MK_TURBO,  w: 'turbo',  s: 'repeats while you hold it' },
+    'press/run_while_held':     { m: MK_WHILE,  w: 'while',  s: 'runs while you hold it' },
+    'press/toggle':             { m: MK_LATCH,  w: 'latch',  s: 'runs until you press it again' }
+  };
+
+  /* THE four slots, decided from the model alone. PURE — exported for the
+     self-test, because "an unset property renders nothing" is exactly the
+     kind of rule that rots silently. */
+  function bindBadges(a) {
+    var o = whenOptOf(a);
+    var out = { top: null, left: null, right: null, bottom: null };
+    var wb = WHEN_BADGE[o.g + '/' + o.h];
+    if (wb) out.top = { m: wb.m, w: wb.w, s: wb.s };
+    if (a.gate === 'ads') out.left = { m: MK_ADS, w: 'ADS', s: 'only while aiming down sights' };
+    else if (a.gate === 'hip') out.left = { m: MK_HIP, w: 'hip', s: 'only while NOT aiming' };
+    if (a.group) out.right = { m: MK_TAG, w: a.group, s: 'tagged ' + a.group };
+    /* INVERTED on purpose: varianceMs defaults to 15, so "renders when set"
+       would badge nearly every action. EXACT is the consequential choice, so
+       exact is what the tile says. The rule holds — it is silent about
+       anything normal. */
+    if (a.varianceMs === 0) out.bottom = { m: MK_EXACT, w: 'exact', s: 'exact timing, no wobble' };
+    return out;
+  }
+
+  var SLOT_CLASS = { top: 'sabtop', left: 'sableft', right: 'sabright', bottom: 'sabbot' };
+  var SLOT_OPEN = {
+    top: 'change when this happens', left: 'change when it is allowed to run',
+    right: 'change the tag', bottom: 'change timing and safety'
+  };
+
+  function badgeHTML(slot, b, interactive) {
+    var cls = 'sabb ' + SLOT_CLASS[slot];
+    if (!b) {
+      if (!interactive) return '';
+      return '<button type="button" class="' + cls + ' ghost" data-slot="' + slot +
+        '" aria-label="' + esc(SLOT_OPEN[slot]) + '">' + (sicon('plus') || '＋') + '</button>';
+    }
+    var inner = b.m + '<i>' + esc(b.w) + '</i>';
+    if (!interactive) {
+      return '<span class="' + cls + '" title="' + esc(b.s) + '" aria-hidden="true">' + inner + '</span>';
+    }
+    return '<button type="button" class="' + cls + '" data-slot="' + slot +
+      '" aria-label="' + esc(b.s + ' — ' + SLOT_OPEN[slot]) + '">' + inner + '</button>';
+  }
+
+  /* the whole tile as one sentence, so nothing it draws is sighted-only */
+  function tileSay(a, p, row) {
+    var bs = bindBadges(a), parts = [];
+    parts.push(a.name || 'Untitled sequence');
+    parts.push('starts on ' + (row ? rowName(row) : triggerName(p, a)));
+    ['top', 'left', 'right', 'bottom'].forEach(function (k) {
+      if (bs[k]) parts.push(bs[k].s);
+    });
+    if (a.enabled === false) parts.push('switched off');
+    return parts.join('. ') + '.';
+  }
+
+  /* ONE renderer, two sizes. opts:
+       size 'head' (the editor sheet's header) | 'row' (a list row)
+       interactive  head only: every slot is a button, empty slots ghost */
+  function bindTileHTML(a, p, S, opts) {
+    opts = opts || {};
+    var head = opts.size !== 'row';
+    var act = opts.interactive && head;
+    var bs = bindBadges(a);
+    var src = emitSource(p, a.trigger);
+    var art = srcArt(src);
+    var artHTML = act
+      ? '<button type="button" class="sabart" data-slot="trigger" aria-label="' +
+        esc('starts on ' + srcName(src) + ' — change which button starts this') + '">' +
+        '<span class="glyimg">' + art + '</span></button>'
+      : '<span class="sabart" aria-hidden="true"><span class="glyimg">' + art + '</span></span>';
+
+    var frame = '<div class="sabframe' + (head ? '' : ' row') + '">' +
+      badgeHTML('top', bs.top, act) + badgeHTML('left', bs.left, act) +
+      artHTML +
+      badgeHTML('right', bs.right, act) + badgeHTML('bottom', bs.bottom, act) + '</div>';
+
+    if (!head) {
+      /* the row already reads the whole action out as a sentence, so the
+         tile is a recognition aid for the eye only */
+      return '<span class="sabtile' + (a.enabled === false ? ' off' : '') +
+        '" aria-hidden="true">' + frame + '</span>';
+    }
+
+    var dead = deadNote(a, p, S);
+    var cls = 'sabtile' + (a.enabled === false ? ' off' : '') +
+      ((dead || hasErrors(a, p, S)) ? ' bad' : '');
+    var nm = (a.name || '').trim();
+    var nameHTML = act
+      ? '<button type="button" class="sabname' + (nm ? '' : ' ph') + '" data-slot="name" aria-label="' +
+        esc((nm ? 'named ' + nm : 'not named yet') + ' — name, notes and colour') + '">' +
+        esc(nm || 'Name it') + '</button>'
+      : '<span class="sabname' + (nm ? '' : ' ph') + '">' + esc(nm || 'Name it') + '</span>';
+
+    return '<div class="' + cls + '" role="group" aria-label="' + esc(tileSay(a, p, opts.row)) + '">' +
+      frame + nameHTML +
+      '<span class="sabsub" id="sa-sub">' + subLineHTML(a, p, S, opts.row) + '</span>' +
+      (dead || '') + '</div>';
+  }
+
+  /* the live half of the tile: what used to be a whole "▶ Try it" card. */
+  function subLineHTML(a, p, S, row) {
+    var nm = row ? rowName(row) : triggerName(p, a);
+    var run = S && S.running ? S.running[a.id] : null;
+    var live = ZS.live.online !== false && !!ZS.live.full[p.id];
+    var tail;
+    if (hasErrors(a, p, S)) tail = 'fix the problem below first';
+    else if (!live) tail = 'your board is offline';
+    else if (run && run.step_index != null) tail = '▶ step ' + (run.step_index + 1) + ' of ' + a.steps.length;
+    else if (a.enabled === false) tail = 'switched off';
+    else tail = 'press it to test';
+    return esc(nm) + ' · ' + syncBadge(a, p, S) + ' ' + esc(tail);
+  }
+
+  function coloursHTML(a) {
+    /* an action wearing a colour the palette no longer offers still shows
+       which one it is wearing. A swatch row is a CHOICE, not a migration —
+       silently repainting somebody's list because the tokens moved is the
+       kind of "tidy-up" that loses information nobody agreed to lose. */
+    var list = COLOURS.slice();
+    if (a.colour && list.indexOf(a.colour) < 0) list.push(a.colour);
+    return '<div class="fld col"><div class="salab">Colour<em>just so you can spot it in the list</em></div>' +
+      '<div class="sacols" id="sa-cols">' + list.map(function (c) {
+        return '<button class="sacol' + (a.colour === c ? ' on' : '') + '" data-col="' + esc(c) +
+          '" style="background:' + esc(c) + '" aria-label="colour ' + esc(c) + '"></button>';
+      }).join('') + '</div></div>';
+  }
+
+  /* ══ the two disclosure rules ═════════════════════════════════════
+     What used to be a nine-card grid — each card an icon, a title AND an
+     explanatory sentence — is now the palette's Special page: a mark and
+     one word per tile, in the same grammar as every other tile. The nine
+     sub-sentences are cut; a tile that needs a sentence is a tile whose
+     picture is wrong, and the full sentence still shows inside each step's
+     own sheet (SHEET_HELP). "⋯ More" is cut too: all of them fit on one
+     page, which is a simplification, not a removal.
+
+     Both of XIM's disclosure rules survive, and specialPageHTML applies
+     them:
+       · "Let go" is HIDDEN until something earlier holds something — a
+         release with nothing to release is a step that does nothing;
+       · "Switch config" is HIDDEN when there is only one config. */
+
+  function holdsSomething(a) {
+    for (var i = 0; i < a.steps.length; i++) {
+      var s = a.steps[i];
+      if (s.k === 'hold') return true;
+      if (s.k === 'trig' && s.keep) return true;
+    }
+    return false;
+  }
+  function manyConfigs() {
+    var list = ZS.PROFILES;
+    return !!(list && list.length > 1);
+  }
+  function catAllowed(c, a) {
+    if (c.k === 'release') return holdsSomething(a);
+    if (c.k === 'config') return manyConfigs();
+    return true;
+  }
+
+  /* catGridHTML, tryHTML and sequenceBodyHTML lived here and are GONE —
+     they WERE the inline build page. Everything they carried is re-housed,
+     and nothing they carried is lost:
+
+       preview card          → list rows, Ready-made preview, toasts
+       strip + "tap a tile"  → the sheet's strip (stripBoxHTML, block 3)
+       "The steps" header    → cut: a header over the only section
+       "Record it instead"   → a tile on the palette's Special page
+       numbered step rows    → the strip + the ‹ ✕ › nav triple
+       "Steps run top to…"   → cut: the strip reads left to right
+       "Tap one to add…"     → cut: the segment says "Pad"
+       the picker grid       → palette page 1, laid out like a pad
+       "Add a step" + cats   → palette page 3, one mark and one word each
+       errors                → pinned directly above Save in the foot
+       Try it (a whole card) → the tile's sub-line (subLineHTML)
+       Save / Copy / Delete  → the sheet's foot
+       Name and notes        → behind the tile's name (openNameSheet)
+       Timing and safety     → behind the tile's BOTTOM badge
+
+     "Try it" was honest and stays honest: there is no endpoint that runs a
+     sequence on demand (api/server.py has no such route), so nothing here
+     ever claimed to fire one. What we have is /output/live, which reports
+     the running step — and that is exactly what the sub-line now says, in
+     one line instead of a card. */
+
+  /* what the other parts use from this one */
+  SEC.MK_TAG = MK_TAG;
+  SEC.bindBadges = bindBadges;
+  SEC.bindTileHTML = bindTileHTML;
+  SEC.catAllowed = catAllowed;
+  SEC.coloursHTML = coloursHTML;
+  SEC.errorsHTML = errorsHTML;
+  SEC.repeatBadge = repeatBadge;
+  SEC.setWhenOpt = setWhenOpt;
+  SEC.subLineHTML = subLineHTML;
+  SEC.whenOptOf = whenOptOf;
+  SEC.whenOpts = whenOpts;
+});

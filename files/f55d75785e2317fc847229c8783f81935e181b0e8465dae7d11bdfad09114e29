@@ -1,0 +1,412 @@
+{
+  "zerostickGamePack": 1,
+  "id": "rainbow-six-siege",
+  "name": "Tom Clancy's Rainbow Six Siege",
+  "aliases": [
+    "Rainbow Six Siege",
+    "Rainbow 6 Siege",
+    "Rainbow Six Siege X",
+    "Siege X",
+    "Siege",
+    "Rainbow Six",
+    "R6",
+    "R6S",
+    "R6 Siege"
+  ],
+  "version": 3,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "rainbow-six-siege.png",
+    "tall": "rainbow-six-siege-tall.png"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "rainbow-six-siege",
+    "name": "Rainbow Six Siege (Main)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4265 (R6:S, curves R6:S-ADS-P4.14 / R6:S-ADS-X1.12 / R6:S-Hip-P4.14 / R6:S-Hip-X1.12). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 1066, aiming 941 on PS5; Xbox Series hip 1066, aiming 941 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Look Sensitivity set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege calibration, circular dead zone 13/127)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege compensation exponent 0.38, so about x^2.6). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Horizontal Look Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Look Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Sensitivity (every sight)",
+        "value": "50"
+      },
+      {
+        "setting": "Field of View",
+        "value": "Lowest"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.1,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "power",
+        "exp": 2.6
+      },
+      "turnRate": {
+        "yaw": 1066,
+        "pitch": 1066
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 1066,
+          "pitch": 1066
+        },
+        "xbox": {
+          "yaw": 1066,
+          "pitch": 1066
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 941,
+        "pitch": 941
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 941,
+          "pitch": 941
+        },
+        "xbox": {
+          "yaw": 941,
+          "pitch": 941
+        }
+      }
+    },
+    "sights": [
+      {
+        "name": "sight 1",
+        "adsScale": 1
+      },
+      {
+        "name": "sight 2",
+        "adsScale": 1
+      },
+      {
+        "name": "sight 3",
+        "adsScale": 0.4388
+      },
+      {
+        "name": "sight 4",
+        "adsScale": 0.3109
+      },
+      {
+        "name": "sight 5",
+        "adsScale": 0.2272
+      },
+      {
+        "name": "sight 6",
+        "adsScale": 0.0947
+      },
+      {
+        "name": "sight 7",
+        "adsScale": 1
+      },
+      {
+        "name": "sight 8",
+        "adsScale": 1
+      }
+    ]
+  },
+  "aimVariants": [
+    {
+      "key": "s",
+      "label": "Main",
+      "setting": null,
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "rainbow-six-siege",
+        "name": "Rainbow Six Siege (Main)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4265 (R6:S, curves R6:S-ADS-P4.14 / R6:S-ADS-X1.12 / R6:S-Hip-P4.14 / R6:S-Hip-X1.12). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 1066, aiming 941 on PS5; Xbox Series hip 1066, aiming 941 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Look Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege calibration, circular dead zone 13/127)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege compensation exponent 0.38, so about x^2.6). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Sensitivity (every sight)",
+            "value": "50"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2.6
+          },
+          "turnRate": {
+            "yaw": 1066,
+            "pitch": 1066
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1066,
+              "pitch": 1066
+            },
+            "xbox": {
+              "yaw": 1066,
+              "pitch": 1066
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 941,
+            "pitch": 941
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 941,
+              "pitch": 941
+            },
+            "xbox": {
+              "yaw": 941,
+              "pitch": 941
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "sight 1",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 2",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 3",
+            "adsScale": 0.4388
+          },
+          {
+            "name": "sight 4",
+            "adsScale": 0.3109
+          },
+          {
+            "name": "sight 5",
+            "adsScale": 0.2272
+          },
+          {
+            "name": "sight 6",
+            "adsScale": 0.0947
+          },
+          {
+            "name": "sight 7",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 8",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "s-u",
+      "label": "Alternate",
+      "setting": null,
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "rainbow-six-siege",
+        "name": "Rainbow Six Siege (Alternate)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4367 (R6:S:U, curves R6:S:U-ADS-P4.3 / R6:S:U-ADS-X1.3 / R6:S:U-Hip-P4.3 / R6:S:U-Hip-X1.3). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 995, aiming 878 on PS5; Xbox Series hip 995, aiming 878 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Look Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege calibration, circular dead zone 13/127)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (GIMX PS4 Siege compensation exponent 0.38, so about x^2.6). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Sensitivity (every sight)",
+            "value": "50"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2.6
+          },
+          "turnRate": {
+            "yaw": 995,
+            "pitch": 995
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 995,
+              "pitch": 995
+            },
+            "xbox": {
+              "yaw": 995,
+              "pitch": 995
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 878,
+            "pitch": 878
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 878,
+              "pitch": 878
+            },
+            "xbox": {
+              "yaw": 878,
+              "pitch": 878
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "sight 1",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 2",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 3",
+            "adsScale": 0.4388
+          },
+          {
+            "name": "sight 4",
+            "adsScale": 0.3109
+          },
+          {
+            "name": "sight 5",
+            "adsScale": 0.2272
+          },
+          {
+            "name": "sight 6",
+            "adsScale": 0.0947
+          },
+          {
+            "name": "sight 7",
+            "adsScale": 1
+          },
+          {
+            "name": "sight 8",
+            "adsScale": 1
+          }
+        ]
+      }
+    }
+  ],
+  "notes": "Rainbow Six Siege, Steam app 359550. Match Your Game has no row for it, so no aim preset is named. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/rainbow-six-siege.json, and --remove takes it out.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Tom Clancy's Rainbow Six Siege are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Tom Clancy's Rainbow Six Siege comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Tom Clancy's Rainbow Six Siege comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

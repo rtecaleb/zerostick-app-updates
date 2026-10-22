@@ -1,0 +1,423 @@
+{
+  "zerostickGamePack": 1,
+  "id": "overwatch",
+  "name": "Overwatch",
+  "aliases": [
+    "Overwatch 2",
+    "OW2",
+    "OW"
+  ],
+  "version": 2,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": null,
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "overwatch",
+    "name": "Overwatch 2 (Linear Ramp)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4441 (Overwatch2:L, curves Overwatch2:L-ADS-P4.4 / Overwatch2:L-ADS-X1.4 / Overwatch2:L-Hip-P4.4 / Overwatch2:L-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 521, aiming 521 on PS5; Xbox Series hip 522, aiming 522 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Overwatch calibration, circular dead zone 13/127)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Aim Technique",
+        "value": "Linear Ramp"
+      },
+      {
+        "setting": "Horizontal Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Relative Aim Sensitivity While Zoomed",
+        "value": "Highest"
+      },
+      {
+        "setting": "Aim Ease In",
+        "value": "0"
+      },
+      {
+        "setting": "Aim Smoothing",
+        "value": "0"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.1,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 521,
+        "pitch": 521
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 521,
+          "pitch": 521
+        },
+        "xbox": {
+          "yaw": 522,
+          "pitch": 522
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 521,
+        "pitch": 521
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 521,
+          "pitch": 521
+        },
+        "xbox": {
+          "yaw": 522,
+          "pitch": 522
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "dual-zone",
+      "label": "Dual-Zone",
+      "setting": "Aim Technique",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "overwatch",
+        "name": "Overwatch 2 (Dual-Zone)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4486 (Overwatch2:D, curves Overwatch2:D-ADS-P4.2 / Overwatch2:D-ADS-X1.2 / Overwatch2:D-Hip-P4.2 / Overwatch2:D-Hip-X1.2). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 601, aiming 601 on PS5; Xbox Series hip 601, aiming 601 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Overwatch calibration, circular dead zone 13/127)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (Dual-Zone: a slow inner zone over about 90 % of travel, then a jump to full (community description); the inner gain is a guess). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Aim Technique",
+            "value": "Dual-Zone"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Relative Aim Sensitivity While Zoomed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Aim Ease In",
+            "value": "0"
+          },
+          {
+            "setting": "Aim Smoothing",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.9,
+                0.55
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 601,
+            "pitch": 601
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 601,
+              "pitch": 601
+            },
+            "xbox": {
+              "yaw": 601,
+              "pitch": 601
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 601,
+            "pitch": 601
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 601,
+              "pitch": 601
+            },
+            "xbox": {
+              "yaw": 601,
+              "pitch": 601
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "exponential-ramp",
+      "label": "Exponential Ramp",
+      "setting": "Aim Technique",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "overwatch",
+        "name": "Overwatch 2 (Exponential Ramp)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4440 (Overwatch2:E, curves Overwatch2:E-ADS-P4.4 / Overwatch2:E-ADS-X1.4 / Overwatch2:E-Hip-P4.4 / Overwatch2:E-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 521, aiming 521 on PS5; Xbox Series hip 521, aiming 521 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Overwatch calibration, circular dead zone 13/127)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (an \"exponential\" stick curve; no exponent is published, 2 is the usual one). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Aim Technique",
+            "value": "Exponential Ramp"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Relative Aim Sensitivity While Zoomed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Aim Ease In",
+            "value": "0"
+          },
+          {
+            "setting": "Aim Smoothing",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 521,
+            "pitch": 521
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 521,
+              "pitch": 521
+            },
+            "xbox": {
+              "yaw": 521,
+              "pitch": 521
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 521,
+            "pitch": 521
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 521,
+              "pitch": 521
+            },
+            "xbox": {
+              "yaw": 521,
+              "pitch": 521
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear-ramp",
+      "label": "Linear Ramp",
+      "setting": "Aim Technique",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "overwatch",
+        "name": "Overwatch 2 (Linear Ramp)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4441 (Overwatch2:L, curves Overwatch2:L-ADS-P4.4 / Overwatch2:L-ADS-X1.4 / Overwatch2:L-Hip-P4.4 / Overwatch2:L-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 521, aiming 521 on PS5; Xbox Series hip 522, aiming 522 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (GIMX PS4 Overwatch calibration, circular dead zone 13/127)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Aim Technique",
+            "value": "Linear Ramp"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Relative Aim Sensitivity While Zoomed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Aim Ease In",
+            "value": "0"
+          },
+          {
+            "setting": "Aim Smoothing",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 521,
+            "pitch": 521
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 521,
+              "pitch": 521
+            },
+            "xbox": {
+              "yaw": 522,
+              "pitch": 522
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 521,
+            "pitch": 521
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 521,
+              "pitch": 521
+            },
+            "xbox": {
+              "yaw": 522,
+              "pitch": 522
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Overwatch (Blizzard), called Overwatch 2 until 2026-02-10. No pack picture yet: art is null, so the app draws our own banner (no official artwork was fetched for it, 2026-10-10). Its heroes and their weapons are in game-data/overwatch/. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/overwatch.json, and --remove takes it out.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Overwatch are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Overwatch comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Overwatch comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

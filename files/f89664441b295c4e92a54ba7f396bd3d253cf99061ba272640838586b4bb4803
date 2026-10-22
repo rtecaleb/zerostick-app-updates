@@ -1,0 +1,61 @@
+/* sections/99-finish.js — the last file: the tint contract, then everything runs.
+ *
+ * Wraps every renderer that has a section tint (TINT_OF, in the kit) so a
+ * sub-screen keeps its parent's colour, publishes window.RENDERERS (replacing
+ * the empty table account.js left) and ZS.cvToolsOf. The call at the bottom
+ * runs every file in order (phone-sections.js, ZS_SECTIONS.run).
+ *
+ * Also offers on ZS:          ZS.cvToolsOf
+ * Tests:                      test-render.js, test-account.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('finish', function (SEC) {
+  /* from the files before this one */
+  var R = SEC.R, TINT_OF = SEC.TINT_OF, ZS = SEC.ZS, cvToolsOf = SEC.cvToolsOf;
+
+  /* THE SUB-SCREEN HALF OF THE TINT CONTRACT (see TINT_OF above).
+     phone.html's openDetail stamps data-tint on #dbody for the five
+     top-level section ids and REMOVES it for everything else — which is
+     right for global/profiles/new, but would strip Aim's amber from
+     Controller Feel the moment its door is tapped. Every entry into a
+     renderer — openDetail, the ~8s poll's redrawOpenScreen(), a door, a
+     sheet's openDetail() re-entry — passes through this table, so the
+     after() hook added here re-stamps the parent section's tint once the
+     container is in hand. It runs AFTER openDetail's own stamp/remove and
+     is idempotent (same id → same attribute value), so the poll's redraw
+     repaints identical bytes and can never churn. A renderer with no
+     TINT_OF entry is left completely alone. */
+  Object.keys(R).forEach(function(id){
+    var tint = TINT_OF[id];
+    if(!tint) return;
+    var base = R[id];
+    R[id] = function(){
+      var res = base.apply(this, arguments);
+      if(res == null) return res;
+      if(typeof res === 'string') res = { html: res };
+      var baseAfter = res.after;
+      res.after = function(root){
+        if(root && root.setAttribute) root.setAttribute('data-tint', tint);
+        if(typeof baseAfter === 'function') return baseAfter.apply(this, arguments);
+      };
+      return res;
+    };
+  });
+
+  window.RENDERERS = R;
+  /* ZS.saState / ZS.syncActions are exported by smart-actions.js alone now.
+     This file used to export a fallback pair from its legacy editor and the
+     comment here warned the two writers "must never be crossed" — with the
+     legacy editor deleted (screen-map §5.4) there is exactly one writer, and
+     the warning is retired along with the hazard. */
+  /* the game-profile discriminator, exported for the CV tab's tests: the
+     blank/pack/custom split must stay a pure function of the vision block */
+  ZS.cvToolsOf = cvToolsOf;
+});
+
+/* every file is in: run them, in order, then bind the late names */
+ZS_SECTIONS.run();

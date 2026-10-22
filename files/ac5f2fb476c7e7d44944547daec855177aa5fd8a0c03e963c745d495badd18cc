@@ -1,0 +1,546 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "cod-bo2",
+  "title": "Call of Duty: Black Ops II",
+  "asOf": "2026-09-23",
+  "season": null,
+  "integrated": [
+    "Black Ops II"
+  ],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "submachine_guns",
+      "name": "Submachine Guns",
+      "items": [
+        {
+          "id": "submachine_guns.mp7",
+          "name": "MP7",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "submachine_guns.pdw_57",
+          "name": "PDW-57",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "submachine_guns.vector_k10",
+          "name": "Vector K10",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "submachine_guns.msmc",
+          "name": "MSMC",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "submachine_guns.chicom_cqb",
+          "name": "Chicom CQB",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "submachine_guns.skorpion_evo",
+          "name": "Skorpion EVO",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_skorpion_evo.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "submachine_guns.peacekeeper",
+          "name": "Peacekeeper",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_peacekeeper.png",
+          "sources": [
+            "https://web.archive.org/web/20130219191032/http://www.callofduty.com/blackops2/dlc/dlc1-revolution",
+            "https://investor.activision.com/news-releases/news-release-details/call-dutyr-black-ops-ii-revolution-dlc-map-pack-deploys-today",
+            "https://support.activision.com/call-of-duty--black-ops-ii/articles/peacekeeper-faq"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.mtar",
+          "name": "MTAR",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.type_25",
+          "name": "Type 25",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.swat_556",
+          "name": "SWAT-556",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_swat_556.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.fal_osw",
+          "name": "FAL OSW",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "assault_rifles.m27",
+          "name": "M27",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_m27.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.scar_h",
+          "name": "SCAR-H",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_scar_h.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.smr",
+          "name": "SMR",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_smr.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "assault_rifles.m8a1",
+          "name": "M8A1",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.an_94",
+          "name": "AN-94",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.r870_mcs",
+          "name": "Remington 870 MCS",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.s12",
+          "name": "S12",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.ksg",
+          "name": "KSG",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.m1216",
+          "name": "M1216",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "light_machine_guns",
+      "name": "Light Machine Guns",
+      "items": [
+        {
+          "id": "light_machine_guns.mk_48",
+          "name": "Mk 48",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_mk_48.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "light_machine_guns.qbb_lsw",
+          "name": "QBB LSW",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": "Spelling: no Activision page found names it. Gamer Guides and the Call of Duty Wiki write 'QBB LSW'; reprints of Treyarch's 2013 patch notes write 'QBB-LSW'. Check the hyphen on the owner's screen.",
+          "fireMode": "auto"
+        },
+        {
+          "id": "light_machine_guns.lsat",
+          "name": "LSAT",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "light_machine_guns.hamr",
+          "name": "HAMR",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.svu_as",
+          "name": "SVU-AS",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sniper_rifles.dsr_50",
+          "name": "DSR 50",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.ballista",
+          "name": "Ballista",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.xpr_50",
+          "name": "XPR-50",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "pistols",
+      "name": "Pistols",
+      "items": [
+        {
+          "id": "pistols.five_seven",
+          "name": "Five-seven",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": "Capitalisation: no Activision page found names it. The Call of Duty Wiki writes 'Five-seven', Gamer Guides 'Five-Seven'. Black Ops II draws weapon names in mixed case (Activision's own Create-a-Class screenshots show 'Tac-45' and 'Mk 48'), so check the capital S on the owner's screen.",
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.tac_45",
+          "name": "Tac-45",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_tac_45.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.b23r",
+          "name": "B23R",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "pistols.executioner",
+          "name": "Executioner",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.kap_40",
+          "name": "KAP-40",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "launchers",
+      "name": "Launchers",
+      "items": [
+        {
+          "id": "launchers.smaw",
+          "name": "SMAW",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.fhj_18_aa",
+          "name": "FHJ-18 AA",
+          "from": "Black Ops II",
+          "image": "weapons/bo2_fhj_18_aa.png",
+          "sources": [
+            "https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.rpg",
+          "name": "RPG",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "specials",
+      "name": "Specials",
+      "items": [
+        {
+          "id": "specials.assault_shield",
+          "name": "Assault Shield",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://web.archive.org/web/20121008074210/http://www.callofduty.com/blackops2/features/multiplayer",
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons",
+            "https://callofduty.fandom.com/wiki/Assault_Shield",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "specials.crossbow",
+          "name": "Crossbow",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "specials.ballistic_knife",
+          "name": "Ballistic Knife",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "specials.combat_knife",
+          "name": "Combat Knife",
+          "from": "Black Ops II",
+          "image": null,
+          "sources": [
+            "https://callofduty.fandom.com/wiki/Combat_Knife",
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=172521258",
+            "https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II"
+          ],
+          "uncertain": "Not a Create-a-Class pick: it is the knife a player holds when the class has no primary or secondary weapon (and after planting the Assault Shield). Its name and its place among the Specials (it counts toward the Specials' Diamond camo) come from community references only; Activision's own Create-a-Class screenshots only show a 'Personalize Knife' button. Check the name on the owner's screen."
+        }
+      ]
+    }
+  ]
+}

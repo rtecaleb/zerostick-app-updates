@@ -1,0 +1,26 @@
+{
+  "name": "ZeroStick EXO",
+  "short_name": "ZeroStick",
+  "description": "Set up your ZeroStick EXO adapter from your phone over Bluetooth.",
+  "start_url": "mobile.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080b11",
+  "theme_color": "#080b11",
+  "categories": ["utilities", "games"],
+  "icons": [
+    {
+      "src": "zs-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "zs-icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "maskable"
+    }
+  ]
+}

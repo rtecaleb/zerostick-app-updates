@@ -1,0 +1,525 @@
+/* zs-profile-copy.js - a config on a Core, read back whole in numbered pieces
+ * and made into the document the app edits again (D124). window.ZSCOPY.
+ *
+ * ES5 ONLY, the same discipline as zs-profile-encode.js and zs-serial.js: no
+ * arrow function, no template literal, no let/const, no class. Promises and
+ * typed arrays are library, not syntax.
+ *
+ * -- Why this file exists ---------------------------------------------------
+ *
+ * A Core keeps each config as its D103 blob with the original document
+ * beside it as the SOURCE sidecar (D103 section 8), so a reinstalled app can
+ * edit a config it did not write. It used to hand that copy back in ONE
+ * reply of at most 8 KB, which a Warzone config outgrew at about its third
+ * taught weapon (D122 section 7), and the app then dropped the config from
+ * its list while it went on playing.
+ *
+ * So a Core that says so (GET /profiles answers `read: "zsp-chunks"`, and
+ * /status profileFormat.sourceRead) hands back the STORED BLOB in pieces,
+ * the way it hands back a screenshot (D118):
+ *
+ *   GET /profiles/<id>/zsp      {ok, encoding:"zsp-chunks", data:{id, bytes,
+ *                                crc32, chunk, chunks, revision,
+ *                                source:{bytes}}}
+ *   GET /profiles/<id>/zsp/<i>  {ok, data:{id, index, offset, bytes, crc32,
+ *                                b64}}
+ *
+ * and this file puts the pieces together, refuses anything that is not the
+ * blob the header described, finds the sidecar inside it, inflates it, and
+ * puts back the taught pictures the copy only REFERS to (the encoder's
+ * PATCH_REF): since D124 a picture's 512 bytes live once, in the VISION
+ * section, and the copy names their index there.
+ *
+ * It is transport-free, like zs-serial.js's pullShot: the caller hands in
+ * how to fetch one reply, so the same code serves the serial link, Bluetooth
+ * and the tests.
+ *
+ * -- What it refuses, and why that is the whole point -----------------------
+ *
+ * A piece of another save, a piece in the wrong place or of the wrong
+ * length, a total that does not add up, a CRC-32 that does not match the
+ * directory's, a container that is not a D103 container, a trailer CRC that
+ * does not hold, a picture reference that points past the pictures or at a
+ * picture of another name. Each is refused with a sentence, and the caller
+ * lists the config anyway with that sentence beside it (phone.html's
+ * loadLive): a config whose copy cannot be read is never dropped, and it is
+ * never opened half-read either, because a copy that edits wrongly is saved
+ * back wrongly.
+ */
+(function () {
+  'use strict';
+
+  var ENCODING = 'zsp-chunks';
+  /* A lying header cannot make the app allocate much: never more than the
+     most one config may be on the Core that is connected (its own
+     blobBytes, D133: 256 KB on a D133 Core), and never less than the 64 KB
+     this was when every Core's cap was 16 KB. A fixed 64 KB here would have
+     refused, as "an impossible size", every D133 config past it. */
+  var MAX_BYTES = 65536;
+  function maxBytes() {
+    var zs = window.ZS, z = Z();
+    var c = (zs && typeof zs.coreCaps === 'function') ? zs.coreCaps() : (z ? z.CAPS : null);
+    return Math.max(MAX_BYTES, (c && c.blobBytes > 0) ? c.blobBytes : 0);
+  }
+
+  var SECTION_IDENT = 0x0001;
+  var SECTION_VISION = 0x0060;
+  /* D136: past 255 pictures VISION keeps the low byte of its count and this
+     section carries the whole of it (encode.py _write_vision_wide). */
+  var SECTION_VISION_WIDE = 0x0062;
+  var SECTION_SOURCE = 0x00F0;
+  var SECTION_SCRIPTS = 0x0050;
+  var SCRIPT_PERSIST = 448;          /* i32 spvar[64], i32 pvar[16], u8 pmem[128] */
+
+  /* One sentence each, for a person, ending on the fact that matters most
+     to them: the config still plays. The caller shows the first it gets. */
+  var SAY = {
+    noCopy: 'This config was saved without its editable copy, so its settings ' +
+      'cannot be opened here. It still plays on the Core.',
+    unopenable: 'This config’s editable copy on the Core could not be opened, so ' +
+      'its settings cannot be opened here. It still plays on the Core.',
+    mismatch: 'This config’s editable copy does not match the config it was saved ' +
+      'with, so the app will not open it. It still plays on the Core.',
+    torn: 'This config did not come back whole from the Core (its checksum did not ' +
+      'match, twice), so the app will not open it. It still plays on the Core.',
+    firmware: 'This config’s taught pictures are kept only inside the config on the ' +
+      'Core, and this Core’s firmware cannot hand them back. Update the Core to open ' +
+      'its settings. It still plays.',
+    unreadable: 'This config’s editable copy could not be read from the Core, so its ' +
+      'settings cannot be opened here. It still plays on the Core.'
+  };
+
+  function Z() { return window.ZSPROFILE || null; }
+
+  function crc32(bytes) {
+    var z = Z();
+    return z ? z.crc32(bytes) : -1;
+  }
+
+  function hex8(n) {
+    var s = (n >>> 0).toString(16);
+    while (s.length < 8) { s = '0' + s; }
+    return s;
+  }
+
+  function b64ToBytes(text) {
+    var z = Z();
+    var arr = z ? z.b64decode(String(text || '')) : null;
+    return arr ? new Uint8Array(arr) : null;
+  }
+
+  function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+  function u32(b, o) {
+    return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+  }
+
+  /* ---------------------------------------------------- the header ----- */
+
+  function headerProblem(h) {
+    if (!h || typeof h !== 'object') { return 'the Core sent no description of the config'; }
+    if (typeof h.id !== 'string' || !h.id) { return 'the config has no id'; }
+    if (!(h.bytes > 0) || h.bytes > maxBytes() || Math.floor(h.bytes) !== h.bytes) {
+      return 'the config has an impossible size';
+    }
+    if (!(h.chunk > 0) || h.chunks !== Math.ceil(h.bytes / h.chunk)) {
+      return 'the config’s pieces do not add up';
+    }
+    if (!/^[0-9a-fA-F]{8}$/.test(String(h.crc32 || ''))) {
+      return 'the config has no checksum';
+    }
+    return '';
+  }
+
+  /* Pure. `parts` is [{index, offset, bytes}] in any order. Returns
+     {ok:true, bytes} or {ok:false, why, torn}; `torn` means the pieces were
+     all there and the blob is still wrong, which is worth asking again for. */
+  function assemble(h, parts) {
+    var problem = headerProblem(h);
+    if (problem) { return { ok: false, why: problem, torn: false }; }
+    var out = new Uint8Array(h.bytes), seen = {}, have = 0, i;
+    for (i = 0; i < (parts || []).length; i++) {
+      var p = parts[i];
+      if (!p || !p.bytes || seen[p.index]) {
+        return { ok: false, why: 'a piece of the config came twice', torn: true };
+      }
+      seen[p.index] = true;
+      if (p.offset !== p.index * h.chunk || p.offset + p.bytes.length > h.bytes) {
+        return { ok: false, why: 'a piece of the config is in the wrong place', torn: true };
+      }
+      out.set(p.bytes, p.offset);
+      have += p.bytes.length;
+    }
+    if (have !== h.bytes) {
+      return { ok: false, why: 'the config arrived short', torn: true };
+    }
+    /* THE SAVE'S OWN CRC-32, D103's trailer, checked both ways it can be:
+       the bytes before it must hash to it, and the blob must end with it.
+       Never the CRC of the whole blob: over a message followed by its own
+       CRC-32 that is one constant, the same for every config there is. */
+    var want = parseInt(h.crc32, 16) >>> 0;
+    if (h.bytes < 4 || crc32(out.subarray(0, h.bytes - 4)) !== want ||
+        u32(out, h.bytes - 4) !== want) {
+      return { ok: false, why: 'the config was damaged on the way: its checksum ' +
+        'does not match', torn: true };
+    }
+    return { ok: true, bytes: out };
+  }
+
+  /* A reply that is NO answer (a line lost on the link, a timeout, the
+     agent unreachable) rather than the Core's own refusal. Such a read is
+     worth asking again; a refusal is the Core's answer and is not. */
+  function silent(j) {
+    return !j || (j.ok !== true && /abort|timed? ?out|no answer|unreachable|empty response|failed to fetch|network/i
+      .test(String(j.error || '')));
+  }
+
+  /* Every piece, one at a time, then assemble. `getJson(path)` returns a
+     Promise of the reply body. Rejects with an Error whose `replaced` is true
+     when the config was saved again mid-way (its CRC changed under the read)
+     and whose `torn` is true when the pieces did not make the blob. One at a
+     time on purpose: the link carries one message at a time anyway, and the
+     app's status polls get to interleave. */
+  function pull(getJson, h) {
+    var problem = headerProblem(h);
+    if (problem) { return Promise.reject(new Error(problem)); }
+    var parts = [];
+    var base = '/profiles/' + encodeURIComponent(h.id) + '/zsp/';
+    /* A piece with NO answer is asked for again, up to twice, before the
+       read fails (2026-09-23): a big config is hundreds of pieces over a link
+       that can lose a line, and one lost line should cost one piece. A piece
+       the Core answered with a refusal is its answer and is not asked again.
+       (`silent` is the module's own, below `assemble`: the app's header read
+       asks the same question.) */
+    function ask(i, tries) {
+      return Promise.resolve(getJson(base + i)).then(function (j) {
+        return (silent(j) && tries < 2) ? ask(i, tries + 1) : j;
+      });
+    }
+    function piece(i) {
+      if (i >= h.chunks) {
+        var r = assemble(h, parts);
+        if (!r.ok) {
+          var bad = new Error(r.why);
+          bad.torn = !!r.torn;
+          throw bad;
+        }
+        return r.bytes;
+      }
+      return ask(i, 0).then(function (j) {
+        if (!j || j.ok !== true || !j.data) {
+          throw new Error((j && j.error) ||
+            ('the Core did not send piece ' + (i + 1) + ' of the config'));
+        }
+        var d = j.data;
+        if (d.id !== h.id || d.index !== i) {
+          throw new Error('the Core sent the wrong piece of the config');
+        }
+        if (String(d.crc32 || '').toLowerCase() !== String(h.crc32).toLowerCase()) {
+          var moved = new Error('the config was saved again while it was being read');
+          moved.replaced = true;
+          throw moved;
+        }
+        var bytes = b64ToBytes(d.b64);
+        if (!bytes) { throw new Error('a piece of the config was not readable'); }
+        if (bytes.length !== d.bytes) {
+          var s = new Error('a piece of the config arrived short');
+          s.torn = true;
+          throw s;
+        }
+        parts.push({ index: i, offset: d.offset, bytes: bytes });
+        return piece(i + 1);
+      });
+    }
+    return piece(0);
+  }
+
+  /* ------------------------------------------------- inside the blob ----- */
+
+  /* The D103 container's section table, or null when these bytes are not
+     one: magic, total_bytes against what arrived, every entry inside the
+     blob, and the trailer CRC. The device checked all of this before it
+     stored the blob; checking it again here is what makes "the pieces are
+     the blob" and "the blob is a config" two separate facts. */
+  function sectionsOf(blob) {
+    if (!blob || blob.length < 24) { return null; }
+    if (blob[0] !== 0x5A || blob[1] !== 0x53 || blob[2] !== 0x50 || blob[3] !== 0x52) {
+      return null;
+    }
+    var hb = u16(blob, 6), total = u32(blob, 8), count = u16(blob, 12);
+    if (total !== blob.length || hb < 20 || hb + count * 12 > total - 4) { return null; }
+    if (crc32(blob.subarray(0, total - 4)) !== u32(blob, total - 4)) { return null; }
+    var out = {};
+    for (var i = 0; i < count; i++) {
+      var e = hb + i * 12;
+      var off = u32(blob, e + 4), len = u32(blob, e + 8);
+      if (off > total - 4 || len > total - 4 - off) { return null; }
+      out[u16(blob, e)] = { off: off, len: len, flags: u16(blob, e + 2) };
+    }
+    return out;
+  }
+
+  function str8(blob, at, end) {
+    if (at >= end) { return null; }
+    var n = blob[at];
+    if (at + 1 + n > end) { return null; }
+    return { text: utf8Text(blob.subarray(at + 1, at + 1 + n)), next: at + 1 + n };
+  }
+
+  function utf8Text(bytes) {
+    if (typeof TextDecoder !== 'undefined') { return new TextDecoder('utf-8').decode(bytes); }
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) { s += String.fromCharCode(bytes[i]); }
+    try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+  }
+
+  /* IDENT's identity fields (encode.py _write_ident's SECTION LAYOUT), so a
+     config whose copy cannot be opened can still be named, and its game can
+     still pick the game pack a new copy would start from. */
+  function identOf(blob, secs) {
+    var s = secs && secs[SECTION_IDENT];
+    if (!s || s.len < 4) { return null; }
+    var end = s.off + s.len, z = Z();
+    var cons = z ? z.ENUMS.console : [], inp = z ? z.ENUMS.inputType : [];
+    var out = { console: cons[blob[s.off]] || '', inputType: inp[blob[s.off + 1]] || '',
+                id: '', name: '', game: '' };
+    var a = str8(blob, s.off + 4, end);
+    if (!a) { return out; }
+    out.id = a.text;
+    var b = str8(blob, a.next, end);
+    if (!b) { return out; }
+    out.name = b.text;
+    var c = str8(blob, b.next, end);
+    if (c) { out.game = c.text; }
+    return out;
+  }
+
+  /* THE SAVED VALUES THE CORE KEEPS (GPC scripts, the SCRIPTS section 0x0050,
+     encode.py _write_scripts' SECTION LAYOUT). A running script's SPVAR /
+     PVAR / pmem go back into the stored blob IN PLACE (docs/GPC-FIRMWARE.md
+     section 4); the SOURCE copy beside them is what the app last saved, so
+     it can hold older values. This reads the newer ones:
+       { <slot>: { spvar: [64 ints], pvar: [16 ints], pmem: Uint8Array(128) } }
+     ({} when there is no SCRIPTS section, null when it is not that layout). */
+  function i32(b, o) { return u32(b, o) | 0; }
+  function scriptValuesOf(blob, secs) {
+    var s = secs && secs[SECTION_SCRIPTS];
+    if (!s) { return {}; }
+    if (s.len < 8) { return null; }
+    var count = blob[s.off + 2], rb = u16(blob, s.off + 4), out = {}, i, j;
+    if (rb < 56 || 8 + count * rb > s.len) { return null; }
+    for (i = 0; i < count; i++) {
+      var r = s.off + 8 + i * rb, slot = blob[r], po = u32(blob, r + 44);
+      if (!(slot >= 1 && slot <= 8) || po + SCRIPT_PERSIST > s.len) { return null; }
+      var p = s.off + po, v = { spvar: [], pvar: [], pmem: blob.slice(p + 320, p + 448) };
+      for (j = 0; j < 64; j++) { v.spvar.push(i32(blob, p + j * 4)); }
+      for (j = 0; j < 16; j++) { v.pvar.push(i32(blob, p + 256 + j * 4)); }
+      out[slot] = v;
+    }
+    return out;
+  }
+  /* Put them on the document's slots where they differ from what it holds
+     (a value the document leaves out is 0), trailing zeros left off as the
+     app writes them. Returns how many slots changed. */
+  function padTo(a, n) {
+    var o = [], i;
+    for (i = 0; i < n; i++) { o.push(a && i < a.length ? (Number(a[i]) | 0) : 0); }
+    return o;
+  }
+  function trim(a) { var n = a.length; while (n > 0 && !a[n - 1]) { n--; } return a.slice(0, n); }
+  function sameInts(a, b) { for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) { return false; } } return true; }
+  function applyScriptValues(doc, vals) {
+    var sc = doc && doc.scripts, z = Z(), changed = 0;
+    if (!sc || !sc.slots || !sc.slots.length || !vals || !z) { return 0; }
+    sc.slots.forEach(function (e) {
+      var v = e && vals[e.slot];
+      if (!v) { return; }
+      var pm = e.pmem ? z.b64decode(String(e.pmem)) : [], had = padTo(pm, 128), now = padTo(v.pmem, 128);
+      if (sameInts(padTo(e.spvar, 64), v.spvar) && sameInts(padTo(e.pvar, 16), v.pvar) && sameInts(had, now)) { return; }
+      var sp = trim(v.spvar), pv = trim(v.pvar), pb = trim(now);
+      if (sp.length) { e.spvar = sp; } else { delete e.spvar; }
+      if (pv.length) { e.pvar = pv; } else { delete e.pvar; }
+      if (pb.length) { e.pmem = z.b64encode(new Uint8Array(pb)); } else { delete e.pmem; }
+      changed++;
+    });
+    return changed;
+  }
+
+  /* The VISION section's picture labels and pixels (encode.py _write_vision's
+     SECTION LAYOUT), or null when it is not the shape that layout says.
+     Both are indexed by TEMPLATE, the index a PATCH_REF names; a template in
+     a gun-by-name area has no picture on the wire, and its entry in
+     `patches` is null (M22: they used to be read as if every template had
+     one, so a by-name area beside any taught picture made the whole copy
+     unreadable). ZSPROFILE.patchSlots is the one map from one to the other. */
+  function picturesOf(blob, secs) {
+    var s = secs && secs[SECTION_VISION];
+    if (!s) { return { labels: [], patches: [] }; }
+    var end = s.off + s.len;
+    if (s.len < 8) { return null; }
+    var rc = blob[s.off], tc = blob[s.off + 1], rb = blob[s.off + 2], tb = blob[s.off + 3];
+    var wide = secs[SECTION_VISION_WIDE];
+    if (wide && wide.len >= 4) { tc = u32(blob, wide.off); }
+    var z = Z();
+    var map = z && z.patchSlots ? z.patchSlots(blob.subarray(s.off, end),
+      wide ? blob.subarray(wide.off, wide.off + wide.len) : null) : null;
+    if (!map || map.slots.length !== tc) { return null; }
+    var n = u16(blob, s.off + 4) * u16(blob, s.off + 6);
+    var at = s.off + 8 + rc * rb + tc * tb, i, t;
+    var labels = [], patches = [];
+    for (i = 0; i < rc; i++) {
+      t = str8(blob, at, end);
+      if (!t) { return null; }
+      at = t.next;
+    }
+    for (i = 0; i < tc; i++) {
+      t = str8(blob, at, end);
+      if (!t) { return null; }
+      labels.push(t.text);
+      at = t.next;
+    }
+    if (at + map.patches * n > end) { return null; }
+    for (i = 0; i < tc; i++) {
+      var k = map.slots[i];
+      patches.push(k < 0 ? null : blob.subarray(at + k * n, at + (k + 1) * n));
+    }
+    return { labels: labels, patches: patches };
+  }
+
+  /* Every object anywhere under doc.vision that carries a picture reference
+     and no picture of its own. Walked rather than looked up by path, so the
+     reader does not have to agree with the encoder about WHERE templates
+     live (spec.templates or spec.match.templates): it only has to find the
+     references the encoder wrote. */
+  function refsIn(v, out) {
+    if (!v || typeof v !== 'object') { return out; }
+    var z = Z(), key = z ? z.PATCH_REF : 'patchAt';
+    if (Object.prototype.toString.call(v) === '[object Array]') {
+      for (var i = 0; i < v.length; i++) { refsIn(v[i], out); }
+      return out;
+    }
+    if (typeof v[key] === 'number' && typeof v.patch !== 'string') { out.push(v); }
+    for (var k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k) && v[k] && typeof v[k] === 'object') {
+        refsIn(v[k], out);
+      }
+    }
+    return out;
+  }
+
+  function hasRefs(doc) {
+    return !!(doc && doc.vision && refsIn(doc.vision, []).length);
+  }
+
+  /* Put the pictures back. '' on success, or the sentence to show. A label
+     that disagrees with the VISION section's label at that index is a
+     refusal: the blob is whole (its CRC held), so a disagreement can only be
+     an encoder bug, and a copy that puts one weapon's picture on another
+     would be saved back that way. The label is compared as the encoder cut
+     it (32 bytes at a character boundary), so a long name still matches. */
+  function restore(doc, pics) {
+    var z = Z();
+    if (!z) { return SAY.unopenable; }
+    var key = z.PATCH_REF;
+    var list = refsIn(doc && doc.vision, []);
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i], at = t[key];
+      if (!pics || Math.floor(at) !== at || at < 0 || at >= pics.patches.length || !pics.patches[at]) {
+        return SAY.mismatch;
+      }
+      var label = String(t.label == null ? '' : t.label).replace(/^\s+|\s+$/g, '');
+      var cut = pics.labels[at];
+      if (!cut || label.indexOf(cut) !== 0) { return SAY.mismatch; }
+      t.patch = z.b64encode(pics.patches[at]);
+      delete t[key];
+    }
+    return '';
+  }
+
+  function gunzip(bytes) {
+    if (window.ZSFRAME && window.ZSFRAME.gunzip) { return window.ZSFRAME.gunzip(bytes); }
+    return Promise.reject(new Error('no inflater'));
+  }
+
+  /* A whole, checked blob -> {ok:true, data} or {ok:false, error, ident}.
+     `ident` rides every answer it can, so the caller can name and place a
+     config whose copy is lost. */
+  function docOf(blob) {
+    var secs = sectionsOf(blob);
+    if (!secs) { return Promise.resolve({ ok: false, error: SAY.unopenable, ident: null }); }
+    var ident = identOf(blob, secs);
+    var src = secs[SECTION_SOURCE];
+    if (!src || !src.len) { return Promise.resolve({ ok: false, error: SAY.noCopy, ident: ident }); }
+    var raw = blob.subarray(src.off, src.off + src.len);
+    if (raw[0] !== 0x1F || raw[1] !== 0x8B) {
+      /* A plain-JSON sidecar, which D103 allows and no app writes. */
+      return Promise.resolve(parseAndRestore(raw, blob, secs, ident));
+    }
+    /* A copy of its own, not a view: the inflater takes ownership of what it
+       is handed, and the caller keeps the blob. */
+    return gunzip(new Uint8Array(raw)).then(function (text) {
+      return parseAndRestore(text, blob, secs, ident);
+    }, function () {
+      return { ok: false, error: SAY.unopenable, ident: ident };
+    });
+  }
+
+  function parseAndRestore(textBytes, blob, secs, ident) {
+    var doc;
+    try { doc = JSON.parse(utf8Text(textBytes)); } catch (e) { doc = null; }
+    if (!doc || typeof doc !== 'object') { return { ok: false, error: SAY.unopenable, ident: ident }; }
+    if (hasRefs(doc)) {
+      var why = restore(doc, picturesOf(blob, secs));
+      if (why) { return { ok: false, error: why, ident: ident }; }
+    }
+    /* the scripts' saved values as the Core keeps them, newer than the copy */
+    applyScriptValues(doc, scriptValuesOf(blob, secs));
+    return { ok: true, data: doc, ident: ident };
+  }
+
+  /* The whole read, from a header the caller has already fetched (so it can
+     look at the CRC first and skip the pieces when it already has this
+     exact blob). ONE retry when the read was torn or overtaken by a save:
+     either can happen to a read that did nothing wrong, and twice in a row
+     is a fact worth saying rather than retrying. Resolves to
+     {ok:true, data, crc, ident} or {ok:false, error, ident}. */
+  function read(getJson, h, fetchHeader) {
+    function once(head, tries) {
+      return pull(getJson, head).then(function (blob) {
+        return docOf(blob).then(function (r) {
+          r.crc = String(head.crc32).toLowerCase();
+          return r;
+        });
+      }, function (e) {
+        if ((e && (e.torn || e.replaced)) && tries > 0 && fetchHeader) {
+          return Promise.resolve(fetchHeader()).then(function (j) {
+            if (!j || !j.ok || !j.data) { return { ok: false, error: SAY.unreadable, ident: null }; }
+            return once(j.data, tries - 1);
+          });
+        }
+        return { ok: false, error: (e && (e.torn || e.replaced)) ? SAY.torn : SAY.unreadable,
+                 ident: null };
+      });
+    }
+    var problem = headerProblem(h);
+    if (problem) { return Promise.resolve({ ok: false, error: SAY.unreadable, ident: null }); }
+    return once(h, 1);
+  }
+
+  window.ZSCOPY = {
+    ENCODING: ENCODING,
+    SAY: SAY,
+    read: read,
+    pull: pull,
+    assemble: assemble,
+    docOf: docOf,
+    hasRefs: hasRefs,
+    silent: silent,
+    /* exported for the tests, which take a blob apart the same way */
+    sectionsOf: sectionsOf,
+    identOf: identOf,
+    scriptValuesOf: scriptValuesOf,
+    applyScriptValues: applyScriptValues,
+    picturesOf: picturesOf,
+    hex8: hex8
+  };
+}());

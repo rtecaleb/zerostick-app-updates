@@ -1,0 +1,68 @@
+/* sections/21-smart.js — the hand-over to smart-actions.js.
+ *
+ * R.smart and R.bindings: smart-actions.js (ZS_SMART) draws the Scripts and
+ * Mappings screens; these stubs only call it, checked at call time because
+ * that file loads after this folder.
+ *
+ * Screens (window.RENDERERS):  R.smart, R.bindings
+ * Tests:                      test-smart-actions.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('smart', function (SEC) {
+  /* from the files before this one */
+  var card = SEC.card, R = SEC.R;
+
+  /* ══ Smart Actions ═══════════════════════════════════════════ */
+  R.smart = function(p){
+    /* smart-actions.js IS this screen. It edits the BOARD's own action JSON
+       (accessibilityActions) directly, which is the whole design. Checked at
+       CALL time, not load time: that file loads after this one, so ZS_SMART
+       does not exist yet while these renderers are being defined.
+
+       THE LEGACY EDITOR THAT LIVED ABOVE THIS FUNCTION IS GONE (2026-08-28,
+       screen-map §5.4) — deliberately, not lost. It was superseded and
+       DIVERGENT: its 27-entry step-kind palette advertised kinds with no
+       board mapping at all ('Turn Assist', 'Enable Group', 'Motion
+       Engage'…), its phone-side model reached the board only through a lossy
+       translation layer, and every step kind the board really runs
+       (actions/steps.py) is authorable in the live editor. An editor that
+       offers steps the board cannot run is worse than an error card, so the
+       fallback's old protection — "an editor even when smart-actions.js
+       fails to load" — is deliberately reduced to the error state below.
+       Do not resurrect it; fix the load failure instead. (The test gate
+       greps this file for the deleted machinery's identifiers, so none of
+       them may be named here, even in prose.) */
+    if(window.ZS_SMART && typeof window.ZS_SMART.render === 'function')
+      return window.ZS_SMART.render(p);
+    return { html: card('<div class="lrow" style="color:var(--muted)">' +
+      'Scripts failed to load — reload the app.</div>') };
+  };
+
+
+  /* ── Bindings — drawn by smart-actions.js ─────────────────────── */
+  R.bindings = function(p){
+    /* smart-actions.js draws this screen, for the reason the whole Smart
+       Actions redesign exists: a binding and a sequence are two jobs the
+       SAME button can have, and showing them on two screens is what made
+       "make an action, then go and find a trigger" the only route. Its
+       renderInputs() joins bindings[] and accessibilityActions[] on the one
+       key the board already shares between them. Checked at CALL time, not
+       load time: smart-actions.js loads after this file.
+
+       The flat fallback list that lived below this check was deleted with
+       the legacy Smart editor (2026-08-28, screen-map §5.4): two editors
+       over the same profile fields drift apart — this one's own comments
+       already pleaded that the two "must not disagree about what a
+       Controller config shows", and the only guarantee of that is for there
+       to be ONE. If this card ever shows, the fix is the load failure, not
+       a second editor. */
+    if(window.ZS_SMART && typeof window.ZS_SMART.renderInputs === 'function')
+      return window.ZS_SMART.renderInputs(p);
+    return { html: card('<div class="lrow" style="color:var(--muted)">' +
+      'Scripts failed to load — reload the app.</div>') };
+  };
+});

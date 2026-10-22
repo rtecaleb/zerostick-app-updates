@@ -1,0 +1,376 @@
+/* smart-actions/13-join.js — THE JOIN: one row per input, across both lists.
+ *
+ * A button's bindings and the scripts it starts, joined into one row (inputsFor,
+ * rowFor, bindsLive): the thesis of the Mappings screen.
+ *
+ * Tests: test-smart-actions.js, test-input-type.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('join', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var arr = SEC.arr, emitSource = SEC.emitSource,
+      haveClass = SEC.haveClass, PAD_ROWS = SEC.PAD_ROWS, padName = SEC.padName,
+      reresolveConfig = SEC.reresolveConfig, srcArt = SEC.srcArt, srcClass = SEC.srcClass,
+      srcName = SEC.srcName, ZS = SEC.ZS;
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE JOIN — one row per INPUT, across both lists
+     ══════════════════════════════════════════════════════════════════
+
+     The thesis of this whole screen in one line: a sequence stops being a
+     thing you CREATE and becomes a thing a BUTTON DOES. There is no "Smart
+     Action" object in the user's head any more — there is a button, and a
+     button can do something simple or something clever, on the same screen,
+     reached the same way.
+
+     It needs no schema change, which is the reason it is cheap. The board
+     already joins the two lists on one key: `bindings[].source` and
+     `accessibilityActions[].trigger.source` are the SAME string namespace.
+     Everything below is a render-time computation over data we already store
+     — no new persisted field, no new document, no migration write. */
+
+  function bindsLive(p) { return ZS.live.online !== false && !!ZS.live.full[p.id]; }
+
+  /* The bindings list to READ: the config's copy as the board last gave it
+     (ZS.live.full), online or not. AUDIT M17: offline this used to be
+     `binds|<profileId>`, seeded from a made-up WASD layout (BIND_MOCK), so a
+     player with the Core unplugged saw and edited bindings that were not
+     their config's, was told they would be sent, and they never were. The
+     cached copy is still there offline; with none (a config never read,
+     D124), there is nothing to show rather than something invented.
+     Writes go through writeBinds, never through this list. */
+  function bindsOf(p) {
+    var full = ZS.live.full[p.id];
+    /* the old offline copy was never sent anywhere; drop it */
+    if (ZS.store && ZS.store.vals && ZS.store.vals['binds|' + p.id]) {
+      delete ZS.store.vals['binds|' + p.id];
+      if (typeof ZS.persistStore === 'function') ZS.persistStore();
+    }
+    return full ? arr(full.bindings) : [];
+  }
+  /* Does this config have a copy to change at all? */
+  function bindsKnown(p) { return !!ZS.live.full[p.id]; }
+
+  /* THE ONE WRITE to bindings[] (audit M17/m24). D257: a Mappings change is
+     a setting, STAGED on the config's copy (ZS.stageProfile) and sent when
+     Save is pressed, online or offline alike: the Save key is the queue an
+     offline edit waits in, and says it is unsent in red. With no copy of the
+     config there is nothing to stage onto, and the player is told so rather
+     than promised a sync. The toast never says a staged change is on the
+     board (m24): it says to press Save. */
+  function writeBinds(p, mutate, msg, done) {
+    if (!bindsKnown(p)) {
+      ZS.toast('Connect your board first - this config has not been read from it yet');
+      if (done) done(false);
+      return;
+    }
+    (ZS.stageProfile || ZS.putProfile)(p.id, mutate).then(function (j) {
+      if (j && j.ok) {
+        /* a change with no sentence of its own (a behaviour tweak) lets the
+           red Save key speak for it */
+        if (msg) ZS.toast(j.staged ? msg + '. Press Save to put it on your board' : msg);
+        resyncActions(p, j);
+      } else if (ZS.live.online === false) {
+        ZS.toast('Not changed - your board is not connected');
+      }
+      if (done) done(!!(j && j.ok));
+    });
+  }
+
+  /* THE GAME PACK'S BINDING LIST for this config's way to play, or null.
+     {game, list} — the list is the pack's own (never mutate it). Only a pack
+     that SETS bindings for this input type counts; a pad on passthrough is
+     already the game's layout, so the controller block carries none. */
+  function packLayout(p) {
+    var P = window.ZSPACKS;
+    if (!p || !P || typeof P.ofConfig !== 'function') return null;
+    var full = (ZS.live && ZS.live.full && ZS.live.full[p.id]) || null;
+    var pk = P.ofConfig(full || p) || (full ? P.ofConfig(p) : null);
+    var input = p.input || (full && full.inputType) || '';
+    var blk = pk && pk.inputs && pk.inputs[input];
+    var list = blk && blk.config && blk.config.bindings;
+    if (!Array.isArray(list) || !list.length) return null;
+    return { game: pk.name, list: list };
+  }
+  /* One binding as a comparable word: what it watches, what it sends, how,
+     and under which chord. Order inside a list does not matter. */
+  function bindKey(b) {
+    b = b || {};
+    return [b.source, b.target, b.mode || 'hold', arr(b.chord).slice().sort().join('+'),
+            b.holdTarget || ''].join('|');
+  }
+  function sameLayout(have, want) {
+    var a = arr(have).map(bindKey).sort(), b = arr(want).map(bindKey).sort();
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  /* Replace the plain bindings with the pack's. Two kinds stay: shift-layer
+     (chord) entries, the player's own second jobs the pack has no opinion
+     on, and entries this input type HIDES (hidden is not deleted; see
+     inputsHTML). Same two paths as putBinding: the board's copy when live,
+     the phone's when not. */
+  /* D257: a Mappings change is a setting - it waits for the Save key
+     (ZS.stageProfile; the old immediate write when the harness autosaves) */
+  function usePackLayout(p, gl, done) {
+    function next(cur) {
+      var keep = arr(cur).filter(function (b) {
+        return b && (arr(b.chord).length || !srcShown(p, b.source));
+      });
+      return gl.list.map(function (b) { return JSON.parse(JSON.stringify(b)); }).concat(keep);
+    }
+    writeBinds(p, function (f) { f.bindings = next(f.bindings); }, gl.game + '’s layout is on', done);
+  }
+
+  /* A binding move can invalidate a Smart Action's trigger on the board — a
+     "follows whatever fires Fire" action resolves through the bindings — so
+     re-translate the actions whenever one changes. AUDIT M16: a plain
+     syncBoard sent every untouched action back as the Core already had it
+     (toBoardOrRaw), so the Script stayed on the old key; reresolveConfig
+     marks the moved ones edited first, in every room of the config.
+     A STAGED change (D257) is not on the Core yet and may be thrown away,
+     so the Scripts follow it when it is saved, or back when it is
+     discarded (ZS.onStagedSettled, below), never before. */
+  function resyncActions(p, j) {
+    if (j && j.staged) return;
+    reresolveConfig(p.id);
+  }
+  if (typeof ZS.onStagedSettled === 'function') {
+    ZS.onStagedSettled(function (pid) { reresolveConfig(pid); });
+  }
+
+  /* The ONE write path for bindings[]. Behaviour ported unchanged from
+     R.bindings.putChange: live goes through ZS.putProfile so the board stays
+     the copy of record, offline goes to the store so "saved on this phone" is
+     not a lie. `mutate(list, index)` gets the entry, creating it first if the
+     source has none (a pad control on passthrough has no entry at all). */
+  function findPlain(list, source) {
+    for (var k = 0; k < list.length; k++) {
+      var b = list[k];
+      if (b && b.source === source && !(b.chord && b.chord.length)) return k;
+    }
+    return -1;
+  }
+  function putBinding(p, row, mutate, msg, done) {
+    function ensure(list) {
+      var bi = findPlain(list, row.source);
+      if (bi < 0) {
+        list.push({ source: row.source, target: row.defTarget || 'south', mode: 'hold' });
+        bi = list.length - 1;
+      }
+      return bi;
+    }
+    writeBinds(p, function (f) {
+      if (!Array.isArray(f.bindings)) f.bindings = [];
+      mutate(f.bindings, ensure(f.bindings));
+    }, msg, done);
+  }
+  function dropBinding(p, row, done, msg) {
+    writeBinds(p, function (f) {
+      var bi = findPlain(arr(f.bindings), row.source);
+      if (bi >= 0) f.bindings.splice(bi, 1);
+    }, msg || '', done);
+  }
+
+  /* Does this config show pad rows at all? Purely a question about the input
+     type now, and it has to be: Caleb's instruction is that choosing Mouse +
+     Keyboard makes the controller keybinds disappear — "they cant even be
+     seen or edited".
+
+     It used to ALSO seed the sixteen pad rows whenever a pad happened to be
+     plugged in, because every config is cloned from the default (inputType
+     "mnk") and gamepad passthrough means a plugged-in pad's buttons ARE doing
+     things. That problem is real and did not go away — but a hidden row is
+     now a DELIBERATE answer to a question the user was asked, so the fix is
+     to say so rather than to overrule them: inputsHTML() tells anyone with a
+     pad plugged into a Mouse + Keyboard config exactly that, and offers the
+     switch. Silently re-adding the rows would make the setting a lie. */
+  function padRowsWanted(p) {
+    return ZS.inputShows(p.input, 'controller');
+  }
+  /* Does this config draw a row for this source at all? The gate, asked once,
+     for every list on this screen. DRAWING ONLY — nothing downstream of this
+     writes to bindings[], so a hidden row is a row that is still in the
+     profile, byte for byte, waiting for the type to change back. */
+  function srcShown(p, code) { return ZS.inputShowsSource(p.input, code); }
+
+  /* Every input this config has an opinion about, joined across the two
+     lists. PURE: reads live board state and S.actions, writes nothing. */
+  function inputsFor(p, S) {
+    var rows = [], byKey = {}, i;
+    var hid = { binds: 0, acts: 0 };   /* what the input type kept off this screen */
+    function mk(source, neutral, defTarget, actSrc, seeded) {
+      return {
+        source: source,                 /* the code a BINDING watches */
+        actSrc: actSrc || source,       /* the code an ACTION watches */
+        neutral: neutral || '',         /* for art and for words */
+        defTarget: defTarget || '',     /* passthrough, when it has one */
+        kind: srcClass(source),
+        seeded: !!seeded,
+        binds: [], plainBind: null, chordBinds: [], acts: [], orphan: false
+      };
+    }
+    function put(row) {
+      rows.push(row);
+      byKey['k' + row.source] = row;
+      if (row.actSrc !== row.source) byKey['k' + row.actSrc] = row;
+      return row;
+    }
+    function find(code) {
+      return Object.prototype.hasOwnProperty.call(byKey, 'k' + code) ? byKey['k' + code] : null;
+    }
+
+    /* 1 — the pad, in the order a hand finds it */
+    if (padRowsWanted(p)) {
+      for (i = 0; i < PAD_ROWS.length; i++) {
+        put(mk(PAD_ROWS[i][0], PAD_ROWS[i][1], PAD_ROWS[i][2], PAD_ROWS[i][3], true));
+      }
+    }
+
+    /* 2 — bindings. An empty chord is the row's own target; a non-empty one
+       is a shift-layer job, which the Shift Layers screen still owns. This
+       row must never HIDE one, so it counts them out loud. schema.py keys its
+       duplicate check on (source, sorted(chord)), so one source legitimately
+       owns several entries. */
+    var binds = bindsOf(p);
+    for (i = 0; i < binds.length; i++) {
+      var b = binds[i] || {};
+      if (typeof b.source !== 'string' || !b.source) continue;
+      /* THE GATE. Not drawn = not tappable = not editable, which is what was
+         asked for. It is also all that happens: `binds` is the board's own
+         array and nothing here mutates it. */
+      if (!srcShown(p, b.source)) { hid.binds++; continue; }
+      var row = find(b.source) || put(mk(b.source, '', '', b.source, false));
+      row.binds.push({ i: i, b: b });
+      if (b.chord && b.chord.length) row.chordBinds.push({ i: i, b: b });
+      else if (!row.plainBind) row.plainBind = { i: i, b: b };
+    }
+
+    /* 3 — actions. emitSource() is the existing resolver, unchanged, so a
+       "follows whatever fires Fire" sequence lands on whichever input
+       currently satisfies that — and a rebind MOVES it, which is correct and
+       is now visible instead of invisible. */
+    var typeHid = [];
+    for (i = 0; i < S.actions.length; i++) {
+      var a = S.actions[i];
+      var src = emitSource(p, a.trigger) || '';
+      /* A sequence on a key, on a Controller config: the BOARD still runs it
+         (input type gates bindings, not Smart Action triggers), so it must
+         not become invisible — but this screen is the one the user just told
+         "no keyboard". It leaves with its row, and inputsHTML() says how many
+         went and where they are: the Smart Actions screen, which the input
+         type does not gate, where it is fully visible and editable.
+         A trigger with no resolvable source is NOT hidden — srcShown('') is
+         true — because that one belongs in the orphans list below. */
+      if (src && !srcShown(p, src)) { hid.acts++; typeHid.push({ i: i, a: a, src: src }); continue; }
+      var arow = find(src) || put(mk(src, '', '', src, false));
+      arow.acts.push({ i: i, a: a });
+    }
+    /* 3b. THE PROMISE ABOVE, KEPT (D127). Smart mappings is built from this
+       same model, so dropping a hidden-type action here dropped it from the
+       one list of Smart Actions too: a Ready-made added to a Mouse + Keyboard
+       config follows the pad's own control whenever a pad is plugged in or
+       the device list is unknown, and it vanished the moment it was made.
+       Its row is made anyway, AFTER every other, so the rows the Mappings
+       list draws keep their indices, and marked typeHidden: Mappings skips
+       it (the input type gates bindings there) and Smart mappings lists it. */
+    for (i = 0; i < typeHid.length; i++) {
+      var hrow = find(typeHid[i].src);
+      if (!hrow) { hrow = put(mk(typeHid[i].src, '', '', typeHid[i].src, false)); hrow.typeHidden = true; }
+      hrow.acts.push({ i: typeHid[i].i, a: typeHid[i].a });
+    }
+
+    /* 4 — orphans. Nothing is ever DROPPED for being unresolvable: a
+       binding-centred list that could swallow a sequence would be worse than
+       what we had. */
+    var live = [], orphans = [];
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      /* A watched screen area is never an orphan: nothing is meant to be
+         plugged in for it, so "nothing on your board can start them" would be
+         a false alarm on an action that works. */
+      r.orphan = !r.seeded && !r.plainBind && r.acts.length > 0 &&
+        r.kind !== 'screen' &&
+        (!r.source || r.kind === 'unknown' || haveClass(r.kind) === false);
+      (r.orphan ? orphans : live).push(r);
+    }
+    return { rows: live, orphans: orphans, hidden: hid };
+  }
+
+  /* ── words and art for one row ─────────────────────────────────── */
+
+  function rowName(row) {
+    if (!row || !row.source) return 'no button yet';
+    return row.neutral ? padName(row.neutral) : srcName(row.source);
+  }
+  function rowArt(row) {
+    if (!row || !row.source) return srcArt('');
+    return srcArt(row.neutral || row.source);
+  }
+  function rowCaption(row) {
+    if (!row || !row.source) return 'not attached to a button yet';
+    if (row.kind === 'controller') return rowName(row) + ' on your pad';
+    if (row.kind === 'mouse') return 'a button on your mouse';
+    if (row.kind === 'keyboard') return 'a key on your keyboard';
+    if (row.kind === 'screen') return 'an area your board watches on screen';
+    return 'a control your board does not recognise';
+  }
+  /* D338 (owner, 2026-10-14: "I just unbound B from everything and you did
+     nothing to say at the button"). Does pressing this input, on its own,
+     send NOTHING? The Core's rule (zs_bindings.c, "automatic gamepad
+     passthrough"): a pad button with no entry at all sends itself, and an
+     entry for that source in ANY mode and with ANY chord replaces that. So:
+       - a plain binding with no target ('' / null / 'none'): nothing
+       - no plain binding but shift-layer jobs: the press alone does
+         nothing (the jobs need their other button held)
+       - no plain binding and nothing to pass through (a key, a mouse
+         button, a control the pad passthrough does not cover): nothing
+     A Script on the button is a different story (it takes the button
+     over, D244) and is said by its own row. */
+  function rowUnbound(row) {
+    if (!row || !row.source) return false;
+    if (row.plainBind) {
+      var t = row.plainBind.b.target;
+      return t == null || String(t).trim() === '' || t === 'none';
+    }
+    if (row.chordBinds.length) return true;
+    return !row.defTarget;
+  }
+  function rowTarget(row) {
+    if (rowUnbound(row)) return '';
+    return row.plainBind ? (row.plainBind.b.target || '') : (row.defTarget || '');
+  }
+  function rowFor(p, S, src) {
+    var model = inputsFor(p, S), all = model.rows.concat(model.orphans), i;
+    for (i = 0; i < all.length; i++) {
+      if (all[i].source === src || all[i].actSrc === src) return all[i];
+    }
+    return null;
+  }
+
+  /* what the other parts use from this one */
+  SEC.bindsLive = bindsLive;
+  SEC.bindsOf = bindsOf;
+  SEC.bindsKnown = bindsKnown;
+  SEC.dropBinding = dropBinding;
+  SEC.findPlain = findPlain;
+  SEC.inputsFor = inputsFor;
+  SEC.packLayout = packLayout;
+  SEC.padRowsWanted = padRowsWanted;
+  SEC.putBinding = putBinding;
+  SEC.rowArt = rowArt;
+  SEC.rowCaption = rowCaption;
+  SEC.rowFor = rowFor;
+  SEC.rowName = rowName;
+  SEC.rowTarget = rowTarget;
+  SEC.rowUnbound = rowUnbound;
+  SEC.sameLayout = sameLayout;
+  SEC.srcShown = srcShown;
+  SEC.usePackLayout = usePackLayout;
+  SEC.writeBinds = writeBinds;      /* D291: an unattached binding gets its key */
+});

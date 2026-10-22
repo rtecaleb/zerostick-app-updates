@@ -1,0 +1,229 @@
+/* sections/04-update-rate.js — the update rate and the game translator table.
+ *
+ * output.rateHz choices (RATE_CHOICES, rateOf, ratePaint: the carousel on
+ * the Device page's Update Rate card, D84/D340) and GAME_TR, the built-in game
+ * translators.
+ * Profile: output.rateHz -> OUTPUT 0x0040 -> the engine's tick rate.
+ *
+ * Tests:                      test-rate-selector.js, test-overview-xim.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('update-rate', function (SEC) {
+  /* from the files before this one */
+  var B = SEC.B, card = SEC.card, esc = SEC.esc, helpHTML = SEC.helpHTML, note = SEC.note,
+      seg = SEC.seg, ZS = SEC.ZS;
+
+  /* ── Update rate (profile.output.rateHz) ──────────────────────────
+     How many times a second the board hands the console a fresh controller
+     report. This is a REAL control: schema.py validates 30..1000, engine.py
+     _apply_profile() calls FixedRateLoop.set_rate() the moment the config is
+     saved, and the loop re-bases its schedule at the next tick — no restart,
+     no USB re-enumeration. (The host polls our IN endpoint every 1 ms whatever
+     we choose; f_hid's bInterval is hardcoded. A lower rate just means it
+     collects each report on a later frame, which is why every value here is
+     deliverable on the wire.)
+
+     MEASURED ON CALEB'S BOARD, 1 Aug 2026 — agent live, DualShock4 gadget,
+     phone app closed, five 1 s samples per rate after a 4 s settle:
+
+        asked    delivered   typical gap error   worst gap error
+         125      125.0 Hz        0.17 ms            3.2 ms
+         250      249.9 Hz        0.00 ms            4.0 ms
+         500      498.5 Hz        0.01 ms            5.3 ms
+        1000      994.3 Hz        0.06 ms            8.2 ms   (~1 late tick/s)
+
+     So all four are real on this board today. They are still shown with a LIVE
+     "delivering" number rather than these labels alone, because the honest
+     answer depends on what else the board is doing: with the phone app's
+     telemetry stream attached, 250 Hz measured 235.7 Hz and 125 Hz stayed at
+     125.0 Hz. A number that tells the truth beats a number that was true once.
+
+     The aim-assist folklore is NOT repeated as fact here — see the copy. */
+  var RATE_CHOICES = [
+    {hz:125,  lab:'125 Hz', name:'Console pace',
+     sub:'A fresh update every 8 ms — the pace of an Xbox pad.'},
+    {hz:250,  lab:'250 Hz', name:'Standard',
+     sub:'Every 4 ms — exactly what a real PlayStation controller does.'},
+    {hz:500,  lab:'500 Hz', name:'Fast',
+     sub:'Every 2 ms. Your board measured 498 of the 500 asked for.'},
+    {hz:1000, lab:'1000 Hz', name:'Maximum',
+     sub:'Every 1 ms. Your board measured 994 — it holds this, but it is the '+
+         'hardest one to hold, so watch the number below.'}
+  ];
+  var RATE_LABELS = RATE_CHOICES.map(function(r){ return r.lab; });
+  /* D392: why a MOUSE config runs at 1000 Hz (docs/MOUSE-AUDIT.md "after":
+     5.5 ms less tracking delay and a 1 ms stop instead of 4 ms, measured on
+     the translator), and the honest limit: the console reads at its own
+     pace whatever this says, so a faster rate only makes each read fresher */
+  var RATE_MOUSE_HELP = '<b>1000 Hz is the mouse default.</b> Your aim reaches the console up to '+
+    '3 ms fresher and stops 3 ms sooner. The console still reads at its own pace (an Xbox reads '+
+    'at most 250 times a second): a faster rate never makes it read faster, only fresher.';
+  var RATE_MAP = {};
+  RATE_CHOICES.forEach(function(r){ RATE_MAP[r.lab] = r.hz; });
+
+  function rateOf(full){
+    var v = full && full.output && full.output.rateHz;
+    return (typeof v === 'number' && isFinite(v)) ? v : null;
+  }
+  function rateIndex(hz){
+    for(var i=0;i<RATE_CHOICES.length;i++){ if(RATE_CHOICES[i].hz===hz) return i; }
+    return -1;
+  }
+  /* What the chosen button means, in words, under the buttons — so the number
+     on the button is never the only thing explaining itself. */
+  function rateSubHTML(idx){
+    var c = RATE_CHOICES[idx];
+    if(!c) return '';
+    return '<b>'+esc(c.name)+'</b> — '+esc(c.sub);
+  }
+
+  /* The truth line. Reads the board's own loop metrics — requestedRateHz comes
+     from the period the loop is really scheduling, outputRateHz and jitterMs
+     from a 2 s sliding window of measured tick gaps (core/metrics.py). */
+  function ratePaint(el, m, askedFallback){
+    if(!el) return;
+    /* requestedRateHz is what the LOOP is scheduling, which is the honest
+       "asked for". A board running an older agent does not send it — fall back
+       to the config's own number rather than sitting on "measuring…" forever. */
+    var asked = Math.round((m && m.requestedRateHz) || askedFallback || 0);
+    var got   = Math.round((m && m.outputRateHz) || 0);
+    var jit   = (m && m.jitterMs && m.jitterMs.p99Ms) || 0;
+    var drop  = (m && m.droppedEvents) || 0;
+    if(!asked){ el.innerHTML = '<span style="color:var(--muted)">asking the board…</span>'; return; }
+    var pct = got / asked;
+    var col = pct >= 0.9 ? 'var(--green)' : 'var(--amber)';
+    var h = '<b>Asked for '+asked+' Hz · delivering <span style="color:'+col+'">'+got+' Hz</span></b>'+
+            '<div style="color:var(--muted);font-size:12px;margin-top:2px">'+
+            'steadiness: 99 updates in 100 land within '+jit.toFixed(2)+' ms of on-time</div>';
+    if(pct < 0.9){
+      h += '<div style="color:var(--amber);font-size:12.5px;margin-top:6px">'+
+           'Your board is not keeping up with this setting right now — it is really '+
+           'sending '+got+' updates a second, not '+asked+'. Nothing is broken and no '+
+           'movement is lost, but a lower setting it can hold exactly will feel steadier.</div>';
+    }
+    if(drop){
+      h += '<div style="color:var(--amber);font-size:12.5px;margin-top:6px">'+
+           drop+' input reports have been dropped since the board started. That should '+
+           'be 0 — if this keeps climbing, tell us.</div>';
+    }
+    el.innerHTML = h;
+  }
+
+  /* Smart Translation's built-in game translators (schema.py
+     mouseTranslation.game, validated ids). The board has no listing route in
+     api/server.py yet, so this mirrors the shipped set rather than inventing
+     an endpoint — when the board grows one, feed this list from it so
+     installed translator packs appear here too. */
+  /* [label, id, hip max turn °/s, ADS max turn °/s, gameSampleHz,
+     recommendedRateHz] — the turn caps mirror
+     translate/translators/<id>.json modes.hip/ads.maxTurnSpeed, same as the
+     id list itself mirrors the shipped set. They exist so the screen can say
+     out loud where the GAME stops turning — the ceiling users otherwise blame
+     on the adapter. The last two mirror the translator's own optional
+     gameSampleHz / recommendedRateHz fields (only Plutonium ships them so
+     far): how often the GAME reads the stick, and the output rate that
+     avoids beating against that rhythm — surfaced on the update-rate row. */
+  var GAME_TR = [
+    /* generic's 300°/s is the engine's own stated assumption
+       (game_model.GENERIC_MAX_TURN_SPEED) — shown so cm/360 under "Any
+       game" is honest about the ceiling it is computed against. */
+    ['Any game','generic',300,null], ['CoD BO2','cod-bo2',250,160],
+    ['CoD BO2 (Plutonium 120)','cod-bo2-plutonium',250,160,120,500],
+    ['Fortnite','fortnite',360,180], ['Story 30fps','story-30fps',180,120]
+  ];
+  var GAME_TR_LABELS = GAME_TR.map(function(e){ return e[0]; });
+  var GAME_TR_IDS    = GAME_TR.map(function(e){ return e[1]; });
+  var GAME_TR_MAP    = {};
+  GAME_TR.forEach(function(e){ GAME_TR_MAP[e[0]] = e[1]; });
+
+  /* How often the board updates the console. Writes profile.output.rateHz,
+     which the running loop picks up at its next tick — see RATE_CHOICES above
+     for the measurements behind the wording. It lives on OVERVIEW now, inside
+     the Advanced accordion "How often your board updates the console" — it is
+     the one setting on a config that changes how OFTEN the console hears you
+     rather than how far a move turns you, so it is a property of the config,
+     not of aim feel, and 250 Hz is the right default for everyone. This
+     returns the accordion's INNER content only (no sh() header — the
+     accordion title is the header); it reads everything from the stored board
+     value, because Overview has no game selector of its own to ask. */
+  function rateSectionHTML(p){
+    var full = ZS.live.full[p.id];
+    var live = ZS.live.online!==false && !!full;
+    var hz = rateOf(full);
+    var idx = rateIndex(hz);
+    var isActive = p.id===ZS.activeId;
+    /* D392: a mouse config that names no rate runs at 1000 Hz, a pad 250 */
+    var mouseCfg = ZS.inputShows(p.input, 'mouse');
+    var dflt = mouseCfg ? 3 : 1;
+    /* Per-game rate guidance: a translator that knows how often the GAME reads
+       the stick (gameSampleHz) also recommends an output rate that does not
+       beat against it (recommendedRateHz). Mouse configs only — the translator
+       is a mouse-aim model — and read straight from the stored game, since the
+       game is chosen elsewhere now. */
+    var trRate = null;
+    /* asked as "does this config have a mouse?" — a Joystick + Mouse config
+       runs the same mouse-aim translator and wants the same advice */
+    if(ZS.inputShows(p.input, 'mouse')){
+      var mt = (full || {}).mouseTranslation || {};
+      var g = (typeof mt.game === 'string' && mt.game) ? mt.game : 'generic';
+      GAME_TR.forEach(function(e){ if(e[1]===g && e[5]) trRate = e; });
+    }
+    var body =
+      seg('Update rate', RATE_LABELS, idx<0?dflt:idx, false,
+          B('output.rateHz', 1, {t:'str', map:RATE_MAP}))+
+      '<div id="rate-sub" style="margin-top:10px;font-size:12.5px;color:var(--muted);line-height:1.5">'+
+      rateSubHTML(idx<0?dflt:idx)+'</div>'+
+      (trRate
+        ? '<div style="margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.5">'+
+          'ⓘ <b>'+esc(trRate[0])+'</b> reads your aim '+trRate[4]+'×/s — <b>'+trRate[5]+
+          ' Hz</b> is the recommended update rate for it. Lower rates beat against the '+
+          'game’s own rhythm and can read as a faint stutter.</div>'
+        : '')+
+      '<div id="rate-live" style="margin-top:12px;font-size:13px;line-height:1.5">'+
+      (!live ? '<span style="color:var(--muted)">Your board is offline, so there is nothing to measure.</span>'
+             : (isActive ? '<span style="color:var(--muted)">measuring…</span>'
+                         : '<span style="color:var(--muted)">This config isn’t the one running right now, so there is nothing to measure. Tap it on the home screen to switch to it.</span>'))+
+      '</div>';
+    /* No sh() header of its own any more: this whole section renders INSIDE
+       Overview's "How often your board updates the console" accordion, whose
+       title row is the header. The seg keeps its label and Overview's
+       namespace, so the binding key is untouched. */
+    var h = card(body);
+    if(live && hz!==null && idx<0){
+      h += note('This config is set to <b>'+Math.round(hz)+' Hz</b>, which isn’t one of the four '+
+                'above — that is why none of them is lit. Tapping one will change it.','warn');
+    }
+    /* The measurement essays and the nested "What a rate change really does"
+       fold collapsed into ONE distilled "?" chip (screen-map §2 / §10). The
+       one visible line keeps the number that matters; the honest hedges the
+       tests pin (measured, never promised; folklore not repeated as fact)
+       live in the fold, word for word where they are load-bearing. */
+    h += note(mouseCfg ? '<b>1000 Hz is the mouse default</b> — your aim reaches the console fresher.'
+                       : '<b>250 is what a real PlayStation controller does</b> — leave it there unless you have '+
+              'a reason.')+
+      helpHTML('ov-rate', 'Update rate',
+        (mouseCfg ? RATE_MOUSE_HELP+' <b>250 is what a real PlayStation controller does.</b> ' : '')+
+        '<b>Higher</b> arrives a few milliseconds sooner; <b>lower</b> groups movement into fewer, '+
+        'steadier steps. Nothing is lost either way — the board adds every count up rather than '+
+        'sampling. Some players say a lower rate makes console aim assist feel stickier; '+
+        '<b>we have not measured any difference</b>, so treat that as feel, not fact. All four rates '+
+        'hold on your board (1000 Hz works hardest), and the live number above is measured, '+
+        'never promised.');
+    return h;
+  }
+
+  /* what the other screen files use from this one */
+  SEC.GAME_TR = GAME_TR;
+  SEC.RATE_CHOICES = RATE_CHOICES;
+  SEC.RATE_LABELS = RATE_LABELS;
+  SEC.RATE_MOUSE_HELP = RATE_MOUSE_HELP;
+  SEC.RATE_MAP = RATE_MAP;
+  SEC.rateIndex = rateIndex;
+  SEC.rateOf = rateOf;
+  SEC.ratePaint = ratePaint;
+  SEC.rateSubHTML = rateSubHTML;
+});

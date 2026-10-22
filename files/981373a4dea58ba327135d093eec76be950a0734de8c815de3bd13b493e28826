@@ -1,0 +1,112 @@
+{
+  "zerostickGamePack": 1,
+  "id": "marathon",
+  "name": "Marathon",
+  "aliases": [
+    "Bungie Marathon"
+  ],
+  "version": 1,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": null,
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "marathon",
+    "name": "Marathon (Default)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4529 (Marathon, curves Marathon-ADS-P5.1 / Marathon-ADS-XS.1 / Marathon-Hip-P5.1 / Marathon-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 559, aiming 447 on PS5; Xbox Series hip 559, aiming 447 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (one Look Sensitivity for both axes)."
+      },
+      {
+        "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (not published; linear, as the engine assumes for any game). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Sensitivity Multiplier",
+        "value": "Highest"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.12,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 559,
+        "pitch": 559
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 559,
+          "pitch": 559
+        },
+        "xbox": {
+          "yaw": 559,
+          "pitch": 559
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 447,
+        "pitch": 447
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 447,
+          "pitch": 447
+        },
+        "xbox": {
+          "yaw": 447,
+          "pitch": 447
+        }
+      }
+    }
+  },
+  "notes": "Marathon: pack made by import-xim-translators.js (D394) for a game whose turn speeds XIM's data carries. No art yet.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Marathon are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Marathon comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Marathon comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

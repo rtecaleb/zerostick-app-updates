@@ -1,0 +1,169 @@
+/* shell/08-product.js — the product gate (D102, D104) and how the app reaches it.
+ *
+ * PRODUCTS / productHides(): what a Core lacks next to an EXO, so a screen
+ * never offers what the adapter cannot do; linkVia(): USB, Bluetooth or the
+ * network, for the one offline sentence (D192).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── THE PRODUCT GATE (D102, D104) ─────────────────────────────────────
+     ONE PLACE decides what this app hides when the adapter on the other end
+     is a ZeroStick Core rather than an EXO. The Core is the ESP32-P4 unit
+     (D102): it does everything an EXO does EXCEPT the computer-vision work
+     (aim assist, the shot meter and its release timing) and Remote Play,
+     because those are the premium tier's silicon. The app learns which
+     product it is talking to from /status: `product` is "core" on a Core
+     and ABSENT on every A7S ever shipped, so absent means "exo" and nothing
+     an existing board does changes (CORE-USB-LINK.md).
+
+     `lacks` is the whole list. Every consumer asks productHides(id) and
+     nothing else in the app tests the product name, so the Core's shape can
+     be reviewed, and changed, here alone. The ids:
+       vision        the Screen Assist screen (SECTIONS id): the aim-help
+                     card, the shot assist card and the Measure my delay
+                     sheet all live on it, so hiding it hides them too
+       shotAssist    the shot timing card, named so the card's own draw can
+                     refuse even if a future screen hosts it elsewhere
+       measureDelay  the Measure my delay sheet and its key, same reason
+       remotePlay    the "PS5 Remote Play" row of the Connection Method
+                     panel; the wired P5General, Xbox and PS4 rows stay
+       visionPacks   the game packs SAVED ON THE BOARD (GET/POST
+                     /vision/packs): the Core answers 501, so Screen Assist
+                     draws no shelf and no save door (audit m47)
+       visionStartStop  the Start/Stop watching button: a Core has no
+                     /vision/start|stop, its capture runs whenever a source
+                     is there, so the screen says that instead (audit m48)
+     Overview, Mappings, Smart Actions, Aim (the mouse translation and the
+     stick pages), Sticks and Lighting are all Core features and stay.
+
+     The name and the board word travel with the product so the few places
+     that say "ZeroStick EXO" or "Radxa Cubie A7S" say the right thing. */
+  /* `vision` CAME OFF THIS LIST ON 2026-09-19 and the reason is worth keeping.
+
+     D102 wrote it when the Core had no capture leg at all, and D107 changed
+     that: the Core gets one, over MIPI-CSI, and D110 then built the whole
+     feature across the wire format, the firmware, four endpoints and this
+     screen. For a day the Core could watch a region and switch Smart Actions
+     on it, and the app would not draw the door, because of this one word.
+     That is the worst kind of bug there is: everything works and nobody can
+     reach it.
+
+     What the Core still lacks is the CARDS on that screen, not the screen:
+     `shotAssist` and `measureDelay` are separate ids and refuse themselves,
+     which is why they were written as separate ids in the first place. */
+  var PRODUCTS = {
+    /* D184: the controller stick modes (Native / EXO Linear / Custom) are the
+       Core's engine (the STICKFEEL section); the A7S agent has no such stage,
+       so an EXO does not draw a switch that would change nothing. D189: the
+       same for quantization and Smart Action turns in deg/s (aimXim), which
+       are the Core's translator and engine. */
+    /* D191: Classic smoothing (Smooth / Decay / Synch) is the Core's
+       zs_classic2d; the A7S agent runs Standard only. */
+    /* `short` is the hardware's own name as HOME says it (D192, the owner:
+       "EXO Core"): the header when nothing is plugged into it, and the one
+       offline state ("EXO Core Offline"). Never a raw key. */
+    /* D215: EXO Studio (D211) talks to a Core over its USB link; the A7S
+       agent has no /studio, /gcv or PC controller, so an EXO draws no door */
+    /* D349: moreOutputs = the Nintendo Switch, Xbox 360, PS3 and Mirror
+       rows of the Connection Method: the Core's Pico mode switch; the A7S
+       agent has none */
+    /* D406: autogreen = NBA 2K Auto green, the Core's own /shot routes (the
+       A7S's Shot assist is a different feature, on its Screen Assist) */
+    exo:  { name: 'ZeroStick EXO',  short: 'EXO', board: 'Radxa Cubie A7S', lacks: ['stickModes', 'aimXim', 'classicSmoothing', 'studio', 'moreOutputs', 'autogreen'] },
+    core: { name: 'ZeroStick Core', short: 'EXO Core', board: 'ESP32-P4',
+            /* D286: 'remotePlay' = a Core cannot STREAM it yet. Its
+               Connection Method row is still listed (PLAY_FROM `soon`)
+               and opens the setup steps (R.rpsetup), never the stream. */
+            lacks: ['shotAssist', 'measureDelay', 'remotePlay',
+                    'visionPacks', 'visionStartStop',
+                    /* D164 (owner): the Screen Assist ROW is hidden on a Core
+                       and Translation takes its place. Only the row: the
+                       screen and every deep link into it still open. */
+                    'visionMenu',
+                    /* 2026-10-10 overhaul (docs/overhaul/app-sections.md):
+                       A7S agent routes a Core does not serve, so the screens
+                       that call them do not draw them on a Core.
+                       killSwitch      POST /output/enabled (Overview's
+                                       "Adapter is sending inputs", M8)
+                       calPacks        /calibration/packs (M10)
+                       exoVelocityCal  the A7S sweep and Fastest swipe
+                                       (/calibration/start kind mouse or
+                                       without a dead zone, M10); a Core
+                                       measures through Calibrate (D178)
+                       ps4Wired        the PS4 row: a Core never sets PS4
+                                       mode (D157, rule 6)
+                       kbmoveRamp      the Keyboard Movement screen's
+                                       ramp (keyboardMovement.* but
+                                       stickMerge): translate/keyboard_
+                                       move.py is not ported (zs_apply.h
+                                       KBDMOVE_RAMP), so Translation shows
+                                       only stickMerge there; the Core's
+                                       WASD feel is Left stick movement
+                                       (behavior.moveAnalog), D375
+                       D262 took 'lightbarPreview' off: a Core serves POST
+                       /lightbar now, the live preview on the controller's
+                       light bar (and the EXO's light) until Save. */
+                    'killSwitch', 'calPacks', 'exoVelocityCal', 'ps4Wired', 'kbmoveRamp'] }
+  };
+  /* /status decides. Before the first /status has landed, a page opened AS
+     the Core's page (ZS_MY_DEVICE, from ?core=1) is taken at its word so the
+     label is right from the first paint; the field overrides it either way
+     the moment the device answers. With neither, it is an EXO. */
+  function productId(){
+    var st = LIVE.status;
+    /* once ANY /status has landed it decides: "core" is a Core, anything
+       else, including no field at all (every A7S), is an EXO */
+    if(st) return (st.product === 'core') ? 'core' : 'exo';
+    /* owner, 2026-10-14: before the first /status (a phone still connecting
+       over Bluetooth) the app showed the old EXO's screens, Screen Assist
+       and all. The Core is the product now, so the wait looks like a Core. */
+    return PRODUCTS[ZS_MY_DEVICE] ? ZS_MY_DEVICE : 'core';
+  }
+  function productHides(id){ return PRODUCTS[productId()].lacks.indexOf(id) >= 0; }
+  function productName(){ return PRODUCTS[productId()].name; }
+  function productShort(){ return PRODUCTS[productId()].short; }
+  function productBoard(){ return PRODUCTS[productId()].board; }
+  /* HOW THIS APP REACHES THE HARDWARE, for the one offline sentence (D192:
+     name the link only where it is the one this app uses). ?ble=1 is the
+     phone over Bluetooth; the Core's page (?core=1 / ?usb=1) is USB, which is
+     how the PC app reaches a Core; anything else is the EXO over the network. */
+  function linkVia(){
+    /* D335: inside EXO Studio the app reaches the EXO over Studio's USB link */
+    if(window.ZSHOST && ZSHOST.studio) return 'usb';
+    if(/[?&]ble=1/.test(location.search)) return 'bluetooth';
+    if(ZS_USB_PAGE || productId()==='core') return 'usb';
+    return 'wifi';
+  }
+  /* Applied whenever /status lands (refreshStatus): the window title in app
+     mode is the product's name (desktop.js finds the exe's window by the
+     "ZeroStick" prefix, which both names carry). Only the EXO title is
+     replaced, so the preview page's own title is never touched. */
+  function productApply(){
+    var want = productName();
+    if(document.title === 'ZeroStick EXO' || document.title === 'ZeroStick Core'){
+      if(document.title !== want) document.title = want;
+    }
+  }
+
+  /* `v` is one value OR a list of them. It became a list the day a third
+     input type arrived: every one of these gates was written as a single
+     equality, so a Joystick + Mouse config would have matched NEITHER arm and
+     lost Pair Controllers, Keyboard Movement, Controller Feel and Aim Speed
+     Match all at once — four screens gone with nothing said. */
+  function gateWants(g){ return Object.prototype.toString.call(g.v)==='[object Array]' ? g.v : [g.v]; }
+  function gateOK(g,p){
+    if(!g) return true;
+    var has = g.t==='platform' ? p.platform : p.input;
+    return gateWants(g).indexOf(has) >= 0;
+  }
+  function gateText(g){
+    var names = g.t==='platform' ? CON : INP;
+    return (g.t==='platform' ? 'platform = ' : 'input = ') +
+      gateWants(g).map(function(v){ return names[v]||v; }).join(' or ');
+  }
+

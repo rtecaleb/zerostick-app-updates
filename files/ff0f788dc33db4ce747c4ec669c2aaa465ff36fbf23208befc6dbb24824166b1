@@ -1,0 +1,780 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "cod-bo7",
+  "title": "Call of Duty: Black Ops 7",
+  "asOf": "2026-09-23",
+  "season": "Season 06: The Haunting",
+  "integrated": [
+    "Black Ops 7"
+  ],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.m15_mod_0",
+          "name": "M15 Mod 0",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_m15_mod_0.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.ak_27",
+          "name": "AK-27",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_ak_27.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.mxr_17",
+          "name": "MXR-17",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mxr_17.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.x9_maverick",
+          "name": "X9 Maverick",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_x9_maverick.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.ds20_mirage",
+          "name": "DS20 Mirage",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_ds20_mirage.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.peacekeeper_mk1",
+          "name": "Peacekeeper MK1",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_peacekeeper_mk1.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.maddox_rfb",
+          "name": "Maddox RFB",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_maddox_rfb.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01",
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.egrt_17",
+          "name": "EGRT-17",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_egrt_17.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.voyak_kt_3",
+          "name": "Voyak KT-3",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_voyak_kt_3.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-02-reloaded"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.mk35_isr",
+          "name": "MK35 ISR",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mk35_isr.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-03-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.vx_compact",
+          "name": "VX Compact",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_vx_compact.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.an_94",
+          "name": "AN-94",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_an_94.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-reloaded-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.fg42",
+          "name": "FG42",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_fg42.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes",
+            "https://www.callofduty.com/blog/2026/07/call-of-duty-black-ops-7-warzone-season-05-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.tr51_para",
+          "name": "TR51 Para",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_tr51_para.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes",
+            "https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "smgs",
+      "name": "SMGs",
+      "items": [
+        {
+          "id": "smgs.ryden_45k",
+          "name": "Ryden 45K",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_ryden_45k.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.rk_9",
+          "name": "RK-9",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_rk_9.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.razor_9mm",
+          "name": "Razor 9mm",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_razor_9mm.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.dravec_45",
+          "name": "Dravec 45",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_dravec_45.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.carbon_57",
+          "name": "Carbon 57",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_carbon_57.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.mpc_25",
+          "name": "MPC-25",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mpc_25.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.kogot_7",
+          "name": "Kogot-7",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_kogot_7.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01",
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.sturmwolf_45",
+          "name": "Sturmwolf 45",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_sturmwolf_45.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes",
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.rev_46",
+          "name": "REV-46",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_rev_46.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.vst",
+          "name": "VST",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_vst.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-03-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.cbrs_3",
+          "name": "CBRS-3",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_cbrs_3.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.gremlin",
+          "name": "Gremlin",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_gremlin.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes",
+            "https://www.callofduty.com/blog/2026/07/call-of-duty-black-ops-7-warzone-season-05-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.vmp",
+          "name": "VMP",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_vmp.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes",
+            "https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.m10_breacher",
+          "name": "M10 Breacher",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_m10_breacher.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "shotguns.echo_12",
+          "name": "Echo 12",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_echo_12.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "shotguns.akita",
+          "name": "Akita",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_akita.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "shotguns.sg_12",
+          "name": "SG-12",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_sg_12.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement",
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/guides/blackops7/weapons/shotgun/sg-12"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "lmgs",
+      "name": "LMGs",
+      "items": [
+        {
+          "id": "lmgs.mk_78",
+          "name": "MK.78",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mk_78.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.xm325",
+          "name": "XM325",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_xm325.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.sokol_545",
+          "name": "Sokol 545",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_sokol_545.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01",
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.mammoth",
+          "name": "Mammoth",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mammoth.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes",
+            "https://www.callofduty.com/blog/2026/07/call-of-duty-black-ops-7-warzone-season-05-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "marksman_rifles",
+      "name": "Marksman Rifles",
+      "items": [
+        {
+          "id": "marksman_rifles.m8a1",
+          "name": "M8A1",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_m8a1.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.warden_308",
+          "name": "Warden 308",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_warden_308.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.m34_novaline",
+          "name": "M34 Novaline",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_m34_novaline.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.swordfish_a1",
+          "name": "Swordfish A1",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_swordfish_a1.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-02-reloaded"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.krs_7_62",
+          "name": "KRS-7.62",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_krs_7_62.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.vs_recon",
+          "name": "VS Recon",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_vs_recon.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.shadow_sk",
+          "name": "Shadow SK",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_shadow_sk.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.xr_3_ion",
+          "name": "XR-3 Ion",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_xr_3_ion.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.hawker_hx",
+          "name": "Hawker HX",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_hawker_hx.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes",
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.strider_300",
+          "name": "Strider 300",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_strider_300.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-03-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "pistols",
+      "name": "Pistols",
+      "items": [
+        {
+          "id": "pistols.jager_45",
+          "name": "Jäger 45",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_jager_45.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "pistols.velox_5_7",
+          "name": "Velox 5.7",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_velox_5_7.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "pistols.coda_9",
+          "name": "Coda 9",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_coda_9.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": "Capitalisation only: Activision writes 'Coda 9' (launch blog, patch-note text) and 'CODA 9' (weapons guide, Season 01 notes) about equally; the game sets names in capitals, so both read the same on screen."
+        },
+        {
+          "id": "pistols.1911",
+          "name": "1911",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_1911.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/03/call-of-duty-black-ops-7-warzone-season-03-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "launchers",
+      "name": "Launchers",
+      "items": [
+        {
+          "id": "launchers.aarow_109",
+          "name": "AAROW 109",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_aarow_109.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.a_r_c_m1",
+          "name": "A.R.C. M1",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_a_r_c_m1.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "special",
+      "name": "Special",
+      "items": [
+        {
+          "id": "special.nx_ravager",
+          "name": "NX Ravager",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_nx_ravager.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01",
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": "Class: Activision's Season 01 blog calls it a Special Weapon (class line 'Special, Event Reward') and the Season 01 patch notes tune it under Special Weapons, but the Black Ops 7 weapons guide index labels it Sniper Rifle (its own picture there is named SPC). Filed under Special until the owner's screen says otherwise."
+        },
+        {
+          "id": "special.gdl_havoc",
+          "name": "GDL Havoc",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_gdl_havoc.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "special.siren",
+          "name": "Siren",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_siren.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/04/call-of-duty-black-ops-7-warzone-season-03-reloaded-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "special.grimhawk",
+          "name": "Grimhawk",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_grimhawk.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "special.roc_20mm",
+          "name": "Roc 20mm",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_roc_20mm.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes",
+            "https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "melee",
+      "name": "Melee",
+      "items": [
+        {
+          "id": "melee.knife",
+          "name": "Knife",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_knife.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.flatline_mk_ii",
+          "name": "Flatline Mk.II",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_flatline_mk_ii.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-ready-for-launch-weapons-equipment",
+            "https://www.callofduty.com/guides/blackops7/weapons"
+          ],
+          "uncertain": "Capitalisation only: the launch blog writes 'Flatline Mk.II', several patch notes 'Flatline MK.II'; the game sets names in capitals."
+        },
+        {
+          "id": "melee.ballistic_knife",
+          "name": "Ballistic Knife",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_ballistic_knife.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2025/11/call-of-duty-black-ops-7-warzone-zombies-season-01",
+            "https://www.callofduty.com/patchnotes/2025/12/call-of-duty-black-ops-7-season-01-patch-notes"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.h311_saw",
+          "name": "H311-SAW",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_h311_saw.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/02/call-of-duty-black-ops-7-season-02-patch-notes",
+            "https://www.callofduty.com/blog/2026/01/call-of-duty-black-ops-7-warzone-zombies-season-02-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.katana",
+          "name": "Katana",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_katana.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/04/call-of-duty-black-ops-7-season-03-patch-notes",
+            "https://www.callofduty.com/blog/2026/04/call-of-duty-black-ops-7-warzone-season-03-reloaded-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.executioners_duet",
+          "name": "Executioner’s Duet",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_executioners_duet.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/06/call-of-duty-black-ops-7-season-04-patch-notes",
+            "https://www.callofduty.com/blog/2026/06/call-of-duty-black-ops-7-warzone-season-04-reloaded-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.mace",
+          "name": "Mace",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_mace.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/07/call-of-duty-black-ops-7-season-05-patch-notes",
+            "https://www.callofduty.com/blog/2026/08/call-of-duty-black-ops-7-warzone-season-05-reloaded-announcement"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.arcblade",
+          "name": "Arcblade",
+          "from": "Black Ops 7",
+          "image": "weapons/bo7_arcblade.png",
+          "sources": [
+            "https://www.callofduty.com/patchnotes/2026/09/call-of-duty-black-ops-7-season-06-patch-notes",
+            "https://www.callofduty.com/blog/2026/09/call-of-duty-black-ops-7-warzone-season-6-the-haunting-announcement"
+          ],
+          "uncertain": null
+        }
+      ]
+    }
+  ]
+}

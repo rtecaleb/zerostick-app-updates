@@ -1,0 +1,581 @@
+/* mouse-rate.js: the Mouse sensor test (D188), ZS_MRATE.
+ *
+ * XIM's "press and hold the mouse icon -> Mouse Sensor Test", on the Core:
+ *
+ *   MOUSE SENSOR TEST   a small sheet with two choices:
+ *     Check rate        how often the mouse really reports (Hz), below
+ *     Check DPI         the D183 Mouse DPI flow (mouse-dpi.js), unchanged
+ *
+ *   CHECK RATE          "Move your mouse continuously in circles": a drawn
+ *                       mouse going round (still under Reduce Motion), Start,
+ *                       a big live number, then a verdict. The Core counts the
+ *                       mouse's reports that carry movement over a sliding
+ *                       second (GET /mouse/rate, components/zs_mousedpi/
+ *                       zs_mouse_rate.c), which is XIM's rule: a hand that
+ *                       stops gives the sensor nothing to report.
+ *
+ * THE VERDICT (verdict(), pinned by test-mouse-rate.js):
+ *   close to a usual rate (125, 250, 500, 1000)
+ *       "Your mouse is responding at about N Hz."
+ *   well below what the player says they set, or not near any usual rate
+ *       the same sentence, then XIM's advice in plain words: save the polling
+ *       rate to the mouse's onboard memory; for a wireless mouse, move the
+ *       receiver closer (its extension cable) and away from Wi-Fi routers
+ *       and USB 3 ports.
+ *   at 1000, or set above it
+ *       the Core's ceiling, said: the input hub is on the P4's full-speed USB
+ *       host, so 1000 Hz is the most any mouse can report through it, and an
+ *       8000 Hz mouse reads 1000 here (D188).
+ *
+ * THE DOORS: press and hold (about 1 s) the mouse on HOME's device row, or
+ * the ••• on the mouse in the devices sheet (the accessible way, and a
+ * right-click or the keyboard's menu key does the same as the hold); "Check
+ * rate" beside Measure my DPI on the Device page's Mouse DPI card (D375:
+ * the Aim page's DPI row is gone) and in the Mouse DPI sheet.
+ *
+ * ES5 only (DESIGN.md). Load after mouse-dpi.js (it borrows its drawn mouse
+ * and its sheet styles).
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 250;
+  var HOLD_MS = 900;                     /* "about one second", with the press dip */
+  var SLOP_PX = 10;                      /* apple-design: a finger that wanders is not a hold */
+  var ENOUGH_MS = 1500;                  /* moving this long before there is a verdict */
+  var NEAR = 0.10;                       /* the Core's ZS_MRATE_NEAR */
+  var LOW_FRAC = 0.9;                    /* under 90% of what was set: say so */
+  var USUAL = [125, 250, 500, 1000];
+  var SET_CHOICES = [125, 250, 500, 1000, 2000];
+  var SET_KEY = 'zs.mouseRate.set';
+
+  var cssDone = false;
+  var supportKnown = null;               /* false: a Core before D188 */
+
+  function Z() { return window.ZS; }
+  function D() { return window.ZS_DPI; }
+  function esc(s) {
+    var z = Z();
+    if (z && z.esc) return z.esc(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function fmt(n) {
+    n = Math.round(num(n, 0));
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function isCore() {
+    var z = Z();
+    return !!(z && typeof z.productId === 'function' && z.productId() === 'core');
+  }
+  function api(path, method, body) {
+    var z = Z();
+    if (!z || !z.api) return Promise.resolve({ ok: false, error: 'no answer' });
+    return z.api(path, method, body).then(function (j) { return j || { ok: false, error: 'no answer' }; },
+      function (e) { return { ok: false, error: String(e && e.message || e || 'no answer') }; });
+  }
+  function noRoute(j) {
+    return /does not answer|501|not found|no such|not implemented|cannot check/i.test(String((j && j.error) || ''));
+  }
+  function getSet() {
+    try { var v = parseInt(window.localStorage.getItem(SET_KEY), 10); return SET_CHOICES.indexOf(v) >= 0 ? v : 0; }
+    catch (e) { return 0; }
+  }
+  function putSet(v) {
+    try { if (v) window.localStorage.setItem(SET_KEY, String(v)); else window.localStorage.removeItem(SET_KEY); }
+    catch (e) { /* a private window: the choice lasts this sheet only */ }
+  }
+
+  /* ── the arithmetic (pinned by test-mouse-rate.js) ────────────────── */
+
+  /* the number the verdict is about: the average while moving once there is
+     half a second of it, the last whole second before that */
+  function shown(row) {
+    if (!row) return 0;
+    return num(row.activeMs, 0) >= 500 ? num(row.avg, 0) : num(row.now, 0);
+  }
+  function nearest(hz) {
+    var best = 0, bd = Infinity, i;
+    if (!(hz >= 50)) return { value: 0, near: false };
+    for (i = 0; i < USUAL.length; i++) {
+      var d = Math.abs(hz - USUAL[i]);
+      if (d < bd) { bd = d; best = USUAL[i]; }
+    }
+    return { value: best, near: bd <= NEAR * best };
+  }
+  /* The mouse being tested: of several, the one the player is moving. */
+  function pick(mice) {
+    var best = null, i;
+    for (i = 0; i < (mice || []).length; i++) {
+      var m = mice[i];
+      if (!best || num(m.moving, 0) > num(best.moving, 0) ||
+          (num(m.moving, 0) === num(best.moving, 0) && num(m.now, 0) > num(best.now, 0))) best = m;
+    }
+    return best;
+  }
+  /* {kind: 'wait' | 'ok' | 'maybe' | 'low', hz, words, advice, ceiling}
+     `set`: what the player says the mouse is set to (0: not sure). */
+  function verdict(row, set) {
+    var out = { kind: 'wait', hz: 0, words: '', advice: false, ceiling: false };
+    if (!row) return out;
+    var hz = shown(row);
+    var cap = num(row.ceiling, 1000) || 1000;
+    var exp = num(row.expected, 0);
+    var n = nearest(hz);
+    out.hz = Math.round(hz);
+    if (num(row.activeMs, 0) < ENOUGH_MS || num(row.moving, 0) < 60) {
+      out.words = 'Keep moving your mouse in circles…';
+      return out;
+    }
+    var about = n.near ? n.value : out.hz;
+    var say = 'Your mouse is responding at about ' + fmt(about) + ' Hz.';
+    /* the ceiling is said when it explains the number: at 1000 with no setting
+       given, or a setting above it; a player who set 1000 and reads 1000
+       needs no footnote */
+    out.ceiling = set ? set > cap : (n.near && n.value >= cap);
+    if (set) {
+      var want = Math.min(set, cap);
+      if (hz >= LOW_FRAC * want) {
+        out.kind = 'ok';
+        out.words = say;
+      } else {
+        out.kind = 'low';
+        out.advice = true;
+        out.ceiling = set > cap;
+        out.words = say + ' That is well below the ' + fmt(set) + (set >= 2000 ? '+' : '') + ' Hz you set it to.';
+      }
+      return out;
+    }
+    if (!n.near) {
+      out.kind = 'low';
+      out.advice = true;
+      out.words = say + ' That isn’t one of the usual rates (125, 250, 500 or 1000), so the mouse is probably ' +
+        'missing reports.';
+      return out;
+    }
+    out.kind = 'ok';
+    out.words = say;
+    if (exp && n.value < LOW_FRAC * Math.min(exp, cap)) {
+      out.kind = 'maybe';
+      out.advice = true;
+      out.words = say + ' It can go up to ' + fmt(Math.min(exp, cap)) + ' Hz. If you set it higher than ' +
+        fmt(n.value) + ' Hz, the setting isn’t reaching the mouse.';
+    }
+    return out;
+  }
+
+  var ADVICE_T = 'If it should be higher, check two things:';
+  var ADVICE_1 = 'Save the polling rate to the mouse. Set it again in your mouse’s own software and make ' +
+    'sure it’s saved to the mouse’s onboard memory, not only to the app on your computer.';
+  var ADVICE_2 = 'Wireless mouse? Move the receiver closer: use the extension cable or adapter that came ' +
+    'with it, and keep it away from Wi-Fi routers and USB 3 ports (often the blue ones).';
+  var CEILING = '1000 Hz is the most the Core’s USB input can carry, so a mouse set to 2000, 4000 or ' +
+    '8000 Hz reads about 1000 here. That’s expected: nothing is wrong with your mouse.';
+
+  /* ── the drawing: a mouse going round in circles ──────────────────── */
+
+  var CX = 160, CY = 74, RAD = 40;
+  function sceneSVG() {
+    var d = D();
+    var mouse = d && d.mouseSVG ? d.mouseSVG('mr-mouse', CX + RAD - 19, CY - 31) : '';
+    /* the track, an arrowhead on it (shown still under Reduce Motion), and
+       the mouse: the outer group turns it round the centre, the inner one
+       turns it back, so it goes round nose up the way a hand moves one */
+    return '<svg class="mr-scene" viewBox="0 0 320 150" role="img" aria-label="' +
+      esc('A mouse moving round and round in circles on a desk') + '">' +
+      '<circle class="mr-track" cx="' + CX + '" cy="' + CY + '" r="' + RAD + '"/>' +
+      '<path class="mr-arrow" d="M' + (CX - RAD - 6) + ',' + (CY + 2) + ' l6,-9 l6,9"/>' +
+      '<path class="mr-arrow" d="M' + (CX + RAD - 6) + ',' + (CY - 2) + ' l6,9 l6,-9"/>' +
+      '<g class="mr-orb"><g class="mr-up">' + mouse + '</g></g>' +
+      '</svg>';
+  }
+
+  /* ── the sheet ────────────────────────────────────────────────────── */
+
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    if (D() && D().css) D().css();
+    var s = document.createElement('style');
+    s.id = 'mr-css';
+    s.textContent =
+      '.mr-scenebox{background:var(--panel2);border-radius:var(--r-card,14px);padding:6px 8px;margin:0 0 12px}' +
+      '.mr-scene{display:block;width:100%;height:auto;max-height:170px}' +
+      '.mr-track{fill:none;stroke:var(--accent);stroke-width:1.4;stroke-dasharray:4 5;opacity:.75}' +
+      '.mr-arrow{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;display:none}' +
+      /* the circle: linear, endless, fixed-duration on purpose (nobody can
+         grab it; DESIGN.md: springs are for what a finger touches) */
+      '.mr-orb{transform-origin:' + CX + 'px ' + CY + 'px;animation:mr-spin 1.6s linear infinite}' +
+      '.mr-up{transform-origin:' + (CX + RAD) + 'px ' + CY + 'px;animation:mr-spin 1.6s linear infinite reverse}' +
+      '@keyframes mr-spin{to{transform:rotate(360deg)}}' +
+      '@media (prefers-reduced-motion: reduce){.mr-orb,.mr-up{animation:none}.mr-arrow{display:inline}}' +
+      'body.a11y-motion .mr-orb,body.a11y-motion .mr-up{animation:none}' +
+      'body.a11y-motion .mr-arrow{display:inline}' +
+      '.mr-big{display:flex;align-items:baseline;justify-content:center;gap:8px;margin:6px 0 2px;' +
+        'font-variant-numeric:tabular-nums}' +
+      '.mr-big b{font-size:52px;font-weight:700;letter-spacing:var(--tr-display,-.028em);line-height:1.04;min-width:3ch;text-align:right}' +
+      '.mr-big span{font-size:20px;font-weight:600;color:var(--muted)}' +
+      '.mr-sub{text-align:center;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;margin:0 0 12px}' +
+      '.mr-v{border-radius:var(--r-card,14px);background:var(--panel2);padding:12px 14px;margin:0 0 12px;font-size:14px;line-height:1.5}' +
+      '.mr-v b{display:block;font-size:16px;margin:0 0 2px}' +
+      '.mr-v.low{box-shadow:inset 3px 0 0 var(--amber)}' +
+      '.mr-v.ok{box-shadow:inset 3px 0 0 var(--green)}' +
+      '.mr-v ol{margin:8px 0 0;padding-left:20px}' +
+      '.mr-v li{margin:0 0 6px}' +
+      '.mr-cap{font-size:13px;color:var(--muted);margin:8px 0 0}' +
+      '.mr-set{margin:0 0 12px}' +
+      '.mr-set .salab{font-size:13px;color:var(--muted);margin:0 0 6px}' +
+      '.mr-set .dp-presets button{flex:1 1 44px;min-height:40px;font-size:14px}' +
+      '.mr-set .dp-presets button[data-set="0"]{flex:1.7 1 72px;white-space:nowrap}' +
+      '.mr-who{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.45}' +
+      /* the hold: the press dip is ZSM.pressable's; this is the slow fill
+         that says "keep holding", and Reduce Motion gets a plain ring */
+      '[data-zsmhold]{position:relative}' +
+      '[data-zsmhold]::after{content:"";position:absolute;inset:-3px;border-radius:inherit;pointer-events:none;' +
+        'box-shadow:0 0 0 2px var(--accent);opacity:0;transform:scale(.86);transition:opacity 120ms,transform 120ms}' +
+      '[data-zsmhold].mr-holding::after{opacity:1;transform:scale(1);transition:opacity ' + HOLD_MS + 'ms linear,transform ' +
+        HOLD_MS + 'ms cubic-bezier(.2,.7,.2,1)}' +
+      '@media (prefers-reduced-motion: reduce){[data-zsmhold]::after,[data-zsmhold].mr-holding::after{transition:none;transform:none}}' +
+      'body.a11y-motion [data-zsmhold]::after{transition:none;transform:none}' +
+      '.mr-more{flex:none;min-width:44px;min-height:44px;border-radius:12px;background:none;border:0;' +
+        'color:var(--text);font:inherit;font-size:20px;letter-spacing:.06em;line-height:1}';
+    document.head.appendChild(s);
+  }
+
+  function btn(label, kind, id, disabled) {
+    return '<button class="btn' + (kind ? ' ' + kind : '') + '" id="' + id + '"' +
+      (disabled ? ' disabled aria-disabled="true"' : '') + '>' + esc(label) + '</button>';
+  }
+  function note(t, kind) {
+    return '<div class="note' + (kind ? ' ' + kind : '') + '">' + t + '</div>';
+  }
+
+  function open(opts) {
+    opts = opts || {};
+    css();
+    var W = {
+      opts: opts,
+      page: opts.start === 'rate' ? 'rate' : 'menu',
+      stack: [],
+      state: 'loading',                  /* loading | none | old | ready | running | done | err */
+      err: '', data: null, row: null, timer: null, closed: false, busy: false,
+      set: getSet(), shownV: ''
+    };
+    if (W.page === 'rate') look(W);
+    paint(W);
+    return W;
+  }
+  function stopPoll(W) {
+    if (W.timer) { clearInterval(W.timer); W.timer = null; }
+  }
+  function teardown(W) {
+    if (W.closed) return;
+    W.closed = true;
+    stopPoll(W);
+    if (W.state === 'running') api('/mouse/rate', 'POST', { op: 'stop' });
+  }
+  function paint(W) {
+    if (W.closed) return;
+    var wrap = document.getElementById('sheetwrap');
+    var fresh = !wrap || !wrap.classList.contains('open');
+    var el = Z().sheetOpen('Mouse sensor test', body(W), fresh ? function () { teardown(W); } : undefined,
+      W.opts.opener);
+    if (Z().wire) Z().wire(el, 'mrate/sheet');
+    wire(W, el);
+  }
+  function body(W) {
+    var h = W.stack.length ? '<button class="dp-back" id="mr-back">‹ Back</button>' : '';
+    return h + (W.page === 'rate' ? pageRate(W) : pageMenu(W));
+  }
+
+  function pageMenu(W) {
+    return '<p class="dp-h">Check how your mouse is really working through the Core.</p>' +
+      '<div class="dp-choices">' +
+        '<button class="dp-choice" id="mr-rate"><b>Check rate</b><span>how many times a second your mouse reports (Hz)</span></button>' +
+        '<button class="dp-choice" id="mr-dpi"><b>Check DPI</b><span>set it from here, or measure it with a ruler</span></button>' +
+      '</div>' +
+      (!isCore() ? note('These tests need your mouse plugged into a ZeroStick Core.') : '');
+  }
+
+  function whoLine(r) {
+    if (!r) return '';
+    var name = r.name || (r.vendor ? r.vendor + ' mouse' : 'Your mouse');
+    var bits = [esc(name)];
+    if (num(r.expected, 0) > 0) bits.push('asks for up to ' + fmt(r.expected) + ' Hz');
+    return '<p class="mr-who">' + bits.join(' · ') + '</p>';
+  }
+  function subLine(W) {
+    var r = W.row;
+    if (!r || W.state === 'ready') return 'Tap Start, then move.';
+    return 'last second ' + fmt(r.now) + ' · average ' + fmt(r.avg) + ' · peak ' + fmt(r.peak);
+  }
+  function bigNum(W) {
+    if (!W.row || W.state === 'ready') return '—';
+    return fmt(shown(W.row));
+  }
+  function verdictHTML(W) {
+    if (!W.row || (W.state !== 'running' && W.state !== 'done')) return '';
+    var v = verdict(W.row, W.set);
+    if (v.kind === 'wait') {
+      return '<div class="mr-v" role="status">' + esc(W.state === 'done'
+        ? 'The Core hardly saw the mouse move. Tap Start and keep it moving in circles for a few seconds.'
+        : v.words) + '</div>';
+    }
+    var h = '<div class="mr-v ' + (v.kind === 'ok' ? 'ok' : 'low') + '" role="status"><b>' + esc(v.words) + '</b>';
+    if (v.advice) {
+      h += esc(ADVICE_T) + '<ol><li>' + esc(ADVICE_1) + '</li><li>' + esc(ADVICE_2) + '</li></ol>';
+    }
+    if (v.ceiling) h += '<p class="mr-cap">' + esc(CEILING) + '</p>';
+    return h + '</div>';
+  }
+  function setRow(W) {
+    return '<div class="mr-set"><div class="salab">Your mouse is set to</div>' +
+      '<div class="dp-presets" id="mr-setrow" role="group" aria-label="What your mouse is set to">' +
+      SET_CHOICES.map(function (v) {
+        var lab = v >= 2000 ? '2000+' : fmt(v);
+        return '<button data-set="' + v + '"' + (W.set === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+          ' aria-label="' + (v >= 2000 ? '2000 hertz or more' : v + ' hertz') + '">' + lab + '</button>';
+      }).join('') +
+      '<button data-set="0"' + (!W.set ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Not sure</button>' +
+      '</div></div>';
+  }
+  function pageRate(W) {
+    var h = '<div class="mr-scenebox">' + sceneSVG() + '</div>' +
+      '<p class="dp-q">Move your mouse continuously in circles</p>';
+    if (W.state === 'loading') {
+      return h + '<p class="dp-h">Looking at the mouse plugged into the Core…</p>';
+    }
+    if (W.state === 'old') {
+      return h + note('This Core’s firmware can’t check the rate yet. Update the Core, then try again.') +
+        '<div class="dp-two">' + btn('Check DPI instead', null, 'mr-todpi') + '</div>';
+    }
+    if (W.state === 'none' || W.state === 'err') {
+      return h + note(esc(W.state === 'none'
+        ? 'No mouse is plugged into the Core. Plug your mouse into the Core’s USB port, then tap Try again.'
+        : (W.err || 'The Core did not answer.')), 'warn') +
+        '<div class="dp-two">' + btn('Try again', 'primary', 'mr-retry') + '</div>';
+    }
+    h += '<p class="dp-h">Tap Start, then keep the mouse moving in circles on your desk for a few seconds. ' +
+      'The Core counts every report that carries movement.</p>' +
+      '<div class="mr-big" aria-live="off"><b id="mr-hz">' + bigNum(W) + '</b><span>Hz</span></div>' +
+      '<p class="mr-sub" id="mr-sub">' + esc(subLine(W)) + '</p>' +
+      '<div id="mr-verdict">' + verdictHTML(W) + '</div>' +
+      setRow(W);
+    if (W.err) h += note(esc(W.err), 'warn');
+    h += W.state === 'running'
+      ? '<div class="dp-two">' + btn('Stop', 'primary', 'mr-stop') + '</div>'
+      : '<div class="dp-two">' + btn(W.state === 'done' ? 'Test again' : 'Start', 'primary', 'mr-start', W.busy) +
+        btn('Check DPI', null, 'mr-todpi') + '</div>';
+    return h + whoLine(W.row);
+  }
+
+  /* ── talking to the Core ── */
+
+  function take(W, j) {
+    var d = (j && j.data) || {};
+    W.data = d;
+    var mice = d.mice || [];
+    W.row = pick(mice);
+    return mice.length;
+  }
+  function look(W) {
+    W.state = 'loading';
+    W.err = '';
+    if (!isCore() || supportKnown === false) {
+      W.state = isCore() ? 'old' : 'err';
+      if (!isCore()) W.err = 'Plug your mouse into a ZeroStick Core to check its rate.';
+      return;
+    }
+    api('/mouse/rate').then(function (j) {
+      if (W.closed) return;
+      if (!j.ok) {
+        if (noRoute(j)) { supportKnown = false; W.state = 'old'; }
+        else { W.state = 'err'; W.err = String(j.error || 'The Core did not answer.'); }
+        paint(W);
+        return;
+      }
+      supportKnown = true;
+      W.state = take(W, j) ? 'ready' : 'none';
+      paint(W);
+    });
+  }
+  function start(W) {
+    W.busy = true;
+    W.err = '';
+    paint(W);
+    api('/mouse/rate', 'POST', { op: 'start' }).then(function (j) {
+      if (W.closed) return;
+      W.busy = false;
+      if (!j.ok) {
+        if (noRoute(j)) { supportKnown = false; W.state = 'old'; }
+        else W.err = String(j.error || 'The Core did not start the test.');
+        paint(W);
+        return;
+      }
+      if (!take(W, j)) { W.state = 'none'; paint(W); return; }
+      W.state = 'running';
+      W.shownV = '';
+      paint(W);
+      poll(W);
+    });
+  }
+  function stop(W) {
+    stopPoll(W);
+    api('/mouse/rate', 'POST', { op: 'stop' }).then(function (j) {
+      if (W.closed) return;
+      if (j.ok) take(W, j);
+      W.state = 'done';
+      paint(W);
+    });
+  }
+  function poll(W) {
+    stopPoll(W);
+    W.timer = setInterval(function () {
+      api('/mouse/rate').then(function (j) {
+        if (W.closed || W.state !== 'running' || !j.ok) return;
+        if (!take(W, j)) { stopPoll(W); W.state = 'none'; paint(W); return; }
+        live(W);
+      });
+    }, POLL_MS);
+  }
+  /* the number and the verdict, without repainting the sheet: the Stop
+     button under the player's finger must not be rebuilt four times a second */
+  function live(W) {
+    var hz = document.getElementById('mr-hz');
+    var sub = document.getElementById('mr-sub');
+    var vb = document.getElementById('mr-verdict');
+    if (hz) hz.textContent = bigNum(W);
+    if (sub) sub.textContent = subLine(W);
+    var v = verdictHTML(W);
+    if (vb && v !== W.shownV) { vb.innerHTML = v; W.shownV = v; }
+  }
+
+  function toDpi(W) {
+    var cur = null;
+    var z = Z();
+    var pid = z && z.activeId;
+    var full = pid && z.live && z.live.full && z.live.full[pid];
+    if (full && full.mouseTranslation) cur = full.mouseTranslation.dpi;
+    if (z && z.sheetClose) z.sheetClose();           /* runs teardown: the test stops */
+    if (!D() || !D().open) return;
+    D().open({ start: 'auto', current: cur, onDone: function (dpi) {
+      var prof = (z.PROFILES || []).filter(function (p) { return p.id === pid; })[0];
+      if (prof && z.inputShows && z.inputShows(prof.input, 'mouse') && D().saveTo) D().saveTo(pid, dpi);
+      else if (z.toast) z.toast('Your mouse is at ' + fmt(dpi) + ' DPI');
+    } });
+  }
+
+  function wire(W, el) {
+    function on(id, fn) {
+      var b = el.querySelector('#' + id);
+      if (b) b.addEventListener('click', function (e) { if (!b.disabled) fn(e, b); });
+    }
+    on('mr-back', function () {
+      if (W.state === 'running') { stopPoll(W); api('/mouse/rate', 'POST', { op: 'stop' }); }
+      W.page = W.stack.length ? W.stack.pop() : 'menu';
+      W.state = 'loading';
+      paint(W);
+    });
+    on('mr-rate', function () { W.stack.push('menu'); W.page = 'rate'; look(W); paint(W); });
+    on('mr-dpi', function () { toDpi(W); });
+    on('mr-todpi', function () { toDpi(W); });
+    on('mr-retry', function () { look(W); paint(W); });
+    on('mr-start', function () { start(W); });
+    on('mr-stop', function () { stop(W); });
+    var sr = el.querySelector('#mr-setrow');
+    if (sr) sr.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        W.set = num(b.getAttribute('data-set'), 0);
+        putSet(W.set);
+        sr.querySelectorAll('button').forEach(function (x) {
+          var on2 = x === b;
+          x.classList.toggle('on', on2);
+          x.setAttribute('aria-pressed', on2 ? 'true' : 'false');
+        });
+        live(W);
+      });
+    });
+  }
+
+  /* ── press and hold ───────────────────────────────────────────────── */
+
+  /* `fn` after the element is held for about a second (a finger that
+     wanders more than 10 px, or lifts, cancels it); the click the release
+     would send is swallowed so the tap action does not also run. A right-
+     click, a long-press the browser calls a context menu, and the keyboard's
+     menu key (Shift+F10) do the same, so the hold is never the only way. */
+  function holdable(el, fn) {
+    if (!el || el.__zsmhold) return;
+    el.__zsmhold = true;
+    css();
+    el.setAttribute('data-zsmhold', '1');
+    var t = null, x0 = 0, y0 = 0, fired = false;
+    function cancel() {
+      if (t) { clearTimeout(t); t = null; }
+      el.classList.remove('mr-holding');
+    }
+    function fire() {
+      cancel();
+      fired = true;
+      fn(el);
+    }
+    el.addEventListener('pointerdown', function (e) {
+      if (e && e.button && e.button !== 0) return;
+      fired = false;
+      x0 = num(e && e.clientX, 0);
+      y0 = num(e && e.clientY, 0);
+      cancel();
+      el.classList.add('mr-holding');
+      t = setTimeout(fire, HOLD_MS);
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!t) return;
+      var dx = num(e && e.clientX, x0) - x0, dy = num(e && e.clientY, y0) - y0;
+      if (dx * dx + dy * dy > SLOP_PX * SLOP_PX) cancel();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { el.addEventListener(ev, cancel); });
+    el.addEventListener('contextmenu', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (fired) return;
+      fire();
+    });
+    el.addEventListener('click', function (e) {
+      if (!fired) return;
+      fired = false;
+      if (e && e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (e && e.preventDefault) e.preventDefault();
+    }, true);
+  }
+
+  /* the ••• on a mouse's row in the devices sheet */
+  function moreHTML() {
+    css();
+    return '<button class="mr-more" data-zsmrate="menu" aria-label="Mouse sensor test: check rate or DPI">•••</button>';
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      while (t && t.getAttribute && !t.getAttribute('data-zsmrate')) t = t.parentNode;
+      if (!t || !t.getAttribute) return;
+      var how = t.getAttribute('data-zsmrate');
+      var z = Z();
+      if (z && z.sheetClose && how === 'menu') z.sheetClose();
+      open({ start: how === 'rate' ? 'rate' : 'menu' });
+    });
+  }
+
+  window.ZS_MRATE = {
+    open: open,
+    holdable: holdable,
+    moreHTML: moreHTML,
+    holdMs: HOLD_MS,
+    words: { advice: [ADVICE_T, ADVICE_1, ADVICE_2], ceiling: CEILING },
+    /* for the tests */
+    _math: { verdict: verdict, shown: shown, nearest: nearest, pick: pick },
+    _sceneSVG: sceneSVG,
+    _setSupport: function (v) { supportKnown = v; }
+  };
+})();

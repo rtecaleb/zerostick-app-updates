@@ -1,0 +1,1004 @@
+/* zs-serial.js — talk to the ZeroStick Core over Web Serial (window.ZSSERIAL).
+ *
+ * ES5 ONLY, same discipline as zs-ble.js: Promises are used (library, not
+ * syntax) but there is no arrow function, template literal, let/const,
+ * class or async/await anywhere in this file.
+ *
+ * ── What this is ─────────────────────────────────────────────────────────────
+ *
+ * The Core (the ESP32-P4 unit, D102) has no Bluetooth the PC can use and no
+ * USB device port of its own: its USB-C is a serial bridge on the P4's
+ * console UART (D87, confirmed on hardware 2026-09-17). So the PC exe talks
+ * to it over that serial line, from the browser, through Web Serial
+ * (navigator.serial), which Edge and Chrome have on a desktop.
+ *
+ * It presents the SAME surface as zs-ble.js (supported, available, connect,
+ * disconnect, request, installFetchShim, on, isConnected, info, explain), so
+ * phone.html does not know which one it is on. The frames on the wire are
+ * byte-for-byte the Bluetooth frames (zs-frame.js): one request/response
+ * protocol, three transports. docs/CORE-USB-LINK.md is the contract.
+ *
+ * ── The line format (CORE-USB-LINK.md) ───────────────────────────────────────
+ *
+ * The console UART is a byte stream with LOG TEXT on it, so every frame is
+ * one text line and frames and log lines coexist:
+ *
+ *     PC  -> Core :   ZS>  base64(frame)  .  crc32-as-8-hex  \n
+ *     Core -> PC  :   ZS<  base64(frame)  .  crc32-as-8-hex  \n
+ *
+ * The CRC-32 (the ordinary zlib/PNG one) is over the RAW frame bytes, before
+ * base64. Web Bluetooth has the link layer's CRC under it; a UART has
+ * nothing, so this is the substitute. A line with a bad CRC or bad base64 is
+ * COUNTED AND DROPPED, never thrown: the other end is untrusted bytes, and a
+ * corrupt line must not take the link down. Any line that does not begin
+ * with "ZS<" is a log line: it goes to the 'log' listeners and into a ring
+ * of the last 200 for a device-log drawer. The receiver tolerates \r\n.
+ *
+ * ── Trust (D87) ──────────────────────────────────────────────────────────────
+ *
+ * The A7S refuses irreversible endpoints over Bluetooth outside a short
+ * pairing window. The Core has NOT ported that rule yet, so until it has,
+ * this file's fetch shim refuses, CLIENT-SIDE, every method other than GET
+ * while the device is a Core. The refusal comes back in the dashboard
+ * proxy's own {ok:false, error} shape with a 403, so every existing screen
+ * shows it as "the board refused" and nothing spins forever. The lead may
+ * lift it with ZSSERIAL.allowWrites(true) once the rule is ported.
+ *
+ * ── Where this does NOT work ─────────────────────────────────────────────────
+ *
+ * Web Serial is desktop only: Chrome, Edge and Opera on Windows, macOS,
+ * Linux and ChromeOS. It does not exist on Android or iOS, and not in
+ * Safari or Firefox. supported() says which, so the page can say "use
+ * Bluetooth on a phone" instead of showing a Connect that can never work.
+ * It needs a secure context (https:, or localhost) and a real user gesture
+ * to open the port chooser, exactly like Bluetooth.
+ */
+(function () {
+  'use strict';
+
+  var F = window.ZSFRAME;
+  if (!F) {
+    throw new Error('zs-serial.js needs zs-frame.js loaded before it');
+  }
+
+  /* CORE-USB-LINK.md: the firmware raises the console from ESP-IDF's 115200
+     to this after boot, and the PC opens at this. A 2 KB profile is ~3 KB of
+     base64, 30 ms here; at 115200 it would be a visible quarter second. */
+  var BAUD = 921600;
+  /* 242 is kept so the Core's ble_link_frame.c is reused unchanged; on a
+     serial line it is merely a convention (CORE-USB-LINK.md). */
+  var CHUNK = F.DEFAULT_CHUNK;
+  var TX = 'ZS>';                 /* what we send */
+  var RX = 'ZS<';                 /* what a frame from the Core starts with */
+  /* Same patience as zs-ble.js: a request that gets no answer must fail, not
+     hang, and a number the two transports share means one set of app
+     expectations about "did not answer in time". */
+  var REQUEST_TIMEOUT_MS = 15000;
+  /* connect()'s handshake is a GET /status. On a serial line there is no
+     "service found" moment the way GATT has, so this is how we learn that
+     what answered the chooser is a ZeroStick at all.
+
+     IT KEEPS ASKING, because ONE ask was not enough. Measured on the dev kit
+     2026-09-23, opening COM17 the way this browser does (DTR and RTS both
+     enabled in one call):
+       - when the last program to use the port had left both lines low (the
+         flasher and the bench tools do), the open REBOOTS the Core through
+         the CH343's auto-reset circuit, and the first answer came 3.31 s
+         later. The single 3 s ask this used to make expired 0.3 s early, and
+         the owner saw "Nothing answered on that port" from a healthy Core;
+       - even with no reboot, the first ask after an open was lost once
+         (answered on the second), most likely half a line left over from
+         whoever had the port before.
+     So: a bare newline first, which ends any half line the Core is holding
+     (it ignores a line that is not ours), then an ask every PROBE_EACH_MS
+     until one is answered or PROBE_WINDOW_MS has passed. A Core that is up
+     still answers the first ask in milliseconds; a rebooting one is caught
+     about 3.5 s in; a wrong port is told about after 10 s, which is the
+     price of never calling a booting Core dead. */
+  var PROBE_EACH_MS = 800;
+  var PROBE_WINDOW_MS = 10000;
+  var LOG_RING = 200;             /* lines kept for the device-log drawer */
+  /* A line longer than this with no newline is not one of ours (the longest
+     real frame line is 3 + 328 + 1 + 8 bytes); the buffer is dropped so a
+     stream of junk at the wrong baud cannot grow memory without bound. */
+  var MAX_LINE = 65536;
+
+  var state = {
+    port: null,
+    reader: null,
+    writer: null,
+    linkUp: false,        /* the port is open and bytes can flow */
+    connected: false,     /* ...AND a ZeroStick answered the probe */
+    product: '',          /* 'core' | 'exo', from /status; '' until known */
+    name: '',
+    version: 0,           /* the device's apiVersion, informational */
+    chunk: CHUNK,
+    pending: new F.PendingTable(),   /* the requests in flight (zs-frame.js, M24) */
+    reasm: new F.Reassembler(),
+    queue: Promise.resolve(),
+    log: [],              /* the ring of non-frame lines */
+    stats: { lines: 0, frames: 0, badCrc: 0, badB64: 0, overlong: 0 },
+    writesAllowed: false  /* D87: see the header. allowWrites() lifts it. */
+  };
+
+  var listeners = { status: [], telemetry: [], log: [] };
+
+  function emit(kind, payload) {
+    var ls = listeners[kind] || [];
+    for (var i = 0; i < ls.length; i++) {
+      try { ls[i](payload); } catch (e) { /* a bad listener is not our problem */ }
+    }
+  }
+
+  /* ── capability reporting ──────────────────────────────────────────────────
+     Each branch returns a DIFFERENT reason, because the fix for a phone (use
+     Bluetooth) and the fix for Firefox (use Edge or Chrome) are different. */
+
+  function supported() {
+    if (typeof navigator === 'undefined' || !navigator.serial) {
+      var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+      var iOSish = /iPad|iPhone|iPod/.test(ua) ||
+        (/Macintosh/.test(ua) && typeof document !== 'undefined' &&
+          'ontouchend' in document);
+      if (iOSish || /Android/.test(ua)) {
+        return {
+          ok: false, reason: 'phone',
+          message: 'A phone cannot connect over USB from a browser. ' +
+            'Connect over Bluetooth instead; that is what the phone path is for.'
+        };
+      }
+      if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) {
+        return {
+          ok: false, reason: 'safari',
+          message: 'Safari does not support Web Serial. Open this page in ' +
+            'Chrome or Edge.'
+        };
+      }
+      return {
+        ok: false, reason: 'unsupported',
+        message: 'This browser does not support Web Serial. Chrome and Edge ' +
+          'do, on Windows, Mac, Linux and ChromeOS.'
+      };
+    }
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      return {
+        ok: false, reason: 'insecure',
+        message: 'USB only works on a secure page. This one was loaded over ' +
+          'plain http, so the browser blocks it. Open it over https, or ' +
+          'from localhost.'
+      };
+    }
+    return { ok: true, reason: 'ok', message: '' };
+  }
+
+  /* Web Serial has no getAvailability(): getPorts() lists only ports this
+     page was ALREADY granted, which says nothing about whether a Core is
+     plugged in. So the honest answer to "can I?" is the browser answer, and
+     the port chooser is where the user finds out what is on the machine.
+     Kept as a Promise so the surface matches zs-ble.js. */
+  function available() {
+    return Promise.resolve(supported());
+  }
+
+  /* Turn a thrown Web Serial error into a sentence worth reading. The
+     browser's own messages are written for developers: "NotFoundError: No
+     port selected by the user." is not something to show somebody setting
+     up a controller. */
+  function explain(err) {
+    var msg = String((err && err.message) || err || '');
+    if (/no port selected|cancel|chooser/i.test(msg)) {
+      return 'No port chosen.';
+    }
+    if (/already open/i.test(msg)) {
+      return 'That port is already open in this app. Disconnect first, then ' +
+        'try again.';
+    }
+    if (/failed to open|NetworkError|in use|busy|access denied/i.test(msg)) {
+      return 'Could not open the port. Close anything else using it (a flash ' +
+        'tool or a serial monitor), unplug and replug the Core, then try again.';
+    }
+    if (/permission|denied|policy|SecurityError/i.test(msg)) {
+      return 'The browser blocked USB for this page. It must be opened over ' +
+        'https (or localhost), and Connect must be pressed by hand.';
+    }
+    if (/user gesture|activation/i.test(msg)) {
+      return 'Press Connect again: the browser needs the button pressed ' +
+        'directly.';
+    }
+    return msg;
+  }
+
+  /* ── CRC-32, the zlib/PNG one ──────────────────────────────────────────────
+     Polynomial 0xEDB88320 (reflected), init and final xor 0xFFFFFFFF. The
+     standard check value: crc32("123456789") === 0xcbf43926, pinned by the
+     self-test below. Table-driven, built once. */
+  var CRC_TABLE = (function () {
+    var t = [], c, n, k;
+    for (n = 0; n < 256; n++) {
+      c = n;
+      for (k = 0; k < 8; k++) { c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); }
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) {
+      c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function hex8(n) {
+    return ('00000000' + n.toString(16)).slice(-8);
+  }
+
+  /* ── base64 over raw bytes ─────────────────────────────────────────────────
+     btoa/atob work on "binary strings" (one char per byte). fromCharCode is
+     applied in slices because apply() has an argument-count limit that a
+     large frame could hit, and a stack overflow at exactly 64 KB is a bug
+     nobody finds until a profile grows. */
+  function bytesToB64(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i += 8192) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+    }
+    return btoa(s);
+  }
+  /* Throws on bad input (atob does), which decodeLine turns into a count. */
+  function b64ToBytes(s) {
+    var bin = atob(s);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
+    return out;
+  }
+
+  /* ── one frame <-> one line ─────────────────────────────────────────────── */
+
+  function encodeLine(frameBytes) {
+    return TX + bytesToB64(frameBytes) + '.' + hex8(crc32(frameBytes)) + '\n';
+  }
+
+  /* A received line (no newline; a trailing \r is tolerated and stripped)
+     → {bytes} for a good frame, or {drop: reason} where reason is one of
+     'not-frame' (a log line), 'bad-b64', 'bad-crc'. Never throws. */
+  function decodeLine(line) {
+    if (line.length && line.charCodeAt(line.length - 1) === 13) {
+      line = line.slice(0, -1);
+    }
+    if (line.slice(0, RX.length) !== RX) { return { drop: 'not-frame', line: line }; }
+    var dot = line.lastIndexOf('.');
+    if (dot < RX.length) { return { drop: 'bad-b64' }; }   /* no ".crc" at all */
+    var crcHex = line.slice(dot + 1);
+    if (!/^[0-9a-fA-F]{8}$/.test(crcHex)) { return { drop: 'bad-crc' }; }
+    var bytes;
+    try { bytes = b64ToBytes(line.slice(RX.length, dot)); }
+    catch (e) { return { drop: 'bad-b64' }; }
+    if (crc32(bytes) !== parseInt(crcHex, 16)) { return { drop: 'bad-crc' }; }
+    return { bytes: bytes };
+  }
+
+  /* Bytes in, whole lines out. The port hands over chunks that end wherever
+     the USB packet ended, so a line routinely arrives in two pieces and two
+     lines routinely arrive in one. */
+  function LineSplitter() {
+    this.rest = new Uint8Array(0);
+    this.overlong = 0;
+    this.decoder = (typeof TextDecoder !== 'undefined') ? new TextDecoder('utf-8') : null;
+  }
+  LineSplitter.prototype.feed = function (chunk) {
+    var buf = F.concat([this.rest, chunk], this.rest.length + chunk.length);
+    var lines = [];
+    var start = 0;
+    for (var i = 0; i < buf.length; i++) {
+      if (buf[i] !== 10) { continue; }
+      lines.push(this.text(buf.subarray(start, i)));
+      start = i + 1;
+    }
+    this.rest = buf.subarray(start);
+    if (this.rest.length > MAX_LINE) {
+      /* not a line of ours; drop it rather than let junk at the wrong baud
+         grow the buffer forever, and say so in the counters */
+      this.rest = new Uint8Array(0);
+      this.overlong += 1;
+    }
+    return lines;
+  };
+  LineSplitter.prototype.text = function (bytes) {
+    if (this.decoder) { return this.decoder.decode(bytes); }
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) { s += String.fromCharCode(bytes[i]); }
+    return s;
+  };
+
+  /* ── receiving ─────────────────────────────────────────────────────────── */
+
+  function logLine(line) {
+    state.log.push(line);
+    if (state.log.length > LOG_RING) { state.log.shift(); }
+    emit('log', line);
+  }
+
+  /* One received line, whatever it is. Exported for the PC check, which
+     drives the receive path without a port. */
+  function feedLine(line) {
+    state.stats.lines += 1;
+    var d = decodeLine(line);
+    if (d.drop === 'not-frame') { logLine(d.line); return; }
+    if (d.drop === 'bad-crc') { state.stats.badCrc += 1; lostLine(); return; }
+    if (d.drop === 'bad-b64') { state.stats.badB64 += 1; lostLine(); return; }
+    state.stats.frames += 1;
+    var msg = state.reasm.feed(d.bytes);
+    if (!msg) { return; }                /* mid-message, or orphaned */
+    F.decodeMessage(msg).then(function (r) {
+      deliver(r.id, r.obj, r.error, r.text);
+    }).catch(function (e) {
+      deliver(msg.id, null, true, String(e && e.message || e));
+    });
+  }
+
+  /* A line of ours was lost (bad CRC, bad base64, or an overlong run with no
+     newline). The Core sends one message at a time, so the lost line belonged
+     to the message now being reassembled: without it the rest would be glued
+     together as if nothing were missing, and a reply with a piece cut out can
+     still parse (a numbers array comes back short with two numbers merged,
+     M23: /gpc/values read back that way is written to flash at the next
+     save). So the half message is thrown away and its request FAILS at once,
+     which every caller already handles (D138: big reads re-ask the piece),
+     instead of being answered wrongly or waiting 15 s for the timeout.
+
+     What this cannot see is a whole line vanishing with nothing corrupt left
+     behind; that needs a length in the first frame, a firmware change
+     (docs/overhaul/app-platform.md). */
+  function lostLine() {
+    var ids = state.reasm.openIds();
+    state.reasm.reset();
+    for (var i = 0; i < ids.length; i++) {
+      var p = state.pending.live[ids[i]];
+      if (p) { state.pending.cancel(p, new Error('a piece of the adapter’s answer was lost on the way')); }
+    }
+  }
+
+  function deliver(id, obj, isErr, raw) {
+    if (id === 0) {
+      /* Unsolicited. The device pushes status here so the UI does not have
+         to poll for it. */
+      emit('telemetry', obj);
+      return;
+    }
+    var p = state.pending.take(id);
+    if (!p) { return; }                  /* timed out already, or a duplicate */
+    if (obj === null) {
+      p.reject(new Error(raw || 'the adapter sent something unreadable'));
+      return;
+    }
+    p.resolve({ obj: obj, error: isErr });
+  }
+
+  var splitter = null;
+
+  /* The read loop, as a chain rather than a while: a reader.read() resolves
+     with the next chunk, and a stale loop (one whose reader has since been
+     replaced by a reconnect) stops itself by checking it is still current. */
+  function pump(reader) {
+    reader.read().then(function (r) {
+      if (state.reader !== reader) { return; }
+      if (r.done) { gone(); return; }
+      var lines = splitter.feed(r.value);
+      if (splitter.overlong !== state.stats.overlong) { lostLine(); }
+      state.stats.overlong = splitter.overlong;
+      for (var i = 0; i < lines.length; i++) { feedLine(lines[i]); }
+      pump(reader);
+    }).catch(function () {
+      if (state.reader === reader) { gone(); }
+    });
+  }
+
+  function failPending(why) {
+    state.pending.failAll(why);
+  }
+
+  /* Release the reader and writer, then close the port. Best effort at every
+     step: a port that was unplugged rejects close(), and that is fine. */
+  function closePort() {
+    var port = state.port, reader = state.reader, writer = state.writer;
+    state.port = null; state.reader = null; state.writer = null;
+    var p = Promise.resolve();
+    if (reader) {
+      p = p.then(function () { return reader.cancel(); }).catch(function () {})
+        .then(function () { try { reader.releaseLock(); } catch (e) { /* already */ } });
+    }
+    if (writer) {
+      p = p.then(function () { try { writer.releaseLock(); } catch (e) { /* already */ } });
+    }
+    if (port) {
+      p = p.then(function () { return port.close(); }).catch(function () {});
+    }
+    return p;
+  }
+
+  /* The link is over, however it ended (unplugged, closed by the app, the
+     read loop died). Fail everything in flight: a promise that never settles
+     is how an app ends up with a spinner that outlives the connection. */
+  function gone() {
+    if (!state.linkUp && !state.connected) { return; }
+    var name = state.name;
+    state.linkUp = false;
+    state.connected = false;
+    failPending('the adapter disconnected');
+    state.reasm.reset();
+    closePort();
+    emit('status', { connected: false, name: name });
+  }
+
+  /* ── connect ───────────────────────────────────────────────────────────── */
+
+  /* opts.filters, if given, narrows the browser's port chooser the way Web
+     Serial allows ([{usbVendorId, usbProductId}]). None by default: the dev
+     kit's bridge is a CH343 (VID 0x1A86, PID 0x55D3) but a production Core
+     may carry a different bridge, and a filter that hides the real device
+     is worse than a chooser with one extra entry. */
+  /* opts.port: open THIS port (one getPorts() returned) with no chooser;
+     that is reconnect()'s way in. While a connect is in flight a second call
+     gets the same promise, so a click on Connect during an automatic
+     reconnect waits for it instead of failing on "already open". */
+  var connecting = null;
+  function connect(opts) {
+    var cap = supported();
+    if (!cap.ok) { return Promise.reject(new Error(cap.message)); }
+    if (connecting) { return connecting; }
+    if (state.linkUp) { return Promise.reject(new Error('The port is already open.')); }
+
+    var req = (opts && opts.filters) ? { filters: opts.filters } : {};
+    var pick = (opts && opts.port) ? Promise.resolve(opts.port)
+      : navigator.serial.requestPort(req);
+    connecting = pick.then(function (port) {
+      state.port = port;
+      /* NEVER port.setSignals(), NEVER touch DTR or RTS, here or anywhere in
+         this file. Measured on the board 2026-09-18 (CORE-USB-LINK.md,
+         "Proved on the board"): the dev kit's CH343 auto-reset circuit
+         turns either line, driven on its own, into a chip reset, and a
+         reset Core answers nothing for two seconds. open() with the OS
+         defaults is what works, 20 of 20. test-serial-framing.js greps this
+         file for the call so it cannot creep back in. */
+      return port.open({ baudRate: BAUD });
+    }).then(function () {
+      var port = state.port;
+      if (port.addEventListener) {
+        port.addEventListener('disconnect', function () { gone(); });
+      }
+      splitter = new LineSplitter();
+      state.reasm.reset();
+      state.stats = { lines: 0, frames: 0, badCrc: 0, badB64: 0, overlong: 0 };
+      state.reader = port.readable.getReader();
+      state.writer = port.writable.getWriter();
+      state.linkUp = true;
+      pump(state.reader);
+      /* the handshake: is there a ZeroStick on this port? */
+      return probe().catch(function (e) {
+        var why = String(e && e.message || e);
+        if (/did not answer/.test(why)) {
+          why = 'Nothing answered on that port for ' + (PROBE_WINDOW_MS / 1000) +
+            ' seconds. Check it is the ZeroStick Core, that its power light ' +
+            'is on, and that nothing else has the port open.';
+        }
+        throw new Error(why);
+      });
+    }).then(function (res) {
+      var b = (res.obj && res.obj.b) || {};
+      /* CORE-USB-LINK.md: "product" is "core" on a Core; absent means "exo",
+         so every existing board keeps working. */
+      state.product = (b.product === 'core') ? 'core' : 'exo';
+      state.name = (state.product === 'core') ? 'ZeroStick Core' : 'ZeroStick EXO';
+      state.version = (typeof b.apiVersion === 'number') ? b.apiVersion : 0;
+      /* THE DEVICE DECIDES WHETHER IT TAKES CHANGES, and this app agrees with
+         it rather than keeping a second opinion. The Core reports D87's gate
+         as `writesAllowed` in its own /status (zs_api.c), so a board with the
+         gate shut still refuses every write on its own side no matter what
+         this flag says: nothing is weakened by trusting it.
+
+         What it fixes is a board that says yes while the app says no. That
+         happened on 2026-09-18 with a gate-open build: every save came back
+         "Changes over USB are not accepted yet", which is a sentence about a
+         firmware rule that firmware was no longer applying, and there is no
+         way to tell from the app which of the two locks is the one in the
+         way. One source of truth, and it is the end that owns the flash. */
+      if (typeof (b.data && b.data.writesAllowed) === 'boolean') {
+        state.writesAllowed = !!b.data.writesAllowed;
+      }
+      state.connected = true;
+      rememberPort(state.port);
+      connecting = null;
+      emit('status', {
+        connected: true, name: state.name, product: state.product, chunk: state.chunk
+      });
+      return { name: state.name, product: state.product, chunk: state.chunk };
+    }).catch(function (e) {
+      /* whatever failed, leave nothing half open behind us */
+      connecting = null;
+      state.linkUp = false;
+      state.connected = false;
+      failPending(String(e && e.message || e));
+      return closePort().then(function () { throw e; });
+    });
+    return connecting;
+  }
+
+  /* ── reconnecting with no chooser (M34 of the 2026-10-10 audit) ──────────
+     Every Core reset or replug, and every launch of the app, used to need
+     Connect, a COM port picked in a browser dialog, and Connect again: a lot
+     of fiddly steps for the player this product is for. The browser keeps a
+     port it was once granted, and getPorts() lists those with no gesture, so
+     the chooser is only needed for the FIRST pairing:
+
+       - reconnect() opens the granted port that was last used (its USB vendor
+         and product ids are remembered), or the only granted port when there
+         is exactly one. With several and none remembered, it does nothing:
+         guessing could open somebody's other serial device. Resolves to what
+         connect() resolves to, or null when there was nothing to open.
+       - a granted port that is plugged back in fires navigator.serial's
+         'connect' event; watch() reconnects on it. */
+  var LAST_KEY = 'zs-serial-last';
+  function portIds(port) {
+    var i = null;
+    try { i = port && port.getInfo ? port.getInfo() : null; } catch (e) { i = null; }
+    return i && i.usbVendorId ? { v: i.usbVendorId, p: i.usbProductId } : null;
+  }
+  function rememberPort(port) {
+    var ids = portIds(port);
+    if (!ids) { return; }
+    try { localStorage.setItem(LAST_KEY, JSON.stringify(ids)); } catch (e) { /* private window */ }
+  }
+  function lastIds() {
+    try { return JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function choosePort(ports) {
+    var last = lastIds(), match = [], i, ids;
+    if (last) {
+      for (i = 0; i < ports.length; i++) {
+        ids = portIds(ports[i]);
+        if (ids && ids.v === last.v && ids.p === last.p) { match.push(ports[i]); }
+      }
+      if (match.length === 1) { return match[0]; }
+      if (match.length > 1) { return null; }   /* two of the same bridge: ask */
+    }
+    return ports.length === 1 ? ports[0] : null;
+  }
+  function reconnect() {
+    if (!supported().ok || !navigator.serial.getPorts) { return Promise.resolve(null); }
+    if (connecting) { return connecting; }
+    if (state.linkUp) { return Promise.resolve(null); }
+    return navigator.serial.getPorts().then(function (ports) {
+      var port = choosePort(ports || []);
+      if (!port || state.linkUp) { return null; }
+      return connect({ port: port });
+    });
+  }
+  var watching = false;
+  function watch(onConnected, onFailed) {
+    if (watching || !supported().ok || !navigator.serial.addEventListener) { return; }
+    watching = true;
+    navigator.serial.addEventListener('connect', function () {
+      if (state.linkUp || connecting) { return; }
+      reconnect().then(function (info) {
+        if (info && onConnected) { onConnected(info); }
+      }, function (e) {
+        if (onFailed) { onFailed(e); }
+      });
+    });
+  }
+
+  function disconnect() {
+    gone();
+  }
+
+  /* The handshake's retry loop (PROBE_EACH_MS says why it exists). Each ask
+     is an ordinary request with its own id, so an answer to an ask that had
+     already given up lands on no pending entry and is dropped by deliver(),
+     and the one that is answered is the one that is used. */
+  function probe() {
+    var t0 = Date.now();
+    state.queue = state.queue.then(function () {
+      if (state.writer) { return state.writer.write(new TextEncoder().encode('\n')); }
+    }).catch(function () { /* the ask below reports a dead port */ });
+    function once() {
+      return request('GET', '/status', undefined, PROBE_EACH_MS).catch(function (e) {
+        var gaveUp = /did not answer/.test(String(e && e.message || e));
+        if (gaveUp && state.linkUp && Date.now() - t0 + PROBE_EACH_MS <= PROBE_WINDOW_MS) {
+          return once();
+        }
+        throw e;
+      });
+    }
+    return once();
+  }
+
+  /* ── request/response ──────────────────────────────────────────────────────
+     Writes are SERIALISED through state.queue, as in zs-ble.js: the UI fires
+     several calls at once on boot and a WritableStream writer rejects a
+     write that overlaps another. One write per request carries every line
+     of the message, so a request's frames can never interleave with
+     another's on the wire. */
+
+  /* signal: an AbortSignal (the fetch shim passes api()'s 8 s one, m63).
+     When it fires, the request is given up at once: it leaves the pending
+     table (its id quarantined, see PendingTable) and the promise rejects. */
+  function request(method, path, body, timeoutMs, signal) {
+    if (!state.linkUp || !state.writer) {
+      return Promise.reject(new Error('not connected to an adapter'));
+    }
+    if (signal && signal.aborted) { return Promise.reject(new Error('timed out')); }
+    var entry = state.pending.open(timeoutMs || REQUEST_TIMEOUT_MS);
+    if (!entry) {
+      return Promise.reject(new Error('the link is busy: 255 requests are waiting for an answer'));
+    }
+    var id = entry.id;
+    if (signal && signal.addEventListener) {
+      signal.addEventListener('abort', function () {
+        state.pending.cancel(entry, new Error('timed out'));
+      });
+    }
+
+    var req = { m: method || 'GET', p: path };
+    if (body !== undefined && body !== null) { req.b = body; }
+    var payload = new TextEncoder().encode(JSON.stringify(req));
+    var frames = F.encodeFrames(id, payload, state.chunk);
+
+    var answer = entry.promise;
+
+    state.queue = state.queue.then(function () {
+      /* given up while it waited its turn: do not put it on the wire */
+      if (state.pending.live[id] !== entry) { return; }
+      var text = '';
+      for (var i = 0; i < frames.length; i++) { text += encodeLine(frames[i]); }
+      if (!state.writer) { throw new Error('the adapter disconnected'); }
+      return state.writer.write(new TextEncoder().encode(text));
+    }).catch(function (e) {
+      state.pending.cancel(entry, e);
+      /* Keep the queue alive: one failed write must not wedge every later
+         request behind a permanently rejected promise. */
+    });
+
+    return answer;
+  }
+
+  /* ── the fetch shim ────────────────────────────────────────────────────────
+     Same trick as zs-ble.js: window.fetch is wrapped, and any request to
+     /agent/* is carried over the wire and handed back as a real Response.
+     Every existing call site works unchanged. Installed EARLY in USB mode
+     (phone.html does it before the app's first fetch) so the app never asks
+     the dashboard's HTTP proxy, which would answer for the A7S, for what it
+     should be asking the Core. */
+
+  function installFetchShim(prefix) {
+    prefix = prefix || '/agent';
+    if (window.__zsSerialFetch) { return; }
+    var real = window.fetch ? window.fetch.bind(window) : null;
+    window.__zsSerialFetch = true;
+
+    window.fetch = function (input, init) {
+      var url = (typeof input === 'string') ? input
+        : (input && input.url) || '';
+      var isAgent = url.indexOf(prefix + '/') === 0 ||
+        url.indexOf(location.origin + prefix + '/') === 0;
+      if (!isAgent) {
+        return real ? real(input, init)
+          : Promise.reject(new Error('fetch is unavailable'));
+      }
+
+      var path = url.replace(location.origin, '').slice(prefix.length);
+      var opt = init || {};
+      var method = (opt.method || 'GET').toUpperCase();
+      var body;
+      if (opt.body) {
+        try { body = JSON.parse(opt.body); } catch (e) { body = opt.body; }
+      }
+
+      if (!state.connected) {
+        /* Shaped exactly like the dashboard proxy's own 502 body, so the
+           app's existing offline handling recognises it without a change. */
+        return Promise.resolve(jsonResponse(
+          { ok: false, error: 'device-agent unreachable (usb not connected)' },
+          502));
+      }
+
+      /* D87, CLIENT-SIDE: the Core has not ported the Bluetooth trust rule,
+         so nothing that changes the device goes over this link until it has.
+         A device that has not said it is an EXO is treated as a Core (the
+         only thing on the far end of a serial line today). The lead lifts
+         this with allowWrites(true) when the rule lands on the firmware. */
+      if (method !== 'GET' && !state.writesAllowed && state.product !== 'exo') {
+        return Promise.resolve(jsonResponse(
+          { ok: false, error: 'This Core is not accepting changes: its firmware ' +
+            'has the D87 write gate shut, so it only answers reads. A build ' +
+            'with the gate open says so in its own status and this app follows ' +
+            'it.' },
+          403));
+      }
+
+      return request(method, path, body, undefined, opt.signal).then(function (res) {
+        var o = res.obj || {};
+        if (res.error) {
+          /* D335 (Studio's F-3): a refusal that says the other link holds
+             the server ("busy", and which link: "owner") keeps saying so,
+             so the app can wait and try once more instead of matching the
+             sentence */
+          var refusal = { ok: false, error: o.e || 'usb request failed' };
+          if (o.busy === true) { refusal.busy = true; }
+          if (typeof o.owner === 'string') { refusal.owner = o.owner; }
+          return jsonResponse(refusal, o.s || 502);
+        }
+        var payload = (o.b !== undefined && o.b !== null) ? o.b
+          : (o.t !== undefined ? o.t : null);
+        return jsonResponse(payload, o.s || 200);
+      }).catch(function (e) {
+        return jsonResponse(
+          { ok: false, error: 'device-agent unreachable (' +
+            String(e && e.message || e) + ')' }, 502);
+      });
+    };
+  }
+
+  function jsonResponse(obj, status) {
+    var text = (typeof obj === 'string') ? obj : JSON.stringify(obj);
+    /* A real Response, so callers can use .json(), .ok, .status exactly as
+       they do over HTTP. Anything less would leak the transport. */
+    return new Response(text, {
+      status: status || 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /* ── the Core's screenshot, in numbered pieces (D118) ──────────────────────
+     A reply on this link is at most 8 KB of JSON (the firmware's
+     ZS_API_REPLY_MAX) and a 720p screenshot is tens of kilobytes, so a Core
+     does not answer GET /vision/frame with a picture. It FREEZES one and
+     answers with a header:
+
+       {ok:true, encoding:'jpeg-chunks',
+        data:{id, bytes, crc32:'8 hex', chunk:4096, chunks, width, height, ...}}
+
+     and each piece is then GET /vision/frame/<id>/<i>:
+
+       {ok:true, data:{id, index, offset, bytes, b64}}
+
+     These two functions put the pieces back together and REFUSE anything
+     that is not the picture the header described: a piece of a different
+     id, a piece at the wrong offset, a piece shorter than it says, a total
+     that does not add up, or a CRC-32 that does not match (THIS file's
+     crc32, the one the firmware's zs_usb_crc32 is pinned to). A torn picture
+     must never reach the screen the owner crops and teaches from, because a
+     patch taught from half of one weapon and half of another matches
+     neither.
+
+     They live HERE because this file owns the Core's link and its CRC, but
+     they are not about serial: the same pieces come back the same way over
+     Bluetooth, through zs-ble.js's fetch shim, and the caller passes in how
+     to fetch one. An EXO answers /vision/frame with the picture's own bytes
+     and never reaches this code. */
+  var SHOT_ENCODING = 'jpeg-chunks';
+  /* A bound, so a header that lies cannot make the app allocate a gigabyte.
+     A 1080p grey JPEG at the firmware's highest quality is well under it. */
+  var SHOT_MAX_BYTES = 8 * 1024 * 1024;
+
+  function shotHeaderProblem(h) {
+    if (!h || typeof h !== 'object') { return 'the adapter sent no screenshot'; }
+    if (!(h.id > 0) || Math.floor(h.id) !== h.id) { return 'the screenshot has no id'; }
+    if (!(h.bytes > 0) || h.bytes > SHOT_MAX_BYTES) {
+      return 'the screenshot has an impossible size';
+    }
+    if (!(h.chunk > 0) || h.chunks !== Math.ceil(h.bytes / h.chunk)) {
+      return 'the screenshot’s pieces do not add up';
+    }
+    if (!/^[0-9a-fA-F]{8}$/.test(String(h.crc32 || ''))) {
+      return 'the screenshot has no checksum';
+    }
+    return '';
+  }
+
+  /* Pure. `parts` is [{index, offset, bytes: Uint8Array}] in any order.
+     Returns {ok:true, bytes} or {ok:false, why, torn}. `torn` means the
+     pieces were all there and the picture is still wrong, which is worth
+     asking again for; a bad header is not. */
+  function assembleShot(h, parts) {
+    var problem = shotHeaderProblem(h);
+    if (problem) { return { ok: false, why: problem, torn: false }; }
+    var out = new Uint8Array(h.bytes);
+    var seen = {};
+    var have = 0;
+    for (var i = 0; i < (parts || []).length; i++) {
+      var p = parts[i];
+      if (!p || !p.bytes || seen[p.index]) {
+        return { ok: false, why: 'a piece of the screenshot came twice', torn: true };
+      }
+      seen[p.index] = true;
+      if (p.offset !== p.index * h.chunk || p.offset + p.bytes.length > h.bytes) {
+        return { ok: false, why: 'a piece of the screenshot is in the wrong place', torn: true };
+      }
+      out.set(p.bytes, p.offset);
+      have += p.bytes.length;
+    }
+    if (have !== h.bytes) {
+      return { ok: false, why: 'the screenshot arrived short', torn: true };
+    }
+    if (crc32(out) !== parseInt(h.crc32, 16)) {
+      return { ok: false, why: 'the screenshot was damaged on the way: its checksum ' +
+        'does not match', torn: true };
+    }
+    return { ok: true, bytes: out };
+  }
+
+  /* Fetch every piece, in order, then assemble. `getJson(path)` returns a
+     Promise of the reply BODY ({ok, data} or {ok:false, error}). Resolves to
+     the JPEG's bytes; rejects with an Error whose `replaced` is true when a
+     newer screenshot was taken mid-way (ask again at once) and whose `torn`
+     is true when the pieces did not make the picture. One piece at a time,
+     deliberately: the link carries one message at a time anyway, and
+     sequential asks let the app's status polls interleave between pieces
+     instead of queueing behind a burst. */
+  function pullShot(getJson, h) {
+    var problem = shotHeaderProblem(h);
+    if (problem) { return Promise.reject(new Error(problem)); }
+    var parts = [];
+    function piece(i) {
+      if (i >= h.chunks) {
+        var r = assembleShot(h, parts);
+        if (!r.ok) {
+          var bad = new Error(r.why);
+          bad.torn = !!r.torn;
+          throw bad;
+        }
+        return r.bytes;
+      }
+      return Promise.resolve(getJson('/vision/frame/' + h.id + '/' + i)).then(function (j) {
+        if (!j || j.ok !== true || !j.data) {
+          var e = new Error((j && j.error) ||
+            ('the adapter did not send piece ' + (i + 1) + ' of the screenshot'));
+          e.replaced = !!(j && j.replaced);
+          throw e;
+        }
+        var d = j.data;
+        var bytes;
+        if (d.id !== h.id || d.index !== i) {
+          throw new Error('the adapter sent the wrong piece of the screenshot');
+        }
+        try { bytes = b64ToBytes(String(d.b64 || '')); }
+        catch (x) { throw new Error('a piece of the screenshot was not readable'); }
+        if (bytes.length !== d.bytes) {
+          var s = new Error('a piece of the screenshot arrived short');
+          s.torn = true;
+          throw s;
+        }
+        parts.push({ index: i, offset: d.offset, bytes: bytes });
+        return piece(i + 1);
+      });
+    }
+    return piece(0);
+  }
+
+  window.ZSSERIAL = {
+    supported: supported,
+    available: available,
+    explain: explain,
+    connect: connect,
+    reconnect: reconnect,
+    watch: watch,
+    disconnect: disconnect,
+    request: request,
+    installFetchShim: installFetchShim,
+    isConnected: function () { return !!state.connected; },
+    info: function () {
+      var pi = null;
+      try { pi = state.port && state.port.getInfo ? state.port.getInfo() : null; }
+      catch (e) { pi = null; }
+      return { version: state.version, chunk: state.chunk, name: state.name || null,
+               product: state.product || null, port: pi };
+    },
+    on: function (kind, fn) {
+      if (listeners[kind]) { listeners[kind].push(fn); }
+    },
+    /* the device-log ring (a copy) and the drop counters, for a drawer */
+    log: function () { return state.log.slice(); },
+    stats: function () {
+      return { lines: state.stats.lines, frames: state.stats.frames,
+               badCrc: state.stats.badCrc, badB64: state.stats.badB64,
+               overlong: state.stats.overlong };
+    },
+    /* D87: lifts the client-side write refusal. Only once the Core serves
+       the trust rule itself; see the header. */
+    allowWrites: function (yes) { state.writesAllowed = !!yes; return state.writesAllowed; },
+    /* D118: a Core's screenshot, reassembled and checked. Transport-free;
+       see "the Core's screenshot" above. */
+    pullShot: pullShot,
+    assembleShot: assembleShot,
+    SHOT_ENCODING: SHOT_ENCODING,
+    BAUD: BAUD,
+    PROTOCOL_VERSION: F.PROTOCOL_VERSION,
+    /* exported for the self-test, the PC check and anyone debugging the wire */
+    _crc32: crc32,
+    _encodeLine: encodeLine,
+    _decodeLine: decodeLine,
+    _LineSplitter: LineSplitter,
+    _feedLine: feedLine
+  };
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     The line format has to agree with the Core's firmware byte for byte, and
+     the CRC has to be THE CRC-32. These assert the browser half; the
+     firmware's host tests assert the other. */
+  if (typeof window !== 'undefined') {
+    (function () {
+      /* The dashboard's test harness loads every script phone.html loads into
+         a bare Node VM with no TextEncoder (and sometimes no btoa): "not
+         tested here" is the honest result, not a load crash (zs-ble.js rule). */
+      if (typeof TextEncoder === 'undefined' || typeof btoa === 'undefined' ||
+          typeof atob === 'undefined') {
+        window.ZSSERIAL_SELFTEST_RESULT = {
+          pass: true, failures: [],
+          skipped: 'no TextEncoder/btoa in this environment (test harness)'
+        };
+        return;
+      }
+      var fail = [];
+      function ck(c, m) { if (!c) { fail.push(m); } }
+      function same(a, b) {
+        if (a.length !== b.length) { return false; }
+        for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) { return false; } }
+        return true;
+      }
+
+      /* the CRC-32 check value every implementation agrees on */
+      ck(crc32(new TextEncoder().encode('123456789')) === 0xcbf43926,
+        'crc32("123456789") must be 0xcbf43926 (the zlib/PNG CRC)');
+      ck(crc32(new Uint8Array(0)) === 0, 'crc32 of nothing must be 0');
+
+      /* THE literal vector from docs/CORE-USB-LINK.md: GET /status as msg 1 */
+      var payload = new TextEncoder().encode('{"m":"GET","p":"/status"}');
+      var frame = F.encodeFrames(1, payload, CHUNK)[0];
+      var LINE = 'ZS>AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9.e9924708\n';
+      ck(encodeLine(frame) === LINE, 'the GET /status line must match the contract vector');
+
+      /* the same bytes coming back, with the Core's prefix and a \r\n ending */
+      var d = decodeLine('ZS<AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9.e9924708\r');
+      ck(d.bytes && same(d.bytes, frame), 'a frame line must decode to the frame bytes, \\r tolerated');
+      ck(decodeLine('ZS<AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9.e9924709').drop === 'bad-crc',
+        'a wrong CRC must be dropped as bad-crc');
+      ck(decodeLine('ZS<AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9.zz924708').drop === 'bad-crc',
+        'a non-hex CRC must be dropped as bad-crc');
+      ck(decodeLine('ZS<!!!notbase64!!!.00000000').drop === 'bad-b64',
+        'unreadable base64 must be dropped as bad-b64');
+      ck(decodeLine('ZS<AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9').drop === 'bad-b64',
+        'a line with no CRC field must be dropped, never thrown');
+      ck(decodeLine('I (1234) zs: booting').drop === 'not-frame',
+        'a log line is not a frame');
+      ck(decodeLine('ZS>' + 'AQN7Im0iOiJHRVQiLCJwIjoiL3N0YXR1cyJ9.e9924708').drop === 'not-frame',
+        'a line in OUR direction is not a frame from the Core');
+
+      /* the splitter: two lines in one chunk, a line across two chunks */
+      var sp = new LineSplitter();
+      var enc = new TextEncoder();
+      var l1 = sp.feed(enc.encode('ab\r\ncd\nef'));
+      var l2 = sp.feed(enc.encode('gh\n'));
+      ck(l1.length === 2 && l1[0] === 'ab\r' && l1[1] === 'cd' && l2.length === 1 && l2[0] === 'efgh',
+        'the splitter must cut on \\n only and keep a partial line for the next chunk');
+
+      /* the screenshot's pieces: "123456789" in two, and one bit flipped */
+      var nine = enc.encode('123456789');
+      var head = { id: 1, bytes: 9, chunk: 5, chunks: 2, crc32: 'cbf43926' };
+      var whole = assembleShot(head, [
+        { index: 1, offset: 5, bytes: nine.subarray(5) },
+        { index: 0, offset: 0, bytes: nine.subarray(0, 5) }
+      ]);
+      ck(whole.ok && same(whole.bytes, nine),
+        'two pieces in either order must make the picture the header describes');
+      var flipped = new Uint8Array(nine);
+      flipped[3] ^= 1;
+      var torn = assembleShot(head, [
+        { index: 0, offset: 0, bytes: flipped.subarray(0, 5) },
+        { index: 1, offset: 5, bytes: flipped.subarray(5) }
+      ]);
+      ck(!torn.ok && torn.torn, 'one flipped bit must be caught by the CRC, as torn');
+
+      window.ZSSERIAL_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

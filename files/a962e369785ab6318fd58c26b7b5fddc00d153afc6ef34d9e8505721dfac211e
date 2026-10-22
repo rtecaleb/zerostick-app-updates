@@ -1,0 +1,421 @@
+/* zs-deflate.js - a small, synchronous deflate (RFC 1951), so a config's
+ * editable copy on a Core is compressed for real (D124). window.ZSDEFLATE.
+ *
+ * ES5 ONLY, the same discipline as zs-profile-encode.js, which is the one
+ * caller: no arrow function, no template literal, no let/const, no class.
+ * Typed arrays are library, not syntax.
+ *
+ * -- Why this file exists, when every browser has CompressionStream ---------
+ *
+ * D103 section 8 keeps a config's original document on the Core, gzipped, so
+ * a reinstalled app can edit a config it did not write. The app's encoder
+ * wrote that gzip with STORED blocks (no compression at all), because
+ * matching Python's zlib bit for bit was never possible and a stored block is
+ * the one legal deflate that needs no code. D122 measured what that costs: a
+ * Warzone config's copy stops fitting inside the 16 KB blob at about the
+ * fifth taught weapon, and the app then drops the config from its list.
+ *
+ * CompressionStream would compress it, and it is ASYNCHRONOUS. encode(),
+ * validate() and sizeOf() are synchronous and have callers that render from
+ * their answer (the Auto Actions tab asks sizeOf() while it draws, to say how
+ * full the Core is), and the node harness that runs the app in the tests has
+ * no CompressionStream at all. Making encode() a promise would ripple through
+ * every one of those for a sidecar that is a few kilobytes. So the deflate is
+ * here, synchronous, and about three hundred lines.
+ *
+ * -- What it does -----------------------------------------------------------
+ *
+ * LZ77 with hash chains and one step of lazy matching (zlib's own strategy at
+ * its higher levels), then ONE block, written whichever of the three legal
+ * ways is smallest for these particular bytes: dynamic Huffman codes built
+ * for them, the fixed codes RFC 1951 defines, or stored. The dynamic codes
+ * are limited to 15 bits (7 for the code-length code) by package-merge, the
+ * textbook algorithm that is optimal under a length limit and always yields a
+ * COMPLETE code, which matters: zlib's inflate refuses an incomplete one, and
+ * so does every browser's.
+ *
+ * The output is not zlib's byte for byte and does not need to be: the reader
+ * is any inflater (the app's own DecompressionStream, node's zlib in the
+ * tests), and the device never parses these bytes at all (D103 section 8).
+ * It IS deterministic: the same input always produces the same bytes, which
+ * is what lets content_revision and the tests mean anything.
+ *
+ * dashboard/tools/test-deflate.js inflates the output of every awkward input
+ * it can think of with node's own zlib and compares, and measures the result
+ * against zlib's best effort on a real config.
+ */
+(function () {
+  'use strict';
+
+  /* RFC 1951 section 3.2.5: the length and distance alphabets. */
+  var LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43,
+    51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+  var LEXT = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4,
+    4, 4, 5, 5, 5, 5, 0];
+  var DBASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257,
+    385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385,
+    24577];
+  var DEXT = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9,
+    10, 10, 11, 11, 12, 12, 13, 13];
+  /* The order the code-length code's lengths are sent in (section 3.2.7). */
+  var CLORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+
+  var WSIZE = 32768;          /* the window deflate allows */
+  var WMASK = WSIZE - 1;
+  var HBITS = 15;
+  var HMASK = (1 << HBITS) - 1;
+  var MIN_MATCH = 3;
+  var MAX_MATCH = 258;
+  /* How far down a hash chain to look. zlib's level 9 goes to 4096; a config
+     is tens of kilobytes, so 1024 costs a few milliseconds and is within a
+     few bytes of it on the real config the test measures. */
+  var MAX_CHAIN = 1024;
+
+  /* length 3..258 -> the length symbol's index into LBASE */
+  var LEN_INDEX = (function () {
+    var t = new Uint8Array(MAX_MATCH + 1), i, c = 0;
+    for (i = MIN_MATCH; i <= MAX_MATCH; i++) {
+      while (c < 28 && LBASE[c + 1] <= i) { c++; }
+      t[i] = c;
+    }
+    t[MAX_MATCH] = 28;        /* 258 has its own code with no extra bits */
+    return t;
+  }());
+
+  function distIndex(d) {
+    var lo = 0, hi = 29;
+    while (lo < hi) {
+      var mid = (lo + hi + 1) >> 1;
+      if (DBASE[mid] <= d) { lo = mid; } else { hi = mid - 1; }
+    }
+    return lo;
+  }
+
+  /* ---------------------------------------------------------------- LZ77 -- */
+
+  /* The input as tokens: lens[i] is 0 for a literal (vals[i] the byte) or a
+     match length (vals[i] its distance). */
+  function tokenize(data) {
+    var n = data.length;
+    var head = new Int32Array(1 << HBITS);
+    var prev = new Int32Array(WSIZE);
+    var lens = [], vals = [];
+    var i, k;
+    for (k = 0; k < head.length; k++) { head[k] = -1; }
+
+    function hashAt(p) {
+      return ((data[p] << 10) ^ (data[p + 1] << 5) ^ data[p + 2]) & HMASK;
+    }
+    function insert(p) {
+      if (p + MIN_MATCH > n) { return; }
+      var h = hashAt(p);
+      prev[p & WMASK] = head[h];
+      head[h] = p;
+    }
+    /* The longest earlier match for position p, searched BEFORE p itself is
+       inserted. Distances stay inside the window, and the chain only ever
+       walks backwards, so an entry of prev[] that a newer position overwrote
+       can never be reached from inside the window. */
+    var bestLen = 0, bestDist = 0;
+    function longest(p) {
+      bestLen = 0; bestDist = 0;
+      if (p + MIN_MATCH > n) { return; }
+      var limit = p - WSIZE;
+      var chain = MAX_CHAIN;
+      var q = head[hashAt(p)];
+      var most = Math.min(MAX_MATCH, n - p);
+      while (q >= 0 && q >= limit && chain-- > 0) {
+        if (data[q + bestLen] === data[p + bestLen] && data[q] === data[p]) {
+          var l = 0;
+          while (l < most && data[q + l] === data[p + l]) { l++; }
+          if (l > bestLen) {
+            bestLen = l;
+            bestDist = p - q;
+            if (l === most) { break; }
+          }
+        }
+        q = prev[q & WMASK];
+      }
+      if (bestLen < MIN_MATCH) { bestLen = 0; }
+    }
+
+    i = 0;
+    while (i < n) {
+      longest(i);
+      var len = bestLen, dist = bestDist;
+      if (len && i + 1 < n) {
+        /* ONE STEP OF LAZINESS: if the match starting at the next byte is
+           longer, this byte goes out as a literal and that match is taken
+           instead. zlib does the same, and on JSON it is worth a few percent
+           because a key's opening quote rarely starts the best match. */
+        insert(i);
+        longest(i + 1);
+        if (bestLen > len) {
+          lens.push(0); vals.push(data[i]);
+          i += 1;
+          continue;
+        }
+        lens.push(len); vals.push(dist);
+        for (k = 1; k < len; k++) { insert(i + k); }
+        i += len;
+        continue;
+      }
+      if (len) {
+        lens.push(len); vals.push(dist);
+        for (k = 0; k < len; k++) { insert(i + k); }
+        i += len;
+        continue;
+      }
+      insert(i);
+      lens.push(0); vals.push(data[i]);
+      i += 1;
+    }
+    return { lens: lens, vals: vals };
+  }
+
+  /* ------------------------------------------------------ Huffman codes -- */
+
+  /* Code lengths for `freq`, none longer than `limit`, by package-merge.
+     Every symbol with a non-zero count gets a length; the rest get 0. At
+     least two symbols always get one, because a one-symbol code is not a
+     complete code and inflaters refuse an incomplete lit/len code. */
+  function codeLengths(freq, limit) {
+    var n = freq.length, out = new Array(n), leaves = [], i;
+    for (i = 0; i < n; i++) {
+      out[i] = 0;
+      if (freq[i] > 0) { leaves.push({ w: freq[i], s: i }); }
+    }
+    for (i = 0; leaves.length < 2 && i < n; i++) {
+      if (freq[i] === 0) { leaves.push({ w: 1, s: i }); }
+    }
+    /* by weight, then by symbol, so the result never depends on the sort */
+    leaves.sort(function (a, b) { return (a.w - b.w) || (a.s - b.s); });
+    var list = leaves.slice(0);
+    for (var level = 1; level < limit; level++) {
+      var pk = [];
+      for (i = 0; i + 1 < list.length; i += 2) {
+        pk.push({ w: list[i].w + list[i + 1].w, a: list[i], b: list[i + 1] });
+      }
+      /* merge the leaves and the packages by weight, leaves first on a tie */
+      var merged = [], x = 0, y = 0;
+      while (x < leaves.length || y < pk.length) {
+        if (y >= pk.length || (x < leaves.length && leaves[x].w <= pk[y].w)) {
+          merged.push(leaves[x++]);
+        } else {
+          merged.push(pk[y++]);
+        }
+      }
+      list = merged;
+    }
+    /* Every leaf occurrence inside the first 2n-2 items adds one bit to that
+       symbol's length. Walked with a stack, not recursion: the packages nest
+       `limit` deep and there is no reason to lean on the call stack. */
+    var take = 2 * leaves.length - 2, stack = [];
+    for (i = 0; i < take; i++) { stack.push(list[i]); }
+    while (stack.length) {
+      var it = stack.pop();
+      if (it.a) { stack.push(it.a); stack.push(it.b); } else { out[it.s] += 1; }
+    }
+    return out;
+  }
+
+  /* RFC 1951 section 3.2.2: canonical codes from lengths, returned already
+     bit-reversed, because deflate sends a Huffman code most significant bit
+     first into a stream that is otherwise filled least significant first. */
+  function canonical(lengths) {
+    var max = 0, i;
+    for (i = 0; i < lengths.length; i++) { if (lengths[i] > max) { max = lengths[i]; } }
+    var count = new Array(max + 1), next = new Array(max + 1);
+    for (i = 0; i <= max; i++) { count[i] = 0; }
+    for (i = 0; i < lengths.length; i++) { if (lengths[i]) { count[lengths[i]]++; } }
+    /* the RFC's own loop, word for word; count[0] stays 0 because unused
+       symbols are never counted */
+    var code = 0;
+    for (i = 1; i <= max; i++) {
+      code = (code + count[i - 1]) << 1;
+      next[i] = code;
+    }
+    var codes = new Array(lengths.length);
+    for (i = 0; i < lengths.length; i++) {
+      var len = lengths[i];
+      if (!len) { codes[i] = 0; continue; }
+      var c = next[len]++, r = 0;
+      for (var b = 0; b < len; b++) { r = (r << 1) | ((c >> b) & 1); }
+      codes[i] = r;
+    }
+    return codes;
+  }
+
+  /* ---------------------------------------------------------- bit writer -- */
+
+  function Bits() { this.out = []; this.buf = 0; this.cnt = 0; }
+  Bits.prototype.put = function (value, n) {
+    this.buf |= (value << this.cnt);
+    this.cnt += n;
+    while (this.cnt >= 8) {
+      this.out.push(this.buf & 0xFF);
+      this.buf >>>= 8;
+      this.cnt -= 8;
+    }
+  };
+  Bits.prototype.align = function () {
+    if (this.cnt > 0) { this.out.push(this.buf & 0xFF); }
+    this.buf = 0; this.cnt = 0;
+  };
+
+  /* ---------------------------------------------------------- the block -- */
+
+  var FIXED_LIT = (function () {
+    var l = new Array(288), i;
+    for (i = 0; i < 144; i++) { l[i] = 8; }
+    for (i = 144; i < 256; i++) { l[i] = 9; }
+    for (i = 256; i < 280; i++) { l[i] = 7; }
+    for (i = 280; i < 288; i++) { l[i] = 8; }
+    return l;
+  }());
+  var FIXED_DIST = (function () {
+    var l = new Array(30), i;
+    for (i = 0; i < 30; i++) { l[i] = 5; }
+    return l;
+  }());
+
+  /* The code-length sequence for HLIT literal/length lengths followed by
+     HDIST distance lengths, run-length coded with symbols 16, 17 and 18
+     (section 3.2.7). Returns [symbol, extra] pairs. */
+  function runLengths(all) {
+    var out = [], i = 0;
+    while (i < all.length) {
+      var v = all[i], run = 1;
+      while (i + run < all.length && all[i + run] === v) { run++; }
+      if (v === 0 && run >= 3) {
+        var z = Math.min(run, 138);
+        out.push(z >= 11 ? [18, z - 11] : [17, z - 3]);
+        i += z;
+        continue;
+      }
+      out.push([v, 0]);
+      i += 1;
+      run -= 1;
+      while (v !== 0 && run >= 3) {
+        var r = Math.min(run, 6);
+        out.push([16, r - 3]);
+        i += r;
+        run -= r;
+      }
+    }
+    return out;
+  }
+  var CL_EXTRA = { 16: 2, 17: 3, 18: 7 };
+
+  function deflateRaw(input) {
+    var data = (input instanceof Uint8Array) ? input : new Uint8Array(input || []);
+    var n = data.length;
+    var t = tokenize(data);
+    var lfreq = new Array(286), dfreq = new Array(30), i;
+    for (i = 0; i < 286; i++) { lfreq[i] = 0; }
+    for (i = 0; i < 30; i++) { dfreq[i] = 0; }
+    var extraBits = 0;
+    for (i = 0; i < t.lens.length; i++) {
+      if (!t.lens[i]) { lfreq[t.vals[i]]++; continue; }
+      var li = LEN_INDEX[t.lens[i]], di = distIndex(t.vals[i]);
+      lfreq[257 + li]++;
+      dfreq[di]++;
+      extraBits += LEXT[li] + DEXT[di];
+    }
+    lfreq[256] = 1;                         /* end of block */
+
+    /* the dynamic codes, and what they cost including their own header */
+    var llen = codeLengths(lfreq, 15);
+    var dlen = codeLengths(dfreq, 15);
+    var hlit = 286;
+    while (hlit > 257 && !llen[hlit - 1]) { hlit--; }
+    var hdist = 30;
+    while (hdist > 1 && !dlen[hdist - 1]) { hdist--; }
+    var rl = runLengths(llen.slice(0, hlit).concat(dlen.slice(0, hdist)));
+    var cfreq = new Array(19);
+    for (i = 0; i < 19; i++) { cfreq[i] = 0; }
+    for (i = 0; i < rl.length; i++) { cfreq[rl[i][0]]++; }
+    var clen = codeLengths(cfreq, 7);
+    var hclen = 19;
+    while (hclen > 4 && !clen[CLORDER[hclen - 1]]) { hclen--; }
+
+    var dynBits = 3 + 5 + 5 + 4 + 3 * hclen + extraBits;
+    for (i = 0; i < rl.length; i++) {
+      dynBits += clen[rl[i][0]] + (CL_EXTRA[rl[i][0]] || 0);
+    }
+    var fixBits = 3 + extraBits;
+    for (i = 0; i < 286; i++) {
+      dynBits += lfreq[i] * llen[i];
+      fixBits += lfreq[i] * FIXED_LIT[i];
+    }
+    for (i = 0; i < 30; i++) {
+      dynBits += dfreq[i] * dlen[i];
+      fixBits += dfreq[i] * FIXED_DIST[i];
+    }
+    /* stored: per 65535-byte block, 3 header bits padded to a byte, then
+       LEN and NLEN, then the bytes */
+    var storedBytes = 0, left = n;
+    do { storedBytes += 5 + Math.min(left, 65535); left -= 65535; } while (left > 0);
+
+    var w = new Bits();
+    if (storedBytes * 8 <= Math.min(dynBits, fixBits)) {
+      var off = 0;
+      do {
+        var k = Math.min(65535, n - off);
+        w.put(off + k >= n ? 1 : 0, 1);
+        w.put(0, 2);
+        w.align();
+        w.out.push(k & 0xFF, (k >> 8) & 0xFF, (~k) & 0xFF, ((~k) >> 8) & 0xFF);
+        for (i = 0; i < k; i++) { w.out.push(data[off + i]); }
+        off += k;
+      } while (off < n);
+      return new Uint8Array(w.out);
+    }
+
+    var litL, litC, disL, disC;
+    if (fixBits <= dynBits) {
+      w.put(1, 1);
+      w.put(1, 2);                          /* BTYPE 01, fixed */
+      litL = FIXED_LIT; disL = FIXED_DIST;
+    } else {
+      w.put(1, 1);
+      w.put(2, 2);                          /* BTYPE 10, dynamic */
+      w.put(hlit - 257, 5);
+      w.put(hdist - 1, 5);
+      w.put(hclen - 4, 4);
+      for (i = 0; i < hclen; i++) { w.put(clen[CLORDER[i]], 3); }
+      var clc = canonical(clen);
+      for (i = 0; i < rl.length; i++) {
+        var s = rl[i][0];
+        w.put(clc[s], clen[s]);
+        if (CL_EXTRA[s]) { w.put(rl[i][1], CL_EXTRA[s]); }
+      }
+      litL = llen; disL = dlen;
+    }
+    litC = canonical(litL);
+    disC = canonical(disL);
+    for (i = 0; i < t.lens.length; i++) {
+      var L = t.lens[i];
+      if (!L) {
+        w.put(litC[t.vals[i]], litL[t.vals[i]]);
+        continue;
+      }
+      var a = LEN_INDEX[L], sym = 257 + a;
+      w.put(litC[sym], litL[sym]);
+      if (LEXT[a]) { w.put(L - LBASE[a], LEXT[a]); }
+      var d = t.vals[i], b = distIndex(d);
+      w.put(disC[b], disL[b]);
+      if (DEXT[b]) { w.put(d - DBASE[b], DEXT[b]); }
+    }
+    w.put(litC[256], litL[256]);
+    w.align();
+    return new Uint8Array(w.out);
+  }
+
+  window.ZSDEFLATE = {
+    deflateRaw: deflateRaw,
+    /* exported for the test, which checks the length limit and the
+       completeness of the codes directly rather than only through inflate */
+    codeLengths: codeLengths
+  };
+}());

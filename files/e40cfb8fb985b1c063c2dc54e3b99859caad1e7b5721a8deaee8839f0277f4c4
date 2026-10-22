@@ -1,0 +1,310 @@
+/* marks.js — ZeroStick family identity marks (window.ZSMARK).
+ *
+ * ES5 ONLY. var / function / string concatenation. No arrow functions, no
+ * template literals, no let/const. dashboard/tools/check-js.js only proves a
+ * file PARSES under Node, and Node parses modern syntax happily — so the ES5
+ * discipline here is held by hand, not by the tool.
+ *
+ * ── What this is, and how it differs from the other two art systems ────────
+ *
+ *   glyphs.js  (window.ZSG)    "which BUTTON is this?"      16-28px, inline
+ *   controller-art.js (ZSART)  "what does the PAD look like" 120-440px
+ *   marks.js   (window.ZSMARK) "which FAMILY is this config" 16-40px, a tile
+ *
+ * One rule keeps them apart, and it is the whole reason this file exists as a
+ * separate module rather than more branches inside consoleArt():
+ *
+ *     ZSMARK NEVER DRAWS A BUTTON AND NEVER DRAWS A PAD IN PERSPECTIVE.
+ *     It draws a filled badge tile, and nothing else.
+ *
+ * ── Why solid tile + white ink ────────────────────────────────────────────
+ *
+ * The app has a light theme, a dark theme, an OLED-black theme and a
+ * high-contrast mode. An outline mark drawn in currentColor has to be
+ * re-tuned for each of them. A solid tile carries its own background, so it
+ * reads identically on every one of them and the SVG contains no
+ * theme-dependent colour at all. Every tile is dark enough for white ink:
+ *
+ *     PlayStation #1f4fd8  6.6:1     Nintendo #c8322b  5.3:1
+ *     Xbox        #157f3c  5.1:1     Controller #4a5568 7.5:1
+ *     Mouse+KB    #6b3fd4  6.4:1
+ *
+ * (WCAG contrast against #ffffff, computed, not guessed. All well past 4.5:1.)
+ *
+ * ── Why these five silhouettes, and why no logos ──────────────────────────
+ *
+ * controller-art.js:73 already settled the doctrine for this product:
+ * "The text IS the brand mark. Plain names, no stylisation, no logo." The
+ * mark this file replaces did not follow it — consoleArt('xbox') was a green
+ * circle with two crossing curved strokes through it, which is an Xbox sphere
+ * lookalike in Xbox green, and consoleArt('ps5') was the four PlayStation
+ * face symbols in their own colours. Both are somebody else's trade dress on
+ * a commercial accessory. They are gone.
+ *
+ * Every device here is an honest HARDWARE FACT about the family instead:
+ *
+ *   PlayStation  light bar over two LEVEL sticks   (symmetric sticks + a lit
+ *                                                   bar is the real PS tell)
+ *   Xbox         two OFFSET sticks on a diagonal   (the offset stick layout
+ *                                                   is the real Xbox tell)
+ *   Switch       two detachable rails with a gap
+ *   Controller   a neutral pad capsule, two sticks
+ *   Mouse + KB   upright mouse beside a key block
+ *
+ * At 16px the five read as: bar-over-two-rings / diagonal dumbbell / two
+ * uprights / wide capsule with two dots / capsule beside a wide block. No two
+ * are confusable, and none of them is anyone's logo.
+ *
+ * Naming stays in TEXT, always: ZSMARK.name() returns "PlayStation", never a
+ * stylised wordmark, and UI copy says "compatible with" — the honest verb for
+ * an unlicensed accessory, and the one ZSART.name() already uses.
+ *
+ * ── Geometry contract (checked by the self-test) ──────────────────────────
+ *
+ * 24x24 viewBox. The tile is inset 1 unit. Every stroke and fill of every
+ * device stays inside x,y in [4.5, 19.5] INCLUDING its stroke width, which
+ * leaves >= 2.3px of tile margin on all sides even at 16px, so nothing clips
+ * and nothing touches the tile's rounded corners.
+ *
+ * All path commands are ABSOLUTE (M/L, never h/v/l). That is not a style
+ * choice: the self-test proves the geometry contract by reading the numbers
+ * straight out of the markup, and a relative command would make "9.2" mean a
+ * length rather than a coordinate and silently break the check.
+ */
+(function () {
+  'use strict';
+
+  /* Family key -> tile colour. Deliberately NOT the console makers' brand
+     colours: these are ours, chosen for contrast with white ink and for
+     telling five rows apart at a glance in a list. */
+  var TILE = {
+    ps:  '#1f4fd8',
+    xb:  '#157f3c',
+    nin: '#c8322b',
+    gen: '#4a5568',
+    mkb: '#6b3fd4'
+  };
+
+  /* Plain names. Never a wordmark, never stylised. */
+  var NAME = {
+    ps:  'PlayStation',
+    xb:  'Xbox',
+    nin: 'Nintendo Switch',
+    gen: 'Controller',
+    mkb: 'Mouse + Keyboard'
+  };
+
+  var ORDER = ['ps', 'xb', 'nin', 'gen', 'mkb'];
+
+  var STROKE = ' fill="none" stroke="#fff" stroke-linecap="round"' +
+               ' stroke-linejoin="round"';
+
+  var DEV = {
+    /* light bar over two level sticks */
+    ps: '<path d="M7.4 8.6 L16.6 8.6"' + STROKE + ' stroke-width="2.3"/>' +
+        '<circle cx="9.3" cy="14.6" r="2.2"' + STROKE + ' stroke-width="1.9"/>' +
+        '<circle cx="14.7" cy="14.6" r="2.2"' + STROKE + ' stroke-width="1.9"/>',
+
+    /* two offset sticks on a diagonal, joined */
+    xb: '<circle cx="9.2" cy="10" r="2.3" fill="#fff"/>' +
+        '<circle cx="14.8" cy="15" r="2.3" fill="#fff"/>' +
+        '<path d="M10.9 11.7 L13.1 13.3"' + STROKE + ' stroke-width="1.7"/>',
+
+    /* two detachable rails with a gap */
+    nin: '<rect x="6.5" y="6.6" width="3.6" height="10.8" rx="1.8"' +
+         STROKE + ' stroke-width="1.8"/>' +
+         '<rect x="13.9" y="6.6" width="3.6" height="10.8" rx="1.8"' +
+         STROKE + ' stroke-width="1.8"/>',
+
+    /* a neutral pad capsule with two sticks */
+    gen: '<rect x="6" y="8.6" width="12" height="7" rx="3.5"' +
+         STROKE + ' stroke-width="1.8"/>' +
+         '<circle cx="9.6" cy="12.1" r="1.15" fill="#fff"/>' +
+         '<circle cx="14.4" cy="12.1" r="1.15" fill="#fff"/>',
+
+    /* upright mouse capsule beside a key block */
+    mkb: '<rect x="5.8" y="8" width="3.8" height="8" rx="1.9"' +
+         STROKE + ' stroke-width="1.6"/>' +
+         '<path d="M7.7 8.2 L7.7 10.4"' + STROKE + ' stroke-width="1.3"/>' +
+         '<rect x="12.4" y="10.2" width="5.8" height="5.4" rx="1.3"' +
+         STROKE + ' stroke-width="1.6"/>' +
+         '<path d="M14.1 12.1 L16.7 12.1 M14.1 13.8 L16.7 13.8"' +
+         STROKE + ' stroke-width="1.2"/>'
+  };
+
+  /* Config names reach this file (badge titles, img alts), and a config called
+     Halo "Infinite" & co would otherwise end an attribute early and inject
+     markup. Escape everything that goes into an attribute. */
+  var ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/[&<>"']/g, function (c) { return ESC[c]; });
+  }
+
+  /* Absorbs EVERY vocabulary in this codebase in one place, which is the
+     point: the app says `platform` ('ps5'|'xbox'|'pc'), the board says
+     `console` (schema.py CONSOLES, same three values), the pad code says
+     family ('ps'|'xb'|'nin'), and inputType says 'mnk'. Anything unknown
+     falls to the neutral controller mark rather than drawing nothing —
+     a row must never lose its identifier because a new console appeared. */
+  function family(k) {
+    var s = String(k === undefined || k === null ? '' : k).toLowerCase();
+    if (s === 'ps' || s === 'ps3' || s === 'ps4' || s === 'ps5' ||
+        s === 'playstation' || s === 'dualsense' || s === 'dualshock') return 'ps';
+    if (s === 'xb' || s === 'xbox' || s === 'xone' || s === 'series' ||
+        s === 'xsx' || s === 'xinput' || s === 'x360') return 'xb';
+    if (s === 'nin' || s === 'ns' || s === 'switch' || s === 'switch2' || s === 'nintendo') return 'nin';
+    if (s === 'mkb' || s === 'mnk' || s === 'pc' || s === 'kbm' ||
+        s === 'keyboard' || s === 'mouse') return 'mkb';
+    /* 'stick_mouse' is a config played with a stick AND a mouse. There is no
+       combined mark and inventing one would say less than the neutral
+       controller does: the config HAS a pad, and the words beside every mark
+       already say "Joystick + Mouse". Listed explicitly so it is a decision
+       rather than something that merely fell through to the same answer —
+       which is how the next person learns it was considered. */
+    if (s === 'stick_mouse') return 'gen';
+    return 'gen';
+  }
+
+  /* badge(key, opts) -> an <svg> string.
+       opts.size        px, default 24 (square)
+       opts.title       accessible label; defaults to the family name
+       opts.decorative  true = aria-hidden, no role/label (use when the same
+                        information is already in adjacent text) */
+  function badge(k, opts) {
+    var f = family(k);
+    var o = opts || {};
+    var sz = o.size || 24;
+    var a11y = o.decorative
+      ? ' aria-hidden="true"'
+      : ' role="img" aria-label="' + esc(o.title || NAME[f]) + '"';
+    return '<svg viewBox="0 0 24 24" width="' + sz + '" height="' + sz + '"' +
+      ' xmlns="http://www.w3.org/2000/svg"' + a11y + '>' +
+      '<rect x="1" y="1" width="22" height="22" rx="6.5" fill="' + TILE[f] + '"/>' +
+      /* a faint white edge so a tile never dissolves into a same-hue
+         background (a blue PlayStation tile on a blue-tinted row) */
+      '<rect x="1" y="1" width="22" height="22" rx="6.5" fill="none"' +
+      ' stroke="#fff" stroke-opacity=".22"/>' +
+      DEV[f] + '</svg>';
+  }
+
+  window.ZSMARK = {
+    badge: badge,
+    family: family,
+    name: function (k) { return NAME[family(k)]; },
+    color: function (k) { return TILE[family(k)]; },
+    families: ORDER.slice()
+  };
+
+  /* ── self-check ────────────────────────────────────────────────────────
+     Runs only under tools/test-smart-actions.js (ZSMARK_SELFTEST=true), never
+     in the app. It guards the two things about this file that fail SILENTLY:
+     a vocabulary token that maps to the wrong family (a row shows the wrong
+     console and nobody sees an error), and geometry that clips at 16px. */
+  if (window.ZSMARK_SELFTEST) {
+    (function () {
+      var fail = [];
+      function ok(cond, msg) { if (!cond) fail.push(msg); }
+
+      /* 1 — every vocabulary token this codebase actually uses */
+      var MAP = {
+        ps5: 'ps', ps4: 'ps', ps3: 'ps', ps: 'ps', playstation: 'ps',
+        PS5: 'ps', DualSense: 'ps',
+        xbox: 'xb', xb: 'xb', xone: 'xb', xsx: 'xb', series: 'xb',
+        XBOX: 'xb', xinput: 'xb',
+        'switch': 'nin', switch2: 'nin', ns: 'nin', nintendo: 'nin', nin: 'nin',
+        pc: 'mkb', mnk: 'mkb', mkb: 'mkb', kbm: 'mkb',
+        controller: 'gen', gamepad: 'gen', '': 'gen', wombat: 'gen'
+      };
+      for (var k in MAP) {
+        if (!Object.prototype.hasOwnProperty.call(MAP, k)) continue;
+        ok(family(k) === MAP[k],
+          'family(' + JSON.stringify(k) + ') = ' + family(k) +
+          ', expected ' + MAP[k]);
+      }
+      ok(family(null) === 'gen', 'family(null) must fall back to gen');
+      ok(family(undefined) === 'gen', 'family(undefined) must fall back to gen');
+      ok(family({}) === 'gen', 'family({}) must fall back to gen');
+
+      /* 2 — five families, each complete, no shared colour or name */
+      var seenC = {}, seenN = {};
+      for (var i = 0; i < ORDER.length; i++) {
+        var f = ORDER[i];
+        ok(!!TILE[f], f + ' has no tile colour');
+        ok(!!NAME[f], f + ' has no name');
+        ok(!!DEV[f], f + ' has no device art');
+        ok(!seenC[TILE[f]], 'tile colour ' + TILE[f] + ' is used twice');
+        ok(!seenN[NAME[f]], 'family name ' + NAME[f] + ' is used twice');
+        seenC[TILE[f]] = 1; seenN[NAME[f]] = 1;
+      }
+
+      /* 3 — no mark bakes in text; the name is always drawn in HTML beside it
+             (controller-art.js:794 — "the console is named in TEXT") */
+      for (var t = 0; t < ORDER.length; t++) {
+        ok(DEV[ORDER[t]].indexOf('<text') < 0,
+          ORDER[t] + ' bakes text into the mark');
+      }
+
+      /* 4 — badge() is well formed and honours size */
+      var b = badge('ps5', { size: 40 });
+      ok(b.indexOf('<svg ') === 0, 'badge must start with <svg');
+      ok(b.slice(-6) === '</svg>', 'badge must end with </svg>');
+      ok(b.indexOf('width="40" height="40"') > 0, 'badge ignored opts.size');
+      ok(b.indexOf(TILE.ps) > 0, 'badge did not use the family colour');
+      ok(b.indexOf('role="img"') > 0, 'badge must be labelled by default');
+      ok(badge('ps5', { decorative: true }).indexOf('aria-hidden="true"') > 0,
+        'decorative badge must be aria-hidden');
+
+      /* 5 — a config name with a quote must not break the label attribute */
+      var q = badge('xbox', { title: 'Halo "Infinite" & <b>x</b>' });
+      ok(q.indexOf('aria-label="Halo &quot;Infinite&quot; &amp; ' +
+                   '&lt;b&gt;x&lt;/b&gt;"') > 0,
+        'badge title is not escaped — a quote in a config name breaks the SVG');
+      ok(q.indexOf('<b>') < 0, 'badge title allowed raw markup through');
+
+      /* 6 — geometry: no ink, stroke included, leaves [4.5, 19.5] */
+      function attr(at, n) {
+        var m = new RegExp('\\s' + n + '="(-?[0-9.]+)"').exec(at);
+        return m ? parseFloat(m[1]) : null;
+      }
+      function checkFrag(fam, frag) {
+        var lo = 1e9, hi = -1e9;
+        function span(a, b) { if (a < lo) lo = a; if (b > hi) hi = b; }
+        var re = /<(rect|circle|path)([^>]*)>/g, m;
+        while ((m = re.exec(frag)) !== null) {
+          var tag = m[1], at = m[2];
+          var sw = attr(at, 'stroke-width') || 0;
+          var pad = sw / 2;
+          if (tag === 'rect') {
+            var x = attr(at, 'x'), y = attr(at, 'y');
+            var w = attr(at, 'width'), h = attr(at, 'height');
+            span(x - pad, x + w + pad);
+            span(y - pad, y + h + pad);
+          } else if (tag === 'circle') {
+            var cx = attr(at, 'cx'), cy = attr(at, 'cy'), r = attr(at, 'r');
+            span(cx - r - pad, cx + r + pad);
+            span(cy - r - pad, cy + r + pad);
+          } else {
+            var d = /\sd="([^"]*)"/.exec(at);
+            ok(!!d, fam + ': path with no d');
+            /* every path command must be absolute, or these numbers are
+               lengths rather than coordinates and this check is a lie */
+            ok(!/[hvlcsqtaHVLCSQTA]/.test(d[1].replace(/[ML]/g, '')),
+              fam + ': path uses a non-M/L command — see the geometry note');
+            var nums = d[1].match(/-?[0-9.]+/g) || [];
+            for (var n = 0; n < nums.length; n++) {
+              var v = parseFloat(nums[n]);
+              span(v - pad, v + pad);
+            }
+          }
+        }
+        ok(lo >= 4.5 && hi <= 19.5,
+          fam + ' ink spans [' + lo + ', ' + hi + '] — must stay inside ' +
+          '[4.5, 19.5] or it clips the tile at 16px');
+      }
+      for (var g = 0; g < ORDER.length; g++) checkFrag(ORDER[g], DEV[ORDER[g]]);
+
+      window.ZSMARK_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

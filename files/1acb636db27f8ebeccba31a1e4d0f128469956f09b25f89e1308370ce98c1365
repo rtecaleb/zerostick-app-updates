@@ -1,0 +1,461 @@
+/* shell/03-device-card.js — HOME's device card (D194) and Navigate on it (D195, D200, D205).
+ *
+ * The board chips, the card's picture / mode / link line, when the adapter
+ * was last seen, the live half (the ~0.4 s poll), and Passthrough Mode on the
+ * card: the cover, the shortcut that turned it on, and Turn off
+ * (POST /navigate/active, painted from the Core's own reply).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── the board chip on the device bar (D272) ─────────────────────────
+     Until 2026-10-10 the board's state rode a ".bchip" key in the top right
+     of #editor's and #detail's headers ("● Board" / "○ Offline", owner
+     2026-08-18). The owner moved it (D272): "that board info isn't needed up
+     there; put it at the bottom by the Xbox 360 logo, as a device." So it is
+     #dvb-board, the FIRST chip on the device bar - static markup in
+     phone.html, beside (never inside) the #dvb-list that devbar.js redraws.
+
+     ONE PAINTER. Picture, name, state word, glyph, colour class and
+     aria-label are written together, so they can never disagree - COLOUR IS
+     NEVER THE ONLY SIGNAL: the glyph goes ● → ○ and the word goes
+     "Connected" → "Offline", the words HOME's #livechip uses.
+
+     GREEN AND AMBER, NOT GREEN AND RED: amber is what the app has always
+     used for "can't reach it"; red is reserved for the kill switch's off
+     state (zs-fixes.css § 12).
+
+     Called from setOnline() - which early-returns unless the state
+     GENUINELY changed - and once at boot, and it writes nothing when what
+     it would write is already there. The poll therefore repaints nothing on
+     a bar that is already right, which keeps focus and a screen reader's
+     place on the chip. */
+  function paintBoardChips(){
+    var on = LIVE.online!==false;
+    var c = document.getElementById('dvb-board');
+    if(!c) return;
+    var name = productShort();
+    var sig = (on?'1':'0')+'|'+name;
+    if(c.__zsSig === sig) return;               /* already right: no churn */
+    c.__zsSig = sig;
+    c.classList.toggle('up', on);
+    c.classList.toggle('down', !on);
+    c.innerHTML = '<span class="dvb-art"><img class="dvb-pic" src="'+DEV_PIC_STILL+'" alt="" aria-hidden="true" '+
+        'decoding="async" draggable="false"></span>'+
+      '<span class="dvb-meta"><b>'+esc(name)+'</b>'+
+        '<i class="dvb-st">'+(on ? '● Connected' : '○ Offline')+'</i></span>';
+    c.setAttribute('aria-label',
+      name+(on ? ' connected — details' : ' offline — details'));
+  }
+  /* Static markup, so ONE wiring pass at boot is enough - and is what stops
+     a duplicate listener stacking up. The sheet handles the rest of the
+     popover contract: Escape and a tap on the scrim both call sheetClose(),
+     which clears aria-expanded on the chip that opened it and returns focus
+     there. */
+  function wireBoardChips(){
+    var c = document.getElementById('dvb-board');
+    if(c) c.addEventListener('click', function(){ openBoardSheet(c); });
+    paintBoardChips();
+  }
+
+  /* HOME's device card (D194, the owner's mockup; it replaced D192's quiet
+     "Connected" line and keeps its whole contract). renderHome() and
+     setOnline() both write it through linkChipInner(), so the two writers
+     can never drift. Everything on it is LIVE, from the Core's own /status:
+
+       name      the product gate's short name (PRODUCTS[].short: "EXO Core")
+       state     "Connected" (green) / "Offline" (amber) - the WORD carries
+                 it, so it survives a monochrome screen; the colour is the
+                 second signal, never the only one
+       mode      the Pico's console mode (status.picoLink.picoMode: pc / ps5 /
+                 xbox / native), or "Navigate" while Navigate has the console
+                 (navigateMode.active, or native.state on / pad)
+       input     D196: the active config's input type ("Mouse + Keyboard"),
+                 which used to be a chip under the picture
+       way out   D205: not on the card - PASSTHROUGH MODE ACTIVE covers the
+                 config picture with the off key (paintHomeNavBox)
+       link      how THIS app reaches it: status.transport ("usb" / "ble",
+                 the link that answered) first, then linkVia()
+
+     D196 (owner): the firmware version and the gear left the card. The
+     whole card is the door to "Your board", which lists the firmware
+     ("Board app"), so the gear was a second picture of the same door.
+
+     Offline it is D192's ONE offline state: the still picture dimmed, the
+     word "Offline", and when it was last seen. The mode is left off,
+     because a stale mode is a guess, not a fact. */
+  var DEV_PIC_LOOP  = 'brand/zs-exo-device-loop.webp';   /* 200 px, 48 frames */
+  var DEV_PIC_STILL = 'brand/zs-exo-device.jpg';
+  var DEV_MODE = { pc:'PC Mode', ps5:'PS5 Mode', ps4:'PS4 Mode', xbox:'Xbox Mode',
+                   xboxone:'Xbox Mode', 'switch':'Switch Mode', ps3:'PS3 Mode' };
+  /* WHEN IT WAS LAST SEEN: the moment of the last /status that answered.
+     Kept in this app's own store (like zs-last-gun), so a player who opens
+     the app with the cable out still learns how long it has been away. A
+     viewer convenience, never a setting: a blocked store simply forgets. */
+  var LAST_SEEN_KEY = 'zs-last-seen';
+  var lastSeenAt = (function(){
+    try{ var v = Number(localStorage.getItem(LAST_SEEN_KEY)); return v > 0 ? v : 0; }
+    catch(e){ return 0; } })();
+  function noteSeen(){
+    lastSeenAt = Date.now();
+    try{ localStorage.setItem(LAST_SEEN_KEY, String(lastSeenAt)); }catch(e){}
+  }
+  function lastSeenText(){
+    if(!lastSeenAt) return '';
+    var s = Math.max(0, Math.round((Date.now() - lastSeenAt) / 1000));
+    if(s < 60) return 'Last seen just now';
+    var m = Math.round(s / 60);
+    if(m < 60) return 'Last seen '+m+' min ago';
+    var h = Math.round(m / 60);
+    if(h < 48) return 'Last seen '+h+' h ago';
+    return 'Last seen '+Math.round(h / 24)+' days ago';
+  }
+  /* D196: the active config's input type, the words the config list uses */
+  function devInput(){
+    var a = prof(activeId);
+    return a && a.input ? inputName(a.input) : '';
+  }
+  /* {t, nav} or null when the device does not say */
+  function devMode(st){
+    st = st || {};
+    /* D195: the FRESHEST Navigate answer decides (navLive: the 400 ms poll
+       while it answers, else /status), not the 8 s /status copy, so the card
+       goes back to the console mode the moment the Core leaves Navigate */
+    var nm = navLive();
+    if(navIsOn(nm)) return { t:'Passthrough', nav:true };
+    var w = st.picoLink && st.picoLink.picoMode ? String(st.picoLink.picoMode).toLowerCase() : '';
+    if(!w) return null;
+    /* the Pico still in its Native keyboard + mouse mode while the Core
+       already says Navigate is off is the ~1 s re-plug on the way out:
+       name the console it is going back to, not a mode that has ended */
+    if(w === 'native'){
+      if(nm) return st.picoLink.modeWanted && DEV_MODE[String(st.picoLink.modeWanted).toLowerCase()]
+        ? { t: DEV_MODE[String(st.picoLink.modeWanted).toLowerCase()], nav:false } : null;
+      return { t:'Passthrough', nav:true };
+    }
+    return { t: DEV_MODE[w] || (w.toUpperCase()+' Mode'), nav:false };
+  }
+  function devVia(st){
+    var t = String((st && st.transport) || '').toLowerCase();
+    if(t === 'usb') return 'USB';
+    if(t === 'ble' || t === 'bluetooth') return 'Bluetooth';
+    var v = linkVia();
+    return v === 'bluetooth' ? 'Bluetooth' : v === 'usb' ? 'USB' : 'Wi‑Fi';
+  }
+  /* the picture: the animated RGB EXO, or its still under Reduce Motion
+     (the system's, through <picture>; the app's own switch, a11y-motion,
+     here) and always offline, where a lit, moving device would be a lie */
+  function devPic(on){
+    var still = !on || (document.body && document.body.classList.contains('a11y-motion'));
+    var img = '<img class="hd-img" src="'+(still ? DEV_PIC_STILL : DEV_PIC_LOOP)+'" '+
+      'alt="" aria-hidden="true" decoding="async" draggable="false">';
+    return still ? img
+      : '<picture><source media="(prefers-reduced-motion: reduce)" srcset="'+DEV_PIC_STILL+'">'+img+'</picture>';
+  }
+  function devMetaHTML(st){
+    var md = devMode(st), inp = devInput(), bits = [];
+    /* D200: in Navigate, only "Passthrough mode" - no input, no link, nothing
+       that grows the card. D205: the way out is on the picture now */
+    if(md && md.nav) return '<span class="hd-mode nav">Passthrough mode</span>';
+    if(md) bits.push('<span class="hd-mode">'+esc(md.t)+'</span>');
+    if(inp) bits.push('<span class="hd-inp">'+esc(inp)+'</span>');
+    return bits.join(' · ');
+  }
+  function linkChipInner(on){
+    var st = LIVE.status || {};
+    var meta = on ? devMetaHTML(st) : esc(lastSeenText());
+    return '<span class="hd-pic" aria-hidden="true">'+
+        (on ? '<span class="hd-glow">'+devPic(on)+'</span>' : '')+
+        '<span class="hd-well">'+devPic(on)+'</span>'+
+      '</span>'+
+      '<span class="hd-t">'+
+        '<span class="hd-name"><span class="dot" aria-hidden="true">●</span>'+
+          '<span class="hd-nm">'+esc(productShort())+'</span>'+
+          /* D343: the Core's Wi-Fi light (core-wifi.js); nothing on a Core
+             without Wi-Fi, or offline */
+          (window.ZS_WIFI ? ZS_WIFI.lightHTML(on) : '')+'</span>'+
+        '<span class="hd-state">'+(on ? 'Connected' : 'Offline')+'</span>'+
+        (meta ? '<span class="hd-meta">'+meta+'</span>' : '')+
+        (on ? '<span class="hd-via">'+esc(devVia(st))+'</span>' : '')+
+      '</span>';
+  }
+  /* the button's name says everything the card shows, in one sentence, and
+     that it opens the details */
+  function linkChipLabel(on){
+    var st = LIVE.status || {};
+    if(!on){
+      var seen = lastSeenText();
+      return productShort()+' Offline'+(seen ? ', '+seen.toLowerCase() : '')+' — details';
+    }
+    var md = devMode(st), inp = devInput();
+    /* D343: the Wi-Fi light's state in words (colour is never the only signal) */
+    var wf = window.ZS_WIFI ? ZS_WIFI.labelText(on) : '';
+    if(md && md.nav) return productShort()+' connected, Passthrough mode'+(wf ? ', '+wf : '')+' \u2014 details';
+    return productShort()+' connected'+
+      (md ? ', '+md.t : '')+
+      (inp ? ', '+inp : '')+
+      ', over '+devVia(st)+
+      (wf ? ', '+wf : '')+' \u2014 details';
+  }
+  /* THE LIVE HALF OF THE CARD. Navigate flips on the ~0.4 s live poll, not
+     the 8 s one, so the mode line is refreshed from there too - text and
+     label only, and only when they changed, so the picture (and its
+     animation) is never rebuilt under the eye. */
+  function paintHomeDev(){
+    var lc = document.getElementById('livechip');
+    if(!lc || LIVE.online === false) return;
+    var st = LIVE.status || {};
+    var html = devMetaHTML(st), lab = linkChipLabel(true);
+    var m = lc.querySelector('.hd-meta');
+    if(m && m.innerHTML !== html) m.innerHTML = html;
+    if(lc.getAttribute('aria-label') !== lab) lc.setAttribute('aria-label', lab);
+    paintHomeNavBox();
+  }
+  /* ── NAVIGATE ON THE DEVICE CARD (D195) ─────────────────────────────
+     The owner: "I activate Passthrough mode and the navigate thing still pops
+     up, and it doesn't go back to normal when I deactivate it." Three
+     faults, all in the app:
+       1. the state was read from copies that could go stale: the 400 ms
+          /navigate cache was never re-checked when that poll stopped
+          answering, and the card and Global Settings read the 8 s /status
+          copy - so "on" could outlive the mode by seconds, or for good;
+       2. the switch in Global Settings decided on/off from that 8 s copy
+          and redrew 120 ms after asking for a new /status that had not
+          landed, so a press that worked still showed "on";
+       3. HOME's Navigate banner had no way to be put away.
+     Now: navLive() is the freshest answer (devbar.js ZS.navLive: the poll
+     while it is fresh, else /status); a switch-off paints from the Core's
+     OWN reply to the POST (ZS.navSet), never from what was asked; and if
+     the Core answers but is still on, the card says so in words. */
+  function navLive(){
+    if(LIVE.online===false) return null;
+    if(window.ZS && ZS.navLive) return ZS.navLive();
+    return (LIVE.status && LIVE.status.navigateMode) || null;
+  }
+  function navIsOn(nm){
+    if(!nm) return false;
+    var ns = nm.native && String(nm.native.state||'');
+    return !!nm.active || ns==='on' || ns==='pad' || ns==='switching';
+  }
+  /* THE ONE ANSWER to "is Passthrough Mode on" for every screen (2026-10-10:
+     the button picker asked ZS.navLive() instead, which is the Core's whole
+     navigate block - present whether the mode is on or off - so recording a
+     script always said "Passthrough Mode is on") */
+  window.zsNavIsOn = function(nm){ return navIsOn(nm === undefined ? navLive() : nm); };
+  /* the controller's two small buttons, named for the pad in the hand */
+  var NAV_PAD = { BTN_SELECT:'select', BTN_START:'start', BTN_THUMBL:'l3', BTN_THUMBR:'r3',
+                  BTN_SOUTH:'south', BTN_EAST:'east', BTN_WEST:'west', BTN_NORTH:'north',
+                  BTN_TL:'l1', BTN_TR:'r1', BTN_TL2:'lt', BTN_TR2:'rt' };
+  var NAV_WORD = { KEY_LEFTALT:'Left Alt', KEY_RIGHTALT:'Right Alt', KEY_LEFTCTRL:'Left Ctrl',
+                   KEY_RIGHTCTRL:'Right Ctrl', KEY_LEFTSHIFT:'Left Shift', KEY_RIGHTSHIFT:'Right Shift',
+                   KEY_LEFTBRACE:'[', KEY_RIGHTBRACE:']', BTN_SIDE:'Mouse 4', BTN_EXTRA:'Mouse 5',
+                   BTN_LEFT:'Left click', BTN_RIGHT:'Right click', BTN_MIDDLE:'Middle click',
+                   BTN_THUMBL:'L3', BTN_THUMBR:'R3', BTN_MODE:'Guide' };
+  function navWord(code, fam){
+    var c = String(code||'');
+    if(c==='BTN_SELECT') return fam==='ps' ? 'Create' : fam==='nin' ? 'Minus' : fam==='xb' ? 'View' : 'View / Select';
+    if(c==='BTN_START')  return fam==='ps' ? 'Options' : fam==='nin' ? 'Plus' : fam==='xb' ? 'Menu' : 'Menu / Start';
+    if(NAV_WORD[c]) return NAV_WORD[c];
+    if(window.ZS && ZS.prettyCode){
+      var p = ZS.prettyCode(c.toUpperCase());
+      if(p && p !== c.toUpperCase()) return p;
+    }
+    return c.replace(/^(KEY|BTN)_/,'').replace(/_/g,' ').toLowerCase()
+            .replace(/^\w/, function(ch){ return ch.toUpperCase(); });
+  }
+  /* a key's picture (keycaps.js), else the pad button's (padcaps.js), else
+     the word in a cap - never nothing, because this is the way out */
+  function navCap(code, fam){
+    var c = String(code||'');
+    if(window.ZSKEYS && ZSKEYS.has(c)) return '<span class="hd-cap hd-kcap">'+ZSKEYS.svg(c)+'</span>';
+    var pc = NAV_PAD[c];
+    if(pc && window.ZSPAD && ZSPAD.has(pc, fam==='generic' ? 'xb' : fam))
+      return '<span class="hd-cap hd-pcap">'+ZSPAD.svg(pc, fam==='generic' ? 'xb' : fam)+'</span>';
+    return '<span class="hd-cap hd-tcap">'+esc(navWord(c, fam))+'</span>';
+  }
+  /* the chords the Core reports, the one the player pressed first */
+  function navCombos(nm){
+    var list = (nm && Array.isArray(nm.combos) ? nm.combos : [])
+      .filter(function(c){ return Array.isArray(c) && c.length && c.every(function(k){ return !!k; }); });
+    var via = nm && Array.isArray(nm.via) ? nm.via.join('+') : '';
+    if(via){
+      list = list.slice().sort(function(a, b){
+        return (b.join('+')===via ? 1 : 0) - (a.join('+')===via ? 1 : 0); });
+    }
+    return { list: list, via: via };
+  }
+  function navExitWords(nm){
+    var fam = keyFamily(), cs = navCombos(nm).list;
+    return cs.map(function(c){
+      return c.map(function(k){ return navWord(k, fam); }).join(' + '); }).join(', or ');
+  }
+  var navBusy = false, navErr = '', navBoxSig = '';
+  /* D205: PASSTHROUGH MODE ACTIVE, ON THE PICTURE. The title is the live
+     region (role=status), so turning Navigate on is announced once; the
+     key, the shortcut and any error sit beside it, outside the region, so
+     a busy key is not re-read. Both halves are drawn by renderHome when
+     the picture is built (navCoverHTML) and only rewritten here when they
+     change, so the 8 s redraw never re-announces anything. */
+  var NAV_REP = new Array(4).join('Passthrough mode active \u00b7 ');
+  function navCoverRep(){
+    var h = '';
+    for(var i = 0; i < 14; i++) h += '<span>'+NAV_REP+'</span>';
+    return h;
+  }
+  function navCoverParts(nm, on){
+    if(!on) return { title:'', act:'' };
+    var fam = keyFamily();
+    var via = nm && Array.isArray(nm.via) && nm.via.length ? nm.via : null;
+    var act = '<p class="nc-sub">Your config is paused</p>'+
+      '<button class="nc-off" id="hsnavoff" type="button"'+(navBusy ? ' disabled' : '')+'>'+
+        (navBusy ? 'Turning off\u2026' : 'Turn off Passthrough')+'</button>';
+    if(via){
+      var words = via.map(function(k){ return navWord(k, fam); }).join(' + ');
+      act += '<span class="nc-keys" role="img" aria-label="Or press '+esc(words)+'">'+
+        '<span class="nc-or" aria-hidden="true">or press</span>'+
+        via.map(function(k){ return navCap(k, fam); }).join('<span class="hd-plus" aria-hidden="true">+</span>')+
+      '</span>';
+    }
+    if(navErr) act += '<p class="nc-err" role="alert">'+esc(navErr)+'</p>';
+    return { title:'<span class="nc-l">Passthrough</span> <span class="nc-l">mode active</span>', act:act };
+  }
+  /* the picture's whole cover, for renderHome */
+  function navCoverHTML(){
+    var nm = navLive(), p = navCoverParts(nm, navIsOn(nm));
+    return '<div class="hs-navcover" id="hsnavcover">'+
+      '<div class="nc-rep" aria-hidden="true">'+navCoverRep()+'</div>'+
+      '<div class="nc-main">'+
+        '<p class="nc-title" id="hsnavlive" role="status" aria-live="polite">'+p.title+'</p>'+
+        '<div class="nc-act" id="hsnavact">'+p.act+'</div>'+
+      '</div></div>';
+  }
+  function paintHomeNavBox(force){
+    var art = document.getElementById('hsart');
+    var live = document.getElementById('hsnavlive'), act = document.getElementById('hsnavact');
+    if(!art || !live || !act) return;
+    var nm = navLive(), on = navIsOn(nm);
+    if(!on){ navErr = navBusy ? navErr : ''; }
+    var fam = keyFamily(), via = on && nm && Array.isArray(nm.via) ? nm.via.join('+') : '';
+    var sig = (on?1:0)+'|'+via+'|'+fam+'|'+(navBusy?1:0)+'|'+navErr+'|'+
+              (window.ZSKEYS?1:0)+(window.ZSPAD?1:0);
+    if(force || sig !== navBoxSig){
+      navBoxSig = sig;
+      art.classList.toggle('navon', on);
+      var link = document.querySelector('#home .hs-link');
+      if(link) link.classList.toggle('navon', on);
+      /* D205 amended (owner): the Settings bar stays reachable under the
+         way out - a finger, Tab and a screen reader all still find it. Only
+         the picture itself is covered. (Clear anything an older build set.) */
+      var foot = art.querySelector('.hs-artfoot');
+      if(foot){
+        try{ foot.inert = false; }catch(e){}
+        foot.removeAttribute('aria-hidden');
+      }
+      var p = navCoverParts(nm, on);
+      if(live.innerHTML !== p.title) live.innerHTML = p.title;
+      if(act.innerHTML !== p.act) act.innerHTML = p.act;
+    }
+    var b = document.getElementById('hsnavoff');
+    if(b && !b.__zsWired){
+      b.__zsWired = true;
+      b.addEventListener('click', navTurnOff);
+      if(window.ZSM && ZSM.pressable) ZSM.pressable(b);
+    }
+  }
+  /* THE APP'S WAY OUT, and it believes only the Core. The POST's reply is
+     the device's own state (zs_api.c navigate_ok), so the card is painted
+     from it; if that reply still says "on", the Core did not obey, and the
+     card says exactly that rather than pretending. */
+  function navSentence(t){ t = String(t); return /[.!?]$/.test(t) ? t : t+'.'; }
+  function navTurnOff(){
+    if(navBusy) return;
+    navBusy = true; navErr = '';
+    paintHomeNavBox(true);
+    function done(msg){
+      navBusy = false; navErr = msg || '';
+      paintHomeNavBox(true); paintHomeDev(); paintHomeNav();
+    }
+    api('/navigate/active', 'POST', {active:false}).then(function(j){
+      if(!j || !j.ok){
+        done(navSentence('The Core did not turn Passthrough Mode off: '+((j && j.error) || 'no answer')));
+        return;
+      }
+      var d = j.data;
+      var take = (d && typeof d.active==='boolean') ? Promise.resolve(d)
+        : api('/navigate').then(function(g){ return (g && g.ok && g.data) ? g.data : null; });
+      return take.then(function(now){
+        if(now && window.ZS && ZS.navSet) ZS.navSet(now);
+        else if(now && LIVE.status) LIVE.status.navigateMode = now;
+        if(now && navIsOn(now)){
+          var w = navExitWords(now);
+          done('The Core answered but is still in Passthrough Mode.'+(w ? ' Press '+w+' to leave it.' : ''));
+        } else {
+          toast('Passthrough Mode off — your config is back');
+          done('');
+        }
+        refreshStatus().then(function(){ renderHomeIfVisible(); });
+      });
+    })['catch'](function(e){ done(navSentence('The Core did not turn Passthrough Mode off: '+String(e && e.message || e))); });
+  }
+  var offlineStreak = 0;
+  var OFFLINE_STREAK_NEEDED = 2;
+  function setOnline(on){
+    if(on){
+      offlineStreak = 0;
+    } else {
+      offlineStreak++;
+      if(offlineStreak < OFFLINE_STREAK_NEEDED && LIVE.online !== false) return;
+    }
+    if(LIVE.online===on) return;
+    LIVE.online = on;
+    var chip=document.getElementById('livechip');
+    if(chip){
+      /* THE SAME FACE renderHome() DRAWS, NOT A SECOND ONE. This used to
+         write '● board' straight into the chip, which was the eyebrow's word
+         — so on the first link flap after D65 the link line silently became
+         the old chip again: no dot span, no up/down class, the noun instead
+         of the state. One markup, two writers, and this one must match the
+         other byte for byte; the colour comes from the class (.lk.up / .lk
+         .down), never from an inline style that would out-rank it. */
+      chip.classList.toggle('up', on);
+      chip.classList.toggle('down', !on);
+      chip.innerHTML = linkChipInner(on);
+      /* the chip is a button (it opens the board-facts sheet) — its label
+         must say the state the glyph shows, and it only changes here, on a
+         genuine state change, never on the poll's ordinary redraw */
+      chip.setAttribute('aria-label', linkChipLabel(on)); }
+    paintBoardChips();
+    paintLiveDots();
+    /* ONE OFFLINE STATE (D192). The chip's word is not the whole state: the
+       sentence under it, the header's "No device connected", the weapon
+       card and the empty presses row all change with it, so HOME is redrawn
+       on the edge itself rather than whenever the next poll happens to. A
+       genuine edge only (the early return above), so this is never churn. */
+    try{ renderHomeIfVisible(); paintHomeGun(); }catch(e){}
+    /* This is the ONLY place that sees the offline->online edge, so it is the
+       only safe place to replay queued edits. Hanging the replay off the 8 s
+       poller instead was not enough: that poller decides "was it offline?"
+       BEFORE it asks, and any other api() call in the app (the live aim dot,
+       the device bar, a screen's own poll) could set online=true first — the
+       poller would then see wasOffline=false and the queue would sit there
+       until the next transition it happened to catch. Found by testing the
+       reconnect against the real board rather than reasoning about it. */
+    if(on) flushPendingBinds();
+  }
+  /* The ● beside a bound control promises "saves to your board". It was drawn
+     green at render time and never looked at LIVE.online again, so a screen
+     opened with the board away showed green dots that saved nowhere. Repaint
+     them whenever the link changes and whenever a screen is wired. */
+  function paintLiveDots(root){
+    var on = LIVE.online!==false;
+    (root||document).querySelectorAll('.livedot').forEach(function(d){
+      d.style.color = on ? 'var(--green)' : 'var(--amber)';
+      d.setAttribute('title', on ? 'saves to your board'
+        : (manualSave() ? 'board offline — kept here; press Save once it is back'   /* D257, M7 */
+                        : 'board offline — kept here and sent when it reconnects'));
+    });
+  }

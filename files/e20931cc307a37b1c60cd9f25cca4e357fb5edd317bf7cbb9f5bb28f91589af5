@@ -1,0 +1,761 @@
+/* smart-actions/10-recorder.js — recording instead of building.
+ *
+ * The input recorder on an EXO (/capture/record/*, recordToSteps) and
+ * Record a sequence on a Core (D130: /record/arm | status | cancel, a start key
+ * and a stop key that are consumed; recordedSteps).
+ *
+ * Tests: test-core-record.js, test-smart-actions.js (self-check)
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('recorder', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var arr = SEC.arr, btn = SEC.btn, btnI = SEC.btnI, clamp = SEC.clamp,
+      emitSource = SEC.emitSource, esc = SEC.esc, fromBoardStep = SEC.fromBoardStep,
+      has = SEC.has, intOf = SEC.intOf, isKeyTarget = SEC.isKeyTarget,
+      newAction = SEC.newAction, normAction = SEC.normAction, normStep = SEC.normStep,
+      note = SEC.note, num = SEC.num, srcClass = SEC.srcClass, srcName = SEC.srcName,
+      STEP_MS_CAP = SEC.STEP_MS_CAP, TAP_MS_MIN = SEC.TAP_MS_MIN,
+      TARGET_OK = SEC.TARGET_OK, tgtName = SEC.tgtName, VIEW = SEC.VIEW, waits = SEC.waits,
+      ZS = SEC.ZS, sentence = SEC.sentence, stepLine = SEC.stepLine, msShort = SEC.msShort,
+      tileHTML = SEC.tileHTML, boardWord = SEC.boardWord, pickTrigger = SEC.pickTrigger,
+      sheetPaint = SEC.sheetPaint;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var bindsOf, rowFor, rowName, kbPageHTML, mousePageHTML, recSourcePageHTML,
+      deckHTML, wireDeck, srcCellHTML, sheetIsOpen, smartCommit;
+  ZS_SMART_PARTS.after(function () {
+    bindsOf = SEC.bindsOf;
+    rowFor = SEC.rowFor;
+    rowName = SEC.rowName;
+    kbPageHTML = SEC.kbPageHTML;
+    mousePageHTML = SEC.mousePageHTML;
+    recSourcePageHTML = SEC.recSourcePageHTML;
+    deckHTML = SEC.deckHTML;
+    wireDeck = SEC.wireDeck;
+    srcCellHTML = SEC.srcCellHTML;
+    sheetIsOpen = SEC.sheetIsOpen;
+    smartCommit = SEC.smartCommit;
+  });
+
+  /* ══ the input recorder — "record it instead" ═════════════════════
+     XIM does not have this. Do the thing on your controller; the board's
+     recorder (mapping/recorder.py, /capture/record/*) watches the down/up
+     edges and the app writes the steps. Gated on /capabilities
+     actions.recorder, so against an old board none of this is ever drawn. */
+
+  /* The recorder reports SOURCES (what a device sent); a step drives TARGETS
+     (what the console receives). This table is the explicit inverse of
+     PAD_SOURCES / CONTROL_SOURCE — the analog pulls map to the pressed
+     trigger targets ("lt"→"lt+"), and the digital trigger clicks land on the
+     same targets so a DualSense's BTN_TR2 records as the pull it is. */
+  var SOURCE_TO_TARGET = {
+    BTN_SOUTH: 'south', BTN_EAST: 'east', BTN_WEST: 'west', BTN_NORTH: 'north',
+    BTN_TL: 'l1', BTN_TR: 'r1',
+    lt: 'lt+', rt: 'rt+', BTN_TL2: 'lt+', BTN_TR2: 'rt+',
+    BTN_THUMBL: 'l3', BTN_THUMBR: 'r3',
+    BTN_DPAD_UP: 'dpad_up', BTN_DPAD_DOWN: 'dpad_down',
+    BTN_DPAD_LEFT: 'dpad_left', BTN_DPAD_RIGHT: 'dpad_right',
+    BTN_START: 'start', BTN_SELECT: 'select', BTN_MODE: 'guide',
+    BTN_TRIGGER_HAPPY1: 'touchpad'
+  };
+
+  /* what one recorded source should make a step press. A key or mouse button
+     follows this config's binding (KEY_SPACE → whatever Space does here);
+     unbound or unknown answers null and the caller names it rather than
+     guessing. */
+  function recTarget(source, p) {
+    var c = String(source || '');
+    if (has(SOURCE_TO_TARGET, c)) return SOURCE_TO_TARGET[c];
+    var cls = srcClass(c);
+    if (cls === 'keyboard' || cls === 'mouse') {
+      var list = bindsOf(p), i, b;
+      for (i = 0; i < list.length; i++) {
+        b = list[i];
+        if (b && b.source === c && !(b.chord && b.chord.length)) {
+          var t = String(b.target || '');
+          return TARGET_OK[t] ? t : null;
+        }
+      }
+    }
+    return null;
+  }
+
+  /* Recorded edges → the editor's steps. PURE and deterministic — exported on
+     ZS_SMART for the node self-test. The rules, in order:
+       1  events {source, down, tMs} are sorted by time
+       2  a down with no up by the stop is a Hold (sequence-end releases it)
+       3  a press overlapping another press becomes Hold at its down and
+          Let-go at its up; an isolated press is a Tap whose length is its
+          own duration (rounded to 10 ms)
+       4  the gap between consecutive steps becomes a Wait (rounded to 10 ms);
+          under 20 ms it is dropped, over a step's 10 s cap it chains
+       5  lt/rt come out as trigger pulls, held or timed by the same rules
+       6  sources map through SOURCE_TO_TARGET or this config's bindings;
+          anything unmappable is skipped and NAMED, never silently dropped
+       7  at most 40 steps, and a loop-friendly trailing Wait */
+  var REC_STEP_CAP = 40;
+  function recordToSteps(events, p) {
+    var evs = [], i, j, e;
+    for (i = 0; i < arr(events).length; i++) {
+      e = events[i];
+      if (!e || typeof e.source !== 'string' || !e.source) continue;
+      evs.push({ source: e.source, down: !!e.down, t: Math.max(0, num(e.tMs, 0)) });
+    }
+    evs.sort(function (x, y) { return x.t - y.t; });
+
+    var presses = [], open = {}, skipped = {}, endT = evs.length ? evs[evs.length - 1].t : 0;
+    for (i = 0; i < evs.length; i++) {
+      e = evs[i];
+      var tgt = recTarget(e.source, p);
+      if (!tgt) { skipped[e.source] = true; continue; }
+      if (e.down) {
+        if (open[e.source]) continue;              /* a repeated down: keep the first */
+        open[e.source] = { tgt: tgt, t0: e.t, t1: null };
+        presses.push(open[e.source]);
+      } else if (open[e.source]) {
+        open[e.source].t1 = e.t;
+        delete open[e.source];
+      }
+    }
+    for (i = 0; i < presses.length; i++) {
+      presses[i].openEnded = presses[i].t1 == null;
+      presses[i].end = presses[i].openEnded ? endT : presses[i].t1;
+    }
+    for (i = 0; i < presses.length; i++) {
+      presses[i].overlap = presses[i].openEnded;
+      for (j = 0; j < presses.length; j++) {
+        if (i === j) continue;
+        if (presses[i].t0 < presses[j].end && presses[j].t0 < presses[i].end) presses[i].overlap = true;
+      }
+    }
+
+    function isTrigT(t) { return t === 'lt+' || t === 'rt+'; }
+    var emits = [];
+    for (i = 0; i < presses.length; i++) {
+      var pr = presses[i];
+      if (pr.overlap) {
+        emits.push({ t: pr.t0, dur: 0, step: isTrigT(pr.tgt)
+          ? { k: 'trig', t: [pr.tgt], ms: 120, keep: true }
+          : { k: 'hold', t: [pr.tgt] } });
+        if (!pr.openEnded) emits.push({ t: pr.end, dur: 0, step: { k: 'release', t: [pr.tgt] } });
+      } else {
+        var d = clamp(Math.round((pr.end - pr.t0) / 10) * 10, TAP_MS_MIN, STEP_MS_CAP);
+        emits.push({ t: pr.t0, dur: d, step: isTrigT(pr.tgt)
+          ? { k: 'trig', t: [pr.tgt], ms: d, keep: false }
+          : { k: 'tap', t: [pr.tgt], ms: d } });
+      }
+    }
+    emits.sort(function (x, y) { return x.t - y.t; });
+
+    /* the timeline becomes a sequence: a tap advances the clock by its own
+       length, a hold or a let-go takes none — exactly how the runner plays it */
+    var steps = [], cursor = emits.length ? emits[0].t : 0, truncated = false;
+    for (i = 0; i < emits.length; i++) {
+      var gap = Math.round((emits[i].t - cursor) / 10) * 10;
+      if (gap >= 20) {
+        var ws = waits(gap);
+        for (j = 0; j < ws.length; j++) steps.push(ws[j]);
+      }
+      steps.push(emits[i].step);
+      cursor = emits[i].t + emits[i].dur;
+    }
+    if (steps.length > REC_STEP_CAP) {
+      steps = steps.slice(0, REC_STEP_CAP - 1);
+      truncated = true;
+    }
+    /* the same loop-friendliness rule beginSequence applies: a trailing Wait
+       is the gap that makes a repeating run a SERIES instead of one hold */
+    if (steps.length && steps[steps.length - 1].k !== 'wait') steps.push({ k: 'wait', ms: 80 });
+
+    var names = [];
+    for (var sname in skipped) {
+      if (Object.prototype.hasOwnProperty.call(skipped, sname)) names.push(srcName(sname));
+    }
+    /* D231: a recording's gaps are "after the press ended"; the editor's
+       stopwatch counts from the press's start */
+    return { steps: SEC.migrateTiming(steps), skipped: names, truncated: truncated };
+  }
+
+  /* ── the recording sheet ──────────────────────────────────────────
+     opts: { canAppend, apply(steps, mode) } — mode is 'replace' or 'append'.
+     The poll lives and dies with the sheet: the close callback (passed on the
+     FIRST paint only, the sheet-host rule) stops the timer and cancels the
+     board's recorder if it is still armed. */
+  function openRecorderSheet(root, p, S, opts) {
+    var closed = false, timer = null, phase = 'arming', firstPaint = true;
+    var startedAt = 0, MAXMS = 10000, IDLEMS = 2000;
+    var lastCount = -1, lastLeft = -1;
+    function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+    function teardown() {
+      closed = true;
+      stopTimer();
+      if (phase === 'recording' || phase === 'arming') ZS.api('/capture/record/cancel', 'POST', {});
+    }
+
+    function recordingHTML() {
+      return note('Do the thing on your controller. I’ll watch and write the steps.') +
+        '<div class="sareccnt" id="sa-reccount" aria-live="polite">Waiting for your first press…</div>' +
+        '<div class="sarecleft" id="sa-recleft">stops on its own in ' + Math.round(MAXMS / 1000) + ' s</div>' +
+        btn('■ Stop and write the steps', 'primary', 'sa-recstop') +
+        note('Buttons and triggers only for now — stick pushes are not recorded. ' +
+             'It also stops by itself after ' + Math.round(MAXMS / 1000) + ' seconds, or after ' +
+             Math.round(IDLEMS / 1000) + ' seconds of stillness.');
+    }
+
+    function paintRecording() {
+      /* teardown rides on the FIRST paint only — the sheet host keeps a STACK
+         of close callbacks, and "Record again" repaints the same sheet */
+      var body = sheetPaint('◉ Recording', recordingHTML(), firstPaint ? teardown : undefined);
+      firstPaint = false;
+      var stop = body.querySelector('#sa-recstop');
+      if (stop) stop.addEventListener('click', function () {
+        ZS.api('/capture/record/stop', 'POST', {});
+        /* the poll sees "done" on its next tick and paints the result */
+      });
+      return body;
+    }
+
+    function paintResult(res) {
+      var got = res.steps.length > 0;
+      var h = '';
+      if (got) {
+        h += note('Here is what I saw. You can change any step afterwards.') +
+          '<div class="sapreview"><ol>' +
+          res.steps.map(function (s, i) {
+            return '<li>' + esc(stepLine(s, i, res.steps, p)) + '</li>';
+          }).join('') + '</ol></div>';
+      } else {
+        h += note('I didn’t catch any button presses. Buttons and triggers only for now — stick pushes are not recorded.', 'warn');
+      }
+      if (res.skipped.length) {
+        h += note('Skipped (nothing this config can press for them): <b>' +
+          esc(res.skipped.join(', ')) + '</b>', 'warn');
+      }
+      if (res.truncated) h += note('That was a lot — only the first ' + REC_STEP_CAP + ' steps were kept.', 'warn');
+      if (got) {
+        h += (opts.canAppend
+          ? btn('Replace the steps', 'primary', 'sa-rec-rep') + btn('Add to the end', null, 'sa-rec-add')
+          : btn('✓ Use these steps', 'primary', 'sa-rec-rep'));
+      }
+      h += btnI('record', 'Record again', null, 'sa-rec-again');
+      var body = sheetPaint('What I saw', h);
+      /* the same one-tap guard as #tp-add and #sa-save: sheetClose() leaves
+         these laid out for the spring-out, and "Add to the end" run twice
+         appends the recording twice */
+      var used = false;
+      function use(mode) {
+        if (used) return;
+        used = true;
+        ZS.sheetClose();
+        opts.apply(res.steps, mode);
+      }
+      var rep = body.querySelector('#sa-rec-rep');
+      if (rep) rep.addEventListener('click', function () { use('replace'); });
+      var add = body.querySelector('#sa-rec-add');
+      if (add) add.addEventListener('click', function () { use('append'); });
+      var again = body.querySelector('#sa-rec-again');
+      if (again) again.addEventListener('click', function () { arm(); });
+    }
+
+    function poll() {
+      ZS.api('/capture/record/status').then(function (j) {
+        if (closed || phase !== 'recording') return;
+        if (!j || !j.ok || !j.data) return;
+        var d = j.data;
+        if (d.state === 'recording') {
+          /* update the two numbers IN PLACE, and only when they change — a
+             500 ms full repaint would churn and steal the Stop button focus */
+          var evs = arr(d.events), downs = 0, i;
+          for (i = 0; i < evs.length; i++) if (evs[i] && evs[i].down) downs++;
+          if (downs !== lastCount) {
+            lastCount = downs;
+            var c = document.getElementById('sa-reccount');
+            if (c) c.textContent = downs === 0 ? 'Waiting for your first press…'
+              : downs + (downs === 1 ? ' press so far' : ' presses so far');
+          }
+          var left = Math.max(0, Math.ceil((startedAt + MAXMS - Date.now()) / 1000));
+          if (left !== lastLeft) {
+            lastLeft = left;
+            var l = document.getElementById('sa-recleft');
+            if (l) l.textContent = 'stops on its own in ' + left + ' s';
+          }
+          return;
+        }
+        if (d.state === 'done' || d.state === 'idle') {
+          phase = 'done';
+          stopTimer();
+          paintResult(recordToSteps(arr(d.events), p));
+        }
+      });
+    }
+
+    function arm() {
+      phase = 'arming';
+      lastCount = -1; lastLeft = -1;
+      paintRecording();
+      ZS.api('/capture/record/start', 'POST', { maxMs: MAXMS, idleStopMs: IDLEMS }).then(function (j) {
+        if (closed) return;
+        if (!j || !j.ok) {
+          phase = 'done';
+          var fbody = sheetPaint('Recording', note('Your board couldn’t start recording' +
+            (j && j.error ? ' — ' + esc(String(j.error)) : '') + '. Try again in a moment.', 'warn') +
+            btnI('record', 'Try again', 'primary', 'sa-rec-again'));
+          var again = fbody.querySelector('#sa-rec-again');
+          if (again) again.addEventListener('click', function () { arm(); });
+          return;
+        }
+        phase = 'recording';
+        startedAt = Date.now();
+        stopTimer();
+        timer = setInterval(poll, 500);
+      });
+    }
+    arm();
+  }
+
+
+  /* ══ RECORD A SEQUENCE (D85, on the board's D83 recorder) ═══════════
+     The owner: "for recording a sequence make it like where you choose
+     what button will end the sequence but not be recorded and what button
+     starts it — for example you click record sequence and I chose the
+     touch pad to be the button that makes it start listening and the touch
+     pad ends it; let me choose what button makes the record sequence
+     really start listening and end listening."
+     One sheet, one question at a time, big words:
+       1  which button STARTS recording   (Pad · Keyboard · Mouse deck, or
+                                           "Press it and I'll find it" — the
+                                           same /capture path pickTrigger uses)
+       2  which button STOPS it           ("Same button" first, preselected)
+       3  armed → recording → done        (POST /record/arm {start, stop,
+                                           maxMs}; GET /record/status every
+                                           250 ms; the BOARD converts the log
+                                           to steps when it ends, D83)
+       4  which button RUNS it            (the start button by default)
+     Nothing is written before step 4 confirms. Every Cancel, the ×, the
+     scrim and Escape post /record/cancel. The start and stop presses are
+     consumed on the board (never a step, never on the console). The final
+     wait the board keeps — your last release to the stop key — is dropped
+     before saving and the sheet says so; keyboard and mouse presses come
+     back under `skipped` from an EXO because its steps may only press a pad
+     control, and as keys from a Core (D130, recordedKeys below). Before step
+     1 the adapter is asked whether it can record at all (D130). The
+     save is the in-place editor's own write (smartSave → saveAll →
+     putProfileDebounced) and the panel opens in editor mode on the button
+     so the recording can be reviewed at once. Answers are FLAT ({ok,
+     state, …}), not wrapped in data. */
+  var REC_MAX_MS = 60000;
+  var REC_POLL_MS = 250;
+  function clockWord(d) {
+    d = d || new Date();
+    var h = d.getHours(), m = d.getMinutes(), ap = h >= 12 ? 'pm' : 'am';
+    h = h % 12; if (h === 0) h = 12;
+    return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ap;
+  }
+  /* a control key as words and as its own picture (the Mappings cell) */
+  function ctlWord(code) { return srcName(code); }
+  function ctlPicHTML(code) {
+    return '<span class="sarq-pick">' + srcCellHTML({ source: code, kind: srcClass(code) }) +
+      '<b>' + esc(ctlWord(code)) + '</b></span>';
+  }
+  function endedWords(by, stopCode) {
+    if (by === 'timeout') return 'It ran out of time, so it stopped on its own.';
+    if (by === 'unplug') return 'The pad was unplugged, so it stopped there.';
+    if (by === 'cap') return 'It reached the most one recording can hold, so it stopped there.';
+    return 'You stopped it with ' + ctlWord(stopCode) + '.';
+  }
+  /* the board's steps → the editor's, with the trailing wait taken off: the
+     time between your last release and the stop key is not part of what
+     you did, and a looped action would replay it as a pause */
+  function isWaitStep(st) {
+    return !!st && typeof st === 'object' && st.wait != null && !st.press && !st.hold && !st.release;
+  }
+  function recordedSteps(boardSteps, p) {
+    var keyed = p ? recordedKeys(p, boardSteps) : { steps: arr(boardSteps), became: [], left: [] };
+    var list = keyed.steps.slice(), last = list.length ? list[list.length - 1] : null, trailing = 0;
+    if (isWaitStep(last)) {
+      trailing = intOf(last.wait, 0);
+      list.pop();
+    }
+    var steps = list.map(fromBoardStep).map(normStep).filter(function (s) { return !!s; });
+    return { steps: steps, trailing: trailing, became: keyed.became, left: keyed.left };
+  }
+  /* A RECORDED KEY OR CLICK (D130). A Core records what the player's hands
+     did, and a key or a mouse click comes back as a step that presses THAT
+     key, because a Core step can since D128 (the A7S skips them). Whether it
+     should is this config's question, and D128 already answers it for a new
+     action's first step (sa-mnk.js seed): a key arrives only when this Core
+     is a keyboard and mouse to a computer. Anywhere else the step presses
+     what the config binds the key to, which is what the console saw when
+     the player pressed it. A key bound to nothing did nothing: it is left
+     out and named, and its time stays in the waits around it. */
+  function recKeyTarget(t) { return isKeyTarget(t) || /^BTN_WHEEL_/.test(String(t)); }
+  function recPlainTarget(p, src) {
+    /* the first binding on it with no chord, the Mappings rows' plainBind */
+    var list = bindsOf(p), i;   /* the copy the board last gave (audit M17) */
+    for (i = 0; i < list.length; i++) {
+      var b = list[i] || {};
+      if (b.source === src && !(b.chord && b.chord.length) && typeof b.target === 'string') return b.target;
+    }
+    return '';
+  }
+  function recordedKeys(p, boardSteps) {
+    var E = window.ZSPROFILE, M = window.ZS_SA_MNK;
+    var arrive = !!(M && typeof M.keysArrive === 'function' && M.keysArrive(p) === true);
+    var out = [], became = [], left = [];
+    arr(boardSteps).forEach(function (st) {
+      var k = (st && typeof st === 'object')
+        ? (st.press ? 'press' : st.hold ? 'hold' : st.release ? 'release' : '') : '';
+      if (!k) { out.push(st); return; }
+      var ts = [];
+      arr(st[k]).forEach(function (t) {
+        var to = t;
+        if (recKeyTarget(t) && !(arrive && E && typeof E.isKbmTarget === 'function' && E.isKbmTarget(t))) {
+          to = recPlainTarget(p, t);
+          if (!TARGET_OK[to]) { if (left.indexOf(t) < 0) left.push(t); return; }
+          if (!became.some(function (x) { return x[0] === t; })) became.push([t, to]);
+        }
+        if (ts.indexOf(to) < 0) ts.push(to);
+      });
+      var c = {};
+      if (ts.length) { c[k] = ts; if (k === 'press') c.ms = st.ms; out.push(c); }
+      else if (k === 'press') out.push({ wait: intOf(st.ms, 0) });   /* its time still counts */
+    });
+    /* two waits side by side are one pause, while it fits one step */
+    var merged = [];
+    out.forEach(function (st) {
+      var prev = merged.length ? merged[merged.length - 1] : null;
+      if (isWaitStep(prev) && isWaitStep(st) && intOf(prev.wait, 0) + intOf(st.wait, 0) <= STEP_MS_CAP) {
+        prev.wait = intOf(prev.wait, 0) + intOf(st.wait, 0);
+      } else merged.push(isWaitStep(st) ? { wait: intOf(st.wait, 0) } : st);
+    });
+    return { steps: merged, became: became, left: left };
+  }
+  function openRecordSheet(root, p, S) {
+    var R = { phase: 'start', start: null, stop: null, steps: [], trailing: 0, res: null,
+              nested: false, closed: false, saved: false, timer: null, listener: null };
+    function stopListen() { if (R.listener) { R.listener.stop(); R.listener = null; } }
+    var TITLE = 'Record a script';
+    function stopTimer() { if (R.timer) { clearInterval(R.timer); R.timer = null; } }
+    /* the host's close callback: the ×, the scrim, Escape and every Cancel
+       land here. A trip through the capture picker closes the host too
+       (ZS.pickButton hard-closes it) and is not a dismissal. */
+    function teardown() {
+      if (R.nested || R.closed) return;
+      R.closed = true;
+      stopTimer();
+      stopListen();
+      if (!R.saved) ZS.api('/record/cancel', 'POST', {});
+    }
+    function paint(html) {
+      /* teardown rides the FIRST paint of each life of the sheet — the host
+         keeps a stack of close callbacks and every later paint swaps content */
+      var fresh = !sheetIsOpen();
+      stopListen();                 /* a new page listens again if it asks */
+      var body = sheetPaint(TITLE, html, fresh ? teardown : undefined);
+      if (fresh) R.closed = false;
+      var c = body.querySelector('#sa-rq-cancel');
+      if (c) c.addEventListener('click', function () { ZS.sheetClose(); });
+      return body;
+    }
+    function cancelBtn() { return btn('Cancel', null, 'sa-rq-cancel'); }
+    function q(word) { return '<p class="sarq-q">' + word + '</p>'; }
+    function hint(word) { return '<p class="sarq-h">' + word + '</p>'; }
+
+    /* ── steps 1 and 2: a control key, from the pad, the keyboard or the
+       mouse, or simply pressed on the device: the page LISTENS while it is
+       open (owner, 2026-10-10: no "Press it and I'll find it" button; the
+       first deliberate press is the answer, ZS.listenForPress) ── */
+    function pickerHTML() {
+      var pages = [
+        { n: 'Pad', h: recSourcePageHTML() },
+        { n: 'Keyboard', h: kbPageHTML() },
+        { n: 'Mouse', h: mousePageHTML() }
+      ];
+      var listens = ZS.live.online !== false && typeof ZS.listenForPress === 'function';
+      return (listens ? '<div class="pk-live" id="sa-rqlive" role="status" aria-live="polite"></div>' : '') +
+        deckHTML('sa-rqpick', pages, 0);
+    }
+    function wirePicker(body, onPick) {
+      var picked = false;
+      function pick(code) { if (picked) return; picked = true; stopListen(); onPick(code); }
+      wireDeck(body, 'sa-rqpick', 0, null);
+      body.querySelectorAll('[data-src]').forEach(function (b) {
+        b.addEventListener('click', function () { pick(String(b.dataset.src)); });
+      });
+      var mount = body.querySelector('#sa-rqlive');
+      if (mount) {
+        R.listener = ZS.listenForPress(body, { mount: mount, p: p, onHeard: function (src) {
+          /* the listener names a pulled trigger by the pad's trigger BUTTON;
+             the recorder and a Script watch the pull itself */
+          if (src === 'BTN_TL2') src = 'lt'; else if (src === 'BTN_TR2') src = 'rt';
+          ZS.toast(ctlWord(src) + ' detected');
+          pick(src);
+        } });
+      }
+    }
+    function paintStart() {
+      R.phase = 'start';
+      var body = paint(q('Which button should <b>start</b> recording?') +
+        hint('You’ll press it when you’re ready. It won’t be recorded, and the console won’t see it.') +
+        pickerHTML() + cancelBtn());
+      wirePicker(body, function (code) { R.start = code; paintStop(); });
+    }
+    function paintStop() {
+      R.phase = 'stop';
+      var body = paint(q('Which button should <b>stop</b> recording?') +
+        hint('Press it when you’re finished. It won’t be recorded either.') +
+        btnI('ok', 'Same button — ' + ctlWord(R.start), 'primary', 'sa-rq-same') +
+        '<p class="sarq-or">or choose a different one</p>' +
+        pickerHTML() + cancelBtn());
+      var same = body.querySelector('#sa-rq-same');
+      if (same) same.addEventListener('click', function () { R.stop = R.start; arm(); });
+      wirePicker(body, function (code) { R.stop = code; arm(); });
+    }
+
+    /* ── step 3: arm, then follow the board ── */
+    function wireAgain(body) {
+      var ag = body.querySelector('#sa-rq-again');
+      if (ag) ag.addEventListener('click', function () { arm(); });
+    }
+    function arm() {
+      R.phase = 'arming';
+      stopTimer();
+      paint(q('Getting your board ready…') + cancelBtn());
+      ZS.api('/record/arm', 'POST', { start: R.start, stop: R.stop, maxMs: REC_MAX_MS }).then(function (j) {
+        if (R.closed || R.phase !== 'arming') return;
+        if (!j || !j.ok) {
+          R.phase = 'failed';
+          var e = (j && j.error) ? String(j.error) : '';
+          var fb = paint(note('Your board couldn’t start recording' + (e ? ' — ' + esc(e) : '') + '.', 'warn', true) +
+            btn('Try again', 'primary', 'sa-rq-again') + cancelBtn());
+          wireAgain(fb);
+          return;
+        }
+        R.phase = 'armed';
+        paintArmed();
+        R.timer = setInterval(poll, REC_POLL_MS);
+      });
+    }
+    function paintArmed() {
+      paint(q('Press ' + esc(ctlWord(R.start)) + ' when you’re ready.') +
+        ctlPicHTML(R.start) +
+        hint('It won’t be recorded. Then do the thing (buttons, triggers and both sticks are recorded), and press <b>' +
+          esc(ctlWord(R.stop)) + '</b> to finish.') +
+        cancelBtn());
+    }
+    function presses(d) {
+      /* a Core says the count (D130: it does not send the whole edge log
+         four times a second over Bluetooth); an EXO sends the log */
+      var evs = arr(d.events), n = 0, i;
+      if (typeof d.presses === 'number') n = d.presses;
+      else for (i = 0; i < evs.length; i++) if (evs[i] && evs[i].down) n++;
+      /* D270: a Core that records the sticks says how many points so far */
+      return n + (n === 1 ? ' press' : ' presses') + (num(d.stickPoints, 0) > 0 ? ' · sticks moving' : '');
+    }
+    function secs(ms) { return (Math.round(num(ms, 0) / 100) / 10).toFixed(1) + ' s'; }
+    function leftWord(d) {
+      return 'Stops on its own in ' + Math.ceil(num(d.remainingMs, REC_MAX_MS) / 1000) + ' s.';
+    }
+    function paintRecording(d) {
+      paint('<p class="sarq-q sarq-rec"><span class="sarq-dot" aria-hidden="true"></span>Recording… press <b>' +
+          esc(ctlWord(R.stop)) + '</b> to finish.</p>' +
+        '<div class="sarq-live" aria-live="polite"><span id="sa-rq-count">' + presses(d) +
+          '</span> · <span id="sa-rq-time">' + secs(d.sinceMs) + '</span></div>' +
+        '<p class="sarq-h" id="sa-rq-left">' + leftWord(d) + '</p>' +
+        cancelBtn());
+    }
+    function setText(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; }
+    function poll() {
+      ZS.api('/record/status').then(function (j) {
+        if (R.closed || (R.phase !== 'armed' && R.phase !== 'recording')) return;
+        if (!j || !j.ok) return;
+        var st = j.state;
+        if (st === 'armed') return;
+        if (st === 'recording') {
+          if (R.phase !== 'recording') { R.phase = 'recording'; paintRecording(j); return; }
+          /* the three numbers move IN PLACE — a repaint four times a second
+             would steal the Cancel key's focus */
+          setText('sa-rq-count', presses(j)); setText('sa-rq-time', secs(j.sinceMs)); setText('sa-rq-left', leftWord(j));
+          return;
+        }
+        stopTimer();
+        R.res = j;
+        if (st === 'done') { R.phase = 'done'; paintDone(); return; }
+        R.phase = 'cancelled';
+        paintCancelled();
+      });
+    }
+    function paintDone() {
+      var d = R.res || {};
+      var conv = recordedSteps(d.steps, p);
+      R.steps = SEC.migrateTiming(conv.steps); R.trailing = conv.trailing;   /* D231 */
+      var h = '', n = R.steps.length;
+      if (n) {
+        /* THE STEPS IN WORDS, AND ONLY THE STEPS. oneLiner() opens with the
+           trigger ("When you press …"), and which button runs this is the
+           NEXT question — so a full one-liner here spoke newAction()'s
+           default trigger, the Fire button, as though the player had chosen
+           it. sentence().lines is the step list without the lead. */
+        var tmp = newAction(); tmp.steps = R.steps;
+        h += q('Here’s what you did.') +
+          '<div class="sastrip sarq-strip" aria-hidden="true">' +
+            R.steps.map(function (s, i) { return tileHTML(s, i, R.steps, p, {}); }).join('') + '</div>' +
+          hint('<b>' + n + (n === 1 ? ' step' : ' steps') + '</b> — ' +
+            esc(sentence(tmp, p).lines.join(', ')) + '.');
+        var size = recSizeLine(R.steps);
+        if (size) h += hint(esc(size));
+      } else {
+        h += q('Nothing was pressed or moved between start and stop.');
+      }
+      h += hint(esc(endedWords(d.endedBy, R.stop)));
+      if (R.trailing > 0) {
+        h += hint('The ' + esc(msShort(R.trailing)) + ' pause before you pressed ' + esc(ctlWord(R.stop)) +
+          ' was left off the end.');
+      }
+      var sk = arr(d.skipped);
+      if (sk.length) {
+        /* an EXO skips every key (its runner cannot press one); a Core only
+           what no step can press at all (D130) */
+        h += note((boardWord() === 'Core' ? 'No step can press ' : 'Keyboard and mouse presses can’t be steps yet, so ') +
+          (boardWord() === 'Core' ? esc(sk.map(srcName).join(', ')) + ', so ' + (sk.length === 1 ? 'it was' : 'they were') + ' left out.'
+            : sk.length + (sk.length === 1 ? ' was' : ' were') + ' left out (' + esc(sk.map(srcName).join(', ')) + ').'),
+          'warn', true);
+      }
+      /* D130: what became of a key or a click on a config whose Core cannot
+         send one, said so the steps above are not a surprise */
+      if (conv.became.length) {
+        h += hint(esc(conv.became.map(function (x) { return srcName(x[0]) + ' became ' + tgtName(x[1], p); })
+          .join(', ')) + ', what this config binds ' + (conv.became.length === 1 ? 'it' : 'them') +
+          ' to. A key or a click from a step only arrives when the Core is a keyboard and mouse to a computer.');
+      }
+      if (conv.left.length) {
+        h += note('Nothing in this config is bound to ' + esc(conv.left.map(srcName).join(', ')) +
+          ', so ' + (conv.left.length === 1 ? 'that press was' : 'those presses were') +
+          ' left out. Its time is still in the waits.', 'warn', true);
+      }
+      if (d.truncated) h += note('That was a lot — the recording was cut at the most one can hold.', 'warn', true);
+      h += (n ? btn('Next — choose the button that runs it', 'primary', 'sa-rq-next') : '') +
+        btnI('record', 'Record again', null, 'sa-rq-again') + cancelBtn();
+      var body = paint(h);
+      var nx = body.querySelector('#sa-rq-next');
+      if (nx) nx.addEventListener('click', function () { paintTrigger(); });
+      wireAgain(body);
+    }
+    /* D270, the storage rule (one pool, sizes shown): what this script adds
+       to the config on the Core, measured by the encoder a save uses, and
+       what is left. '' anywhere that cannot be said honestly. */
+    function recSizeLine(steps) {
+      try {
+        var full = ZS.live && ZS.live.full && ZS.live.full[p.id];
+        var E = window.ZSPROFILE, RM = window.ZSROOM;
+        if (boardWord() !== 'Core' || !full || !E || !E.measure || !RM) return '';
+        var a = newAction();
+        a.steps = steps; a.timing = 2; a.trigger.src = R.start; a.trigger.follow = null;
+        var withA = JSON.parse(JSON.stringify(full));
+        withA.accessibilityActions = arr(withA.accessibilityActions).concat([SEC.toBoard(p, normAction(a))]);
+        var c = RM.caps();
+        var b0 = E.measure(full, { sourceSidecar: false, caps: c }).bytes;
+        var b1 = E.measure(withA, { sourceSidecar: false, caps: c }).bytes;
+        if (!(b0 > 0 && b1 > b0)) return '';
+        var st = RM.storage();
+        return 'It adds about ' + RM.words(b1 - b0) + ' to this config' +
+          (st.pool && st.free >= 0 ? ' (' + RM.words(st.free) + ' left of ' + RM.words(st.total) + ' on your Core).' : '.');
+      } catch (e) { return ''; }
+    }
+    function paintCancelled() {
+      var d = R.res || {};
+      var why = (d.reason === 'armTimeout')
+        ? 'Nothing was pressed for a minute, so recording was cancelled.'
+        : 'The recording was cancelled on your board.';
+      var body = paint(q(esc(why)) + btn('Try again', 'primary', 'sa-rq-again') + cancelBtn());
+      wireAgain(body);
+    }
+
+    /* ── step 4: the button that runs it, then the one write ── */
+    function paintTrigger() {
+      R.phase = 'trigger';
+      var body = paint(q('Which button should <b>run</b> this script?') +
+        ctlPicHTML(R.start) +
+        btnI('ok', 'Use ' + ctlWord(R.start), 'primary', 'sa-rq-use') +
+        btn('Choose a different button', null, 'sa-rq-other') +
+        cancelBtn());
+      var use = body.querySelector('#sa-rq-use');
+      if (use) use.addEventListener('click', function () { save({ src: R.start, follow: null }); });
+      var oth = body.querySelector('#sa-rq-other');
+      if (oth) oth.addEventListener('click', function () {
+        R.nested = true;
+        pickTrigger(p).then(function (v) {
+          R.nested = false;
+          if (!v) { paintTrigger(); return; }
+          save(v);
+        });
+      });
+    }
+    function save(v) {
+      var code = emitSource(p, { src: v.src || null, follow: v.follow || null }) || R.start;
+      var row = rowFor(p, S, code);
+      if (!row) {
+        /* an unbound control has no row yet — the same stub the Mappings
+           list's "Add a button" carries until the first write gives it one */
+        row = { source: code, actSrc: code, neutral: '', defTarget: '', kind: srcClass(code),
+                seeded: false, binds: [], plainBind: null, chordBinds: [], acts: [], orphan: false };
+        S.pendingRow = row;
+      }
+      var a = newAction();
+      a.name = 'Recorded ' + clockWord();
+      a.trigger.src = v.follow ? null : (row.actSrc || code);
+      a.trigger.follow = v.follow || null;
+      a.steps = R.steps;
+      a.timing = 2;             /* D231: already in the editor's meaning */
+      R.saved = true;
+      ZS.sheetClose();          /* teardown: nothing to cancel, the board is done */
+      S.inputSrc = row.source; S.screen = 'input';
+      S.draft = normAction(a); S.editIdx = -1; S.mode = 'smart';
+      S.unsaved = false; S.sel = null; S.step = null; S.xf = null; S.page = 0; S.gridPage = 0;
+      VIEW.panelOpener = root.querySelector('#sa-record-seq');
+      /* the in-place editor's own write; draw() then opens the panel in
+         editor mode on the button (D81's rule for a button with a sequence) */
+      smartCommit(root, p, S);
+      ZS.toast('“' + a.name + '” saved to ' + rowName(row) + ' — check it over');
+    }
+
+    /* ── step 0: can this adapter record at all? (D130) ──
+       Asked BEFORE the player picks two buttons, never after: a Core from
+       before D130 has no /record routes, a Core built with the D87 write gate
+       shut says so in the status's `unavailable`, and a board that is not
+       there cannot record either. Each is said in words, with nothing to
+       pick, where it used to be "couldn't start recording" once both buttons
+       had been chosen. */
+    function checkFirst() {
+      R.phase = 'checking';
+      paint(q('Checking your ' + boardWord() + '…') + cancelBtn());
+      ZS.api('/record/status').then(function (j) {
+        if (R.closed || R.phase !== 'checking') return;
+        var said = (j && j.ok && typeof j.unavailable === 'string') ? j.unavailable : '';
+        if (j && j.ok && !said) { paintStart(); return; }
+        var e = (j && j.error) ? String(j.error) : '';
+        if (!said) {
+          said = (ZS.live && ZS.live.online === false) || /unreachable|timed out|failed to fetch/i.test(e)
+            ? 'Your ' + boardWord() + ' isn’t connected, so it can’t record right now.'
+            /* zs_api.c's own 501 sentence: a Core from before D130 */
+            : /does not answer that yet/i.test(e)
+              ? 'This Core’s firmware can’t record scripts yet. Update its firmware, then try again.'
+              : 'Your ' + boardWord() + ' can’t record scripts' + (e ? ': ' + e : '') + '.';
+        }
+        R.phase = 'unavailable';
+        paint(q('Recording isn’t available.') + note(esc(said), 'warn', true) + cancelBtn());
+      });
+    }
+    checkFirst();
+  }
+
+  /* what the other parts use from this one */
+  SEC.openRecordSheet = openRecordSheet;
+  SEC.openRecorderSheet = openRecorderSheet;
+  SEC.recordToSteps = recordToSteps;
+});

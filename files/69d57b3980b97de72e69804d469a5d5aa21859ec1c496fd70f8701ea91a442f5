@@ -1,0 +1,1141 @@
+/* core-wifi.js: the EXO Core's Wi-Fi on HOME (D343), ZS_WIFI.
+ *
+ * Owner, 2026-10-14: "add a section or something on the home screen showing
+ * if the Core is connected to Wi-Fi; maybe add it on the EXO Core sign and
+ * make it shine red or green depending on if it's connected to Wi-Fi, and
+ * prompt the user to constantly connect to Wi-Fi for the best experience and
+ * automatic updates." And: "add the ability to connect the actual Core to the
+ * Wi-Fi; put this feature on the EXO Core card on the home screen."
+ *
+ * THE CONTRACT (agreed with the firmware branch, use exactly these names):
+ *   GET  /status        gains "wifi": {"state":"off|connecting|connected|failed",
+ *                       "ssid", "rssi" (dBm or null), "ip", "reason" (short text
+ *                       when failed), "scanning" (bool)}. ABSENT on firmware
+ *                       without Wi-Fi.
+ *   GET  /wifi/scan     {"networks":[{"ssid","rssi","secure"}],"ageMs","scanning"},
+ *                       strongest first. ANSWERS AT ONCE (D342 amended: a 5 s
+ *                       scan inside the request held every Bluetooth request
+ *                       for 5 s): with "scanning":true the Core has started
+ *                       one, and the app asks again every SCAN_POLL_MS until
+ *                       the list comes (an older Core answers the list
+ *                       straight away, without "scanning", and that still
+ *                       works). ?fresh=1 forces a new scan (Scan again).
+ *   POST /wifi/join     {"ssid","password"} -> {"state":"connecting"}; then
+ *                       poll /status
+ *   POST /wifi/forget   -> {"state":"off"}
+ * Every call goes through ZS.api, so it works over the USB serial line, over
+ * Bluetooth and inside EXO Studio alike.
+ *
+ * WHAT IT DRAWS
+ *   the light   a small CHIP beside "EXO Core" on HOME's device card (owner,
+ *               2026-10-14: "put a small little box for the Wi-Fi and
+ *               something that says WIFI in small writing, so users know you
+ *               can click the Wi-Fi"): the Wi-Fi glyph, a tiny "WI-FI" and
+ *               the state ("Off", "Failed", or the network's name, cut with
+ *               an ellipsis), in a flat outlined box tinted by the state.
+ *               The glyph is the light: green glow connected, red not
+ *               connected or failed, amber pulse connecting (no pulse under
+ *               Reduce Motion). The chip shrinks (its name first), never the
+ *               title, so "EXO Core" never wraps at 393 px. NOTHING when
+ *               /status has no "wifi" (firmware without Wi-Fi) or the Core is
+ *               offline. The card's aria-label says the state in words.
+ *   the row     "Wi-Fi" on the same card, under the card's own button: the
+ *               gentle prompt, "Connecting to <name>..." or "Could not join".
+ *               With a "?" that says why (automatic updates; the Core works
+ *               without it). NOT drawn when connected or ignored (D343
+ *               amended, owner: "remove that padding it creates in the menu
+ *               and just have it tiny to the right of the word EXO CORE").
+ *   the popover tapping the light opens a small box anchored under it (the
+ *               owner's "sub box"): connected -> "Connected to <name>", the
+ *               signal, Change Wi-Fi (the sheet's network list) and
+ *               Disconnect (asks, then /wifi/forget); otherwise the state in
+ *               words and Connect to Wi-Fi (the sheet). A "?" inside. It
+ *               closes on an outside tap, Escape, focus leaving it, and when
+ *               the light goes away; HOME's ~8 s redraw rebuilds it in place
+ *               (it would otherwise vanish under the finger).
+ *   the sheet   Scan -> networks (signal bars, a lock) -> password (show /
+ *               hide) -> Join -> live progress from /status -> connected, or
+ *               failed with the Core's reason and Try again. A hidden network
+ *               (type its name), and Forget network with a confirm.
+ *
+ * THE FIRST-RUN PROMPT (owner, 2026-10-14: "when you connect to the Core for
+ * the first time on a fresh install it asks you to connect to the Wi-Fi for
+ * the best experience, and you can click Skip"). Once per install
+ * (localStorage zs.wifiPrompt), the first time HOME is drawn for a Core
+ * whose /status has "wifi" with state "off" and no network. Never offline,
+ * never on a Core without Wi-Fi, never on top of a sheet, the editor, a
+ * room or the Terms (it waits for the next draw), never when
+ * ZSHOST.hides('wifiPrompt'). "Connect to Wi-Fi" goes on into the sheet.
+ *
+ * IGNORE (owner: "it says Ignore, and you can ignore it, but leave the red
+ * Wi-Fi logo, and if they ever click it, it brings back up the Wi-Fi
+ * settings"). In the sheet, under the networks, while the Core is not on
+ * Wi-Fi. It hides the ROW (localStorage zs.wifiIgnore); the light stays.
+ * The light is a real button in every state: a transparent target at least
+ * 44 px square laid over the chip (#hdwifihit, a sibling of the card's
+ * button, since a button cannot hold a button), placed and sized by
+ * measuring the chip. Connected clears the ignore.
+ *
+ * THE PASSWORD: typed into a type=password field, read once on Join, sent in
+ * the POST body to the Core and nowhere else; the field is emptied and the
+ * view redrawn the moment it is sent. Never stored, never logged, never in a
+ * URL, never in this file's state.
+ *
+ * ES5 only (DESIGN.md). Loaded after the shell; every call into the shell is
+ * made at run time, through window.ZS.
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 1000;          /* /status while a join is in flight */
+  var JOIN_LIMIT_MS = 40000;   /* a join that never settles is said, not waited on */
+  var SCAN_POLL_MS = 1000;     /* GET /wifi/scan again while the Core says scanning */
+  var SCAN_LIMIT_MS = 12000;   /* the Core's own budget is 9 s; past this, Try again */
+  var cssDone = false;
+
+  function Z() { return window.ZS; }
+  function esc(s) {
+    var z = Z();
+    if (z && z.esc) return z.esc(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ── this install's memory (localStorage; a store that refuses still
+     works for this session) ─────────────────────────────────────── */
+  var K_PROMPT = 'zs.wifiPrompt', K_IGNORE = 'zs.wifiIgnore';
+  var mem = {};
+  function lsGet(k) {
+    try { return window.localStorage.getItem(k); } catch (e) { return mem[k] == null ? null : mem[k]; }
+  }
+  function lsSet(k, v) {
+    try { window.localStorage.setItem(k, v); } catch (e) { mem[k] = v; }
+  }
+  function lsDel(k) {
+    delete mem[k];
+    try { window.localStorage.removeItem(k); } catch (e) { /* mem is cleared */ }
+  }
+  function ignored() { return lsGet(K_IGNORE) === '1'; }
+  /* connected answers the reminder: a later disconnect reminds again */
+  function note(w) { if (w && stateOf(w) === 'connected' && lsGet(K_IGNORE) != null) lsDel(K_IGNORE); }
+
+  /* ── what the Core says ─────────────────────────────────────────── */
+  /* the wifi block, or null: offline, or a Core without Wi-Fi */
+  function block(st) {
+    var z = Z();
+    var live = z && z.live;
+    if (!live || live.online === false) return null;
+    st = st || live.status;
+    var w = st && st.wifi;
+    return (w && typeof w === 'object') ? w : null;
+  }
+  function stateOf(w) {
+    var s = String((w && w.state) || 'off');
+    return (s === 'connected' || s === 'connecting' || s === 'failed') ? s : 'off';
+  }
+  /* 1..4 bars from dBm (null = unknown, drawn as 0) */
+  function bars(rssi) {
+    if (rssi == null || isNaN(Number(rssi))) return 0;
+    var r = Number(rssi);
+    return r >= -55 ? 4 : r >= -67 ? 3 : r >= -75 ? 2 : 1;
+  }
+
+  /* ── pictures ──────────────────────────────────────────────────── */
+  /* the Wi-Fi fan: `lit` arcs drawn solid (0 = the whole fan, one ink) */
+  function fanSVG(px, lit) {
+    var arcs = [
+      'M12 18.6 a1.5 1.5 0 1 0 0.01 0',                 /* the dot */
+      'M8.9 15.2 A4.4 4.4 0 0 1 15.1 15.2',
+      'M6 12.2 A8.5 8.5 0 0 1 18 12.2',
+      'M3.1 9.2 A12.6 12.6 0 0 1 20.9 9.2'
+    ];
+    var h = '<svg class="zw-fan" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" ' +
+      'aria-hidden="true" focusable="false" fill="none" stroke="currentColor" ' +
+      'stroke-width="2.2" stroke-linecap="round">';
+    for (var i = 0; i < arcs.length; i++) {
+      var on = !lit || i < lit;
+      h += '<path d="' + arcs[i] + '"' + (i === 0 ? ' fill="currentColor"' : '') +
+        (on ? '' : ' opacity=".28"') + '/>';
+    }
+    return h + '</svg>';
+  }
+  function lockSVG() {
+    return '<svg class="zw-lock" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" ' +
+      'focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+      '<rect x="5" y="10.5" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/>' +
+      '<path d="M8.2 10.5 V7.6 A3.8 3.8 0 0 1 15.8 7.6 V10.5"/></svg>';
+  }
+
+  /* ── styles (once) ─────────────────────────────────────────────── */
+  function css() {
+    if (cssDone) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'zs-wifi-css';
+    s.textContent = [
+      /* THE LIGHT. The glyph is the light: its ink is the state, and a
+         drop-shadow of that same ink is the glow, so it reads as lit on the
+         dark page and as a plain coloured glyph on the light one. */
+      /* THE CHIP (owner: a small box that says WI-FI, so it reads as a
+         button): D259 flat, a hairline in the state's ink over a faint wash
+         of it, no shadow. The words keep the page's inks (the state colour
+         is the glyph, the line and the wash), so they pass contrast in both
+         themes. It may shrink to its glyph + WI-FI, the title never does. */
+      '.hs-link .hd-name:has(.hd-wifi) .hd-nm{flex:none}',
+      '.hs-link .hd-wifi{display:inline-flex;align-items:center;gap:4px;flex:0 1 auto;min-width:0;' +
+        'margin-left:1px;padding:3px 8px 3px 6px;border-radius:999px;' +
+        'border:1px solid color-mix(in srgb,currentColor 45%,transparent);' +
+        'background:color-mix(in srgb,currentColor 11%,transparent);' +
+        'font-size:11px;font-weight:600;line-height:14px;letter-spacing:0;white-space:nowrap}',
+      '.hs-link .hd-wifi .zw-fan{display:block;flex:none}',
+      '.hs-link .hd-wifi .zw-ck{flex:none;font-size:10px;font-weight:700;letter-spacing:.06em;' +
+        'color:var(--zs-ink-2,var(--muted))}',
+      '.hs-link .hd-wifi .zw-cv2{min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:84px;color:var(--text)}',
+      '.hd-wifi.zw-connected{color:var(--green)}',
+      '.hd-wifi.zw-off,.hd-wifi.zw-failed{color:var(--red)}',
+      '.hd-wifi.zw-connecting{color:var(--amber)}',
+      '.hd-wifi .zw-fan{filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 5px currentColor)}',
+      /* the name line clips (ellipsis); the glow must not show its box */
+      '.hs-link .hd-name:has(.hd-wifi){overflow:visible}',
+      'body.zs-light .hd-wifi .zw-fan{filter:none}',
+      'body.a11y-contrast .hd-wifi .zw-fan{filter:none}',
+      'body.a11y-contrast .hs-link .hd-wifi{border-color:currentColor}',
+      '@keyframes zwPulse{0%,100%{opacity:1}50%{opacity:.35}}',
+      '.hd-wifi.zw-connecting .zw-fan{animation:zwPulse 1.4s var(--ease-inout,ease-in-out) infinite}',
+      '@media (prefers-reduced-motion: reduce){.hd-wifi.zw-connecting .zw-fan{animation:none}}',
+      'body.a11y-motion .hd-wifi.zw-connecting .zw-fan{animation:none}',
+      /* THE LIGHT'S DOOR: a transparent 44 px target over the glyph (a
+         sibling of the card's button, placed by placeHit). Unplaced it
+         takes no taps, so it can never sit over the picture. */
+      '.hs-link:has(.hd-wifi-hit){position:relative}',
+      '.hs-link .hd-wifi-hit{position:absolute;left:0;top:0;width:44px;height:44px;z-index:1;' +
+        'border-radius:22px;cursor:pointer;pointer-events:none;-webkit-tap-highlight-color:transparent;' +
+        'transition:background-color var(--t-press,90ms) var(--ease-settle,ease)}',
+      '.hs-link .hd-wifi-hit.zw-placed{pointer-events:auto}',
+      '.hs-link .hd-wifi-hit.zs-pressing{background:color-mix(in srgb,var(--text) 12%,transparent)}',
+      '.hs-link .hd-wifi-hit:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}',
+      /* THE POPOVER: thin glass (a small floating surface, DESIGN.md
+         Materials), anchored under the light, its arrow on the glyph. It
+         fades and settles from a hair above (colour/opacity curves, no
+         overshoot: nothing was flicked); Reduce Motion keeps the fade and
+         drops the travel. */
+      '.zw-pop-anchor{position:relative;height:0;margin:0;z-index:6}',
+      '.zw-pop{position:absolute;left:0;top:0;width:300px;max-width:calc(100vw - 32px);box-sizing:border-box;' +
+        'padding:12px 12px 12px 14px;border-radius:14px;border:1px solid var(--mat-rim,var(--line));' +
+        'background:var(--mat-toast,var(--panel2));color:var(--text);' +
+        '-webkit-backdrop-filter:var(--mat-thin);backdrop-filter:var(--mat-thin);' +
+        'box-shadow:var(--el-3),var(--edge-lit);opacity:0;transform:translateY(-6px) scale(.97);' +
+        'transform-origin:var(--zw-ax,34px) 0;' +
+        'transition:opacity var(--t-quick,170ms) var(--ease-settle,ease),transform var(--t-quick,170ms) var(--ease-settle,ease)}',
+      '.zw-pop.zw-in{opacity:1;transform:none}',
+      '.zw-pop:focus,.zw-pop:focus-visible{outline:none}',
+      '.zw-pop::before{content:"";position:absolute;top:-7px;left:calc(var(--zw-ax,34px) - 7px);width:12px;height:12px;' +
+        'background:inherit;border:1px solid var(--mat-rim,var(--line));border-right:none;border-bottom:none;' +
+        'border-radius:3px 0 0 0;transform:rotate(45deg);clip-path:polygon(0 0,100% 0,0 100%)}',
+      /* flipped above the light: the arrow points down, the settle comes from below */
+      '.zw-pop.zw-up{transform-origin:var(--zw-ax,34px) 100%;transform:translateY(6px) scale(.97)}',
+      '.zw-pop.zw-up.zw-in{transform:none}',
+      '.zw-pop.zw-up::before{top:auto;bottom:-7px;transform:rotate(225deg)}',
+      '@media (prefers-reduced-motion: reduce){.zw-pop,.zw-pop.zw-up{transform:none}}',
+      'body.a11y-motion .zw-pop,body.a11y-motion .zw-pop.zw-up{transform:none}',
+      '@media (prefers-reduced-transparency: reduce){.zw-pop{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--panel2)}}',
+      '@media (prefers-contrast: more){.zw-pop{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--bg);border-color:var(--text)}}',
+      'body.a11y-contrast .zw-pop{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--bg);border-color:var(--text)}',
+      '.zw-pop-hd{display:flex;align-items:center;gap:10px}',
+      '.zw-pop-hd .zw-ico{flex:none;display:flex;color:var(--zs-ink-2,var(--muted))}',
+      '.zw-pop-hd .zw-ico.zw-connected{color:var(--green)}',
+      '.zw-pop-hd .zw-ico.zw-connecting{color:var(--amber)}',
+      '.zw-pop-hd .zw-ico.zw-off,.zw-pop-hd .zw-ico.zw-failed{color:var(--red-ink,var(--red))}',
+      '.zw-pop-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}',
+      '.zw-pop-k{font-size:15px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}',
+      '.zw-pop-k b{font-weight:700}',
+      '.zw-pop-s{font-size:13px;line-height:1.35;color:var(--zs-ink-2,var(--muted));overflow-wrap:anywhere}',
+      '.zw-pop-s b{font-weight:600;color:var(--text)}',
+      '.zw-pop .qhrow{flex:none;margin:0}',
+      '.zw-pop .qhfold{margin:10px 0 0}',
+      '.zw-pop-q{margin:10px 0 0;font-size:13px;line-height:1.45;color:var(--text)}',
+      '.zw-pop-err{margin:10px 0 0;font-size:13px;line-height:1.4;color:var(--red-ink,var(--red))}',
+      '.zw-pop-acts{display:flex;gap:8px;margin-top:12px}',
+      '.zw-pop-acts>.btn.btn{flex:1;width:auto;min-width:0;min-height:44px;margin:0;padding:0 10px;font-size:14px}',
+      /* THE ROW: a second line on the card, under its button */
+      '.hs-link .hs-wifi{display:flex;align-items:center;gap:12px;min-height:48px;' +
+        'padding:8px 6px 8px 14px;border-top:1px solid var(--line);cursor:pointer;' +
+        'transition:background-color var(--t-press,90ms) var(--ease-settle,ease)}',
+      '.hs-link .hs-wifi.zs-pressing{background:var(--panel2)}',
+      '.hs-link .hs-wifi:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}',
+      '.hs-wifi .zw-ico{flex:none;display:flex;color:var(--zs-ink-2,var(--muted))}',
+      '.hs-wifi .zw-ico.zw-connected{color:var(--green)}',
+      '.hs-wifi .zw-ico.zw-connecting{color:var(--amber)}',
+      '.hs-wifi .zw-ico.zw-off,.hs-wifi .zw-ico.zw-failed{color:var(--red-ink,var(--red))}',
+      '.hs-wifi .zw-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}',
+      '.hs-wifi .zw-k{font-size:13px;font-weight:700;color:var(--text)}',
+      '.hs-wifi .zw-v{font-size:13px;color:var(--zs-ink-2,var(--muted));line-height:1.35}',
+      '.hs-wifi .zw-v b{font-weight:600;color:var(--text)}',
+      '.hs-wifi .qhrow{flex:none;margin:0}',
+      '.hs-wifi .zw-cv{flex:none;font-size:20px;color:var(--muted);padding:0 6px}',
+      '.hs-link .qhfold.zw-fold{margin:0;padding:10px 14px 12px;border-top:1px solid var(--line);' +
+        'border-radius:0}',
+      /* THE SHEET */
+      '.zw-lead{margin:0 0 12px;font-size:13px;color:var(--zs-ink-2,var(--muted));line-height:1.45}',
+      '.zw-list{display:flex;flex-direction:column}',
+      '.zw-net{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;' +
+        'padding:8px 14px;margin:0;border:none;border-top:1px solid var(--rule,var(--line));' +
+        'background:none;color:var(--text);font:inherit;font-size:15px;text-align:left;cursor:pointer}',
+      '.zw-net:first-child{border-top:none}',
+      '.zw-net.zs-pressing,.zw-net:active{background:var(--panel2)}',
+      '.zw-net .zw-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.zw-net .zw-sig{flex:none;display:flex;color:var(--text)}',
+      '.zw-net .zw-lk{flex:none;display:flex;color:var(--muted)}',
+      '.zw-net .zw-cur{font-size:12px;color:var(--green);font-weight:600}',
+      '.zw-net .zw-cv{flex:none;color:var(--muted);font-size:18px}',
+      '.zw-field{display:flex;flex-direction:column;gap:6px;margin:12px 0 0}',
+      '.zw-field label{font-size:13px;font-weight:600;color:var(--zs-ink-2,var(--muted))}',
+      '.zw-pw{display:flex;gap:8px;align-items:stretch}',
+      '.zw-pw input.txt{flex:1;min-width:0;min-height:48px;font-size:16px}',
+      '.zw-pw .btn.sm{min-height:48px;flex:none}',
+      '.zw-net-hd{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;margin:0 0 4px}',
+      '.zw-status{display:flex;align-items:center;gap:12px;padding:14px;font-size:15px;line-height:1.4}',
+      '.zw-status .zw-ico{flex:none;display:flex}',
+      '.zw-status.zw-connected .zw-ico{color:var(--green)}',
+      '.zw-status.zw-connecting .zw-ico{color:var(--amber)}',
+      '.zw-status.zw-failed .zw-ico,.zw-status.zw-off .zw-ico{color:var(--red-ink,var(--red))}',
+      '.zw-status small{display:block;font-size:13px;color:var(--zs-ink-2,var(--muted))}',
+      '.zw-status.zw-connecting .zw-fan{animation:zwPulse 1.4s var(--ease-inout,ease-in-out) infinite}',
+      '@media (prefers-reduced-motion: reduce){.zw-status.zw-connecting .zw-fan{animation:none}}',
+      'body.a11y-motion .zw-status.zw-connecting .zw-fan{animation:none}',
+      '.zw-row2{display:flex;gap:8px;align-items:stretch}',
+      '.zw-row2>.btn.btn{flex:1;margin-top:12px}',
+      /* Ignore, under the networks, with its "?" */
+      '.zw-ign{display:flex;align-items:center;gap:8px;margin-top:12px}',
+      '.zw-ign>.btn.btn{flex:1;margin:0}',
+      '.zw-ign .qhrow{flex:none;margin:0}',
+      '.zw-ign+.qhfold{margin-top:8px}',
+      /* THE FIRST-RUN PROMPT */
+      '.zw-hello{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:6px 4px 4px}',
+      '.zw-hello .zw-ico{display:flex;color:var(--accent)}',
+      '.zw-hello p{margin:0;font-size:15px;line-height:1.45;color:var(--text)}',
+      '.zw-hello p.zw-sub{font-size:13px;color:var(--zs-ink-2,var(--muted))}',
+      '.zw-hello+.btn{margin-top:16px}'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ── HOME: the light ───────────────────────────────────────────── */
+  var LIGHT_WORD = { connected: 'Wi‑Fi connected', connecting: 'Wi‑Fi connecting',
+                     failed: 'Wi‑Fi not connected', off: 'Wi‑Fi not connected' };
+  function lightHTML(on) {
+    var w = on === false ? null : block();
+    if (!w) return '';
+    css();
+    var s = stateOf(w);
+    return '<span class="hd-wifi zw-' + s + '" data-wifi="' + s + '" aria-hidden="true" ' +
+      'title="' + esc(LIGHT_WORD[s]) + '">' + fanSVG(13, 0) +
+      '<span class="zw-ck">WI‑FI</span>' +
+      '<span class="zw-cv2">' + esc(chipWord(w, s)) + '</span></span>';
+  }
+  /* the chip's state: the network's name when on one (or joining it), else
+     Off / Failed. The chip cuts a long name with an ellipsis. */
+  function chipWord(w, s) {
+    if ((s === 'connected' || s === 'connecting') && w.ssid) return w.ssid;
+    return s === 'failed' ? 'Failed' : s === 'connecting' ? 'Joining' : s === 'connected' ? 'On' : 'Off';
+  }
+  /* the words the device card's aria-label adds ('' without Wi-Fi) */
+  function labelText(on) {
+    var w = on === false ? null : block();
+    if (!w) return '';
+    var s = stateOf(w);
+    return s === 'connected' && w.ssid ? 'Wi‑Fi connected to ' + w.ssid : LIGHT_WORD[s];
+  }
+
+  /* ── HOME: the row ─────────────────────────────────────────────── */
+  var HELP_ID = 'home-wifi';
+  var HELP_TEXT = 'On Wi‑Fi your EXO Core updates itself: new firmware arrives automatically, ' +
+    'so you always have the latest fixes and features. ' +
+    'It is also the best experience with the app. ' +
+    'Your Core still works without Wi‑Fi: everything you play runs on the Core itself. ' +
+    'The Wi‑Fi password goes straight to the Core and is never saved by this app.';
+  function rowWords(w) {
+    var s = stateOf(w);
+    if (s === 'connected') return 'Connected to <b>' + esc(w.ssid || 'your network') + '</b>';
+    if (s === 'connecting') return 'Connecting to <b>' + esc(w.ssid || 'your network') + '</b>…';
+    if (s === 'failed') return 'Could not join <b>' + esc(w.ssid || 'the network') + '</b>' +
+      (w.reason ? ': ' + esc(w.reason) : '') + '. Tap to try again';
+    return 'Not connected: connect for automatic updates and the best experience';
+  }
+  function rowHTML() {
+    var w = block();
+    if (!w) return '';
+    note(w);
+    var z = Z(), s = stateOf(w);
+    /* Ignore hides the reminder, never a join in flight or the light */
+    if ((s === 'off' || s === 'failed') && ignored()) return '';
+    /* connected: the green light says it; the row would only be padding
+       (D343 amended). The light's popover holds Change / Disconnect. */
+    if (s === 'connected') return '';
+    css();
+    var help = (z && z.helpHTML) ? z.helpHTML(HELP_ID, 'Why connect the Core to Wi-Fi', HELP_TEXT) : '';
+    /* helpHTML is the "?" and its fold; the "?" rides the row, the fold
+       opens under it, still on the card */
+    var cut = help.indexOf('<div class="note qhfold"');
+    var chip = cut > 0 ? help.slice(0, cut) : help;
+    var fold = cut > 0 ? help.slice(cut).replace('class="note qhfold"', 'class="note qhfold zw-fold"') : '';
+    var lab = 'Wi‑Fi: ' + rowWords(w).replace(/<[^>]+>/g, '') + '. Opens Wi‑Fi setup';
+    return '<div class="hs-wifi" id="hswifi" role="button" tabindex="0" data-wifi="' + s + '" ' +
+        'aria-haspopup="dialog" aria-expanded="false" aria-label="' + esc(lab) + '">' +
+        '<span class="zw-ico zw-' + s + '">' + fanSVG(22, s === 'connected' ? bars(w.rssi) || 4 : 0) + '</span>' +
+        '<span class="zw-t"><span class="zw-k">Wi‑Fi</span>' +
+          '<span class="zw-v">' + rowWords(w) + '</span></span>' +
+        chip +
+        '<span class="zw-cv" aria-hidden="true">›</span>' +
+      '</div>' + fold;
+  }
+  function wireRow(root) {
+    var row = (root || document).querySelector('#hswifi');
+    if (!row) return;
+    row.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('[data-qh]')) return;
+      open(row);
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.target !== row) return;          /* the "?" keeps its own keys */
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(row); }
+    });
+    if (window.ZSM && window.ZSM.pressable) window.ZSM.pressable(row);
+    /* the poll rebuilt the row while the sheet is open: point the sheet's
+       opener at the row that exists now (the device card's own rule) */
+    var sw = document.getElementById('sheetwrap');
+    if (sheet.open && sw && sw.classList.contains('open')) row.setAttribute('aria-expanded', 'true');
+  }
+
+  /* ── HOME: the light's door ──────────────────────────────────── */
+  function hitLabel(w) {
+    var s = stateOf(w);
+    if (s === 'off' || s === 'failed') return 'Wi-Fi: not connected. Tap to set up';
+    return 'Wi-Fi: ' + s + (w.ssid ? ' to ' + w.ssid : '') + '. Tap for Wi-Fi settings';
+  }
+  /* a sibling of #livechip inside .hs-link; '' offline or without Wi-Fi */
+  function hitHTML() {
+    var w = block();
+    if (!w) return '';
+    css();
+    note(w);
+    return '<span class="hd-wifi-hit" id="hdwifihit" role="button" tabindex="0" ' +
+      'aria-haspopup="dialog" aria-expanded="false" data-wifi="' + stateOf(w) + '" ' +
+      'aria-label="' + esc(hitLabel(w)) + '"></span>';
+  }
+  /* over the chip, at least 44 px each way; the card's border is outside
+     the box that `absolute` measures from */
+  function placeHit() {
+    var hit = document.getElementById('hdwifihit');
+    var glyph = document.querySelector('#livechip .hd-wifi');
+    var card = hit && hit.parentNode;
+    if (!hit || !glyph || !card || !glyph.getBoundingClientRect || !card.getBoundingClientRect) return;
+    var g = glyph.getBoundingClientRect(), c = card.getBoundingClientRect();
+    if (!g || !g.width) return;
+    var w = Math.max(44, Math.ceil(g.width + 8)), h = Math.max(44, Math.ceil(g.height));
+    var x = g.left - c.left - (card.clientLeft || 0) + g.width / 2 - w / 2;
+    var y = g.top - c.top - (card.clientTop || 0) + g.height / 2 - h / 2;
+    hit.style.left = Math.round(x) + 'px';
+    hit.style.top = Math.round(y) + 'px';
+    hit.style.width = w + 'px';
+    hit.style.height = h + 'px';
+    hit.classList.add('zw-placed');
+  }
+  var placeWired = false;
+  function wirePlace() {
+    placeHit();
+    if (window.requestAnimationFrame) window.requestAnimationFrame(placeHit);
+    if (placeWired) return;
+    placeWired = true;
+    if (window.addEventListener) window.addEventListener('resize', placeHit);
+    try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeHit); } catch (e) { /* a font swap moves it a pixel */ }
+  }
+  function wireHit(root) {
+    var hit = (root || document).querySelector('#hdwifihit');
+    if (!hit) return;
+    hit.addEventListener('click', function () { togglePop(hit); });
+    hit.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePop(hit, true); }
+    });
+    if (window.ZSM && window.ZSM.pressable) window.ZSM.pressable(hit);
+    var sw = document.getElementById('sheetwrap');
+    if (sheet.open && sw && sw.classList.contains('open')) hit.setAttribute('aria-expanded', 'true');
+    wirePlace();
+  }
+  /* everything HOME's draw hands over: the row, the light's door, the prompt */
+  function wireHome(root) {
+    wireRow(root);
+    wireHit(root);
+    rewirePop();
+    maybePrompt();
+  }
+
+  /* ── HOME: the light's popover (the owner's "sub box") ────────────
+     A small box anchored under the light, not the full sheet. It lives in
+     a zero-height anchor right after the EXO Core card (the card clips,
+     overflow:hidden, so it cannot live inside it), inside HOME's scroller,
+     so it scrolls with the card. HOME's ~8 s redraw throws the anchor away:
+     rewirePop() draws it again in place, in the same view, with focus where
+     it was, so the box never vanishes under the finger; it closes when the
+     light goes (offline, a Core without Wi-Fi). */
+  var pop = { open: false, view: 'main', err: '', focusId: '', gen: 0, drawn: false };
+  var POP_HELP = 'The light by EXO Core is your Core’s Wi‑Fi: green on a network, ' +
+    'red when it is not, amber while it joins. ' + HELP_TEXT;
+  function sigWords(rssi) {
+    var b = bars(rssi);
+    if (!b) return '';
+    return 'Signal ' + ['', 'weak', 'fair', 'good', 'excellent'][b] + ' (' + b + ' of 4 bars)';
+  }
+  function popHTML() {
+    var w = block();
+    if (!w) return '';
+    var z = Z(), s = stateOf(w);
+    if (pop.view !== 'main' && s !== 'connected') pop.view = 'main';
+    var name = esc(w.ssid || 'your network');
+    var title, sub = '', acts = '';
+    if (s === 'connected') {
+      title = 'Connected to <b>' + name + '</b>';
+      sub = sigWords(w.rssi);
+    } else if (s === 'connecting') {
+      title = 'Connecting to <b>' + name + '</b>…';
+      sub = 'This usually takes a few seconds.';
+    } else if (s === 'failed') {
+      title = 'Not connected';
+      sub = 'Could not join <b>' + esc(w.ssid || 'the network') + '</b>' + (w.reason ? ': ' + esc(w.reason) : '') + '.';
+    } else {
+      title = 'Not connected';
+      sub = 'Connect for automatic updates and the best experience.';
+    }
+    var help = (z && z.helpHTML) ? z.helpHTML('wifi-pop', 'About the Core’s Wi-Fi', POP_HELP) : '';
+    var cut = help.indexOf('<div class="note qhfold"');
+    var chip = cut > 0 ? help.slice(0, cut) : help;
+    var fold = cut > 0 ? help.slice(cut) : '';
+    if (pop.view === 'confirm' || pop.view === 'busy') {
+      var busy = pop.view === 'busy';
+      acts = '<p class="zw-pop-q" id="zw-pop-q">Disconnect from <b>' + name + '</b>? Your EXO Core ' +
+          '<b>forgets this network</b>: it stops updating automatically until you connect it again, ' +
+          'and you will need the password. Everything you play keeps working.</p>' +
+        '<div class="zw-pop-acts">' +
+          '<button type="button" class="btn ghost" id="zw-pop-no"' + (busy ? ' disabled' : '') + '>Cancel</button>' +
+          '<button type="button" class="btn danger" id="zw-pop-yes"' + (busy ? ' disabled' : '') + '>' +
+            (busy ? 'Forgetting…' : 'Forget network') + '</button></div>';
+    } else if (s === 'connected') {
+      acts = '<div class="zw-pop-acts">' +
+          '<button type="button" class="btn" id="zw-pop-change">Change Wi‑Fi</button>' +
+          '<button type="button" class="btn caution" id="zw-pop-disc">Disconnect</button></div>';
+    } else if (s === 'connecting') {
+      acts = '<div class="zw-pop-acts"><button type="button" class="btn" id="zw-pop-go">Wi‑Fi settings</button></div>';
+    } else {
+      acts = '<div class="zw-pop-acts"><button type="button" class="btn primary" id="zw-pop-go">Connect to Wi‑Fi</button></div>';
+    }
+    return '<div class="zw-pop-anchor" id="zw-pop-anchor">' +
+      '<div class="zw-pop' + (pop.drawn ? ' zw-in' : '') + '" id="zw-pop" role="dialog" aria-modal="false" ' +
+        'aria-labelledby="zw-pop-t"' + (pop.view === 'main' ? '' : ' aria-describedby="zw-pop-q"') +
+        ' tabindex="-1" data-wifi="' + s + '">' +
+        '<div class="zw-pop-hd">' +
+          '<span class="zw-ico zw-' + s + '">' + fanSVG(22, s === 'connected' ? bars(w.rssi) || 4 : 0) + '</span>' +
+          '<span class="zw-pop-tx"><span class="zw-pop-k" id="zw-pop-t">' + title + '</span>' +
+            (sub ? '<span class="zw-pop-s">' + sub + '</span>' : '') + '</span>' +
+          chip +
+        '</div>' + fold +
+        (pop.err ? '<p class="zw-pop-err" role="alert">' + esc(pop.err) + '</p>' : '') +
+        acts +
+      '</div></div>';
+  }
+  function popEl() { return document.getElementById('zw-pop'); }
+  function hitEl() { return document.getElementById('hdwifihit'); }
+  /* under the glyph, its arrow on the glyph, inside the card's width; above
+     it when the device bar (the glass dock at the bottom) would cover it */
+  function visBand() {
+    var top = 0, bot = window.innerHeight || 0;
+    var ab = document.querySelector('.screen.on .appbar') || document.querySelector('.appbar');
+    var db = document.getElementById('devbar');
+    /* HOME's scroller clips (overflow-y:auto); #hfoot sits under it */
+    var hm = document.getElementById('home');
+    var r;
+    if (hm && hm.getBoundingClientRect) {
+      r = hm.getBoundingClientRect();
+      if (r.height) { top = Math.max(top, r.top); bot = Math.min(bot || r.bottom, r.bottom); }
+    }
+    if (ab && ab.getBoundingClientRect) { r = ab.getBoundingClientRect(); if (r.height) top = Math.max(top, r.bottom); }
+    if (db && db.getBoundingClientRect) { r = db.getBoundingClientRect(); if (r.height && r.top > top) bot = Math.min(bot, r.top); }
+    return { top: top, bot: bot };
+  }
+  function placePop() {
+    var el = popEl(), anchor = el && el.parentNode;
+    var glyph = document.querySelector('#livechip .hd-wifi');
+    var card = document.querySelector('.hs-link');
+    if (!el || !anchor || !glyph || !card || !glyph.getBoundingClientRect) return;
+    var g = glyph.getBoundingClientRect(), a = anchor.getBoundingClientRect(), c = card.getBoundingClientRect();
+    if (!g || !g.width || !c.width) return;
+    var w = Math.min(300, c.width);
+    el.style.width = Math.round(w) + 'px';
+    var gx = g.left + g.width / 2;
+    var left = Math.max(c.left, Math.min(c.right - w, gx - 34));
+    var ax = Math.max(18, Math.min(w - 18, gx - left));
+    el.style.left = Math.round(left - a.left) + 'px';
+    el.style.setProperty('--zw-ax', Math.round(ax) + 'px');
+    var hgt = el.offsetHeight || el.getBoundingClientRect().height || 0;
+    var band = visBand();
+    var up = hgt && band.bot && g.bottom + 14 + hgt + 8 > band.bot && g.top - 14 - hgt - 8 >= band.top;
+    el.classList.toggle('zw-up', !!up);
+    el.style.top = Math.round(up ? g.top - a.top - 14 - hgt : g.bottom - a.top + 14) + 'px';
+    /* no room either way (a short window): bring it into view instead */
+    var over = up ? 0 : g.bottom + 14 + hgt + 8 - band.bot;
+    var hm = document.getElementById('home');
+    if (hgt && over > 0 && hm && hm.scrollHeight > hm.clientHeight) hm.scrollTop += Math.ceil(over);
+  }
+  var popPlaceWired = false;
+  function drawPop() {
+    var card = document.querySelector('.hs-link');
+    var old = document.getElementById('zw-pop-anchor');
+    if (old) old.remove();
+    var h = popHTML();
+    if (!card || !h) return null;
+    css();
+    card.insertAdjacentHTML('afterend', h);
+    var el = popEl();
+    if (!el) return null;
+    if (window.ZSM && window.ZSM.pressable) el.querySelectorAll('.btn').forEach(function (b) { window.ZSM.pressable(b); });
+    el.addEventListener('focusin', function (e) { if (e.target && e.target.id) pop.focusId = e.target.id; });
+    on(el, '#zw-pop-change', function () { closePop(false); openList(hitEl()); });
+    on(el, '#zw-pop-go', function () { closePop(false); open(hitEl()); });
+    on(el, '#zw-pop-disc', function () { pop.view = 'confirm'; pop.err = ''; pop.focusId = 'zw-pop-no'; redrawPop(); });
+    on(el, '#zw-pop-no', function () { pop.view = 'main'; pop.err = ''; pop.focusId = 'zw-pop-disc'; redrawPop(); });
+    on(el, '#zw-pop-yes', disconnect);
+    placePop();
+    if (!popPlaceWired && window.addEventListener) {
+      popPlaceWired = true;
+      window.addEventListener('resize', function () { if (pop.open) placePop(); });
+    }
+    if (!pop.drawn) {
+      pop.drawn = true;
+      /* a beat later, so the fade has somewhere to come from */
+      var raf = window.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+      raf(function () { var e2 = popEl(); if (e2) { placePop(); e2.classList.add('zw-in'); } });
+    }
+    return el;
+  }
+  function focusIn(el, self) {
+    var t = pop.focusId ? el.querySelector('#' + pop.focusId) : null;
+    if (!t && self) t = el;
+    if (!t) {
+      var bs = el.querySelectorAll('.zw-pop-acts .btn');
+      for (var i = 0; i < bs.length && !t; i++) if (!bs[i].disabled) t = bs[i];
+    }
+    t = t || el;
+    try { t.focus(); } catch (e) { /* focus is a courtesy */ }
+  }
+  function redrawPop() {
+    var el = drawPop();
+    if (el) focusIn(el);
+    else closePop(false);
+  }
+  function inside(t) {
+    var el = popEl(), hit = hitEl();
+    return !!t && ((el && el.contains(t)) || (hit && hit.contains(t)));
+  }
+  function onDocClick(e) { if (e.target && !inside(e.target)) closePop(false); }
+  function onDocKey(e) {
+    if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); closePop(true); }
+  }
+  function onDocFocus(e) {
+    var t = e.target;
+    if (!t || t === document || t === window || t === document.body || inside(t)) return;
+    closePop(false);
+  }
+  /* kb: opened from the keyboard -> focus on the first action; a tap puts
+     it on the dialog itself (a screen reader reads its title; no ring) */
+  function openPop(hit, kb) {
+    if (pop.open) closePop(false);
+    if (!block()) return;
+    pop.open = true; pop.view = 'main'; pop.err = ''; pop.focusId = ''; pop.drawn = false; pop.gen++;
+    var el = drawPop();
+    if (!el) { pop.open = false; return; }
+    hit = hit || hitEl();
+    if (hit) hit.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onDocKey);
+    document.addEventListener('focusin', onDocFocus);
+    focusIn(el, !kb);
+  }
+  /* back: the focus returns to the light (Escape, the light tapped again) */
+  function closePop(back) {
+    var was = pop.open;
+    pop.open = false; pop.view = 'main'; pop.err = ''; pop.focusId = ''; pop.gen++;
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onDocKey);
+    document.removeEventListener('focusin', onDocFocus);
+    var a = document.getElementById('zw-pop-anchor');
+    if (a) a.remove();
+    var hit = hitEl();
+    if (hit && was && !sheet.open) hit.setAttribute('aria-expanded', 'false');
+    if (back && hit) try { hit.focus(); } catch (e) { /* focus is a courtesy */ }
+  }
+  function togglePop(hit, kb) {
+    if (pop.open) closePop(true); else openPop(hit, kb);
+  }
+  /* HOME redrew: the anchor went with it; draw it again where it was */
+  function rewirePop() {
+    if (!pop.open) return;
+    var ae = document.activeElement;
+    var lost = !ae || !document.body || !document.body.contains(ae);
+    var hit = hitEl();
+    if (!hit || !block()) {
+      closePop(false);
+      if (lost && hit) try { hit.focus(); } catch (e) { /* courtesy */ }
+      return;
+    }
+    var el = drawPop();
+    if (!el) { closePop(false); return; }
+    hit.setAttribute('aria-expanded', 'true');
+    if (lost) focusIn(el);
+  }
+  function disconnect() {
+    var w = block() || {};
+    var ssid = w.ssid || 'the network';
+    pop.view = 'busy'; pop.err = ''; pop.focusId = '';
+    redrawPop();
+    var g = pop.gen;
+    Z().api('/wifi/forget', 'POST', {}).then(function (j) {
+      if (g !== pop.gen || !pop.open) return;
+      if (!j || !j.ok) {
+        pop.view = 'confirm';
+        pop.err = 'The Core did not forget the network' + (j && j.error ? ': ' + j.error : '.');
+        pop.focusId = 'zw-pop-yes';
+        redrawPop();
+        return;
+      }
+      closePop(false);
+      afterStatus(function () {
+        var hit = hitEl();
+        if (hit) try { hit.focus(); } catch (e) { /* courtesy */ }
+        var z = Z();
+        if (z.toast) z.toast('Disconnected: your EXO Core forgot ' + ssid + '.');
+      });
+    });
+  }
+
+  /* ── the first-run prompt ──────────────────────────────────────── */
+  var promptTimer = null;
+  function promptWanted() {
+    if (window.ZS_WIFI_PROMPT_SKIP) return false;
+    var hz = window.ZSHOST;
+    if (hz && typeof hz.hides === 'function' && hz.hides('wifiPrompt')) return false;
+    if (lsGet(K_PROMPT)) return false;
+    var w = block();
+    /* "no saved network": off with no name; failed / connecting have one */
+    return !!w && stateOf(w) === 'off' && !w.ssid && !w.saved;
+  }
+  /* something else is in front: wait for a later draw */
+  function promptBlocked() {
+    var ids = ['sheetwrap', 'editor', 'detail'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el && el.classList.contains('open')) return true;
+    }
+    var L = window.ZSLEGAL;
+    if (L) {
+      try {
+        if ((L.isOpen && L.isOpen()) || (L.isWaiting && L.isWaiting())) return true;
+        if (L.needsAcceptance && L.needsAcceptance() && !(L.skipReason && L.skipReason())) return true;
+      } catch (e) { return true; }
+    }
+    return !document.getElementById('livechip');
+  }
+  function maybePrompt() {
+    if (promptTimer || !promptWanted() || promptBlocked()) return;
+    /* a beat after HOME lands, and everything checked again then */
+    promptTimer = setTimeout(function () {
+      promptTimer = null;
+      if (promptWanted() && !promptBlocked()) showPrompt();
+    }, 900);
+  }
+  function showPrompt() {
+    var z = Z();
+    if (!z || !z.sheetOpen) return;
+    css();
+    lsSet(K_PROMPT, '1');                /* once per install, whatever is tapped */
+    var opener = document.getElementById('hdwifihit');
+    var h = '<div class="zw-hello" id="zw-hello">' +
+        '<span class="zw-ico">' + fanSVG(44, 0) + '</span>' +
+        '<p>For the best experience, connect your EXO Core to Wi‑Fi. It keeps itself up to date automatically.</p>' +
+        '<p class="zw-sub">Your EXO works without it too.</p>' +
+      '</div>' +
+      '<button class="btn primary" id="zw-hello-go">Connect to Wi‑Fi</button>' +
+      '<button class="btn ghost" id="zw-hello-skip">Skip</button>';
+    var host = z.sheetOpen('Connect your EXO to Wi‑Fi', h, null, opener);
+    if (window.ZSM && window.ZSM.pressable && host) {
+      host.querySelectorAll('.btn').forEach(function (b) { window.ZSM.pressable(b); });
+    }
+    on(host, '#zw-hello-go', function () { open(document.getElementById('hdwifihit') || opener); });
+    on(host, '#zw-hello-skip', function () { z.sheetClose(); });
+  }
+
+  /* ── the sheet ─────────────────────────────────────────────────── */
+  /* one open sheet at a time; `gen` retires every timer and answer of a
+     sheet that has been closed or moved on */
+  var sheet = { open: false, gen: 0, host: null, nets: null, pick: null, opener: null };
+
+  function homeRedraw() {
+    var z = Z();
+    if (!z) return;
+    var ed = document.getElementById('editor'), dt = document.getElementById('detail');
+    if ((ed && ed.classList.contains('open')) || (dt && dt.classList.contains('open'))) return;
+    try { z.renderHome(); } catch (e) { /* HOME is drawn on the next poll */ }
+  }
+
+  function draw(html) {
+    var z = Z();
+    var opener = sheet.opener;
+    if (!sheet.open) {
+      sheet.open = true;
+      sheet.host = z.sheetOpen('Wi‑Fi', html, function () {
+        sheet.open = false;
+        sheet.gen++;
+        sheet.host = null;
+        sheet.pick = null;
+      }, opener);
+    } else {
+      /* redraw THIS sheet: sheetOpen sees it is open and keeps the opener */
+      sheet.host = z.sheetOpen('Wi‑Fi', html);
+    }
+    var host = sheet.host;
+    if (window.ZSM && window.ZSM.pressable && host) {
+      host.querySelectorAll('.zw-net,.btn').forEach(function (b) { window.ZSM.pressable(b); });
+    }
+    return host;
+  }
+  function on(host, sel, fn) {
+    var el = host && host.querySelector(sel);
+    if (el) el.addEventListener('click', fn);
+    return el;
+  }
+  function statusCard(s, title, sub) {
+    return '<div class="grp-card"><div class="zw-status zw-' + s + '" role="status" aria-live="polite">' +
+      '<span class="zw-ico">' + fanSVG(28, 0) + '</span>' +
+      '<span>' + title + (sub ? '<small>' + sub + '</small>' : '') + '</span></div></div>';
+  }
+
+  /* Ignore: while the Core is not on Wi-Fi and the reminder still shows */
+  var IGN_HELP = 'Ignore hides the Wi‑Fi reminder on the EXO Core card. ' +
+    'The red Wi‑Fi light next to EXO Core stays: tap it any time to come back here. ' +
+    'Once your Core is on Wi‑Fi the reminder is reset.';
+  function ignoreHTML() {
+    var s = stateOf(block() || { state: 'off' });
+    if (s === 'connected' || s === 'connecting' || ignored()) return '';
+    var z = Z();
+    var help = (z && z.helpHTML) ? z.helpHTML('wifi-ignore', 'What Ignore does', IGN_HELP) : '';
+    var cut = help.indexOf('<div class="note qhfold"');
+    var chip = cut > 0 ? help.slice(0, cut) : help;
+    var fold = cut > 0 ? help.slice(cut) : '';
+    return '<div class="zw-ign"><button class="btn ghost" id="zw-ignore">Ignore</button>' + chip + '</div>' + fold;
+  }
+  function wireIgnore(host) {
+    on(host, '#zw-ignore', function () {
+      lsSet(K_IGNORE, '1');
+      var z = Z();
+      z.sheetClose();
+      homeRedraw();
+      var hit = document.getElementById('hdwifihit');
+      if (hit) try { hit.focus(); } catch (e) { /* focus is a courtesy */ }
+      if (z.toast) z.toast('Wi‑Fi reminder hidden. Tap the Wi‑Fi light by EXO Core to set it up.');
+    });
+  }
+
+  function open(opener) {
+    css();
+    sheet.opener = opener && opener.nodeType === 1 ? opener :
+      (document.getElementById('hswifi') || document.getElementById('hdwifihit'));
+    sheet.gen++;
+    var w = block() || { state: 'off' };
+    var s = stateOf(w);
+    if (s === 'connected') return viewConnected(w);
+    if (s === 'connecting') return viewJoining(w.ssid || '', true);
+    return scan();
+  }
+
+  /* straight to the network list (the popover's Change Wi-Fi) */
+  function openList(opener) {
+    css();
+    sheet.opener = opener && opener.nodeType === 1 ? opener : document.getElementById('hdwifihit');
+    sheet.gen++;
+    return scan();
+  }
+
+  /* connected: what it is on, and the two ways on */
+  function viewConnected(w) {
+    var h = statusCard('connected', 'Connected to <b>' + esc(w.ssid || 'your network') + '</b>',
+      'Your EXO Core is online and will update itself automatically.' +
+      (w.ip ? ' Address ' + esc(w.ip) + '.' : ''));
+    h += '<button class="btn" id="zw-change">Use a different network</button>';
+    h += '<button class="btn caution" id="zw-forget">Forget this network</button>';
+    var host = draw(h);
+    on(host, '#zw-change', function () { scan(); });
+    on(host, '#zw-forget', function () { viewForget(w); });
+  }
+
+  function viewForget(w) {
+    var h = '<p class="zw-lead">Forget <b>' + esc(w.ssid || 'this network') + '</b>? Your EXO Core ' +
+      'disconnects from it and stops updating automatically until you connect it again. ' +
+      'Everything you play keeps working.</p>' +
+      '<button class="btn danger" id="zw-forget-yes">Forget network</button>' +
+      '<button class="btn ghost" id="zw-forget-no">Cancel</button>';
+    var host = draw(h);
+    on(host, '#zw-forget-no', function () { viewConnected(w); });
+    on(host, '#zw-forget-yes', function () {
+      var b = host.querySelector('#zw-forget-yes');
+      b.disabled = true; b.textContent = 'Forgetting…';
+      var g = sheet.gen;
+      Z().api('/wifi/forget', 'POST', {}).then(function (j) {
+        if (g !== sheet.gen) return;
+        if (!j || !j.ok) {
+          b.disabled = false; b.textContent = 'Forget network';
+          viewError('The Core did not forget the network' + (j && j.error ? ': ' + j.error : '.'));
+          return;
+        }
+        afterStatus(function () {
+          if (g !== sheet.gen) return;
+          scan('Forgotten. Your EXO Core is not on Wi‑Fi now.');
+        });
+      });
+    });
+  }
+
+  function viewError(msg) {
+    var h = '<p class="zw-lead" role="alert">' + esc(msg) + '</p>' +
+      '<button class="btn primary" id="zw-again">Try again</button>' + ignoreHTML();
+    var host = draw(h);
+    on(host, '#zw-again', function () { scan('', true); });
+    wireIgnore(host);
+  }
+
+  /* re-read /status (the shell's own refresh, so HOME's light follows) */
+  function afterStatus(then) {
+    var z = Z();
+    var p = z && z.refreshStatus ? z.refreshStatus() : Promise.resolve(null);
+    p.then(function () { homeRedraw(); if (then) then(); },
+           function () { if (then) then(); });
+  }
+
+  /* `fresh` (Scan again, Try again) asks the Core for a NEW scan; without
+     it the Core may answer the list it found in the last ~10 s at once. */
+  function scan(lead, fresh) {
+    var g = ++sheet.gen;
+    wireIgnore(draw((lead ? '<p class="zw-lead" role="status">' + esc(lead) + '</p>' : '') +
+      statusCard('connecting', 'Looking for networks…', 'The Core is listening; this takes a few seconds.') +
+      ignoreHTML()));
+    askScan(g, lead, fresh ? '/wifi/scan?fresh=1' : '/wifi/scan', Date.now(), 0);
+  }
+
+  /* one GET /wifi/scan; while the Core says scanning, again every
+     SCAN_POLL_MS until the list comes or SCAN_LIMIT_MS pass */
+  function askScan(g, lead, url, t0, n) {
+    Z().api(url).then(function (j) {
+      if (g !== sheet.gen) return;
+      if (!j || !j.ok) {
+        viewError('The Core could not look for networks' + (j && j.error ? ': ' + j.error : '.'));
+        return;
+      }
+      var d = j.data || {};
+      if (d.scanning === true) {
+        if (Date.now() - t0 >= SCAN_LIMIT_MS || n + 1 >= SCAN_LIMIT_MS / SCAN_POLL_MS) {
+          viewError('The Core did not finish looking for networks. Try again.');
+          return;
+        }
+        setTimeout(function () {
+          if (g === sheet.gen) askScan(g, lead, '/wifi/scan', t0, n + 1);
+        }, SCAN_POLL_MS);
+        return;
+      }
+      var nets = Array.isArray(d.networks) ? d.networks : (Array.isArray(d) ? d : []);
+      /* one row per name (a mesh repeats its name per access point); the
+         list arrives strongest first, so the first of a name is the best */
+      var seen = {}, out = [];
+      nets.forEach(function (n) {
+        if (!n || !n.ssid || seen[n.ssid]) return;
+        seen[n.ssid] = 1;
+        out.push({ ssid: String(n.ssid), rssi: n.rssi, secure: n.secure !== false });
+      });
+      sheet.nets = out;
+      viewList(lead);
+    });
+  }
+
+  function viewList(lead) {
+    var w = block() || {};
+    var cur = stateOf(w) === 'connected' ? w.ssid : '';
+    var h = '<p class="zw-lead">' + (lead ? esc(lead) + ' ' : '') +
+      'Pick your network. On Wi‑Fi your EXO Core updates itself automatically.</p>';
+    if (sheet.nets && sheet.nets.length) {
+      h += '<div class="grp-card zw-list" role="list">';
+      sheet.nets.forEach(function (n, i) {
+        var b = bars(n.rssi);
+        h += '<button class="zw-net" data-net="' + i + '" role="listitem" aria-label="' +
+          esc(n.ssid + ', signal ' + b + ' of 4' + (n.secure ? ', secured' : ', open') +
+            (n.ssid === cur ? ', connected' : '')) + '">' +
+          '<span class="zw-sig">' + fanSVG(20, b) + '</span>' +
+          '<span class="zw-nm">' + esc(n.ssid) + '</span>' +
+          (n.ssid === cur ? '<span class="zw-cur">Connected</span>' : '') +
+          (n.secure ? '<span class="zw-lk">' + lockSVG() + '</span>' : '') +
+          '<span class="zw-cv" aria-hidden="true">›</span></button>';
+      });
+      h += '</div>';
+    } else {
+      h += '<div class="grp-card"><div class="zw-status zw-off"><span class="zw-ico">' + fanSVG(28, 0) +
+        '</span><span>No networks found<small>Move the Core closer to your router, then scan again.</small></span></div></div>';
+    }
+    h += '<div class="zw-row2"><button class="btn" id="zw-rescan">Scan again</button>' +
+      '<button class="btn" id="zw-hidden">Other network…</button></div>' + ignoreHTML();
+    var host = draw(h);
+    wireIgnore(host);
+    host.querySelectorAll('.zw-net').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = sheet.nets[Number(b.getAttribute('data-net'))];
+        if (!n) return;
+        if (!n.secure) { join(n.ssid, ''); return; }
+        viewPassword(n, false);
+      });
+    });
+    on(host, '#zw-rescan', function () { scan('', true); });
+    on(host, '#zw-hidden', function () { viewPassword(null, true); });
+  }
+
+  /* the password page; `hidden` adds the network's name field */
+  function viewPassword(n, hidden, failNote) {
+    sheet.pick = n ? { ssid: n.ssid, secure: n.secure, rssi: n.rssi } : null;
+    var h = '';
+    if (failNote) h += '<p class="zw-lead" role="alert">' + failNote + '</p>';
+    if (hidden) {
+      h += '<p class="zw-lead">Type the name of the network exactly as it is set on your router.</p>' +
+        '<div class="zw-field"><label for="zw-ssid">Network name</label>' +
+        '<input class="txt" id="zw-ssid" type="text" autocomplete="off" autocapitalize="off" ' +
+          'spellcheck="false" maxlength="32" data-nosave="1"' +
+          (n ? ' value="' + esc(n.ssid) + '"' : '') + '></div>';
+    } else {
+      h += '<div class="zw-net-hd">' + fanSVG(22, bars(n.rssi)) + '<span>' + esc(n.ssid) + '</span></div>';
+    }
+    h += '<div class="zw-field"><label for="zw-pass">Password' + (hidden ? ' (leave empty for an open network)' : '') +
+        '</label><div class="zw-pw">' +
+        '<input class="txt" id="zw-pass" type="password" autocomplete="off" autocapitalize="off" ' +
+          'autocorrect="off" spellcheck="false" maxlength="63" data-nosave="1">' +
+        '<button type="button" class="btn sm" id="zw-show" aria-pressed="false" ' +
+          'aria-controls="zw-pass">Show</button></div></div>' +
+      '<button class="btn primary" id="zw-join">Join</button>' +
+      '<button class="btn ghost" id="zw-back">Back to networks</button>';
+    var host = draw(h);
+    var pass = host.querySelector('#zw-pass');
+    var ssidIn = host.querySelector('#zw-ssid');
+    on(host, '#zw-show', function () {
+      var b = host.querySelector('#zw-show');
+      var show = pass.type === 'password';
+      pass.type = show ? 'text' : 'password';
+      b.textContent = show ? 'Hide' : 'Show';
+      b.setAttribute('aria-pressed', show ? 'true' : 'false');
+    });
+    function go() {
+      var ssid = hidden ? String((ssidIn && ssidIn.value) || '').trim() : n.ssid;
+      if (!ssid) { if (ssidIn) ssidIn.focus(); return; }
+      var pw = String(pass.value || '');
+      pass.value = '';                     /* out of the page before anything else */
+      join(ssid, pw, hidden);
+      pw = null;
+    }
+    on(host, '#zw-join', go);
+    pass.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    on(host, '#zw-back', function () { if (sheet.nets) viewList(); else scan(); });
+    try { (hidden ? ssidIn : pass).focus(); } catch (e) { /* focus is a courtesy */ }
+  }
+
+  /* the one call that carries the password; it is never kept */
+  function join(ssid, password, hidden) {
+    var g = ++sheet.gen;
+    var body = { ssid: ssid, password: password };
+    password = null;
+    viewJoining(ssid, false, hidden);
+    Z().api('/wifi/join', 'POST', body).then(function (j) {
+      body.password = '';
+      body = null;
+      if (g !== sheet.gen) return;
+      if (!j || !j.ok) {
+        viewFailed(ssid, (j && j.error) || 'the Core refused the request', hidden);
+        return;
+      }
+      poll(g, ssid, Date.now(), 0, false, hidden);
+    });
+  }
+
+  function viewJoining(ssid, resume, hidden) {
+    draw(statusCard('connecting', 'Connecting to <b>' + esc(ssid || 'your network') + '</b>…',
+      'This usually takes a few seconds.'));
+    if (resume) poll(sheet.gen, ssid, Date.now(), 0, true, hidden);
+  }
+
+  /* /status until the Core says connected or failed. A failure the Core
+     reported BEFORE this join (the last attempt's) is not this join's
+     answer, so "failed" counts only once "connecting" has been seen, or
+     after a few polls. */
+  function poll(g, ssid, t0, n, sawConnecting, hidden) {
+    setTimeout(function () {
+      if (g !== sheet.gen) return;
+      var z = Z();
+      (z.refreshStatus ? z.refreshStatus() : z.api('/status')).then(function (j) {
+        if (g !== sheet.gen) return;
+        var w = j && j.ok && j.data ? j.data.wifi : null;
+        var s = w ? stateOf(w) : '';
+        var same = w && (!w.ssid || w.ssid === ssid);
+        if (s === 'connecting') sawConnecting = true;
+        if (s === 'connected' && same) {
+          homeRedraw();
+          viewDone(w);
+          return;
+        }
+        if ((s === 'failed' || s === 'off') && same && (sawConnecting || n >= 3)) {
+          homeRedraw();
+          viewFailed(ssid, w.reason || 'the network did not accept the Core', hidden);
+          return;
+        }
+        if (Date.now() - t0 > JOIN_LIMIT_MS || n > JOIN_LIMIT_MS / POLL_MS) {
+          homeRedraw();
+          viewFailed(ssid, 'the Core did not finish connecting in time', hidden);
+          return;
+        }
+        poll(g, ssid, t0, n + 1, sawConnecting, hidden);
+      });
+    }, POLL_MS);
+  }
+
+  function viewDone(w) {
+    var h = statusCard('connected', 'Connected to <b>' + esc(w.ssid || 'your network') + '</b>',
+      'Your EXO Core will now update itself automatically.') +
+      '<button class="btn primary" id="zw-done">Done</button>';
+    var host = draw(h);
+    on(host, '#zw-done', function () { Z().sheetClose(); });
+  }
+
+  function viewFailed(ssid, reason, hidden) {
+    var r = String(reason || '');
+    r = r.charAt(0).toUpperCase() + r.slice(1);
+    var h = statusCard('failed', 'Could not join <b>' + esc(ssid) + '</b>', esc(r) + '.') +
+      '<button class="btn primary" id="zw-retry">Try again</button>' +
+      '<button class="btn ghost" id="zw-other">Choose another network</button>';
+    var host = draw(h);
+    on(host, '#zw-retry', function () {
+      var n = null, i;
+      for (i = 0; sheet.nets && i < sheet.nets.length; i++) if (sheet.nets[i].ssid === ssid) n = sheet.nets[i];
+      if (hidden || !n) viewPassword({ ssid: ssid, secure: true, rssi: null }, true);
+      else viewPassword(n, false);
+    });
+    on(host, '#zw-other', function () { scan(); });
+  }
+
+  window.ZS_WIFI = {
+    block: block, stateOf: stateOf, bars: bars,
+    lightHTML: lightHTML, labelText: labelText,
+    rowHTML: rowHTML, wireRow: wireRow, open: open, openList: openList,
+    openPop: openPop, closePop: closePop, popOpen: function () { return pop.open; },
+    hitHTML: hitHTML, wireHome: wireHome, placeHit: placeHit,
+    ignored: ignored, maybePrompt: maybePrompt, KEYS: { prompt: K_PROMPT, ignore: K_IGNORE }
+  };
+})();

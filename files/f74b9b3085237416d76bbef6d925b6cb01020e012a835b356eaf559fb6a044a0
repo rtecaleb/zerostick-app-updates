@@ -1,0 +1,1851 @@
+/* gpc-tab.js - the GPC Scripts room: the phone becomes a script device of
+ * its own, with 8 memory slots, a little screen, P1 / P2 / Reset, and the
+ * player's own controller working the menus. window.ZSGPC, the editor's
+ * `gpc` screen, and window.gpcLive. Since D215 its door is "GPC script
+ * device" in the editor's Legacy Devices room (legacy-room.js), whose back
+ * key this screen's leads to. D215, the owner: the GPC script device has a
+ * switch (Legacy Devices, core-modes.js ZSMODES, OFF by default, exclusive
+ * with EXO Studio); while a Core says it is off, Preview on the phone still
+ * works, and Live, Send to config and P1 / Reset on the Core say it is off
+ * (GPC_OFF, the Core's own sentence) instead of asking the Core.
+ *
+ * ES5 ONLY, like every file phone.html loads (docs/DESIGN.md): no arrow
+ * function, template literal, let/const or class. Everything that reaches
+ * innerHTML goes through esc().
+ *
+ * -- What the owner asked for (2026-10-02) -----------------------------------
+ *
+ * First: "a tab that looks like a zen screen for GPC and when someone paste a
+ * GPC script in it makes a virtual zen look alike screen and lets them act
+ * like their phone screen is the zen". Then, on seeing it: "that menu should
+ * show exactly what it would show on the Zen, and the buttons onscreen
+ * should only be the buttons on a Zen as options, nothing extra. However a
+ * Zen does it, we do it, so the device is in Zen mode basically." And "why
+ * would you buy a Zen when we can emulate it."
+ *
+ * So the room is a faithful virtual script device, in OUR drawing and words
+ * (no other company's name, logo or artwork, D76). The device's behaviour
+ * (gpc-device.js, with the public sources it follows) is:
+ *
+ *   P1      next memory slot that holds a script, 1 -> 8 -> off
+ *   P2      press and HOLD: pairing (here: pair a controller with this phone)
+ *   Reset   the script starts again (its init runs again); slots are kept
+ *   L2/LT + Options/Menu on the controller: the device's own menu (slots,
+ *           reset saved values, screen brightness), D-pad / Cross-A / Circle-B
+ *
+ * There is NO on-screen controller. In Preview the controller is one paired
+ * to the phone, read through the browser's Gamepad API
+ * (navigator.getGamepads, standard mapping); in Live it is the one plugged
+ * into the Core (gpcLive: the poll carries what it holds), and the keys and
+ * the menu work the Core.
+ * A script's own screen is drawn exactly as its framebuffer has it, with
+ * nothing added over it; the device's slot screen shows only while the
+ * script draws nothing.
+ *
+ * Scripts are pasted into a slot in a sheet ("Slot N: paste a script") opened
+ * from the slot list: the paste box, Paste from clipboard, Open a .gpc file,
+ * the check (mistakes in plain words, the OFFERED ':'-for-';' fix that only
+ * touches the reported line) and the report (Runs / Runs, with differences /
+ * Can't run). Slots, scripts and their saved values (SPVARs) are kept per
+ * config in the app's store, ZS.store.vals['gpc|<config id>'].
+ *
+ * The engine is gpc-sim.js: the real GPC compiler and VM (gpc/, D86) built
+ * to WebAssembly (gpc.wasm). This file calls GPC.compile and GPC.Sim, reads
+ * GPC.neutral, and waits for the engine with GPC.whenReady / GPC.state /
+ * GPC.unavailable, nothing else of gpc-sim.js. A script's load_slot(n)
+ * moves the device's slot exactly as P1 does (Sim.slotRequest), and the
+ * script reads the device's slot and which slots hold scripts (get_slot,
+ * check_slot) through the host facts Sim is given.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var CSS_ID = 'zs-gpc-css';
+  var KEY_PREFIX = 'gpc|';
+  var BRIGHT_KEY = 'gpc|bright';
+  var SLOTS = 8;
+  var MAX_KEEP = 512 * 1024;      /* characters a slot keeps                */
+  /* AUDIT M26: every slot of every config lives in the app's ONE store
+     ('zs-phone-v2', a few MB in all), and past its quota persist() fails and
+     nothing the app remembers is saved any more: configs, the active one,
+     every screen's values. So the scripts together keep at most this much,
+     leaving the rest of the store its room. */
+  var MAX_KEEP_ALL = 1536 * 1024;
+  var SPV_KEEP_MS = 5000;         /* a running script's values, kept this often */
+  var MAX_FILE = 2 * 1024 * 1024; /* a file bigger than this is no script   */
+  var FRAME_MS = 33;              /* ~30 redraws a second at most           */
+  var MAX_CATCHUP = 250;          /* ms of script time run in one frame     */
+  var TYPE_MS = 450;              /* check again this long after typing     */
+  var HOLD_MS = 1000;             /* P2 is a press and HOLD, as on the device */
+  var LIT = '#8ff8ee';            /* a lit pixel: our ion, bright           */
+  var GRID = 'rgba(120,220,230,.055)';
+  var ORANGE = '#ff9457';         /* the room's hue, --tint-gpc in dark     */
+  var OPACITY = [1, 0.72, 0.45, 1];
+  var LIVE_SOON = 'Coming soon: the menu on your Core';
+  var LIVE_MS = 100;
+  /* D215: the Core's sentence for its slot and Live routes while the GPC
+     script device is off */
+  var GPC_OFF = 'The GPC script device is off. Turn it on in the app: Legacy Devices.';
+  function deviceOff() { return !!(window.ZSMODES && window.ZSMODES.gpcOff()); }              /* Live: ask the Core for its screen 10x a second */
+  var SEND_NOTE_OLD = 'Needs the Core update. Until then your slots, scripts and their ' +
+    'menu choices are kept here, in this app.';
+  var SEND_NOTE = 'Puts the scripts in these slots into this config on your Core, with ' +
+    'their menu choices. Your Core checks every script again before it runs one.';
+
+  /* The Gamepad API's standard mapping (w3.org/TR/gamepad, "Remapping"),
+     index by index, onto GPC's keys (gpc-sim.js) */
+  var STD = ['CROSS', 'CIRCLE', 'SQUARE', 'TRIANGLE', 'L1', 'R1', 'L2', 'R2', 'SHARE', 'OPTIONS',
+             'L3', 'R3', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'PS', 'TOUCH'];
+  var WORDS = {
+    ps: { sel: 'Cross', back: 'Circle', l2: 'L2', opt: 'Options' },
+    xbox: { sel: 'A', back: 'B', l2: 'LT', opt: 'Menu' }
+  };
+
+  /* ═════════════════════════════════════════════════════ the state ══
+     Module-wide, not per draw: openDetail() re-runs the renderer whenever
+     the screen is redrawn (a pad plugged in, redrawOpenScreen), and the
+     running script and the device must survive that. */
+  var S = {
+    pid: null, fam: 'ps',
+    data: null,                  /* { v: 2, slot: 0..8, slots: [8 x {text, name, spvars, at} | null] } */
+    results: [],                 /* per slot: { text, r } -- GPC.compile's answer for that text */
+    dev: null,                   /* ZSGPCDEV.Device */
+    mode: 'preview',             /* preview | live */
+    sim: null, simErr: '', fault: null, simVer: -1, simFb: null, simLit: false,
+    pad: null, padKey: '', padPressed: '', noApi: false,
+    hint: '',                    /* a word after a P2 tap */
+    loop: false, gen: 0, lastT: 0, acc: 0, drawnKey: '', lastDraw: -1e9, draws: 0, scale: 0, dark: null,
+    spvSaved: '', lastSpv: 0, inits: 0,
+    sheet: 0, edit: '', fileName: '', say: null, typing: null, clearArmed: null,
+    hold: null, live: null
+  };
+  var ROOT = null;
+  var HASP = typeof window.PointerEvent === 'function' || typeof window.PointerEvent === 'object';
+
+  function $(id) { return document.getElementById(id); }
+  function show(e, on) { if (e) { if (on) { e.removeAttribute('hidden'); } else { e.setAttribute('hidden', ''); } } }
+  function now() {
+    var p = window.performance;
+    return (p && typeof p.now === 'function') ? p.now() : new Date().getTime();
+  }
+  function raf(fn) {
+    return typeof window.requestAnimationFrame === 'function' ? window.requestAnimationFrame(fn) : setTimeout(fn, 16);
+  }
+  function engine() { return window.GPC && typeof window.GPC.compile === 'function' ? window.GPC : null; }
+  /* '' while the engine is fine or still loading, else why it cannot run */
+  function engineDown() { var G = engine(); return G && typeof G.unavailable === 'function' ? G.unavailable() : ''; }
+  function DEV() { return window.ZSGPCDEV || null; }
+  function neutral() { var G = engine(); return G && G.neutral ? G.neutral() : {}; }
+
+  /* ═══════════════════════════════════════════════ the framebuffer ══
+     128 x 64, one bit per pixel, 16 bytes a row, bit 7 = leftmost. The one
+     decoder the screen uses (tested on its own). */
+  function pixel(fb, x, y) {
+    if (!fb || x < 0 || y < 0 || x > 127 || y > 63) { return false; }
+    return ((fb[y * 16 + (x >> 3)] >> (7 - (x & 7))) & 1) === 1;
+  }
+  /* the gap between pixels, in device pixels, for a pitch of `s` */
+  function gapFor(s) { return s >= 10 ? 2 : s >= 4 ? 1 : 0; }
+
+  /* ══════════════════════════════════════════════ slots and the store ══ */
+  function storeKey(pid) { return KEY_PREFIX + pid; }
+  function emptySlots() { var a = []; for (var i = 0; i < SLOTS; i++) { a.push(null); } return a; }
+  /* the config's slots, as kept; the first version kept ONE script as
+     { text, name, spvars } and it becomes slot 1, loaded */
+  function readData(pid) {
+    var v = ZS.store && ZS.store.vals ? ZS.store.vals[storeKey(pid)] : null, d = { v: 2, slot: 0, slots: emptySlots() }, i;
+    if (v && typeof v === 'object') {
+      if (typeof v.text === 'string' && !v.slots) {
+        if (v.text) { d.slots[0] = { text: v.text, name: v.name || '', spvars: v.spvars || [], at: v.at || 0 }; d.slot = 1; }
+      } else if (v.slots && typeof v.slots.length === 'number') {
+        for (i = 0; i < SLOTS; i++) {
+          var s = v.slots[i];
+          if (s && typeof s.text === 'string' && s.text) {
+            d.slots[i] = { text: s.text, name: String(s.name || ''), spvars: s.spvars || [], at: s.at || 0 };
+          }
+        }
+        d.slot = Math.max(0, Math.min(SLOTS, Math.floor(Number(v.slot) || 0)));
+        if (d.slot && !d.slots[d.slot - 1]) { d.slot = 0; }
+      }
+    }
+    return d;
+  }
+  function keepData() {
+    if (!S.pid || !ZS.store || !ZS.store.vals) { return; }
+    var any = false, i;
+    for (i = 0; i < SLOTS; i++) { if (S.data.slots[i]) { any = true; } }
+    if (any) { ZS.store.vals[storeKey(S.pid)] = S.data; } else { delete ZS.store.vals[storeKey(S.pid)]; }
+    /* a full store is said, once a session, not swallowed (M26) */
+    if (ZS.persistStore && ZS.persistStore() === false && !S.fullSaid) {
+      S.fullSaid = true;
+      if (ZS.toast) { ZS.toast('This device has no room left to remember app changes. Clear a GPC slot you no longer use.', { ms: 9000 }); }
+    }
+  }
+  /* characters every kept slot holds, every config, except one slot */
+  function keptChars(skipPid, skipN) {
+    var vals = (ZS.store && ZS.store.vals) || {}, n = 0, k, i;
+    for (k in vals) {
+      if (!Object.prototype.hasOwnProperty.call(vals, k) || k.indexOf(KEY_PREFIX) !== 0 || k === BRIGHT_KEY) { continue; }
+      var v = vals[k], pid = k.slice(KEY_PREFIX.length);
+      if (!v || typeof v !== 'object') { continue; }
+      if (typeof v.text === 'string' && !v.slots) { n += v.text.length; continue; }
+      for (i = 0; v.slots && i < v.slots.length; i++) {
+        var s = v.slots[i];
+        if (s && typeof s.text === 'string' && !(pid === skipPid && i === skipN - 1)) { n += s.text.length; }
+      }
+    }
+    return n;
+  }
+  function slotOf(n) { return n >= 1 && n <= SLOTS && S.data ? S.data.slots[n - 1] : null; }
+  /* a slot's name: the file's name, else the script's first comment line */
+  function nameOf(s, n) {
+    if (!s) { return ''; }
+    if (s.name) { return String(s.name).replace(/\.(gpc|gpc2|txt)$/i, ''); }
+    var m = /^\s*(?:\/\/+|\/\*+)\s*([^\r\n*]*[^\r\n*\s])/m.exec(s.text);
+    return m ? m[1].slice(0, 40) : 'Script ' + n;
+  }
+  function lineCount(t) { return t ? t.split(/\r\n|\n|\r/).length : 0; }
+
+  /* any text at all is a script to try; what is refused is what is not text */
+  function looksLikeText(s) {
+    if (typeof s !== 'string') { return false; }
+    if (s.indexOf('\u0000') >= 0) { return false; }
+    var n = Math.min(s.length, 20000), bad = 0, c, i;
+    for (i = 0; i < n; i++) {
+      c = s.charCodeAt(i);
+      if ((c < 32 && c !== 9 && c !== 10 && c !== 12 && c !== 13) || c === 0xFFFD) { bad++; }
+    }
+    return bad <= n * 0.01;
+  }
+
+  /* ═══════════════════════════════════════════════════ the check ══ */
+  function normal(r) {
+    var o = { ok: !!(r && r.ok), error: null, features: [], bytecode: (r && r.bytecode) || null, pending: !!(r && r.pending),
+              down: !!(r && r.down) };
+    if (r && r.error && !o.ok) {
+      o.error = { line: Math.max(1, Math.floor(Number(r.error.line) || 1)),
+                  col: Math.max(0, Math.floor(Number(r.error.col) || 0)),
+                  msg: String(r.error.msg || 'The script has a mistake here') };
+    }
+    if (!o.ok && !o.error) { o.error = { line: 1, col: 0, msg: 'The script could not be read' }; }
+    /* D265: the checker reads some loose forms as written (a ':' where a ';'
+       ends a statement, ...) and says so in notPortable; the script runs */
+    o.loose = [];
+    var lp = (r && r.notPortable) || [], k;
+    for (k = 0; k < lp.length; k++) {
+      if (!lp[k]) { continue; }
+      o.loose.push({ line: Math.max(1, Math.floor(Number(lp[k].line) || 1)),
+                     col: Math.max(0, Math.floor(Number(lp[k].col) || 0)), msg: String(lp[k].msg || '') });
+    }
+    var f = (r && r.features) || [], i, v;
+    for (i = 0; i < f.length; i++) {
+      if (!f[i]) { continue; }
+      v = f[i].verdict === 'cannot' || f[i].verdict === 'differs' ? f[i].verdict : 'runs';
+      o.features.push({ feature: String(f[i].feature || 'A feature'), verdict: v, reason: String(f[i].reason || '') });
+    }
+    return o;
+  }
+  function compileText(text) {
+    var G = engine(), r;
+    if (!G) { r = { ok: false, error: { line: 1, col: 0, msg: 'The script checker did not load. Close the app and open it again.' } }; }
+    else {
+      try { r = G.compile(text); }
+      catch (e) { r = { ok: false, error: { line: 1, col: 0, msg: 'The checker stopped: ' + (e && e.message ? e.message : e) } }; }
+      /* the engine cannot run here: that is not a mistake in the script */
+      if (r && !r.ok && engineDown()) { r.down = true; }
+    }
+    return normal(r);
+  }
+  /* slot n's check, compiled once per text (offline, in the phone) */
+  function resultOf(n) {
+    var s = slotOf(n);
+    if (!s) { return null; }
+    var c = S.results[n - 1];
+    /* an answer given while the engine was still loading is not about the
+       script: it is asked again once the engine is there */
+    if (!c || c.text !== s.text || c.r.pending) { c = S.results[n - 1] = { text: s.text, r: compileText(s.text) }; }
+    return c.r;
+  }
+  function verdict(r) {
+    if (!r) { return 'none'; }
+    if (r.pending) { return 'pending'; }
+    if (r.down) { return 'down'; }
+    if (!r.ok) { return 'error'; }
+    var d = false;
+    for (var i = 0; i < r.features.length; i++) {
+      if (r.features[i].verdict === 'cannot') { return 'cannot'; }
+      if (r.features[i].verdict === 'differs') { d = true; }
+    }
+    return d ? 'differs' : 'runs';
+  }
+  function runnable(n) { var v = verdict(resultOf(n)); return v === 'runs' || v === 'differs'; }
+  /* what the device's slot screen and menu are told about each slot */
+  function slotInfo() {
+    var out = [], i, v;
+    for (i = 1; i <= SLOTS; i++) {
+      var s = slotOf(i);
+      if (!s) { out.push({ name: '', state: 'empty' }); continue; }
+      v = verdict(resultOf(i));
+      out.push({ name: nameOf(s, i), state: v === 'error' ? 'error' : (v === 'cannot' || v === 'down') ? 'cannot' :
+        (i === S.data.slot && (S.fault || S.simErr)) ? 'stopped' : 'ok' });
+    }
+    return out;
+  }
+  function pushSlots() {
+    if (S.dev) { S.dev.setSlots(slotInfo()); S.dev.setSlot(S.data.slot); }
+    if (S.sim && typeof S.sim.setHost === 'function') { try { S.sim.setHost(hostOf()); } catch (e) { /* a convenience */ } }
+  }
+  /* What the script may ask of the device: which slot it is in (get_slot),
+     which slots hold a script (check_slot) and the pad family. */
+  function hostOf() {
+    var mask = 0, i;
+    for (i = 1; i <= SLOTS; i++) { if (slotOf(i)) { mask |= 1 << (i - 1); } }
+    return { slot: S.data ? S.data.slot : 0, slotsPresent: mask, family: S.fam };
+  }
+
+  /* ═══════════════════════════════════════ the ':' for ';' fix ══
+     Offered, never applied by itself, and it changes ONE character of the
+     line the checker named. Line endings (\n, \r\n, \r) are kept as they
+     were, so every other line comes back byte for byte. */
+  function splitKeep(text) { return String(text).split(/(\r\n|\n|\r)/); }
+  function colonFix(text, err) {
+    if (!err || !(err.line >= 1) || !/;|semicolon/i.test(String(err.msg || ''))) { return null; }
+    var parts = splitKeep(text), L = parts[(err.line - 1) * 2], at = -1, m;
+    if (typeof L !== 'string') { return null; }
+    if (err.col >= 1 && L.charAt(err.col - 1) === ':') { at = err.col - 1; }
+    else {
+      m = /:(\s*(\/\/.*)?)$/.exec(L);
+      if (m) { at = m.index; }
+    }
+    if (at < 0) { return null; }
+    return { line: err.line, at: at, before: L, after: L.slice(0, at) + ';' + L.slice(at + 1) };
+  }
+  /* the same one-tap tidy-up for a ':' the checker READ as ';' (D265): the
+     script already runs; this only writes it the usual way */
+  function looseFix(text, r) {
+    var L = (r && r.loose) || [], i, fx;
+    for (i = 0; i < L.length; i++) {
+      fx = colonFix(text, L[i]);
+      if (fx) { return fx; }
+    }
+    return null;
+  }
+  function applyFix(text, fix) {
+    var parts = splitKeep(text), i = (fix.line - 1) * 2;
+    if (parts[i] !== fix.before) { return null; }
+    parts[i] = fix.after;
+    return parts.join('');
+  }
+
+  /* ═════════════════════════════════════════════ the controller ══
+     The Gamepad API lists a controller once it has been paired with the
+     phone AND a button on it has been pressed. Standard mapping: buttons
+     0-3 Cross/A Circle/B Square/X Triangle/Y, 4-5 L1 R1, 6-7 L2 R2 (0..1),
+     8-9 Share/View Options/Menu, 10-11 L3 R3, 12-15 the D-pad, 16 PS/Home,
+     17 the touchpad; axes 0-3 LX LY RX RY, -1..1 with down positive, which
+     is GPC's own sense (-100 = up). */
+  function mapGamepad(g) {
+    var o = neutral(), b = (g && g.buttons) || [], a = (g && g.axes) || [], i, k, bt, v, on;
+    for (i = 0; i < STD.length; i++) {
+      k = STD[i]; bt = b[i];
+      if (bt === undefined || bt === null) { continue; }
+      v = typeof bt === 'object' ? Number(bt.value) || 0 : Number(bt) || 0;
+      on = typeof bt === 'object' ? (!!bt.pressed || v >= 0.5) : v >= 0.5;
+      if (k === 'L2' || k === 'R2') { o[k] = Math.max(0, Math.min(100, Math.round((v > 0 ? v : (on ? 1 : 0)) * 100))); }
+      else { o[k] = on ? 100 : 0; }
+    }
+    var ax = ['LX', 'LY', 'RX', 'RY'];
+    for (i = 0; i < 4; i++) {
+      v = Number(a[i]);
+      if (isFinite(v)) { o[ax[i]] = Math.max(-100, Math.min(100, Math.round(v * 100))); }
+    }
+    return o;
+  }
+  function readPad() {
+    var nav = window.navigator, list, best = null, i, g, pressed = [];
+    if (!nav || typeof nav.getGamepads !== 'function') { S.noApi = true; return null; }
+    S.noApi = false;
+    try { list = nav.getGamepads() || []; } catch (e) { return null; }
+    for (i = 0; i < list.length; i++) {
+      g = list[i];
+      if (g && g.connected !== false && (!best || (g.timestamp || 0) > (best.timestamp || 0))) { best = g; }
+    }
+    if (!best) { return null; }
+    var bs = best.buttons || [];
+    for (i = 0; i < bs.length; i++) {
+      if (bs[i] && (typeof bs[i] === 'object' ? (bs[i].pressed || bs[i].value >= 0.5) : bs[i] >= 0.5)) { pressed.push(i); }
+    }
+    return { id: String(best.id || 'A controller'), standard: best.mapping === 'standard', input: mapGamepad(best),
+             pressed: pressed.join(',') };
+  }
+  function padName(id) {
+    var t = String(id || '').replace(/\s*\((?:STANDARD GAMEPAD|Vendor:[^)]*)[^)]*\)\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+    return t.length > 40 ? t.slice(0, 39) + '…' : (t || 'A controller');
+  }
+
+  /* ═══════════════════════════════════════════════════════ the CSS ══
+     Injected when this file loads, so the menu row wears the room's hue
+     before the room has been opened. The room's hue is bolt orange
+     (--tint-gpc, phone.html :root; a deep orange in zs-light.css): it was
+     Smart Actions' until D127 gave that room rose. It only marks WHERE YOU
+     ARE. THE DEVICE (.gpc-dev*) is a picture of a device: a graphite body,
+     black glass and its own keys, the same in BOTH themes, the way Screen
+     Assist's TV picture stays a picture (test-theme.js lists it as art). */
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      'html [data-tint="gpc"]{--tint:var(--tint-gpc,' + ORANGE + ');--tint-wash:rgba(255,148,87,.13);',
+      '--tint-strong:rgba(255,148,87,.30);--tint-edge:rgba(255,148,87,.50)}',
+      '.item .ico.ico-gpc{color:var(--tint-gpc,' + ORANGE + ');background:rgba(255,148,87,.12);border-color:rgba(255,148,87,.40)}',
+      '#edmenu .item[data-room="gpc"]{--room:var(--tint-gpc,' + ORANGE + ')}',
+      '#detail:has(#dbody[data-tint="gpc"]) .phead{--rail:var(--tint-gpc,' + ORANGE + ')}',
+      '#gpc [hidden],#gpcsheet [hidden]{display:none!important}',
+      '.gpc-lead{color:var(--muted);font-size:13.5px;line-height:1.5;margin:2px 2px 12px}',
+      '.gpc-lead b{color:var(--text);font-weight:650}',
+      '#gpc .note.warn{margin:0 0 12px}',
+      '#gpc .seg2{display:flex;margin:0 0 12px}',
+      '#gpc .seg2 button{flex:1;min-height:48px}',
+      /* the report (in the slot sheet) */
+      '.gpc-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card,14px);',
+      'padding:12px 14px;margin:0 0 14px;font-size:13.5px;line-height:1.5}',
+      '.gpc-vt{display:flex;align-items:flex-start;gap:10px;font-size:15.5px;line-height:1.35}',
+      '.gpc-vt b{font-weight:700;letter-spacing:var(--tr-title,-.016em)}',
+      '.gpc-vi{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;',
+      'border-radius:50%;font-size:15px;font-weight:800;border:2px solid currentColor}',
+      '.gpc-runs .gpc-vi{color:var(--green)}.gpc-differs .gpc-vi{color:var(--amber)}',
+      '.gpc-cannot .gpc-vi,.gpc-error .gpc-vi{color:var(--red)}',
+      '.gpc-msg{margin:8px 0 0;color:var(--text)}',
+      '.gpc-sub{display:block;color:var(--muted);font-size:12.5px;line-height:1.45;margin:6px 0 0}',
+      '.gpc-feats{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}',
+      '.gpc-feats li{display:flex;flex-direction:column;gap:2px;padding:8px 0 0;border-top:1px solid var(--line)}',
+      '.gpc-feats li b{font-weight:650}',
+      '.gpc-feats li span{color:var(--muted);font-size:12.5px}',
+      '.gpc-feats li i{font-style:normal;font-size:11px;font-weight:700;letter-spacing:var(--tr-label,.085em);',
+      'text-transform:uppercase}',
+      '.gpc-feats .v-runs i{color:var(--green)}.gpc-feats .v-differs i{color:var(--amber)}.gpc-feats .v-cannot i{color:var(--red)}',
+      '.gpc-code{margin:10px 0 0;border:1px solid var(--line);border-radius:10px;overflow-x:auto;',
+      'background:var(--panel2);font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
+      '.gpc-ln{display:flex;white-space:pre;min-width:max-content}',
+      '.gpc-no{flex:none;width:52px;padding:0 8px 0 0;text-align:right;color:var(--muted);',
+      'font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}',
+      '.gpc-ln code{font:inherit;padding:0 10px 0 4px;color:var(--text)}',
+      '.gpc-ln.gpc-bad{background:rgba(255,98,89,.14);box-shadow:inset 3px 0 0 var(--red)}',
+      '.gpc-ln.gpc-bad .gpc-no{color:var(--red);font-weight:700}',
+      '.gpc-at{background:var(--red);color:var(--btn-3-ink,#fff);border-radius:3px;padding:0 1px}',
+      '.gpc-fix{margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line)}',
+      '.gpc-fix p{margin:0 0 10px}',
+      '.gpc-fix .btn{display:block;width:100%;min-height:52px;margin:0;font-size:15.5px}',
+      /* the device: a graphite body, black glass, its own three keys */
+      '.gpc-dev{padding:14px 14px 12px;border-radius:26px;',
+      'background:linear-gradient(180deg,#2b313b 0%,#1a1e25 55%,#13161b 100%);',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(0,0,0,.6),',
+      '0 1px 0 rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.38);border:1px solid #0b0d10}',
+      '.gpc-dev-glass{position:relative;display:flex;align-items:center;justify-content:center;',
+      'aspect-ratio:2/1;min-height:120px;border-radius:12px;background:#000;overflow:hidden;',
+      'box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),inset 0 2px 10px rgba(0,0,0,.9)}',
+      '.gpc-dev-glass::after{content:"";position:absolute;inset:0;pointer-events:none;',
+      'background:linear-gradient(160deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 38%)}',
+      '.gpc-dev-glass canvas{position:absolute;display:block;image-rendering:pixelated;image-rendering:crisp-edges}',
+      '.gpc-dev-lit{filter:drop-shadow(0 0 1.5px rgba(80,236,224,.9)) drop-shadow(0 0 5px rgba(47,217,206,.42))}',
+      '.gpc-dev-glass.gpc-dark canvas{visibility:hidden}',
+      '.gpc-dev-soon{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;',
+      'gap:6px;padding:12px 18px;text-align:center;color:#8ff8ee;font-size:14.5px;line-height:1.35}',
+      '.gpc-dev-soon b{font-weight:700}',
+      '.gpc-dev-soon span{color:#9aa7b8;font-size:12.5px}',
+      '.gpc-dev-keys{display:grid;grid-template-columns:60px 60px 1fr 64px;align-items:center;gap:10px;margin:14px 2px 0}',
+      '.gpc-dev-key{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;',
+      'width:60px;height:60px;margin:0;padding:0;border-radius:50%;cursor:pointer;overflow:hidden;',
+      'background:radial-gradient(circle at 50% 35%,#3a414c 0%,#252a32 70%);color:#e6edf6;',
+      'border:1px solid #0b0d10;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 0 #090b0e,0 3px 8px rgba(0,0,0,.45);',
+      'font:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}',
+      '.gpc-dev-key b{position:relative;font-size:17px;font-weight:800;letter-spacing:.02em;line-height:1}',
+      '.gpc-dev-key small{position:relative;font-size:9.5px;font-weight:700;letter-spacing:.09em;color:#aab6c6;line-height:1.2}',
+      '.gpc-dev-key:active,.gpc-dev-key.zs-pressing,.gpc-dev-key.gpc-holding{transform:translateY(1px);',
+      'box-shadow:inset 0 2px 6px rgba(0,0,0,.55),0 1px 0 #090b0e}',
+      '.gpc-dev-key::before{content:"";position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(94,242,230,.28)}',
+      '.gpc-dev-key.gpc-holding::before{height:100%;transition:height 1s linear}',
+      '.gpc-dev-key:focus-visible,.gpc-dev-reset:focus-visible{outline:2px solid #8ff8ee;outline-offset:3px}',
+      '.gpc-dev-key[disabled],.gpc-dev-reset[disabled]{opacity:.45;cursor:default}',
+      '.gpc-dev-mid{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;text-align:center;',
+      'color:#aab6c6;font-size:10.5px;font-weight:700;letter-spacing:var(--tr-label,.085em);text-transform:uppercase}',
+      '.gpc-dev-mid b{color:#e6edf6;font-size:12px;font-variant-numeric:tabular-nums}',
+      '.gpc-dev-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3a424e;margin-right:6px;vertical-align:1px}',
+      '.gpc-dev-dot.on{background:#5ef2e6;box-shadow:0 0 6px rgba(94,242,230,.85)}',
+      '.gpc-dev-reset{justify-self:end;width:64px;height:44px;margin:0;padding:0;border-radius:22px;cursor:pointer;',
+      'background:#1b1f26;color:#c9d3e0;border:1px solid #0b0d10;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 0 #090b0e;',
+      'font:inherit;font-size:10.5px;font-weight:800;letter-spacing:.1em;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
+      '.gpc-dev-reset:active,.gpc-dev-reset.zs-pressing{transform:translateY(1px);box-shadow:inset 0 2px 5px rgba(0,0,0,.6)}',
+      /* under the device: the controller line, a stopped script */
+      '.gpc-stat{margin:12px 2px 0;font-size:13.5px;line-height:1.5;color:var(--text)}',
+      '.gpc-stat b{font-weight:700}',
+      '.gpc-stat span{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}',
+      '.gpc-stat.gpc-none b{color:var(--amber)}',
+      '#gpc-fault .note.warn{margin:12px 0 0}',
+      /* the memory slots */
+      '.gpc-slots{margin:18px 0 14px}',
+      '.gpc-sh{margin:0 2px 8px;font-size:11px;font-weight:700;letter-spacing:var(--tr-label,.085em);',
+      'text-transform:uppercase;color:var(--muted)}',
+      '.gpc-slotlist{display:flex;flex-direction:column;gap:6px}',
+      '.gpc-slot{display:grid;grid-template-columns:36px 1fr auto 14px;align-items:center;gap:10px;width:100%;',
+      'min-height:58px;margin:0;padding:8px 12px;box-sizing:border-box;text-align:left;cursor:pointer;',
+      'background:var(--panel);color:var(--text);border:1px solid var(--line);border-left:3px solid var(--line);',
+      'border-radius:var(--r-ctl,12px);font:inherit;-webkit-tap-highlight-color:transparent}',
+      '.gpc-slot:active,.gpc-slot.zs-pressing{background:var(--panel2)}',
+      '.gpc-slot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}',
+      '.gpc-slot[aria-current="true"]{border-left-color:var(--accent)}',
+      '.gpc-sn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;',
+      'background:var(--panel2);font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}',
+      '.gpc-slot[aria-current="true"] .gpc-sn{background:var(--accent);color:var(--accent-ink)}',
+      '.gpc-st{display:flex;flex-direction:column;gap:2px;min-width:0}',
+      '.gpc-st b{font-weight:650;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.gpc-st span{color:var(--muted);font-size:12.5px}',
+      '.gpc-slot.gpc-empty .gpc-st b{color:var(--muted);font-weight:600}',
+      '.gpc-tag{font-size:10.5px;font-weight:800;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;color:var(--accent)}',
+      '.gpc-slot .chev{color:var(--muted)}',
+      '.gpc-send{margin:0 0 10px}',
+      '.gpc-send .btn{display:block;width:100%;min-height:52px;margin:0}',
+      '.gpc-rules{color:var(--muted);font-size:12.5px;line-height:1.5;margin:6px 2px 16px}',
+      /* the slot sheet */
+      '#gpcsheet .gpc-bh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 2px 6px}',
+      '#gpcsheet .gpc-bh label{font-size:11px;font-weight:700;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;color:var(--muted)}',
+      '#gpcsheet .gpc-bh span{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;text-align:right}',
+      '.gpc-text{display:block;box-sizing:border-box;width:100%;min-height:150px;height:170px;resize:vertical;margin:0;',
+      'padding:10px 12px;border-radius:12px;border:1px solid var(--zs-edge,var(--line));background:var(--panel2);',
+      'color:var(--text);font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto}',
+      '.gpc-text:focus-visible{outline:2px solid var(--accent);outline-offset:1px}',
+      '.gpc-acts{display:flex;flex-direction:column;gap:8px;margin:10px 0 0}',
+      '.gpc-acts .btn{margin:0;width:100%;min-height:52px;font-size:15px}',
+      '.gpc-file{position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;cursor:pointer}',
+      '.gpc-file input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}',
+      '.gpc-file:focus-within{outline:2px solid var(--accent);outline-offset:2px}',
+      '.gpc-say{margin:10px 2px 0;font-size:13.5px;line-height:1.5}',
+      '.gpc-say.warn{color:var(--amber)}.gpc-say.ok{color:var(--green)}',
+      '@media (prefers-contrast:more){.gpc-dev-lit{filter:none}}',
+      'body.a11y-contrast .gpc-dev-lit{filter:none}',
+      '@media (prefers-reduced-motion:reduce){.gpc-dev-key.gpc-holding::before{transition:none}}',
+      'body.a11y-motion .gpc-dev-key.gpc-holding::before{transition:none}'
+    ].join('')));
+    (document.body || document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ═════════════════════════════════════════════════ the markup ══ */
+  function screenHTML() {
+    /* D285: one line on screen, the rest behind the "?" */
+    return '<p class="gpc-lead"><b>Runs GPC scripts.</b></p>' +
+      (ZS.helpHTML ? ZS.helpHTML('gpc-what', 'GPC scripts', '<b>Runs GPC scripts.</b> This works as a script device of its own: 8 memory ' +
+      'slots, <b>P1</b> to change slot, and your controller to work each script’s menu.') : '') +
+      '<div id="gpc-engine">' + engineHTML() + '</div>' +
+      '<div class="seg2" data-nosave="1" id="gpc-mode" role="group" aria-label="Where the scripts run">' +
+        '<button type="button" data-mode="preview" class="on">Preview on phone</button>' +
+        '<button type="button" data-mode="live">Live on Core</button>' +
+      '</div>' +
+      '<section class="gpc-dev" data-noswipe="1" aria-label="The script device">' +
+        '<div class="gpc-dev-glass" id="gpc-glass">' +
+          '<canvas class="gpc-dev-grid" id="gpc-grid" width="128" height="64" aria-hidden="true"></canvas>' +
+          '<canvas class="gpc-dev-lit" id="gpc-canvas" width="128" height="64" role="img" ' +
+            'aria-label="Device screen"></canvas>' +
+          '<div class="gpc-dev-soon" id="gpc-soon" role="status" hidden></div>' +
+        '</div>' +
+        '<div class="gpc-dev-keys">' +
+          '<button type="button" class="gpc-dev-key" id="gpc-p1" aria-label="P1: next memory slot">' +
+            '<b aria-hidden="true">P1</b><small aria-hidden="true">SLOT</small></button>' +
+          '<button type="button" class="gpc-dev-key" id="gpc-p2" aria-label="P2: press and hold to pair a controller">' +
+            '<b aria-hidden="true">P2</b><small aria-hidden="true">PAIR</small></button>' +
+          '<span class="gpc-dev-mid"><span><span class="gpc-dev-dot" id="gpc-dot" aria-hidden="true"></span>' +
+            '<span id="gpc-fw">Preview</span></span><b id="gpc-slotword">Off</b></span>' +
+          '<button type="button" class="gpc-dev-reset" id="gpc-reset" aria-label="Reset: start the script again">RESET</button>' +
+        '</div>' +
+      '</section>' +
+      '<p class="gpc-stat" id="gpc-padline" role="status" aria-live="polite"></p>' +
+      '<div id="gpc-fault"></div>' +
+      '<section class="gpc-slots" aria-labelledby="gpc-slotshead">' +
+        '<h3 class="gpc-sh" id="gpc-slotshead">Memory slots</h3>' +
+        '<div class="gpc-slotlist" id="gpc-slotlist"></div>' +
+      '</section>' +
+      '<section class="gpc-send">' +
+        '<button type="button" class="btn primary" id="gpc-send" disabled aria-describedby="gpc-sendnote">Send to config</button>' +
+        '<span class="gpc-sub" id="gpc-sendnote" role="status" aria-live="polite">' + esc(SEND_NOTE_OLD) + '</span>' +
+      '</section>' +
+      '<p class="gpc-rules" id="gpc-rules">Check a game’s rules before you use one online.</p>' +
+      (ZS.helpHTML ? ZS.helpHTML('gpc-rules-why', 'Game rules', 'Rapid fire and anti-recoil scripts can break some games’ rules. ' +
+        'Check a game’s rules before you use one online.') : '');
+  }
+
+  /* the engine cannot run on this phone (no WebAssembly, or the file did
+     not load): one plain sentence, and the rest of the room still works */
+  function engineHTML() {
+    var d = engineDown();
+    return d ? '<p class="note warn" id="gpc-enginenote" role="alert">' + esc(d) + '</p>' : '';
+  }
+
+  /* the lines around the one the checker named, that line marked by more
+     than colour: a ▸ stands beside its number */
+  function excerptHTML(text, err) {
+    var lines = String(text).split(/\r\n|\n|\r/), n = err.line, from = Math.max(1, n - 2),
+      to = Math.min(lines.length, n + 2), h = '', i, L, c;
+    for (i = from; i <= to; i++) {
+      L = (lines[i - 1] || '').replace(/\t/g, '  ');
+      if (L.length > 160) { L = L.slice(0, 157) + '...'; }
+      if (i === n) {
+        c = err.col >= 1 ? err.col - 1 : -1;
+        if (c >= 0 && c < L.length && (lines[i - 1] || '').indexOf('\t') < 0) {
+          L = esc(L.slice(0, c)) + '<mark class="gpc-at">' + esc(L.charAt(c)) + '</mark>' + esc(L.slice(c + 1));
+        } else { L = esc(L); }
+        h += '<div class="gpc-ln gpc-bad" data-line="' + i + '" aria-current="true"><span class="gpc-no">▸ ' + i +
+          '</span><code>' + (L || ' ') + '</code></div>';
+      } else {
+        h += '<div class="gpc-ln" data-line="' + i + '"><span class="gpc-no">' + i + '</span><code>' + (esc(L) || ' ') + '</code></div>';
+      }
+    }
+    return '<div class="gpc-code" role="group" aria-label="The script around line ' + n + '">' + h + '</div>';
+  }
+  function lowerFirst(s) { return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s; }
+  function names(fs, v) {
+    var out = [];
+    for (var i = 0; i < fs.length; i++) { if (fs[i].verdict === v) { out.push(lowerFirst(fs[i].feature)); } }
+    return out.join(', ');
+  }
+  function reportHTML(text, r) {
+    var v = verdict(r), h, i, f;
+    if (v === 'none') { return ''; }
+    if (v === 'pending') { return '<div class="gpc-card" id="gpc-checking" role="status"><b>Checking the script…</b></div>'; }
+    if (v === 'down') {
+      return '<div class="gpc-card gpc-cannot" id="gpc-down" role="alert"><b>This phone can’t check scripts.</b>' +
+        '<span class="gpc-sub">' + esc(r.error ? r.error.msg : engineDown()) + '</span></div>';
+    }
+    if (v === 'error') {
+      var e = r.error, fix = colonFix(text, e);
+      h = '<div class="gpc-card gpc-error" id="gpc-err" role="alert">' +
+        '<div class="gpc-vt"><span class="gpc-vi" aria-hidden="true">!</span><b>Line ' + e.line + ' needs a fix</b></div>' +
+        '<p class="gpc-msg">The checker says: ' + esc(e.msg) + '.</p>' +
+        excerptHTML(text, e);
+      if (fix) {
+        h += '<div class="gpc-fix" id="gpc-fixbox"><p>It looks like a <b>:</b> was typed where a <b>;</b> belongs, ' +
+          'on line ' + fix.line + '.</p>' +
+          '<button type="button" class="btn primary" id="gpc-fixbtn" data-line="' + fix.line + '">Change it to ; on line ' + fix.line + '</button>' +
+          '<span class="gpc-sub">Only line ' + fix.line + ' changes, and nothing changes until you tap.</span></div>';
+      } else {
+        h += '<span class="gpc-sub">Fix it in the script below, or in the place you copied it from, and paste it again.</span>';
+      }
+      return h + '</div>';
+    }
+    var head = v === 'runs' ? 'Runs'
+      : v === 'differs' ? 'Runs, with differences: ' + names(r.features, 'differs')
+      : 'Can’t run: needs ' + names(r.features, 'cannot');
+    h = '<div class="gpc-card gpc-' + v + '" id="gpc-verdict" role="status">' +
+      '<div class="gpc-vt"><span class="gpc-vi" aria-hidden="true">' + (v === 'runs' ? '✓' : v === 'differs' ? '≈' : '✕') +
+      '</span><b id="gpc-head">' + esc(head) + '</b></div>';
+    if (v === 'cannot') {
+      h += '<span class="gpc-sub">The Core cannot give this script what it needs, so it is not run here either.</span>';
+    }
+    if (r.loose && r.loose.length) {
+      var lf = looseFix(text, r);
+      h += '<div class="gpc-fix" id="gpc-loose"><p>It runs as it is. The checker read ' +
+        (r.loose.length === 1 ? 'one thing' : r.loose.length + ' things') + ' written loosely:</p><ul class="gpc-feats">';
+      for (i = 0; i < r.loose.length; i++) {
+        h += '<li class="v-differs"><i>Line ' + r.loose[i].line + '</i><span>' + esc(r.loose[i].msg) + '</span></li>';
+      }
+      h += '</ul>';
+      if (lf) {
+        h += '<div id="gpc-fixbox"><button type="button" class="btn" id="gpc-fixbtn" data-line="' + lf.line +
+          '">Change it to ; on line ' + lf.line + '</button>' +
+          '<span class="gpc-sub">Optional: other tools may want it written the usual way. Only line ' + lf.line +
+          ' changes, and nothing changes until you tap.</span></div>';
+      }
+      h += '</div>';
+    }
+    if (r.features.length) {
+      h += '<ul class="gpc-feats">';
+      for (i = 0; i < r.features.length; i++) {
+        f = r.features[i];
+        h += '<li class="v-' + f.verdict + '"><i>' + (f.verdict === 'runs' ? 'Runs' : f.verdict === 'differs' ? 'Differs' : 'Can’t run') +
+          '</i><b>' + esc(f.feature) + '</b>' + (f.reason ? '<span>' + esc(f.reason) + '</span>' : '') + '</li>';
+      }
+      h += '</ul>';
+    }
+    return h + '</div>';
+  }
+  function rowWord(n) {
+    var s = slotOf(n), r, v;
+    if (!s) { return 'Tap to paste a script'; }
+    r = resultOf(n); v = verdict(r);
+    if (v === 'pending') { return 'Checking…'; }
+    if (v === 'down') { return 'Can’t check on this phone'; }
+    if (v === 'error') { return 'Needs a fix: line ' + r.error.line; }
+    if (v === 'cannot') { return 'Can’t run'; }
+    if (n === S.data.slot && (S.fault || S.simErr)) { return 'Stopped · press Reset'; }
+    return v === 'differs' ? 'Runs, with differences' : 'Runs';
+  }
+  function slotsHTML() {
+    var h = '', n, s, cur;
+    for (n = 1; n <= SLOTS; n++) {
+      s = slotOf(n); cur = n === S.data.slot;
+      h += '<button type="button" class="gpc-slot' + (s ? '' : ' gpc-empty') + '" data-slot="' + n + '"' +
+        (cur ? ' aria-current="true"' : '') + ' aria-label="Slot ' + n + ': ' + esc(s ? nameOf(s, n) : 'empty') + '. ' +
+        esc(rowWord(n)) + (cur ? '. Loaded' : '') + '. Open">' +
+        '<span class="gpc-sn" aria-hidden="true">' + n + '</span>' +
+        '<span class="gpc-st" aria-hidden="true"><b>' + esc(s ? nameOf(s, n) : 'Empty') + '</b><span>' + esc(rowWord(n)) + '</span></span>' +
+        '<span class="gpc-tag" aria-hidden="true">' + (cur ? 'Loaded' : '') + '</span>' +
+        '<span class="chev" aria-hidden="true">›</span></button>';
+    }
+    return h;
+  }
+
+  /* ════════════════════════════════════════════════ painting ══ */
+  function paintAll() {
+    if (!ROOT) { return; }
+    var list = $('gpc-slotlist');
+    if (list) { list.innerHTML = slotsHTML(); wireSlots(list); }
+    paintMode();
+    paintStatus();
+    paintFault();
+    paintSend();
+  }
+  function paintMode() {
+    if (!ROOT) { return; }
+    var seg = $('gpc-mode');
+    if (seg) {
+      seg.querySelectorAll('button').forEach(function (b) {
+        var on = b.getAttribute('data-mode') === S.mode;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    var live = S.mode === 'live', soon = $('gpc-soon');
+    var streaming = live && !!(S.live && S.live.ok);
+    if (soon) {
+      show(soon, live && !streaming);
+      var why = (S.live && S.live.reason) || LIVE_SOON;
+      soon.innerHTML = live ? '<b>' + esc(why) + '</b>' +
+        (why === GPC_OFF
+          ? '<span>Preview on the phone still works. Live, Send to config and P1 / Reset on your Core ' +
+            'need the GPC script device switch on.</span>'
+          : '<span>Your Core will show its screen here while the app is open, and the controller plugged into ' +
+            'it will work the menu. Until then, use Preview.</span>') : '';
+    }
+    show($('gpc-canvas'), !live || streaming);
+    show($('gpc-grid'), !live || streaming);
+    /* the keys work the device on the screen: the phone's in Preview, the
+       Core's in Live (and nothing while the Core is not streaming) */
+    ['gpc-p1', 'gpc-p2', 'gpc-reset'].forEach(function (id) { var b = $(id); if (b) { b.disabled = live && !streaming; } });
+    var dot = $('gpc-dot'), fw = $('gpc-fw'), sw = $('gpc-slotword'), n = live ? LV.slot : (S.data ? S.data.slot : 0);
+    if (dot) { dot.classList.toggle('on', live ? streaming && LV.state === 'running' : !!S.sim && !S.fault); }
+    if (fw) { fw.textContent = live ? 'Live' : 'Preview'; }
+    if (sw) { sw.textContent = n ? 'Slot ' + n : 'Off'; }
+  }
+  function statusHTML() {
+    var w = WORDS[S.fam];
+    if (S.mode === 'live') {
+      var note = LV.note ? '<span>' + esc(LV.note) + '</span>' : '';
+      if (S.live && S.live.ok && S.dev && S.dev.pairing) {
+        return '<b>Pairing.</b><span>Your Core’s controllers plug in with a cable: plug one into your Core, then ' +
+          'press any button on it. Hold P2 again to stop.</span>' + note;
+      }
+      if (S.live && S.live.ok) {
+        return '<b>Your Core’s screen, live.</b><span>The controller plugged into your Core works the menu: hold ' +
+          w.l2 + ' and press ' + w.opt + '. P1, P2 and Reset work your Core. ' + liveWhat() + '</span>' + note;
+      }
+      return '<b>The controller plugged into your Core works the menu in Live mode.</b>';
+    }
+    if (S.dev && S.dev.pairing) {
+      return '<b>Pairing.</b><span>Open your phone’s Bluetooth settings and pair your controller, then press any ' +
+        'button on it. Hold P2 again to stop.</span>';
+    }
+    if (S.noApi) {
+      return '<b>This phone’s browser cannot read a controller.</b><span>The menu can be worked in Live ' +
+        'mode, with the controller plugged into your Core.</span>';
+    }
+    if (!S.pad) {
+      return '<b>Connect a controller to use the menu.</b><span>Pair it with this phone in its Bluetooth settings ' +
+        '(hold P2 for help), then press any button on it.</span>' + (S.hint ? '<span>' + esc(S.hint) + '</span>' : '');
+    }
+    return '<b>Controller: ' + esc(padName(S.pad.id)) + '</b><span>The D-pad moves and changes values, ' + w.sel +
+      ' selects, ' + w.back + ' goes back. Hold ' + w.l2 + ' and press ' + w.opt + ' for the device menu.' +
+      (S.pad.standard ? '' : ' This controller’s buttons may be laid out differently.') + '</span>' +
+      (S.hint ? '<span>' + esc(S.hint) + '</span>' : '');
+  }
+  function paintStatus() {
+    var p = $('gpc-padline');
+    if (!p || !ROOT) { return; }
+    p.innerHTML = statusHTML();
+    p.classList.toggle('gpc-none', S.mode === 'preview' && !S.pad && !(S.dev && S.dev.pairing));
+  }
+  function paintFault() {
+    var box = $('gpc-fault');
+    if (!box) { return; }
+    var f = S.fault;
+    box.innerHTML = (f || S.simErr) && S.mode === 'preview'
+      ? '<div class="note warn" role="alert" id="gpc-stopped"><b>The script in slot ' + S.data.slot + ' stopped.</b> ' +
+        esc(f ? String(f.msg || 'It did something it may not do') : S.simErr) +
+        (f && f.line ? ' (line ' + esc(String(f.line)) + ')' : '') +
+        '. On the Core your controller keeps working and the script is switched off. Press Reset to start it again.</div>'
+      : '';
+  }
+
+  /* ═══════════════════════════════════════════════ the screen ══
+     Sized in DEVICE pixels: `scale` whole device pixels per screen pixel,
+     the largest that fits the glass, so no pixel is ever resampled. */
+  function sizeCanvas() {
+    var glass = $('gpc-glass'), cv = $('gpc-canvas'), gr = $('gpc-grid');
+    if (!glass || !cv) { return; }
+    var cssW = glass.clientWidth || 300, dpr = window.devicePixelRatio || 1;
+    var s = Math.max(1, Math.floor((cssW - 8) * dpr / 128));
+    if (s === S.scale && cv.width === 128 * s) { return; }
+    S.scale = s;
+    var w = 128 * s, h = 64 * s, cw = (w / dpr) + 'px', ch = (h / dpr) + 'px';
+    [cv, gr].forEach(function (c) {
+      if (!c) { return; }
+      c.width = w; c.height = h; c.style.width = cw; c.style.height = ch;
+    });
+    drawGrid(gr, s);
+    S.drawnKey = '';
+  }
+  function drawGrid(gr, s) {
+    var ctx = gr && gr.getContext ? gr.getContext('2d') : null, g = gapFor(s), x, y;
+    if (!ctx) { return; }
+    ctx.clearRect(0, 0, gr.width, gr.height);
+    if (s < 4) { return; }          /* below that a grid is only noise */
+    ctx.fillStyle = GRID;
+    for (y = 0; y < 64; y++) { for (x = 0; x < 128; x++) { ctx.fillRect(x * s, y * s, s - g, s - g); } }
+  }
+  /* exactly the framebuffer's pixels; true when it drew */
+  function drawScreen(fb) {
+    var cv = $('gpc-canvas'), ctx = cv && cv.getContext ? cv.getContext('2d') : null;
+    if (!ctx || !fb) { return false; }
+    var s = S.scale || 1, g = gapFor(s), d = s - g, x, y, b;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = LIT;
+    for (y = 0; y < 64; y++) {
+      for (x = 0; x < 128; x += 8) {
+        if (!fb[y * 16 + (x >> 3)]) { continue; }
+        for (b = 0; b < 8; b++) { if (pixel(fb, x + b, y)) { ctx.fillRect((x + b) * s, y * s, d, d); } }
+      }
+    }
+    S.draws++;
+    return true;
+  }
+  function applyBright() {
+    var cv = $('gpc-canvas');
+    if (cv && S.dev) { cv.style.opacity = String(OPACITY[S.dev.bright] || 1); }
+  }
+
+  /* ══════════════════════════════════════════ the running device ══ */
+  function detailOpen() {
+    var d = document.getElementById('detail');
+    return !d || d.classList.contains('open');
+  }
+  function onScreen() { return !!ROOT && document.getElementById('gpc') === ROOT && detailOpen(); }
+  /* Live, and the Core is streaming its screen */
+  function liveOn() { return S.mode === 'live' && !!(S.live && S.live.ok); }
+  function running() { return onScreen() && (S.mode === 'preview' || liveOn()) && !!S.dev && !document.hidden; }
+
+  /* the loaded slot's script, started from the top (its init runs again) */
+  function startSim() {
+    var G = engine(), n = S.data.slot;
+    S.sim = null; S.simErr = ''; S.fault = null; S.simVer = -1; S.simFb = null; S.simLit = false;
+    if (!G || !n || !runnable(n)) { return; }
+    try { S.sim = new G.Sim(resultOf(n).bytecode, hostOf()); S.inits++; }
+    catch (e) { S.simErr = 'It could not start: ' + (e && e.message ? e.message : e); return; }
+    var s = slotOf(n);
+    if (s && s.spvars && s.spvars.length && typeof S.sim.setSpvars === 'function') {
+      try { S.sim.setSpvars(s.spvars); } catch (e2) { /* the values were a convenience */ }
+    }
+    S.spvSaved = JSON.stringify((s && s.spvars) || []);
+  }
+  function keepSpvars() {
+    var n = S.data && S.data.slot, s = slotOf(n);
+    if (!S.sim || !s || typeof S.sim.spvars !== 'function') { return; }
+    var a; try { a = S.sim.spvars(); } catch (e) { return; }
+    if (!a || typeof a.length !== 'number') { return; }
+    var arr = [], j; for (j = 0; j < a.length; j++) { arr.push(Number(a[j]) || 0); }
+    var js = JSON.stringify(arr);
+    if (js === S.spvSaved) { return; }
+    S.spvSaved = js;
+    s.spvars = arr;
+    keepData();
+  }
+  function loadSlot(n) {
+    keepSpvars();
+    S.data.slot = n;
+    keepData();
+    startSim();
+    pushSlots();
+    S.drawnKey = '';
+    paintAll();
+  }
+  /* P1: the next slot that holds a script, then off */
+  function pressP1() {
+    if (liveOn() && S.dev) { liveP1(); return; }
+    if (S.mode !== 'preview' || !S.dev) { return; }
+    var next = DEV().nextSlot(S.data.slot, S.dev.has());
+    S.dev.closeAll();
+    if (next === S.data.slot) { S.dev.say('NO SCRIPTS', now()); return; }
+    loadSlot(next);
+  }
+  /* Reset: the device starts again; the slots are kept */
+  function pressReset() {
+    if (liveOn() && S.dev) { liveReset(); return; }
+    if (S.mode !== 'preview' || !S.dev) { return; }
+    keepSpvars();
+    S.dev.closeAll();
+    startSim();
+    pushSlots();
+    S.drawnKey = '';
+    paintAll();
+  }
+  function togglePair() {
+    if (!S.dev) { return; }
+    if (S.dev.pairing) { S.dev.unpair(); } else { S.dev.pair(now()); S.padPressed = S.pad ? S.pad.pressed : ''; }
+    S.hint = '';
+    paintStatus();
+  }
+  function act(a) {
+    if (!a) { return; }
+    if (a.type === 'load') { loadSlot(a.slot); }
+    else if (a.type === 'resetValues') {
+      var s = slotOf(S.data.slot);
+      if (s) { s.spvars = []; keepData(); }
+      startSim();
+      pushSlots();
+      paintAll();
+    } else if (a.type === 'bright') {
+      if (ZS.store && ZS.store.vals) { ZS.store.vals[BRIGHT_KEY] = String(a.level); if (ZS.persistStore) { ZS.persistStore(); } }
+      applyBright();
+    }
+  }
+
+  function startLoop() {
+    if (S.loop || !running()) { return; }
+    S.gen++;
+    var g = S.gen;
+    S.lastT = now(); S.acc = 0;
+    S.loop = true;
+    raf(function () { frame(g); });
+  }
+  function stopLoop() { S.loop = false; S.gen++; }
+  /* S.gen: a frame asked for by a loop that has since been stopped (or
+     stopped and started again) finds a newer generation and does nothing */
+  function frame(g) {
+    if (g !== S.gen || !S.loop) { return; }
+    if (!running()) {
+      S.loop = false;
+      keepSpvars();
+      /* Live, and the room was left or the app put away: the Core gets its
+         controller back (the device's own screens close, as on Reset) */
+      if (S.mode === 'live' && S.dev) { S.dev.closeAll(); liveMenu(false); }
+      return;
+    }
+    if (S.mode === 'live') { liveFrame(); raf(function () { frame(g); }); return; }
+    var t = now(), n, i, f = null, pad = readPad(), key = pad ? pad.id + '|' + pad.standard : (S.noApi ? 'none' : '');
+    S.acc += t - S.lastT; S.lastT = t;
+    if (S.acc > MAX_CATCHUP) { S.acc = MAX_CATCHUP; }
+    n = Math.floor(S.acc); S.acc -= n;
+    /* the controller: who it is, and whether it just answered a pairing */
+    var wasPair = !!S.dev.pairing;
+    if (S.dev.pairing && pad && pad.pressed && pad.pressed !== S.padPressed) { S.dev.paired(t); }
+    S.padPressed = pad ? pad.pressed : '';
+    S.pad = pad;
+    S.dev.setPad(!!pad);
+    if (key !== S.padKey || wasPair !== !!S.dev.pairing) { S.padKey = key; S.hint = ''; paintStatus(); }
+    var res = S.dev.input(pad ? pad.input : neutral(), t);
+    if (!!S.dev.pairing !== wasPair) { paintStatus(); }
+    act(res.act);
+    if (S.sim && !S.fault) {
+      try {
+        for (i = 0; i < n; i++) { S.sim.tick(1, res.script); }
+        f = S.sim.fault();
+      } catch (e) { f = { code: 'stopped', msg: e && e.message ? e.message : String(e), line: 0 }; }
+      if (f) { S.fault = f; keepSpvars(); pushSlots(); paintAll(); }
+      else if (want() >= 0) { /* load_slot(n): the script stopped itself; the device loads n, as P1 does */ }
+      else {
+        var v = S.sim.screenVersion();
+        if (v !== S.simVer) { S.simVer = v; S.simFb = S.sim.screen(); S.simLit = DEV().oled.lit(S.simFb); }
+      }
+    }
+    var c = S.dev.compose(S.simLit && !S.fault, S.simVer, t);
+    if (c.dark !== S.dark) { S.dark = c.dark; var gl = $('gpc-glass'); if (gl) { gl.classList.toggle('gpc-dark', !!c.dark); } }
+    if (c.key !== S.drawnKey && t - S.lastDraw >= FRAME_MS - 1) {
+      if (S.scale === 0) { sizeCanvas(); }
+      if (drawScreen(c.build(S.simFb))) {
+        S.drawnKey = c.key; S.lastDraw = t;
+        var cv = $('gpc-canvas');
+        if (cv) { cv.setAttribute('aria-label', S.dev.describe(c.what)); }
+      }
+    }
+    /* every few seconds, not every second: each keep re-writes the whole
+       store, scripts and all (M26); leaving, Reset and a slot change keep
+       them at once */
+    if (t - S.lastSpv >= SPV_KEEP_MS) { S.lastSpv = t; keepSpvars(); }
+    raf(function () { frame(g); });
+  }
+
+  /* A script's load_slot(n), asked once: n 1..8 loads that slot (an empty
+     one shows as empty, the controller passing through), 0 turns the
+     device off. Returns the slot it loaded, or -1. */
+  function want() {
+    var req = S.sim && typeof S.sim.slotRequest === 'function' ? S.sim.slotRequest() : -1;
+    if (!(req >= 0 && req <= SLOTS)) { return -1; }
+    S.dev.closeAll();
+    loadSlot(req);
+    return req;
+  }
+
+  /* ═════════════════════════════════════════════ the device keys ══ */
+  function wireKeys() {
+    var p1 = $('gpc-p1'), p2 = $('gpc-p2'), rs = $('gpc-reset');
+    if (p1) { p1.addEventListener('click', pressP1); }
+    if (rs) { rs.addEventListener('click', pressReset); }
+    if (!p2) { return; }
+    /* P2 is a press and HOLD, as on the device: the key fills while held
+       and pairing starts at one second. A tap says so. Enter or Space (a
+       click with no pointer behind it) is the hold for a keyboard. */
+    var start = function () {
+      if ((S.mode !== 'preview' && !liveOn()) || S.hold) { return; }
+      p2.classList.add('gpc-holding');
+      S.hold = setTimeout(function () {
+        S.hold = 'done';
+        p2.classList.remove('gpc-holding');
+        togglePair();
+      }, HOLD_MS);
+    };
+    var end = function () {
+      if (!S.hold) { return; }
+      if (S.hold !== 'done') {
+        clearTimeout(S.hold);
+        S.hint = S.dev && S.dev.pairing ? '' : 'Hold P2 for a second to pair a controller.';
+        paintStatus();
+      }
+      S.hold = null;
+      p2.classList.remove('gpc-holding');
+    };
+    if (HASP) {
+      p2.addEventListener('pointerdown', function (e) {
+        if (e.button > 0) { return; }
+        try { if (p2.setPointerCapture) { p2.setPointerCapture(e.pointerId); } } catch (x) { /* released */ }
+        start();
+      });
+      p2.addEventListener('pointerup', end);
+      p2.addEventListener('pointercancel', end);
+    } else {
+      p2.addEventListener('touchstart', start, { passive: true });
+      p2.addEventListener('touchend', end);
+      p2.addEventListener('mousedown', start);
+      p2.addEventListener('mouseup', end);
+    }
+    p2.addEventListener('click', function (e) { if (!e.detail) { togglePair(); } });
+    p2.addEventListener('contextmenu', function (e) { if (e.preventDefault) { e.preventDefault(); } });
+  }
+
+  /* ═══════════════════════════════════════════════ the two modes ══
+     LIVE IS THE SAME DEVICE, WORKING THE CORE. On a Core with the script
+     firmware the device on the screen is the Core's: its screen is the
+     Core's own (GET /gpc/screen?since=V&pad=1, ten times a second), P1 is
+     POST /gpc/slot, Reset POST /gpc/reset, and the device menu (L2 +
+     Options) is drawn here, worked by the controller plugged into the Core
+     (the poll carries what it holds and every press since the last poll,
+     so a quick tap is never lost), while the Core keeps it from the script
+     (POST /gpc/menu). The menu's slot list loads with POST /gpc/slot and
+     RESET VALUES is POST /gpc/values {slot, reset}. A controller paired
+     with the phone works it too. On anything else attach() answers
+     ok:false with the sentence the screen shows, and nothing is faked. */
+  /* ═══════════════════════════════════════════ the Core (zs_gpc) ══
+     A Core with the script firmware answers GET /gpc/status
+     (docs/GPC-FIRMWARE.md); one that does not (an older Core, an EXO, no
+     board) leaves Live as the seam above describes and Send off. Asked when
+     the room opens and when Live is chosen. */
+  var CORE = { ready: false, status: null, asking: false, sending: false };
+  function coreApi() { return window.ZS && typeof window.ZS.api === 'function' ? window.ZS.api : null; }
+  function probeCore() {
+    var api = coreApi();
+    if (!api || CORE.asking) { return; }
+    CORE.asking = true;
+    api('/gpc/status', 'GET').then(function (j) {
+      CORE.ready = !!(j && j.ok && j.data);
+      CORE.status = CORE.ready ? j.data : null;
+      /* D215: is the GPC script device on? (a Core without the switch
+         answers nothing, and nothing is gated) */
+      return CORE.ready && window.ZSMODES ? window.ZSMODES.read('gpc') : null;
+    }).then(function () {
+      CORE.asking = false;
+      paintSend();
+      /* Live was chosen before the answer came: start the stream now */
+      if (S.mode === 'live' && CORE.ready && !(S.live && S.live.ok)) { attachLive(); paintAll(); }
+      /* streaming already: the Core's slot names may have changed */
+      else if (liveOn()) { liveSync(); }
+    }, function () { CORE.asking = false; CORE.ready = false; paintSend(); });
+  }
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  function b64(u8) {
+    var out = '', i, v;
+    for (i = 0; i + 2 < u8.length; i += 3) {
+      v = (u8[i] << 16) | (u8[i + 1] << 8) | u8[i + 2];
+      out += B64[(v >> 18) & 63] + B64[(v >> 12) & 63] + B64[(v >> 6) & 63] + B64[v & 63];
+    }
+    if (i < u8.length) {
+      v = u8[i] << 16 | (i + 1 < u8.length ? u8[i + 1] << 8 : 0);
+      out += B64[(v >> 18) & 63] + B64[(v >> 12) & 63] + (i + 1 < u8.length ? B64[(v >> 6) & 63] : '=') + '=';
+    }
+    return out;
+  }
+  function unb64(s) {
+    var out = [], i, a, b, c, d;
+    s = String(s || '').replace(/[^A-Za-z0-9+/=]/g, '');
+    for (i = 0; i + 3 < s.length; i += 4) {
+      a = B64.indexOf(s[i]); b = B64.indexOf(s[i + 1]);
+      c = s[i + 2] === '=' ? 0 : B64.indexOf(s[i + 2]); d = s[i + 3] === '=' ? 0 : B64.indexOf(s[i + 3]);
+      if (a < 0 || b < 0 || c < 0 || d < 0) { return null; }
+      out.push(((a << 2) | (b >> 4)) & 255);
+      if (s[i + 2] !== '=') { out.push(((b << 4) | (c >> 2)) & 255); }
+      if (s[i + 3] !== '=') { out.push(((c << 6) | d) & 255); }
+    }
+    return new Uint8Array(out);
+  }
+
+  var gpcLive = {
+    available: function () { return CORE.ready; },
+    /* LIVE: the Core's own screen (GET /gpc/screen?since=V&pad=1, 10 times
+       a second; "unchanged" costs one line on the USB link, a picture six).
+       onScreen(fb, version) gets each new picture; onPad(data), when
+       given, every answer's pad, slot and state (a Core from before the
+       pad simply leaves them out). While idle() answers true (the room
+       is not on the screen) it asks nothing. */
+    attach: function (onScreen, onPad, idle) {
+      var api = coreApi();
+      if (!CORE.ready || !api) { return { ok: false, reason: LIVE_SOON, detach: function () {} }; }
+      if (deviceOff()) { return { ok: false, reason: GPC_OFF, detach: function () {} }; }
+      var h = { ok: true, reason: '', version: -1, stopped: false, timer: null };
+      function poll() {
+        if (h.stopped) { return; }
+        if (typeof idle === 'function' && idle()) { h.timer = setTimeout(poll, 500); return; }
+        api('/gpc/screen?' + (h.version >= 0 ? 'since=' + h.version + '&' : '') + 'pad=1', 'GET').then(function (j) {
+          if (h.stopped) { return; }
+          var d = j && j.ok ? j.data : null;
+          if (d && typeof d.version === 'number') {
+            if (d.fb) {
+              var fb = unb64(d.fb);
+              if (fb && fb.length === 1024) { h.version = d.version; onScreen(fb, d.version); }
+            } else {
+              h.version = d.version;
+            }
+            if (typeof onPad === 'function') { onPad(d); }
+          }
+          h.timer = setTimeout(poll, LIVE_MS);
+        }, function () { if (!h.stopped) { h.timer = setTimeout(poll, 1000); } });
+      }
+      h.detach = function () { h.stopped = true; if (h.timer) { clearTimeout(h.timer); } };
+      poll();
+      return h;
+    },
+    send: function (input) { return false; }
+  };
+
+  /* ── Live: the device working the Core ───────────────────────────── */
+  /* GPC's own numbers for the controls the device menu reads (gpc-sim.js
+     KEYS; the poll's pad bits are these) */
+  var PADBIT = { PS: 0, SHARE: 1, OPTIONS: 2, R1: 3, R2: 4, R3: 5, L1: 6, L2: 7, L3: 8, UP: 13, DOWN: 14,
+                 LEFT: 15, RIGHT: 16, TRIANGLE: 17, CIRCLE: 18, CROSS: 19, SQUARE: 20, TOUCH: 27 };
+  var LV = { fb: null, ver: -1, lit: false, q: [], cur: null, slot: 0, state: 'off', menuSent: false,
+             menuAsk: null, menuWant: false, menuTries: 0, pressed: false, havePad: false, note: '', busy: 0 };
+  function liveClear() {
+    LV.fb = null; LV.ver = -1; LV.lit = false; LV.q = []; LV.cur = null; LV.pressed = false; LV.note = '';
+  }
+  function padInput(bits) {
+    var o = neutral(), k;
+    for (k in PADBIT) { if (PADBIT.hasOwnProperty(k)) { o[k] = (bits >>> PADBIT[k]) & 1 ? 100 : 0; } }
+    return o;
+  }
+  /* the stronger of the Core's controller and the phone's, key by key */
+  function merge(a, b) {
+    var o = {}, k;
+    for (k in a) { if (a.hasOwnProperty(k)) { o[k] = a[k]; } }
+    if (b) {
+      for (k in b) {
+        if (b.hasOwnProperty(k) && Math.abs(Number(b[k]) || 0) > Math.abs(Number(o[k]) || 0)) { o[k] = b[k]; }
+      }
+    }
+    return o;
+  }
+  /* the Core's slots, as the device lists them */
+  function liveSlots() {
+    var out = [], i, list = (CORE.status && CORE.status.slots) || [];
+    for (i = 0; i < SLOTS; i++) { out.push({ name: '', state: 'empty' }); }
+    list.forEach(function (s) {
+      var n = Number(s && s.slot);
+      if (!(n >= 1 && n <= SLOTS)) { return; }
+      out[n - 1] = { name: String(s.name || ''), state: s.ok === false ? 'cannot' :
+        (n === LV.slot && LV.state === 'fault') ? 'stopped' : 'ok' };
+    });
+    return out;
+  }
+  function liveSync() {
+    if (!S.dev) { return; }
+    S.dev.setWhere('core');
+    S.dev.setSlots(liveSlots());
+    S.dev.setSlot(LV.slot);
+  }
+  function liveSay(t) { LV.note = t || ''; paintStatus(); }
+  /* what the Core is doing, in words */
+  function liveWhat() {
+    if (!LV.slot) { return 'No script is running on it: your controller passes straight through.'; }
+    if (LV.state === 'fault') { return 'The script in slot ' + LV.slot + ' stopped; your controller passes straight through. Press Reset to start it again.'; }
+    if (LV.state === 'refused') { return 'Your Core would not run the script in slot ' + LV.slot + '.'; }
+    if (LV.state === 'paused') { return 'Slot ' + LV.slot + ' is paused while Passthrough Mode is on.'; }
+    return 'Slot ' + LV.slot + ' is running on it.';
+  }
+  /* every refusal is the Core's own sentence (a 409 names the reason, a
+     Core with the D87 gate shut says that) */
+  function coreSays(j, fallback) {
+    return String((j && (j.error || (j.errors && j.errors[0]))) || fallback || 'Your Core did not take that.');
+  }
+  function livePost(path, body, then) {
+    var api = coreApi();
+    if (!api) { return; }
+    LV.busy++;
+    api(path, 'POST', body).then(function (j) {
+      LV.busy--;
+      if (j && j.ok) { liveSay(''); then(j.data || {}); }
+      else { liveSay(coreSays(j)); }
+      paintAll();
+    }, function () { LV.busy--; liveSay('Your Core did not answer.'); });
+  }
+  function liveLoad(n) {
+    livePost('/gpc/slot', { slot: n }, function (d) {
+      LV.slot = typeof d.active === 'number' ? d.active : n;
+      LV.state = LV.slot ? 'running' : 'off';
+      if (CORE.status) { CORE.status.active = LV.slot; }
+      liveSync();
+    });
+  }
+  function liveP1() {
+    var next = DEV().nextSlot(LV.slot, S.dev.has());
+    S.dev.closeAll();
+    if (next === LV.slot) { S.dev.say('NO SCRIPTS', now()); return; }
+    liveLoad(next);
+  }
+  function liveReset() {
+    S.dev.closeAll();
+    if (!LV.slot) { return; }               /* off: nothing to start again */
+    livePost('/gpc/reset', {}, function () { LV.state = 'running'; liveSync(); });
+  }
+  function liveAct(a) {
+    if (!a) { return; }
+    if (a.type === 'load') { liveLoad(a.slot); }
+    else if (a.type === 'resetValues') {
+      livePost('/gpc/values', { slot: LV.slot, reset: true }, function () { LV.state = 'running'; liveSync(); });
+    } else if (a.type === 'bright') { act(a); }
+  }
+  /* the menu is open: the Core keeps the controller from the script */
+  /* AUDIT M25: what the Core HAS been told is only what it answered. The
+     menu used to be marked sent before the answer, so a lost {open: false}
+     (the USB link drops about one line in hundreds) left the Core's menu
+     open and the script on a resting pad, with nothing asking again. Now an
+     unanswered ask is asked again: by the next frame while Live runs, and,
+     for a close once the loop has stopped (Live left, the room put away),
+     by a short timer, a few times. */
+  var MENU_RETRY_MS = 1000, MENU_TRIES = 5;
+  function liveMenu(open) {
+    var api = coreApi();
+    LV.menuWant = open;                      /* the last word, whatever is in flight */
+    if (open === LV.menuSent || !api) { return; }
+    if (LV.menuAsk === open) { return; }     /* that ask is still on its way */
+    LV.menuAsk = open;
+    function failed() {
+      if (LV.menuAsk === open) { LV.menuAsk = null; }
+      if (open || LV.menuTries >= MENU_TRIES) { return; }
+      LV.menuTries++;
+      setTimeout(function () { if (LV.menuWant === false && LV.menuSent !== false && !LV.menuAsk) { liveMenu(false); } }, MENU_RETRY_MS);
+    }
+    api('/gpc/menu', 'POST', { open: open }).then(function (j) {
+      if (!(j && j.ok)) { failed(); return; }
+      if (LV.menuAsk === open) { LV.menuAsk = null; }
+      LV.menuSent = open;
+      LV.menuTries = 0;
+      /* closed (or opened) again while this was on its way */
+      if (LV.menuWant !== open) { liveMenu(LV.menuWant); }
+    }, failed);
+  }
+  /* one poll's answer: the picture, the Core's controller, its slot */
+  function livePad(d) {
+    if (d.pad && typeof d.pad.held === 'number') {
+      var h = d.pad.held >>> 0, p = (d.pad.pressed >>> 0) || 0;
+      /* a press that came and went between two polls: down, then up */
+      if (p & ~h) { LV.q.push(padInput(h | p)); }
+      LV.q.push(padInput(h));
+      if (LV.q.length > 12) { LV.q.splice(0, LV.q.length - 12); }
+      if (p) { LV.pressed = true; LV.havePad = true; }
+      if (h) { LV.havePad = true; }
+    }
+    var changed = false;
+    if (typeof d.slot === 'number' && d.slot !== LV.slot) { LV.slot = d.slot; changed = true; }
+    if (typeof d.state === 'string' && d.state !== LV.state) { LV.state = d.state; changed = true; }
+    if (changed) {
+      if (CORE.status) { CORE.status.active = LV.slot; }
+      /* a script's own load_slot moved it: the names may be news too */
+      liveSync();
+      paintMode();
+      paintStatus();
+      if (!CORE.status || !(CORE.status.slots || []).some(function (s) { return s.slot === LV.slot; })) { probeCore(); }
+    }
+  }
+  function liveFrame() {
+    var t = now(), pad = readPad(), key = pad ? pad.id + '|' + pad.standard : (S.noApi ? 'none' : '');
+    if (LV.q.length) { LV.cur = LV.q.shift(); }
+    var inp = merge(LV.cur || neutral(), pad ? pad.input : null);
+    var wasPair = !!S.dev.pairing;
+    if (S.dev.pairing && (LV.pressed || (pad && pad.pressed && pad.pressed !== S.padPressed))) { S.dev.paired(t); }
+    LV.pressed = false;
+    S.padPressed = pad ? pad.pressed : '';
+    S.pad = pad;
+    S.dev.setPad(LV.havePad || !!pad);
+    if (key !== S.padKey) { S.padKey = key; paintStatus(); }
+    var res = S.dev.input(inp, t);
+    if (!!S.dev.pairing !== wasPair) { paintStatus(); }
+    liveAct(res.act);
+    liveMenu(!!S.dev.menu);
+    var c = S.dev.compose(LV.lit, LV.ver, t);
+    if (c.dark !== S.dark) { S.dark = c.dark; var gl = $('gpc-glass'); if (gl) { gl.classList.toggle('gpc-dark', !!c.dark); } }
+    if ('L' + c.key !== S.drawnKey && t - S.lastDraw >= FRAME_MS - 1) {
+      if (S.scale === 0) { sizeCanvas(); }
+      if (drawScreen(c.build(LV.fb || DEV().oled.blank()))) {
+        S.drawnKey = 'L' + c.key; S.lastDraw = t;
+        var cv = $('gpc-canvas');
+        if (cv) { cv.setAttribute('aria-label', S.dev.describe(c.what)); }
+      }
+    }
+  }
+  function attachLive() {
+    if (S.live && S.live.detach) { S.live.detach(); }
+    liveClear();
+    LV.slot = CORE.status && typeof CORE.status.active === 'number' ? CORE.status.active : 0;
+    LV.state = CORE.status && CORE.status.state ? String(CORE.status.state) : 'off';
+    S.live = gpcLive.attach(function (fb, version) {
+      LV.fb = fb; LV.ver = version; LV.lit = DEV() ? DEV().oled.lit(fb) : true;
+    }, livePad, function () { return !onScreen() || !!document.hidden; });
+    if (S.live.ok && S.dev) {
+      S.dev.closeAll();
+      liveSync();
+      S.drawnKey = '';
+      startLoop();
+    }
+  }
+  /* out of Live: the Core gets its controller back, the device is the
+     phone's again */
+  function liveLeave() {
+    if (S.live && S.live.detach) { S.live.detach(); }
+    S.live = null;
+    liveMenu(false);
+    liveClear();
+    if (S.dev) { S.dev.closeAll(); S.dev.setWhere('phone'); }
+  }
+
+  /* A script's text as base64 of a gzip member (RFC 1952: magic, deflate,
+     MTIME 0, OS unknown, then the CRC-32 and length of the text), the
+     SCRIPTS section's optional source. zs-deflate.js does the deflate, as
+     it does for the config's own copy. Null when it cannot be made. */
+  function utf8Bytes(t) {
+    if (typeof TextEncoder !== 'undefined') { return new TextEncoder().encode(t); }
+    var s = unescape(encodeURIComponent(t)), o = new Uint8Array(s.length), i;
+    for (i = 0; i < s.length; i++) { o[i] = s.charCodeAt(i); }
+    return o;
+  }
+  function gzipText(text) {
+    var D = window.ZSDEFLATE, P = window.ZSPROFILE;
+    if (typeof text !== 'string' || !text || !D || typeof D.deflateRaw !== 'function' || !P || !P.crc32) { return null; }
+    try {
+      var raw = utf8Bytes(text), def = D.deflateRaw(raw), crc = P.crc32(raw, 0, raw.length) >>> 0, n = raw.length >>> 0;
+      var out = new Uint8Array(10 + def.length + 8), i;
+      out.set([0x1F, 0x8B, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xFF], 0);
+      out.set(def, 10);
+      for (i = 0; i < 4; i++) { out[10 + def.length + i] = (crc >>> (8 * i)) & 255; out[14 + def.length + i] = (n >>> (8 * i)) & 255; }
+      return b64(out);
+    } catch (e) { return null; }
+  }
+
+  /* SAVED VALUES COME BACK BEFORE A SAVE. A script's menu choices change on
+     the Core while it runs (SPVAR / PVAR / pmem), and the Core writes them
+     into its stored config by itself. Every save of a config with scripts
+     (Send to config, or any other room's edit) therefore takes them first,
+     for each slot whose script is unchanged: the stored copy's (the read
+     before every save already carries them, zs-profile-copy.js), then the
+     running config's own, newer still, from GET /gpc/values. A slot whose
+     script is new or edited keeps what the app sends. So a save never puts
+     a player's menu choices back to what the app last had. */
+  function trimInts(a, n) {
+    var o = [], i, k;
+    for (i = 0; i < n; i++) { o.push(a && i < a.length ? (Number(a[i]) | 0) : 0); }
+    for (k = n; k > 0 && !o[k - 1]; k--) { /* trailing zeros off */ }
+    return o.slice(0, k);
+  }
+  function takeValues(from, e) {
+    var sp = trimInts(from.spvar, 64), pv = trimInts(from.pvar, 16), P = window.ZSPROFILE, pm = [];
+    if (typeof from.pmem === 'string' && P && P.b64decode) { pm = trimInts(P.b64decode(from.pmem), 128); }
+    if (sp.length) { e.spvar = sp; } else { delete e.spvar; }
+    if (pv.length) { e.pvar = pv; } else { delete e.pvar; }
+    if (pm.length) { e.pmem = b64(new Uint8Array(pm)); } else { delete e.pmem; }
+  }
+  function mergeCoreValues(pid, cur, next) {
+    var sc = next && next.scripts, api = coreApi(), old = {};
+    if (!sc || !sc.slots || !sc.slots.length || !api) { return null; }
+    ((cur && cur.scripts && cur.scripts.slots) || []).forEach(function (o) { if (o) { old[o.slot] = o; } });
+    var same = sc.slots.filter(function (e) {
+      var o = e && old[e.slot];
+      return !!o && typeof o.bytecode === 'string' && o.bytecode === e.bytecode;
+    });
+    if (!same.length) { return null; }
+    same.forEach(function (e) { takeValues(old[e.slot], e); });
+    /* the running config's, slot by slot; a Core running another config
+       (or one with no /gpc) answers for that one, and nothing is taken */
+    return same.reduce(function (p, e) {
+      return p.then(function (go) {
+        if (go === false) { return false; }
+        return api('/gpc/values?slot=' + e.slot, 'GET').then(function (j) {
+          var v = j && j.ok ? j.data : null;
+          if (!v) { return go; }
+          if (String(v.config) !== String(pid)) { return false; }
+          if (Number(v.slot) === e.slot) { takeValues(v, e); }
+          return true;
+        }, function () { return false; });
+      });
+    }, Promise.resolve(null));
+  }
+  if (ZS.onBeforeCoreSave) { ZS.onBeforeCoreSave(mergeCoreValues); }
+
+  /* SEND TO CONFIG: the slots, compiled here, into this config's `scripts`
+     (the SCRIPTS section, zs-profile-encode.js), saved through the same
+     ZS.putProfile every config edit takes. A slot whose script does not
+     compile is left out and named. */
+  function scriptsDoc() {
+    var slots = [], skipped = [], i, act;
+    for (i = 1; i <= SLOTS; i++) {
+      var s = slotOf(i), r = s ? resultOf(i) : null;
+      if (!s) { continue; }
+      if (!r || !r.ok || !r.bytecode || !r.bytecode.length) { skipped.push(i); continue; }
+      var e = { slot: i, name: String(s.name || ('Slot ' + i)).slice(0, 60), bytecode: b64(r.bytecode) };
+      if (s.spvars && s.spvars.length) {
+        e.spvar = s.spvars.slice(0, 64).map(function (n) { n = Number(n); return isFinite(n) ? (n | 0) : 0; });
+      }
+      /* the script's own text, gzipped, so it can be compiled again later
+         (by a newer compiler, or another phone); left out if it cannot be */
+      var src = gzipText(s.text);
+      if (src) { e.source = src; }
+      slots.push(e);
+    }
+    act = S.data && S.data.slot ? S.data.slot : 0;
+    if (!slots.some(function (x) { return x.slot === act; })) { act = 0; }
+    return { doc: { active: act, slots: slots }, skipped: skipped };
+  }
+  function paintSend() {
+    var b = $('gpc-send'), n = $('gpc-sendnote');
+    if (!b || !n) { return; }
+    if (CORE.sending) { b.disabled = true; return; }
+    b.disabled = !CORE.ready || deviceOff();
+    if (!CORE.ready) { n.textContent = SEND_NOTE_OLD; }
+    else if (deviceOff()) { n.textContent = GPC_OFF; }
+    else if (!/^Sent|^Not sent/.test(n.textContent) || n.textContent === GPC_OFF) { n.textContent = SEND_NOTE; }
+  }
+  function sendToCore() {
+    var put = window.ZS && typeof window.ZS.putProfile === 'function' ? window.ZS.putProfile : null;
+    var n = $('gpc-sendnote'), d;
+    if (!put || !S.pid || !CORE.ready || CORE.sending || deviceOff()) { return; }
+    keepSpvars();
+    d = scriptsDoc();
+    if (!d.doc.slots.length) {
+      if (n) { n.textContent = 'Not sent: no slot holds a script that compiles.'; }
+      return;
+    }
+    CORE.sending = true;
+    paintSend();
+    if (n) { n.textContent = 'Sending to your Core…'; }
+    put(S.pid, function (f) { f.scripts = d.doc; }).then(function (j) {
+      CORE.sending = false;
+      /* the menu choices the save took from the Core are this app's now too,
+         so Preview starts each script where the player left it */
+      if (j && j.ok) {
+        d.doc.slots.forEach(function (e) {
+          var s = slotOf(e.slot);
+          if (s) { s.spvars = trimInts(e.spvar, 64); }
+        });
+        keepData();
+      }
+      if (n) {
+        n.textContent = (j && j.ok)
+          ? 'Sent: ' + d.doc.slots.length + (d.doc.slots.length === 1 ? ' slot' : ' slots') +
+            (d.doc.active ? ', slot ' + d.doc.active + ' runs' : ', none running') +
+            (d.skipped.length ? '. Left out (does not compile): slot ' + d.skipped.join(', ') : '') + '.'
+          : 'Not sent: ' + String((j && (j.error || (j.errors && j.errors[0]))) || 'the Core did not take it');
+      }
+      paintSend();
+      probeCore();
+    }, function () {
+      CORE.sending = false;
+      if (n) { n.textContent = 'Not sent: the Core did not answer.'; }
+      paintSend();
+    });
+  }
+  function setMode(m) {
+    if (m !== 'preview' && m !== 'live') { return; }
+    if (m === S.mode) { paintMode(); return; }
+    S.mode = m;
+    if (m === 'live') {
+      stopLoop();
+      keepSpvars();
+      if (S.dev) { S.dev.closeAll(); }
+      attachLive();
+      if (!CORE.ready) { probeCore(); }
+    } else {
+      stopLoop();
+      liveLeave();
+      pushSlots();
+      S.drawnKey = '';
+      startLoop();
+    }
+    paintAll();
+  }
+
+  /* ═════════════════════════════════════════════ the slot sheet ══ */
+  function sheetHTML(n) {
+    return '<div id="gpcsheet" data-slot="' + n + '">' +
+      '<div id="gpc-report"></div>' +
+      '<div class="gpc-bh"><label for="gpc-text">Slot ' + n + '’s script</label><span id="gpc-meta"></span></div>' +
+      '<textarea id="gpc-text" class="gpc-text" rows="8" spellcheck="false" autocapitalize="off" ' +
+        'autocomplete="off" autocorrect="off" wrap="off" placeholder="Paste your GPC script here"></textarea>' +
+      '<div class="gpc-acts">' +
+        '<button type="button" class="btn primary" id="gpc-paste">Paste from clipboard</button>' +
+        '<label class="btn gpc-file" id="gpc-filelab">Open a .gpc file' +
+          '<input type="file" id="gpc-file" aria-label="Open a .gpc file"></label>' +
+        '<button type="button" class="btn" id="gpc-clear" hidden>Clear this slot</button>' +
+        '<button type="button" class="btn" id="gpc-done">Done</button>' +
+      '</div>' +
+      '<p class="gpc-say" id="gpc-say" role="status" aria-live="polite" hidden></p>' +
+    '</div>';
+  }
+  function openSheet(n) {
+    if (typeof ZS.sheetOpen !== 'function') { return; }
+    S.sheet = n; S.say = null; S.fileName = '';
+    var s = slotOf(n);
+    S.edit = s ? s.text : '';
+    var body = ZS.sheetOpen('Slot ' + n + ': paste a script', sheetHTML(n), function () {
+      if (S.typing) { clearTimeout(S.typing); S.typing = null; if (S.sheet) { commit(S.sheet, S.edit, false); } }
+      S.sheet = 0;
+    });
+    if (!body) { return; }
+    wireSheet();
+    paintSheet();
+  }
+  function paintSheet() {
+    var n = S.sheet;
+    if (!n || !$('gpcsheet')) { return; }
+    var s = slotOf(n), rep = $('gpc-report');
+    if (rep) { rep.innerHTML = s ? reportHTML(s.text, resultOf(n)) : ''; wireFix(); }
+    var meta = $('gpc-meta');
+    if (meta) {
+      meta.textContent = S.edit ? lineCount(S.edit) + ' lines · ' + Math.max(1, Math.round(S.edit.length / 1024)) + ' KB' +
+        (s && s.name ? ' · ' + s.name : '') : '';
+    }
+    show($('gpc-clear'), !!s);
+    var say = $('gpc-say');
+    if (say) {
+      show(say, !!S.say);
+      say.className = 'gpc-say' + (S.say ? ' ' + S.say.kind : '');
+      say.textContent = S.say ? S.say.text : '';
+    }
+  }
+  /* a slot's text changes. `fresh`: a new script (pasted, opened), whose
+     menu values start over. Programming a slot while the device is off
+     loads it, as programming a device does. */
+  function commit(n, text, fresh) {
+    var old = slotOf(n);
+    if (!text) { S.data.slots[n - 1] = null; }
+    else {
+      S.data.slots[n - 1] = { text: text, name: fresh ? S.fileName : (old ? old.name : ''),
+        spvars: fresh || !old ? [] : (old.spvars || []), at: new Date().getTime() };
+    }
+    S.results[n - 1] = null;
+    keepData();
+    if (n === S.data.slot) {
+      if (!text) { S.data.slot = 0; keepData(); }
+      startSim();
+    } else if (S.data.slot === 0 && text && runnable(n)) {
+      S.data.slot = n; keepData(); startSim();
+    }
+    pushSlots();
+    S.drawnKey = '';
+    paintAll();
+    paintSheet();
+  }
+  /* A .gpc file saved by the original device's PC tool ends the script with
+     a NUL and then a short trailer of that tool's own bytes (17 to 100 of
+     them in the files seen). The compiler stops at a NUL (gpc_lexer.c: 0 is
+     the end of the text), so the script is everything before it: keep that
+     and drop the trailer. Refusing these as "not text" refused about half of
+     the real .gpc files a player opens (the stress run, 2026-10-02). Only a
+     SHORT tail with hardly a NUL in it, after a longer script, is a trailer:
+     text with NULs all through it (UTF-16, a picture) is still refused below. */
+  var TRAILER_MAX = 1024;
+  function scriptPart(s) {
+    var z = typeof s === 'string' ? s.indexOf('\u0000') : -1;
+    if (z <= 0) { return s; }
+    var tail = s.slice(z);
+    if (tail.length > TRAILER_MAX || tail.length > z || tail.split('\u0000').length - 1 > 4) { return s; }
+    return s.slice(0, z);
+  }
+  function takeText(raw, from) {
+    raw = scriptPart(raw);
+    if (!looksLikeText(raw)) {
+      S.say = { kind: 'warn', text: 'That is not text. Paste the script’s text: open the script, select all of it, copy it, then paste it here.' };
+      paintSheet();
+      return false;
+    }
+    raw = raw.replace(/^﻿/, '');
+    if (!raw.replace(/\s+/g, '')) {
+      S.say = { kind: 'warn', text: from === 'file' ? 'That file is empty.' : 'There is nothing on the clipboard. Copy the script’s text first.' };
+      paintSheet();
+      return false;
+    }
+    if (raw.length > MAX_KEEP) {
+      S.say = { kind: 'warn', text: 'This script is too long for a slot (over 512 KB).' };
+      paintSheet();
+      return false;
+    }
+    if (keptChars(S.pid, S.sheet) + raw.length > MAX_KEEP_ALL) {
+      S.say = { kind: 'warn', text: 'Your GPC slots, in every config, already hold about ' +
+        Math.round(keptChars(S.pid, S.sheet) / 1024) + ' KB of scripts, and the app keeps at most ' +
+        Math.round(MAX_KEEP_ALL / 1024) + ' KB. Clear a slot you no longer use first.' };
+      paintSheet();
+      return false;
+    }
+    if (from !== 'file') { S.fileName = ''; }
+    S.edit = raw;
+    var ta = $('gpc-text');
+    if (ta) { ta.value = raw; }
+    S.say = { kind: 'ok', text: (from === 'file' ? 'Opened ' : 'Pasted ') + lineCount(raw) + ' lines into slot ' + S.sheet + '.' };
+    commit(S.sheet, raw, true);
+    return true;
+  }
+  function wireFix() {
+    var fb = $('gpc-fixbtn');
+    if (!fb) { return; }
+    fb.addEventListener('click', function () {
+      var n = S.sheet, s = slotOf(n), r = resultOf(n);
+      var fix = !s || !r ? null : r.error ? colonFix(s.text, r.error) : looseFix(s.text, r);
+      var t = fix ? applyFix(s.text, fix) : null;
+      if (t === null) { return; }
+      S.edit = t;
+      var ta = $('gpc-text');
+      if (ta) { ta.value = t; }
+      S.say = { kind: 'ok', text: 'Line ' + fix.line + ' now ends with ; instead of :.' };
+      commit(n, t, false);
+    });
+  }
+  function readFile(file) {
+    if (!file) { return; }
+    if (file.size > MAX_FILE) {
+      S.say = { kind: 'warn', text: 'That file is too big to be a script. Paste the script’s text.' };
+      paintSheet();
+      return;
+    }
+    var name = String(file.name || '');
+    var done = function (t) { S.fileName = name; takeText(String(t == null ? '' : t), 'file'); };
+    var fail = function () {
+      S.say = { kind: 'warn', text: 'That file could not be read. Paste the script’s text.' };
+      paintSheet();
+    };
+    if (typeof file.text === 'function') { file.text().then(done, fail); return; }
+    if (typeof window.FileReader === 'function') {
+      var fr = new window.FileReader();
+      fr.onload = function () { done(fr.result); };
+      fr.onerror = fail;
+      fr.readAsText(file);
+      return;
+    }
+    fail();
+  }
+  function wireSheet() {
+    var ta = $('gpc-text');
+    if (ta) {
+      ta.value = S.edit;
+      ta.addEventListener('input', function () {
+        S.edit = ta.value;
+        S.say = null;
+        clearTimeout(S.typing);
+        var n = S.sheet;
+        S.typing = setTimeout(function () { S.typing = null; if (S.sheet === n) { commit(n, S.edit, !slotOf(n)); } }, TYPE_MS);
+        var meta = $('gpc-meta');
+        if (meta) { meta.textContent = S.edit ? lineCount(S.edit) + ' lines' : ''; }
+      });
+    }
+    var paste = $('gpc-paste');
+    if (paste) {
+      paste.addEventListener('click', function () {
+        var cb = window.navigator && window.navigator.clipboard;
+        var nope = function () {
+          S.say = { kind: 'warn', text: 'Your phone did not let the app read the clipboard. Tap and hold in the box above, then choose Paste.' };
+          paintSheet();
+          if (ta && ta.focus) { ta.focus(); }
+        };
+        if (!cb || typeof cb.readText !== 'function') { nope(); return; }
+        cb.readText().then(function (t) { takeText(t, 'clipboard'); }, nope);
+      });
+    }
+    var file = $('gpc-file');
+    if (file) {
+      file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        readFile(f);
+        try { file.value = ''; } catch (e) { /* the same file can be opened again */ }
+      });
+    }
+    var clr = $('gpc-clear');
+    if (clr) {
+      clr.addEventListener('click', function () {
+        if (!S.clearArmed) {
+          clr.textContent = 'Tap again to clear it';
+          S.clearArmed = setTimeout(function () { S.clearArmed = null; clr.textContent = 'Clear this slot'; }, 4000);
+          return;
+        }
+        clearTimeout(S.clearArmed); S.clearArmed = null;
+        clr.textContent = 'Clear this slot';
+        S.edit = ''; S.say = { kind: 'ok', text: 'Slot ' + S.sheet + ' is empty now.' };
+        if (ta) { ta.value = ''; }
+        commit(S.sheet, '', true);
+      });
+    }
+    var done = $('gpc-done');
+    if (done) { done.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } }); }
+  }
+
+  /* ═════════════════════════════════════════════════════ wiring ══ */
+  function wireSlots(list) {
+    list.querySelectorAll('[data-slot]').forEach(function (b) {
+      b.addEventListener('click', function () { openSheet(Number(b.getAttribute('data-slot'))); });
+    });
+  }
+  function wire() {
+    var seg = $('gpc-mode');
+    if (seg) {
+      seg.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function () { setMode(b.getAttribute('data-mode')); });
+      });
+    }
+    var send = $('gpc-send');
+    if (send) { send.addEventListener('click', sendToCore); }
+    wireKeys();
+    probeCore();
+  }
+
+  /* ═══════════════════════════════════════════ the door and back ══ */
+  function render(p) {
+    injectCss();
+    if (p && p.id !== S.pid) {
+      /* another config: its own slots, a fresh device */
+      stopLoop();
+      liveLeave();
+      S.pid = p.id;
+      S.data = readData(p.id);
+      S.results = [];
+      S.sim = null; S.fault = null; S.simErr = ''; S.mode = 'preview'; S.live = null; S.spvSaved = '';
+      S.fam = (p.platform === 'xbox' || p.platform === 'x360') ? 'xbox' : 'ps';   /* D349: a 360 config draws Xbox glyphs */
+      S.dev = DEV() ? new (DEV().Device)({ family: S.fam }) : null;
+      if (S.dev) {
+        var b = ZS.store && ZS.store.vals ? Number(ZS.store.vals[BRIGHT_KEY]) : 0;
+        S.dev.setBright(isFinite(b) ? b : 0);
+        pushSlots();
+      }
+      startSim();
+    }
+    S.scale = 0; S.drawnKey = ''; S.dark = null; S.hint = '';
+    return { html: '<div id="gpc">' + screenHTML() + '</div>', after: function (body) {
+      body.setAttribute('data-tint', 'gpc');
+      ROOT = body.querySelector('#gpc');
+      wire();
+      paintAll();
+      applyBright();
+      sizeCanvas();
+      /* openDetail() marks the screen open only AFTER this hook returns, and
+         the loop refuses to run on a closed screen, so it starts a moment
+         later */
+      setTimeout(function () { if (ROOT === body.querySelector('#gpc')) { startLoop(); } }, 0);
+    } };
+  }
+  /* the menu row's second line */
+  function hint(p) {
+    var d = p ? readData(p.id) : null, n = 0, i;
+    if (d) { for (i = 0; i < SLOTS; i++) { if (d.slots[i]) { n++; } } }
+    if (!n) { return 'Paste a script, use its menu'; }
+    return n + (n === 1 ? ' script' : ' scripts') + ' · ' + (d.slot ? 'slot ' + d.slot + ' loaded' : 'off');
+  }
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('resize', function () { if (onScreen()) { sizeCanvas(); } });
+  }
+  /* the app put away and brought back: the loop stopped itself while hidden,
+     so it starts again here */
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && onScreen()) { S.drawnKey = ''; startLoop(); }
+    });
+  }
+  injectCss();
+
+  /* The engine compiles asynchronously (gpc.wasm). When it is there, every
+     slot is checked again and the loaded one starts; if it cannot run, the
+     room says why. */
+  if (engine() && typeof engine().whenReady === 'function') {
+    engine().whenReady(function () {
+      S.results = [];
+      var box = $('gpc-engine');
+      if (box) { box.innerHTML = engineHTML(); }
+      if (!S.data) { return; }
+      if (!S.sim) { startSim(); }
+      pushSlots();
+      S.drawnKey = '';
+      paintAll();
+      paintSheet();
+    });
+  }
+
+  /* D215: the switch changed (in Legacy Devices): Live follows it */
+  if (window.ZSMODES) {
+    window.ZSMODES.onChange(function () {
+      if (!ROOT || document.getElementById('gpc') !== ROOT) { return; }
+      if (deviceOff() && liveOn()) { liveLeave(); S.live = { ok: false, reason: GPC_OFF, detach: function () {} }; }
+      else if (!deviceOff() && S.mode === 'live' && CORE.ready && !liveOn()) { attachLive(); }
+      paintAll();
+    });
+  }
+
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.gpc = render;
+
+  window.gpcLive = gpcLive;
+  window.ZSGPC = {
+    hint: hint,
+    live: gpcLive,
+    /* the pieces the tests (tools/test-gpc-tab.js) check on their own */
+    pixel: pixel,
+    gapFor: gapFor,
+    looksLikeText: looksLikeText,
+    colonFix: colonFix,
+    looseFix: looseFix,
+    applyFix: applyFix,
+    mapGamepad: mapGamepad,
+    readData: readData,
+    device: function () { return S.dev; },
+    verdict: function (n) { return verdict(resultOf(n || S.data.slot)); },
+    state: function () {
+      var d = S.dev;
+      return { pid: S.pid, slot: S.data ? S.data.slot : 0, mode: S.mode, running: !!S.loop, sim: !!S.sim,
+               fault: S.fault, draws: S.draws, drawnKey: S.drawnKey, scale: S.scale, inits: S.inits,
+               pad: S.pad ? S.pad.id : null, sheet: S.sheet,
+               menu: d && d.menu ? d.menu.page : null, pairing: !!(d && d.pairing), bright: d ? d.bright : 0,
+               live: { on: liveOn(), slot: LV.slot, state: LV.state, menuSent: LV.menuSent, note: LV.note },
+               texts: S.data ? S.data.slots.map(function (s) { return s ? s.text : null; }) : [] };
+    },
+    setMode: setMode,
+    openSlot: openSheet
+  };
+}());

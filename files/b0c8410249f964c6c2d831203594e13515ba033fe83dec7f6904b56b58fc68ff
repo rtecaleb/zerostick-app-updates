@@ -1,0 +1,245 @@
+/* zs8k-cal.js: the ZS 8K's own stick and trigger calibration, the numbers
+ * (D410), ZS8KCAL.
+ *
+ * Ported from the ZS8K Configurator (ZS 8K RTE\software\zs8k-studio\ui\
+ * tuning.js), the flow and its constants unchanged:
+ *
+ *   1. hands off      8 s, more than 30 samples: the four centres are the
+ *                     average (cal[1], [4], [7], [10]);
+ *   2. spin           roll both sticks until each axis has covered 60
+ *                     distinct value>>4 buckets (240 in all): min/max per
+ *                     axis (cal[0,2,3,5,6,8,9,11]) and a 48-sector
+ *                     circularity outline from every sample;
+ *   3. fine-tune      the dualshock-tools way: Centre mode nudges a centre
+ *                     by 4 per press, Circularity mode nudges the min/max
+ *                     point of the direction the stick is held by 5;
+ *   4. triggers       rest = the lowest of the first 30 samples, pressed =
+ *                     whichever extreme moved further from rest (at least
+ *                     200 counts);
+ *   save              all 28 words to the 8K (0xC5), read back (0xC6), by
+ *                     the Core's POST /padcal/zs8k/save.
+ *
+ * The 28 words (the 8K's zs_app.h): [0..11] min/centre/max of RX RY LX LY,
+ * [12..15] L2 rest, L2 pressed, R2 rest, R2 pressed, [16..27] the player's
+ * settings (deadzones, curves, hair trigger, flags, anti-deadzone, report
+ * rate, bit depth), which calibration never changes.
+ *
+ * The raw sample is the 8K's 0xC2: v = [rx, ry, lx, ly, l2, r2] (12-bit,
+ * already turned the right way by its firmware), btn = its button bits
+ * (bit 0 Cross, 1 Circle, 2 Triangle, 3 Square, 7..10 d-pad up, down, left,
+ * right).
+ *
+ * Pure: no DOM, no clock of its own (every call is handed `now`), so
+ * tools/test-pad-cal.js runs it in node. ES5 (DESIGN.md).
+ */
+(function (root) {
+  'use strict';
+
+  var CIRCN = 48;
+  var HANDS_MS = 8000;
+  var HANDS_MIN = 30;
+  var BUCKETS = 60;               /* per axis */
+  var BUCKETS_ALL = 240;
+  var CSTEP = 4, RSTEP = 5;
+  var RAW_MAX = 6000;
+  /* cal indices per stick: [cx, cy, xmin, xmax, ymin, ymax] */
+  var FMAP = { L: [7, 10, 6, 8, 9, 11], R: [1, 4, 0, 2, 3, 5] };
+  var AXN = ['rx', 'ry', 'lx', 'ly'];
+  var BTN = { cross: 1, circle: 2, triangle: 4, square: 8, up: 128, down: 256, left: 512, right: 1024 };
+
+  function def() {
+    return [300, 2048, 3800, 300, 2048, 3800,
+            300, 2048, 3800, 300, 2048, 3800,
+            1850, 4000, 1850, 4000,
+            0, 0, 0, 0, 100, 100, 50, 0, 0, 0, 8000, 8];
+  }
+
+  /* the board's words, filled to 28 from the defaults */
+  function fill(c) {
+    var out = (c && c.length ? c.slice(0, 28) : def());
+    var d = def();
+    while (out.length < 28) out.push(d[out.length]);
+    return out;
+  }
+
+  function n1(cal, val, i) {
+    var lo = cal[i], c = cal[i + 1], hi = cal[i + 2];
+    return val >= c ? (hi > c ? (val - c) / (hi - c) : 0)
+                    : (c > lo ? (val - c) / (c - lo) : 0);
+  }
+  /* a raw pair as -1..1 by the calibration (no deadzone, no curve) */
+  function nrmPt(cal, x, y, side) {
+    var o = side === 'L' ? 6 : 0;
+    return [n1(cal, x, o), n1(cal, y, o + 3)];
+  }
+  function pairOf(v, side) { return side === 'L' ? [v[2], v[3]] : [v[0], v[1]]; }
+
+  /* ── 1 and 2: the wizard ───────────────────────────────────────── */
+  function wizard(stage, returnTo, now) {
+    var w = { stage: stage || 'hands', returnTo: returnTo || null, t0: now,
+              sum: [0, 0, 0, 0], n: 0, uniq: {}, minmax: {}, raw: { L: [], R: [] },
+              pct: 0, left: HANDS_MS / 1000 };
+    AXN.forEach(function (a) { w.uniq[a] = {}; w.minmax[a] = [4095, 0]; });
+    return w;
+  }
+
+  /* One sample into the wizard; changes `cal` when a stage finishes.
+     Returns the wizard's stage after the sample ('hands', 'range', 'done'). */
+  function wizTick(w, v, cal, now) {
+    if (w.stage === 'hands') {
+      var el = (now - w.t0) / 1000;
+      w.sum[0] += v[0]; w.sum[1] += v[1]; w.sum[2] += v[2]; w.sum[3] += v[3];
+      w.n++;
+      w.left = Math.max(1, Math.ceil(HANDS_MS / 1000 - el));
+      w.pct = Math.min(100, el / (HANDS_MS / 1000) * 100);
+      if (el * 1000 >= HANDS_MS && w.n > HANDS_MIN) {
+        cal[1] = Math.round(w.sum[0] / w.n);
+        cal[4] = Math.round(w.sum[1] / w.n);
+        cal[7] = Math.round(w.sum[2] / w.n);
+        cal[10] = Math.round(w.sum[3] / w.n);
+        if (w.returnTo === 'fine') { w.stage = 'done'; return w.stage; }
+        w.stage = 'range';
+        w.pct = 0;
+      }
+      return w.stage;
+    }
+    if (w.stage !== 'range') return w.stage;
+    var vals = { rx: v[0], ry: v[1], lx: v[2], ly: v[3] };
+    var total = 0;
+    AXN.forEach(function (a) {
+      w.uniq[a][vals[a] >> 4] = 1;
+      w.minmax[a][0] = Math.min(w.minmax[a][0], vals[a]);
+      w.minmax[a][1] = Math.max(w.minmax[a][1], vals[a]);
+      total += Math.min(BUCKETS, Object.keys(w.uniq[a]).length);
+    });
+    if (w.raw.L.length < RAW_MAX) {
+      w.raw.R.push([v[0], v[1]]);
+      w.raw.L.push([v[2], v[3]]);
+    }
+    w.pct = Math.min(100, total / (BUCKETS_ALL / 100));
+    if (w.pct >= 100) {
+      var m = w.minmax;
+      cal[0] = m.rx[0]; cal[2] = m.rx[1];
+      cal[3] = m.ry[0]; cal[5] = m.ry[1];
+      cal[6] = m.lx[0]; cal[8] = m.lx[1];
+      cal[9] = m.ly[0]; cal[11] = m.ly[1];
+      w.stage = 'done';
+    }
+    return w.stage;
+  }
+
+  /* the outline: per 7.5-degree sector, the furthest the stick reached */
+  function circBins(cal, raw) {
+    if (!raw) return null;
+    var bins = { L: [], R: [] }, out = { bins: bins, L: null, R: null, rms: null };
+    ['L', 'R'].forEach(function (side) {
+      var b = bins[side];
+      for (var i = 0; i < CIRCN; i++) b.push(0);
+      raw[side].forEach(function (p) {
+        var n = nrmPt(cal, p[0], p[1], side);
+        var m = Math.sqrt(n[0] * n[0] + n[1] * n[1]);
+        if (m < 0.3) return;
+        var bin = ((Math.round(Math.atan2(n[1], n[0]) * CIRCN / (2 * Math.PI))) + CIRCN) % CIRCN;
+        if (m > b[bin]) b[bin] = m;
+      });
+    });
+    var errs = [];
+    ['L', 'R'].forEach(function (side) {
+      var dev = 0, n = 0;
+      for (var i = 0; i < CIRCN; i++) {
+        if (bins[side][i] > 0) { dev += Math.abs(bins[side][i] - 1); n++; }
+      }
+      if (n > 8) { out[side] = Math.round(dev / n * 1000) / 10; errs.push(out[side]); }
+    });
+    if (errs.length) {
+      out.rms = Math.round(errs.reduce(function (a, b) { return a + b; }, 0) / errs.length * 10) / 10;
+    }
+    return out;
+  }
+
+  /* ── 3: fine-tune ──────────────────────────────────────────────── */
+  /* one nudge; `v` is the latest sample (circularity needs where the stick
+     is held). True when something changed. */
+  function fineStep(cal, mode, stick, dir, v) {
+    var m = FMAP[stick];
+    if (mode === 'center') {
+      if (dir === 'left') cal[m[0]] += CSTEP;
+      if (dir === 'right') cal[m[0]] -= CSTEP;
+      if (dir === 'up') cal[m[1]] -= CSTEP;
+      if (dir === 'down') cal[m[1]] += CSTEP;
+    } else {
+      if (!v) return false;
+      var raw = pairOf(v, stick);
+      var n = nrmPt(cal, raw[0], raw[1], stick);
+      if (Math.sqrt(n[0] * n[0] + n[1] * n[1]) < 0.4) return false;
+      var k;
+      if (Math.abs(n[0]) >= Math.abs(n[1])) k = n[0] >= 0 ? m[3] : m[2];
+      else k = n[1] >= 0 ? m[5] : m[4];
+      var grow = dir === 'up' || dir === 'left';
+      var isMin = (k === m[2] || k === m[4]);
+      cal[k] += (grow ? 1 : -1) * (isMin ? -RSTEP : RSTEP);
+      cal[k] = Math.max(0, Math.min(4095, cal[k]));
+    }
+    cal[m[0]] = Math.max(0, Math.min(4095, cal[m[0]]));
+    cal[m[1]] = Math.max(0, Math.min(4095, cal[m[1]]));
+    return true;
+  }
+
+  /* the d-pad with hold-to-repeat (400 ms, then every 150 ms): the
+     directions to nudge for this sample */
+  function dpad(hold, btn, now) {
+    var out = [];
+    [['up', BTN.up], ['down', BTN.down], ['left', BTN.left], ['right', BTN.right]].forEach(function (bd) {
+      var on = (btn & bd[1]) !== 0, h = hold[bd[0]];
+      if (on && !h) { out.push(bd[0]); hold[bd[0]] = { t0: now, last: now }; }
+      else if (on && h) {
+        if (now - h.t0 > 400 && now - h.last > 150) { out.push(bd[0]); h.last = now; }
+      } else if (!on) hold[bd[0]] = null;
+    });
+    return out;
+  }
+
+  /* the face buttons that went down since the last sample */
+  function pressed(prev, btn) {
+    var rising = btn & ~prev, out = [];
+    ['cross', 'circle', 'triangle', 'square'].forEach(function (k) { if (rising & BTN[k]) out.push(k); });
+    return out;
+  }
+
+  /* ── 4: triggers ───────────────────────────────────────────────── */
+  function trigStart() { return { rest: [4095, 4095], max: [0, 0], min: [4095, 4095], n: 0 }; }
+  function trigTick(t, v) {
+    t.n++;
+    if (t.n < 30) {
+      t.rest[0] = Math.min(t.rest[0], v[4]);
+      t.rest[1] = Math.min(t.rest[1], v[5]);
+    } else {
+      t.max[0] = Math.max(t.max[0], v[4]); t.max[1] = Math.max(t.max[1], v[5]);
+      t.min[0] = Math.min(t.min[0], v[4]); t.min[1] = Math.min(t.min[1], v[5]);
+    }
+  }
+  function trigPressed(t, i) {
+    var up = t.max[i] - t.rest[i], dn = t.rest[i] - t.min[i];
+    if (up < 200 && dn < 200) return Math.min(4095, t.rest[i] + 200);
+    return (dn > up) ? t.min[i] : t.max[i];
+  }
+  function trigDone(t, cal) {
+    cal[12] = t.rest[0]; cal[13] = trigPressed(t, 0);
+    cal[14] = t.rest[1]; cal[15] = trigPressed(t, 1);
+  }
+  /* 0..1 of a trigger by the calibration (rest may be above pressed) */
+  function trigPct(cal, v, i) {
+    var lo = cal[12 + 2 * i], hi = cal[13 + 2 * i], sp = hi - lo;
+    if (sp > -1 && sp < 1) sp = 1;
+    return Math.max(0, Math.min(1, (v[4 + i] - lo) / sp));
+  }
+
+  root.ZS8KCAL = {
+    CIRCN: CIRCN, HANDS_MS: HANDS_MS, FMAP: FMAP, BTN: BTN,
+    def: def, fill: fill, nrmPt: nrmPt, pairOf: pairOf,
+    wizard: wizard, wizTick: wizTick, circBins: circBins,
+    fineStep: fineStep, dpad: dpad, pressed: pressed,
+    trigStart: trigStart, trigTick: trigTick, trigPressed: trigPressed, trigDone: trigDone,
+    trigPct: trigPct
+  };
+})(typeof window !== 'undefined' ? window : this);

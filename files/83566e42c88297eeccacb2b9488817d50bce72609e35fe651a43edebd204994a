@@ -1,0 +1,22 @@
+{
+  "zerostickCv": 1,
+  "name": "Example Pack — Standard",
+  "publisher": "ZeroStick",
+  "game": "Example Shooter",
+  "version": "1.0.0",
+  "description": "A worked example of a ZeroStick vision pack. Tracks enemy outline colour, reads the ammo and health corners, and nudges aim gently while you are aiming down sights.",
+  "capabilities": ["colorTracking", "screenRegions", "inputCorrection"],
+  "capture": { "width": 1280, "height": 720, "fps": 60 },
+  "tracking": {
+    "mode": "color",
+    "colorTargets": [
+      { "name": "Enemy outline", "hsv": [300, 70, 70], "tol": 14 }
+    ]
+  },
+  "regions": [
+    { "id": "ammo",   "name": "Ammo counter", "rect": [0.80, 0.86, 0.18, 0.11], "purpose": "ammo" },
+    { "id": "health", "name": "Health bar",   "rect": [0.03, 0.88, 0.22, 0.06], "purpose": "health" },
+    { "id": "retic",  "name": "Crosshair",    "rect": [0.44, 0.42, 0.12, 0.16], "purpose": "reticle" }
+  ],
+  "assist": { "strength": 0.35, "activation": "ads", "maxCorrection": 0.25 }
+}

@@ -1,0 +1,173 @@
+/* shell/01-boot.js — which page this is, and the icon pictures.
+ *
+ * ZS_USB_PAGE / ZS_MY_DEVICE: phone.html?core=1 is the Core's page, and on a PC
+ * the Core is reached over USB, so zs-serial.js's fetch shim is installed
+ * before the first /agent call (D104). The icon pictures (picName, picSrc,
+ * pic, sicon, icoSVG: icons3d/, D91) and the marks that stay drawn.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── USB mode: shim first, connect later ──────────────────────────────
+     phone.html?core=1 is the ZeroStick Core's page (devices.js), and on a
+     PC the Core is reached over USB (Web Serial). Installing the shim now,
+     while nothing is connected, makes every /agent/* call answer the
+     proxy's own "unreachable" shape until the gate at the foot of this file
+     opens the port, so the app boots the way it does with a board that is
+     off, and never shows another device's configs under this one's name.
+     ?usb=1 is accepted as a synonym for the transport alone. */
+  /* D335: never inside a host (EXO Studio), which answers /agent over its
+     own USB link: a second owner of the port would only fight it */
+  var ZS_USB_PAGE = /[?&](core|usb)=1/.test(location.search) &&
+    !(window.ZSHOST && window.ZSHOST.hides('connectGate'));
+  if (ZS_USB_PAGE && window.ZSSERIAL) { window.ZSSERIAL.installFetchShim('/agent'); }
+  /* Which product this page IS. The shell↔product interface is a URL, so the
+     page has to name itself; this is the only place a registry id lives.
+     One page serves two adapters: opened as ?core=1 it is the Core's page
+     (the picker's tile for the Core points here), otherwise the EXO's.
+     ?ble=1 is the Core's page too: it is that same tile's nativeHref
+     (devices.js), the page the iPhone/Android app opens. Reading only
+     ?core=1 left the phone calling itself an EXO, so before its first
+     /status it drew the old A7S screens (owner, 2026-10-14) and the device
+     card's registry lookups (16-start.js) found nothing. */
+  var ZS_MY_DEVICE = /[?&](core|ble)=1/.test(location.search) ? 'core' : 'exo';
+  /* "last device wins" (Cronus behaviour) must hold however you got here —
+     picker, bookmark, or the exe opening this page directly. */
+  try{ localStorage.setItem('zs-device', ZS_MY_DEVICE); }catch(e){}
+
+  /* ── THE ICON PICTURES (D91) ──────────────────────────────────────
+     Owner (2026-09-06): "get real pngs, don't draw them yourself, find ones
+     on the internet for every icon on everything." icons3d/<name>.png are
+     real rendered pictures: game-icons.net silhouettes in a brushed-chrome
+     finish (CC BY 3.0 — every artist is credited by name in icons3d/LICENSE
+     and in Global Settings ▸ Developer ▸ Credits, picCreditsHTML) plus five
+     Kenney shapes (CC0); icons3d/manifest.json names every picture's source.
+     The Fluent Emoji set that shipped first was rejected the same day
+     ("doesn't match the product styling at all"). PIC lists every name the
+     folder has and whether it
+     ships the 128 px file (1) or only the 64 px one (0): a slot of 40 px or
+     more gets the big file, smaller slots the small one. PIC_ALIAS maps the
+     names this code grew up with (gear, plug, target…) onto the set's.
+     tools/test-icons3d.js pins both tables against the manifest and every
+     rendered <img> against the folder, so a rebuilt set that drifts from
+     this list fails the build rather than 404s on a phone. The pictures are
+     decorative by RULE ZERO: alt="" and aria-hidden, always beside their
+     word or inside a labelled control, and never the only signal. */
+  var PIC_DIR = 'icons3d/';
+  var PIC = {
+    /* step */ press:1, hold:1, release:1, wait:1, aim:1, aimspeed:1, swap:1, config:1, angle:1,
+    distance:1, duration:1, repeat:1, infinity:1, once:1, timing:1, helpers:1, editor:1, when:1,
+    instant:1, on:1, off:1, 'delete':1, remove:1, copy:1, left:1, right:1, ok:1, warn:1, play:1,
+    pause:1, record:1, sliders:1, folder:1,
+    /* door */ pad:1, keycap:1, mouse:1, smart:1, screen:1, settings:1, photo:1, light:1, pairing:1,
+    account:1, configs:1, home:1, connection:1, game:1, usb:1, thumbstick:1, timer:1, capture:1,
+    battery:1, warning:1, info:1, question:1, code:1, tag:1,
+    /* console: the set's generic controller with a family light, no maker's mark (D80) */
+    playstation:1, xbox:1, 'switch':1,
+    /* drawn until the chrome set (2026-09-06): the Overview door's gauge, the
+       Mappings door's grid (also Your devices and the Mappings fold), the
+       board chip on Global Settings */
+    gauge:1, grid:1, chip:1,
+    /* extra (64 px only) */ up:0, down:0, stop:0, search:0, save:0, plus:0, minus:0, bell:0,
+    locked:0, unlocked:0, key:0, gem:0, crown:0, trophy:0, star:0, pin:0, phone:0, sound:0, mute:0,
+    eye:0, fire:0, thumbsup:0, block:0, 'package':0, cart:0, card:0, chat:0, laptop:0, desktop:0,
+    burst:0, lootbox:0, numbers:0, chart:0, calendar:0, globe:0, sparkles:0, wand:0, brain:0,
+    palette:0, link:0, wireless:0, racecar:0, memo:0, pencil:0, 'hourglass-done':0, 'battery-low':0,
+    'light-blue':0, 'light-purple':0, 'light-yellow':0, 'light-amber':0, 'question-red':0, cycle:0,
+    shuffle:0, toolbox:0, tools:0, video:0, headphone:0, hundred:0, disc:0, trackball:0, alarm:0
+  };
+  /* plug -> usb (owner, 2026-10-14): the thin line plug ("connection") did
+     not look nice next to Game Settings' solid gear; the solid usb stick is
+     the same chrome set and reads as "how it connects" */
+  var PIC_ALIAS = { gear:'settings', plug:'usb', stopwatch:'wait', bolt:'instant',
+                    flag:'when', target:'aim', waves:'wireless',
+                    /* three of the seven names the wiring pass left drawn
+                       (2026-09-06) have fitting pictures in the folder */
+                    cast:'desktop', wheel:'racecar', shift:'up',
+                    /* the board chip's other name (the manifest's aliases) */
+                    board:'chip' };
+  function picName(name){
+    var n = String(name == null ? '' : name);
+    if(Object.prototype.hasOwnProperty.call(PIC, n)) return n;
+    if(Object.prototype.hasOwnProperty.call(PIC_ALIAS, n)) return PIC_ALIAS[n];
+    return '';
+  }
+  function picHas(name){ return !!picName(name); }
+  /* the file for a name at a size: the 128 px render from 40 px up (when the
+     name ships one), the 64 px render below that */
+  function picSrc(name, px){
+    var n = picName(name);
+    if(!n) return '';
+    if(MKB_PIC[n]) return mkbPicSrc(n, px >= 128);
+    return PIC_DIR + n + ((px >= 40 && PIC[n] === 1) ? '' : '@64') + '.png';
+  }
+  /* D290 (owner, 2026-10-13): a mouse or a keyboard shown as a DEVICE is the
+     owner's own picture (brand/devices/mouse-*.webp, keyboard-*.webp: black
+     with a silver rim, cut from his originals), everywhere: the set's
+     `mouse` and `keycap` names hand these out, and so do HOME's pills, the
+     devices sheet, the Aim and Mappings choosers and the wizard. The 256 px
+     file serves every slot under 128 CSS px, the 512 px one the big cards.
+     The class `mkbpic` lets the dark theme give them their light rim
+     (zs-flat.css section 20). Key-cap labels (W, Space, M1) name KEYS and keep
+     their own art (keycaps.js). */
+  var MKB_PIC = { mouse:'brand/devices/mouse', keycap:'brand/devices/keyboard' };
+  function mkbPicSrc(kind, big){
+    var b = MKB_PIC[kind === 'keyboard' ? 'keycap' : kind];
+    return b ? b + (big ? '-512' : '-256') + '.webp' : '';
+  }
+  /* the <img>. `px` is the slot's CSS size (the width/height attributes
+     reserve the box before the file arrives, so nothing reflows while it
+     loads); `cls` is spliced before the ico3d classes. Returns '' for a
+     name the set has not got, so one truth test lets a caller fall back to
+     its drawing. */
+  function pic(name, px, cls){
+    var n = picName(name), s;
+    if(!n) return '';
+    s = px > 0 ? Math.round(px) : 24;
+    return '<img class="'+(cls ? esc(cls)+' ' : '')+'ico3d ico3d-'+n+(MKB_PIC[n] ? ' mkbpic' : '')+
+      '" src="'+picSrc(n, s)+'" '+
+      'width="'+s+'" height="'+s+'" alt="" aria-hidden="true" decoding="async" draggable="false">';
+  }
+  /* the Smart Action step / editor-control mark: the picture wearing the
+     classes the CSS and the tests know (`sicon si-<name>`, smart-actions.js,
+     D82). 'more' is the kit's three dots — no ellipsis picture exists in any
+     licensed set (manifest asDrawn) and it is the same three-circle mark the
+     app bar's ⋯ button draws. */
+  function sicon(name, px){
+    var n = String(name == null ? '' : name).replace(/[^a-z0-9_-]/gi, '');
+    if(n === 'more') return '<svg class="sicon si-more" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+      '<circle cx="5" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'+
+      '<circle cx="19" cy="12" r="2.2" fill="currentColor"/></svg>';
+    return pic(n, px || 24, 'sicon si-'+n);
+  }
+
+  /* ── the marks that stay DRAWN (stroke = currentColor) ──────────────
+     Every name the picture set covers (directly or through PIC_ALIAS) is a
+     picture now; what is left here is the concepts no picture has been found
+     for yet (shapes, wave, recoil, nest — listed in D91; cast, shift and
+     wheel resolve through PIC_ALIAS first, their drawings stay as the
+     fallback should an alias ever go). The manifest's one `asDrawn` name,
+     `more`, is sicon()'s three dots. gauge, grid and chip left this table on
+     2026-09-06 when the chrome set brought pictures for them; `fallback`
+     (four squares, the old grid) is what a name nobody has gets. The twenty
+     drawings the pictures replaced were deleted with stepicons.js. */
+  function icoSVG(name, px){
+    var p = pic(name, px || 24);
+    if(p) return p;
+    var P = {
+      cast:'<rect x="3.5" y="5" width="17" height="11.5" rx="2"/><path d="M9 20.5 H15"/><path d="M8.6 11.9 A4.2 4.2 0 0 1 12 10 A4.2 4.2 0 0 1 15.4 11.9"/>',
+      shapes:'<path d="M8.2 4.4 L11 9.2 H5.4 Z"/><circle cx="16.6" cy="6.8" r="2.6"/><rect x="4.9" y="13.5" width="5.4" height="5.4" rx="0.8"/><path d="M14.4 14 L19 18.6 M19 14 L14.4 18.6"/>',
+      fallback:'<rect x="4.5" y="4.5" width="6" height="6" rx="1.4"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.4"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.4"/><rect x="13.5" y="13.5" width="6" height="6" rx="1.4"/>',
+      wave:'<path d="M3.5 12 C5.5 12 5.5 7 8 7 C10.5 7 10.5 17 13 17 C15.5 17 15.5 9 18 9 C19.4 9 19.9 10.6 20.5 12"/>',
+      shift:'<path d="M12 4.5 L18.5 11.5 H14.8 V16 H9.2 V11.5 H5.5 Z"/><path d="M9.2 19.5 H14.8"/>',
+      recoil:'<circle cx="12" cy="9" r="5"/><path d="M12 6.4 V11.6 M9.4 9 H14.6"/><path d="M12 15 V20.5 M9.5 18 L12 20.5 L14.5 18"/>',
+      wheel:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4 V10 M5.2 15.5 L10.2 13 M18.8 15.5 L13.8 13"/>',
+      nest:'<rect x="4" y="4" width="12" height="12" rx="2"/><rect x="10" y="10" width="10" height="10" rx="2"/>'
+    };
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[name]||P.fallback)+'</svg>';
+  }
+

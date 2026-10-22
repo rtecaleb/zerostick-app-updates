@@ -1,0 +1,53 @@
+/* zs-dongle-storage.js — moves the dongle's saved data into its own key space.
+ *
+ * ES5 ONLY. Loaded FIRST by every dongle page (dongle.html, calibrator.html),
+ * before anything reads localStorage. Defines no global.
+ *
+ * WHY. The dongle screens used to be pages of the ZeroStick phone app
+ * (zerostick-app www/, commit 2bba734) and kept their data under plain names
+ * ('zsDongle', 'finetuneHistory', ...). They now live inside the EXO app
+ * (dashboard/public/dongle/), on the SAME origin as the EXO screens, so every
+ * key the dongle keeps carries the prefix 'zsdongle:' and can never meet a
+ * key the EXO app keeps ('zs-phone-v2', 'zs-device', 'zs.*', ...). The EXO's
+ * factory reset clears /^zs[-.]/, which 'zsdongle:' does not match, and the
+ * dongle never touches a key without its prefix (tools/test-dongle-isolation.js
+ * fails the build if it does).
+ *
+ * THE MOVE. A phone that ran the old app has the dongle's data under the old
+ * names on this same origin (Capacitor serves www/ and www/exo/ from one
+ * origin), so once, on the first dongle page opened after the update, each
+ * old value is copied to its prefixed name (unless one is already there) and
+ * the old name is removed. The remembered dongle, the script names, an
+ * interrupted firmware update and the calibration history all survive.
+ */
+(function () {
+  'use strict';
+  var NS = 'zsdongle:';
+  var DONE = NS + 'migrated';
+  /* exact names the old app used */
+  var NAMES = ['zsDongle', 'zsCalibratorLink', 'zsMockDongleFlash',
+    'lastConnectedController', 'edgeModalDontShowAgain', 'failedCalibrationCount',
+    'centerCalibrationMethod', 'rangeCalibrationMethod', 'quickTestSkippedTests',
+    'showRawNumbersCheckbox', 'finetuneCenterStepSize', 'finetuneCircularityStepSize',
+    'finetuneHistory', 'force_lang'];
+  /* name families: per dongle, per firmware target, per controller serial */
+  var FAMILIES = [/^zsOtaSession:/, /^zsDongleSlotNames:/, /^changes_/];
+
+  try {
+    var ls = window.localStorage;
+    if (!ls || ls.getItem(DONE) === '1') { return; }
+    var old = [], i, j, k;
+    for (i = 0; i < ls.length; i++) {
+      k = ls.key(i);
+      if (!k || k.indexOf(NS) === 0) { continue; }
+      if (NAMES.indexOf(k) >= 0) { old.push(k); continue; }
+      for (j = 0; j < FAMILIES.length; j++) { if (FAMILIES[j].test(k)) { old.push(k); break; } }
+    }
+    for (i = 0; i < old.length; i++) {
+      k = old[i];
+      if (ls.getItem(NS + k) === null) { ls.setItem(NS + k, ls.getItem(k)); }
+      ls.removeItem(k);
+    }
+    ls.setItem(DONE, '1');
+  } catch (e) { /* private mode or storage full: the screens work, they just start fresh */ }
+})();

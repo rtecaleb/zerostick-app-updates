@@ -1,0 +1,320 @@
+/* shell/10-editor.js — the editor of one config: its rooms.
+ *
+ * The list of rooms (Overview, Aim, Translation, Scripts, Mappings, AI
+ * Scripts, Screen Assist...: renderEdMenu), the editor of a config whose
+ * copy could not be read (D124), and the back key.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── EDITOR (one flat list of five) ────────────────────────────── */
+  /* No tiers, no group headings, no "more in Advanced" — five rows, always
+     the same five, in SECTIONS order. */
+  /* THE EDITOR OF A CONFIG WHOSE COPY COULD NOT BE READ (D124). Its rooms are
+     not drawn: every one of them edits the document, and there is no
+     document to edit, so each would show made-up values and save nowhere.
+     What is drawn instead is the one sentence that says what is wrong, and
+     what still works without a copy: playing it, starting a fresh config
+     from the same game pack (when its game is known, from the blob's IDENT
+     section), and deleting it to free the slot. */
+  function renderUnreadable(m, p){
+    var pk = (window.ZSPACKS && p.game) ? ZSPACKS.ofConfig({game:p.game}) : null;
+    var canCopy = !!(pk && window.ZS && ZS.addProfile && LIVE.online!==false &&
+                     Object.keys(LIVE.full).length);
+    var h = '<div class="note warn" id="ed-unreadable" role="status">'+esc(p.unreadable)+'</div>';
+    if(p.id !== activeId) h += '<button class="btn primary" id="ed-u-play">Play this config</button>';
+    if(canCopy) h += '<button class="btn" id="ed-u-copy">Start a new copy from '+esc(pk.name)+'</button>';
+    h += '<button class="btn danger" id="ed-u-del">Delete it from the Core</button>';
+    m.innerHTML = h;
+    var play = document.getElementById('ed-u-play');
+    if(play) play.addEventListener('click', function(){
+      var prev = activeId;
+      activeId = p.id; persist(); renderHome();
+      api('/profiles/'+encodeURIComponent(p.id)+'/activate', 'POST', {}).then(function(j){
+        if(j.ok){ toast('"'+p.name+'" is now live on the board'); renderEdMenu(p); return; }
+        activeId = prev; persist(); renderHome();
+        toast('Board kept its config: '+(j.error||'switch failed'), {ms:7000});
+      });
+    });
+    var copy = document.getElementById('ed-u-copy');
+    if(copy) copy.addEventListener('click', function(){
+      var name = (p.name+' (new)').slice(0, 96);
+      var id = (p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24)||'config')+
+               '-'+Math.random().toString(36).slice(2,6);
+      copy.disabled = true;
+      ZS.addProfile({ id:id, name:name, platform:p.platform, input:p.input,
+                      game:pk.name, pack:pk.id, color:p.color,
+                      prepare: ZS.packPrepare ? ZS.packPrepare(pk, p.input) : null },
+        function(ok){
+          copy.disabled = false;
+          if(ok){ openEditor(id); toast('"'+name+'" made from '+pk.name+'. The old one is still on the Core.', {ms:7000}); }
+        });
+    });
+    /* Two taps, because it cannot be undone: the first says what the second
+       will do, and it goes back to itself if the second never comes. */
+    var del = document.getElementById('ed-u-del'), armed = null;
+    if(del) del.addEventListener('click', function(){
+      if(!armed){
+        del.textContent = 'Tap again to delete it';
+        armed = setTimeout(function(){ armed = null; del.textContent = 'Delete it from the Core'; }, 4000);
+        return;
+      }
+      clearTimeout(armed); armed = null;
+      ZS.deleteProfile(p.id, function(ok){
+        if(!ok) return;
+        closeEditor();
+        toast('"'+p.name+'" deleted');
+      });
+    });
+  }
+  function renderEdMenu(p){
+    var m = document.getElementById('edmenu'); m.innerHTML='';
+    if(p && p.unreadable){ renderUnreadable(m, p); m.scrollTop=0; return; }
+    var shown = 0;   /* stagger by DRAWN position, so a gated-out row can
+                        never leave a hole in the rhythm */
+    var lastGrp = '';
+    SECTIONS.forEach(function(s){
+      if(s.menu===false) return;
+      if(!gateOK(s.gate,p)) return;
+      /* D406: a row's own test of the config (Auto green only on NBA 2K,
+         AI Scripts never there) */
+      if(typeof s.show==='function' && !s.show(p)) return;
+      /* the product gate (PRODUCTS above): a Core has no Screen Assist, so
+         its door is not drawn; on an EXO this refuses nothing */
+      if(productHides(s.id)) return;
+      if(s.id==='vision' && productHides('visionMenu')) return;
+      /* the group heading (D228), drawn only above the first row of a group
+         that is actually shown */
+      if(s.grp && s.grp!==lastGrp){
+        var gh=document.createElement('div'); gh.className='edgrp'; gh.setAttribute('role','heading'); gh.setAttribute('aria-level','2');
+        gh.textContent=s.grp; m.appendChild(gh); lastGrp=s.grp;
+      }
+      var hint = typeof s.hint==='function'? s.hint(p) : s.hint;
+      /* D233: a door's picture may depend on what is plugged in (Mappings) */
+      var img = typeof s.img==='function' ? s.img(p) : s.img;
+      var row=document.createElement('div'); row.className='item'+(s.gate?' gated':'')+(img?' has-pic':'');
+      /* THE ROOM RIDES THE ROW, NOT JUST THE CHIP (2026-08-18). data-room is
+         the same id the chip's ico-* class already carries — it is added as an
+         ATTRIBUTE rather than a second class precisely because class names are
+         an API here: nothing that selects .item / .ico / .ico-<id> can see this
+         and no test's selector changes. What it buys is the whole row: the
+         style block at the foot of this file hangs the room's 3px rail off one
+         attribute, so the five doors are tellable apart without any of them
+         being loud. (That block used to hang a per-room card fill and a solid
+         per-room chip off it too — that is the "cluttered mess" this pass took
+         back out; see §2 there.)
+
+         NO ROW IS PROMOTED ANY MORE. `.lead` used to be added here to give the
+         first drawn row the app's primary-button face. A table of contents has
+         five equal doors and none of them is an action, so painting one like a
+         button only said the other four were lesser. The class is not added
+         and its rules are deleted; nothing else read it. */
+      row.setAttribute('data-room', s.id);
+      /* zs-in entrance is safe here and ONLY here: renderEdMenu is called
+         from openEditor() alone — real navigation, never the ~8s poll — so
+         the rows may rise in without ever replaying on a refresh. The
+         delay rides inline because it is per-row data, not a style rule. */
+      row.classList.add('zs-in');
+      row.style.animationDelay = (70 + shown*45) + 'ms';
+      shown++;
+      /* the icon chip wears the section's tint (see the ico-* CSS); the id
+         IS the class, so a section can never wear another section's colour.
+         A section whose TITLE already says the whole thing returns '' for its
+         hint and gets no second line at all — an empty .hint is display:none,
+         so the row keeps its rhythm instead of reserving a blank line. */
+      /* a door may wear a real picture instead of an icon (owner,
+         2026-10-02: the Device door shows the ZS EXO itself) */
+      /* EXO Studio's door wears the same wordmark (the ZS mark and the name)
+         that heads the EXO Studio room (owner, 2026-10-13: "the EXO Studio
+         logo on the Advanced tab should be the EXO Studio name and logo that
+         is used when you click it"). The name stays in .lab for screen
+         readers and every selector that reads it; the picture is the ink for
+         the theme (zs-flat.css §18). */
+      if(s.id==='studio'){
+        /* owner, 2026-10-13: the wordmark sits in the picture slot on the
+           left, centred, and the right side reads like every other door:
+           his title, then the hint. "EXO Studio" stays in the name a screen
+           reader hears and in .lab for every selector that reads it. */
+        row.classList.add('studio-wm');
+        /* D345 (owner, 2026-10-14: "needs to be more obvious"): a small
+           "Advanced · PC" tag over the title says it from the menu too */
+        row.setAttribute('aria-label', s.lab+': AI and Console Vision. Advanced, needs a PC'+(hint?'. '+hint:''));
+        row.innerHTML='<span class="ico ico-studio ico-img st-row-pic">'+
+            '<img class="st-row-wm st-wm-d" src="brand/zs-exo-studio-wordmark-dark.png" width="943" height="320" alt="" aria-hidden="true">'+
+            '<img class="st-row-wm st-wm-l" src="brand/zs-exo-studio-wordmark-light.png" width="943" height="320" alt="" aria-hidden="true"></span>'+
+          '<span class="t"><span class="st-row-tag" aria-hidden="true">Advanced · PC</span>'+
+          '<div class="lab st-row-title">AI and Console Vision</div>'+
+          '<div class="hint">'+(hint?esc(hint):'')+'</div></span><span class="chev">›</span>';
+        row.addEventListener('click', function(){ openDetail(s, p); }); kb(row);
+        m.appendChild(row);
+        return;
+      }
+      row.innerHTML='<span class="ico ico-'+s.id+(img?' ico-img':'')+'">'+
+        (img ? '<picture>'+(s.imgStill ? '<source media="(prefers-reduced-motion: reduce)" srcset="'+esc(s.imgStill)+'">' : '')+
+                 '<img class="ico-pic" src="'+esc(img)+'" alt="" aria-hidden="true"></picture>' : icoSVG(s.ico, 26))+'</span><span class="t"><div class="lab">'+esc(s.lab)+'</div><div class="hint">'+(hint?esc(hint):'')+'</div></span><span class="chev">›</span>';
+      row.addEventListener('click', function(){ openDetail(s, p); }); kb(row);
+      m.appendChild(row);
+    });
+    m.scrollTop=0;
+  }
+  function openEditor(id){
+    /* D300 amended: every door into a config's editor comes through here
+       (HOME's Settings, the Configs list's ›, the wizard, a new copy), so
+       this is where a config for an unfinished game stays shut without
+       developer mode. The tap only toasts; nothing about the config, the
+       active one or the device changes. */
+    if(window.ZS && ZS.configGate && ZS.configGate(prof(id))) return false;
+    editId = id; var p = prof(id);
+    document.getElementById('edname').textContent = p.name;
+    /* P8: the family mark beside the identity line — HOME's hero and the
+       Configs list both wear it; the editor was the one identity surface
+       that did not. Decorative inside the aria-hidden .gly-deco wrapper, so
+       what a screen reader hears is byte-identical to the old textContent. */
+    document.getElementById('edsub').innerHTML =
+      (window.ZSMARK
+        ? '<span class="gly-deco" aria-hidden="true" style="margin-right:6px">'+
+          ZSMARK.badge(markKey(p), {size:18, decorative:true})+'</span>'
+        : '')+
+      esc(CON[p.platform]+' · '+INP[p.input]);
+    /* The Essentials/Advanced tab strip is gone with the tiers — the menu is
+       five rows, so there is nothing left to switch between. */
+    var tabs = document.getElementById('edtabs');
+    if(tabs){ tabs.innerHTML=''; tabs.style.display='none'; }
+    renderEdMenu(p);
+    document.getElementById('editor').classList.add('open');
+    /* D239: what is plugged in decides the input before any screen opens */
+    if(ZS.autoInputNow) setTimeout(ZS.autoInputNow, 0);
+    syncInert();
+  }
+  /* THE BACK KEY'S ELLIPSIS NEVER RAN. .pback carries
+     overflow:hidden;text-overflow:ellipsis from the header rules, but zs-kit
+     paints it display:inline-flex — and text-overflow does not apply to a
+     flex container's anonymous text. So "‹ Call of Duty" HARD-clipped at
+     96px of a 114px label and the "y" was painted across the button's own
+     border, with no ellipsis anywhere. Putting the label in a real element
+     gives text-overflow something it is allowed to act on. Keeps
+     el.textContent readable for everything that reads it back. */
+  /* …AND AN ELLIPSIS IS STILL TRUNCATION. Reviewer, 2026-08-28: giving
+     text-overflow something to act on stopped the hard clip, but the owner's
+     defect was "back buttons are cut off", and "‹ Call of …" is cut off. It
+     cannot be solved by making room: at 375px the header is back key + title
+     + BOARD chip, and "Call of Duty" (88px) + "Overview" (127px) + the chip
+     (72px) do not fit in 308px at any padding.
+
+     So it does what iOS does when the parent's title will not fit — say
+     "Back". The destination is not lost: it is on the aria-label (which also
+     retires the "‹" from the accessible name, where it was being read out as
+     "single left-pointing angle quotation mark"), and the screen you came
+     from is one tap away. A label that fits is measured, not assumed, so a
+     short parent — "‹ Home", "‹ Configs" — keeps its name. */
+  function fitBack(el){
+    var s = el && el.firstElementChild;
+    if(!s || !el.__zsFull) return false;
+    s.textContent = el.__zsFull;                  /* always measure the full one */
+    if(!el.offsetParent) return false;            /* not laid out — try again later */
+    if(s.scrollWidth > s.clientWidth + 1) s.textContent = '‹ Back';
+    return true;                                  /* a real measurement happened */
+  }
+  /* "TRY AGAIN LATER" HAS TO ACTUALLY TRY AGAIN. Reviewer, 2026-08-28: the
+     two frames and the observer between them still shipped "‹ Call of …" on
+     all five rooms, and the reason is that neither ever ran. setDetail writes
+     the label BEFORE the panel is displayed, so both frames hit the
+     offsetParent guard and returned; and because the label was never
+     rewritten, the button's box never changed, so the ResizeObserver — which
+     only watches for a change — had nothing to fire on. A guard that defers
+     to a retry that does not exist is just a silent failure.
+     So: keep asking for frames until one of them can measure. Bounded at 40
+     (~0.7s) so a button that never appears cannot spin forever, and keyed on
+     the label so a newer setBack call abandons an older chase. */
+  function fitBackSoon(el, label, tries){
+    if(typeof requestAnimationFrame !== 'function') return;
+    requestAnimationFrame(function(){
+      if(el.__zsFull !== label) return;           /* superseded — stop chasing */
+      if(fitBack(el) || tries <= 0) return;
+      fitBackSoon(el, label, tries - 1);
+    });
+  }
+  function setBack(el, text){
+    if(!el) return;
+    var s = el.firstElementChild;
+    if(!s || s.className !== 'pbtx'){
+      el.textContent = '';
+      s = document.createElement('span'); s.className = 'pbtx';
+      el.appendChild(s);
+    }
+    el.__zsFull = text;
+    var dest = String(text).replace(/^[‹<]\s*/, '').trim();
+    el.setAttribute('aria-label', dest ? 'Back to ' + dest : 'Back');
+    s.textContent = text;
+    /* two frames: one for the panel that is opening, one for the layout it
+       settles into. Guarded on offsetParent, so a headless render never
+       rewrites the label the tests read back. */
+    fitBackSoon(el, text, 40);
+    /* WHY A CHASE AND NOT A PAIR OF FRAMES. A previous note here said the two
+       frames were enough and that a reviewer seeing "‹ Call of …" was looking
+       at a throttled background tab. Half right, and the half that is wrong
+       is the half that mattered: measured on a FOREGROUNDED tab, on all five
+       rooms, with the panel settled and idle, the span read scrollWidth 88
+       against clientWidth 72 while still showing the full label — clipped,
+       and nothing was going to come back for it.
+
+       The cause is not throttling, it is ordering. openDetail writes the
+       label before the panel is displayed, so both frames hit fitBack's
+       offsetParent guard and returned without measuring, and the label was
+       therefore never rewritten — which is also why a ResizeObserver on the
+       button could not save it: the box never changed, so there was no resize
+       to observe. fitBackSoon keeps asking until a frame can actually measure
+       and then stops, so it collapses to exactly that same pair of frames
+       whenever the panel is already up, and covers the case where it is not.
+       A background tab still measures nothing, and still corrects itself the
+       moment the tab is foregrounded and the frames resume. */
+  }
+  window.zsSetBack = setBack;
+  /* Guarded like requestAnimationFrame above: the headless test harness's
+     window stub has no addEventListener, and an unguarded call here throws
+     at load and takes the whole inline script (and every test) down. */
+  if(typeof window.addEventListener === 'function'){
+    window.addEventListener('resize', function(){
+      var all = document.querySelectorAll('.pback');
+      for(var i=0;i<all.length;i++) fitBack(all[i]);
+    });
+  }
+  setBack(document.getElementById('edback'), '‹ Home');
+  var leaveOK = false;      /* D257: the confirmed exit passes the question */
+  setBack(document.getElementById('dtback'), '‹ Back');
+  document.getElementById('edback').addEventListener('click', function(e){
+    /* D257 (owner): leaving a config with unsaved changes asks first */
+    var pidNow = editId || activeId;
+    if(ZS.hasUnsaved && ZS.hasUnsaved(pidNow) && !leaveOK){
+      if(e && e.stopImmediatePropagation) e.stopImmediatePropagation();
+      var body = ZS.sheetOpen('Unsaved changes',
+        '<p class="note" style="margin:0 0 14px">You have changes that are not saved. Exit without saving?</p>'+
+        '<div class="sapair"><button type="button" class="btn danger" id="leave-yes">Yes, exit</button>'+
+        '<button type="button" class="btn primary" id="leave-no">No</button></div>', null, this);
+      body.querySelector('#leave-yes').addEventListener('click', function(){
+        ZS.discardUnsaved(pidNow);
+        ZS.sheetClose();
+        leaveOK = true;
+        try{ document.getElementById('edback').click(); } finally { leaveOK = false; }
+      });
+      body.querySelector('#leave-no').addEventListener('click', function(){ ZS.sheetClose(); });
+      return;
+    }
+    closeEditor();
+  });
+  /* LEAVING THE EDITOR, IN ONE PLACE (M5). It must clear which config is
+     being edited: bindPid() and the Save chip read `editId || activeId`, so
+     a stale editId (a delete used to close the editor and keep it) sends the
+     next bound write on a global screen into a config that may no longer
+     exist, and a Save there re-created a deleted config on the board. */
+  function closeEditor(){
+    document.getElementById('editor').classList.remove('open');
+    editId = null;
+    syncInert();
+    paintSaveChips();
+  }
+

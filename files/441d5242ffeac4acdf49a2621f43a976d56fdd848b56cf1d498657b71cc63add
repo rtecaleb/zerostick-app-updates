@@ -1,0 +1,94 @@
+/* zs-mobile.js - the dualshock-tools site inside the EXO app (D414).
+ *
+ * Loaded in <head>, BEFORE app.js (a module, so it runs later), so the
+ * site's own theme code finds the app's choice already stored and paints
+ * nothing in the wrong colours first. Presentation only: no flow, no
+ * timing, no report goes near this file (zs-mobile.css has the layout).
+ *
+ *   - inside the app (same origin, window.parent has the app's ZS): the
+ *     app's palette (--bg, --panel, --accent ...) is copied onto this page
+ *     as --zs-* and html gets .zs-app, which zs-mobile.css maps Bootstrap
+ *     onto; the site's stored theme follows the app's (dark / light), and
+ *     if the app changes theme while this is open the site's own switch is
+ *     flipped, so its canvases and controller picture repaint the site's way;
+ *   - everywhere: the MIT credit line sits in the footer.
+ *
+ * ES5, no dependencies.
+ */
+(function () {
+  'use strict';
+
+  var host = null;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document && window.parent.ZS) host = window.parent;
+  } catch (e) { host = null; }
+
+  function hostLight() {
+    try { return !!(host && host.document.body && host.document.body.classList.contains('zs-light')); }
+    catch (e) { return false; }
+  }
+
+  function rgbOf(c) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c || '').trim());
+    if (m) {
+      var h = m[1].length === 3 ? m[1].replace(/(.)/g, '$1$1') : m[1];
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)].join(', ');
+    }
+    m = /rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/i.exec(String(c || ''));
+    return m ? [m[1], m[2], m[3]].join(', ') : '';
+  }
+
+  var TOKENS = ['bg', 'panel', 'panel2', 'line', 'text', 'muted', 'accent', 'accent-ink', 'green', 'amber'];
+  var FALLBACK = {
+    dark: { bg: '#15171b', panel: '#1d2026', panel2: '#262a31', line: '#343a44', text: '#e8edf5', muted: '#97a3b6',
+            accent: '#6f9bff', 'accent-ink': '#041a2e', green: '#3fb950', amber: '#e0a33a' },
+    light: { bg: '#f2f4f7', panel: '#ffffff', panel2: '#eef1f5', line: '#b8c2d0', text: '#121821', muted: '#536071',
+             accent: '#2856cc', 'accent-ink': '#ffffff', green: '#1a7f37', amber: '#835700' }
+  };
+
+  function paint() {
+    var root = document.documentElement;
+    var light = hostLight();
+    var cs = null;
+    try { cs = host.getComputedStyle(host.document.body); } catch (e) { cs = null; }
+    TOKENS.forEach(function (t) {
+      var v = cs ? String(cs.getPropertyValue('--' + t) || '').trim() : '';
+      root.style.setProperty('--zs-' + t, v || FALLBACK[light ? 'light' : 'dark'][t]);
+    });
+    root.style.setProperty('--zs-accent-rgb', rgbOf(root.style.getPropertyValue('--zs-accent')) || '111, 155, 255');
+    root.classList.add('zs-app');
+    return light ? 'light' : 'dark';
+  }
+
+  if (host) {
+    var theme = paint();
+    /* the site reads this key when it starts (app.js Storage.preferredTheme) */
+    try { localStorage.setItem('preferredTheme', theme); } catch (e) { /* private mode */ }
+    document.documentElement.setAttribute('data-bs-theme', theme);
+
+    /* the app switched theme with this open: repaint, and let the site's
+       own switch redraw its pictures */
+    var follow = function () {
+      var now = paint();
+      var sw = document.getElementById('colorModeSwitch');
+      if (sw && sw.checked !== (now === 'dark')) sw.click();
+    };
+    try {
+      if (window.MutationObserver) {
+        new MutationObserver(follow).observe(host.document.body, { attributes: true, attributeFilter: ['class'] });
+      }
+    } catch (e) { /* the app went away */ }
+  }
+
+  function credit() {
+    var foot = document.querySelector('#footbody > p');
+    if (!foot || document.getElementById('zs-credit')) return;
+    var s = document.createElement('span');
+    s.id = 'zs-credit';
+    s.className = 'text-body-secondary';
+    s.textContent = 'dualshock-tools, MIT licence, © 2024 the_al';
+    foot.appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', credit);
+  else credit();
+})();

@@ -1,0 +1,2593 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ZeroStick EXO — THE KIT.  zs-kit.css
+
+   ───────────────────────────────────────────────────────────────────────────
+   HOW TO LOAD IT.  This is not a preference, it is the difference between the
+   file working and appearing to do nothing.
+
+   phone.html's real stylesheet order, read out of the file:
+
+       line    7   <style>            the palette + the component kit
+       line  606   zs-brand.css       materials, press, the ion accent
+       line  607   <style>            reduced-motion entrances
+       line 2434   zs-anim.css        ── IN THE BODY
+       line 2440   zs-micro.css       ── IN THE BODY
+       line 2441   zs-kit.css   ← THIS FILE, immediately after zs-micro.css
+
+   TWO STYLESHEETS LOAD FROM THE BODY. A <link> in <head> is therefore NOT
+   last, and every equal-specificity rule here would silently lose to
+   zs-micro.css. The tag goes on line 2441:
+
+       <link rel="stylesheet" href="zs-micro.css">
+       <script src="zs-micro.js"></script>
+       <link rel="stylesheet" href="zs-kit.css">
+
+   The body slot buys one more thing: it also beats the two stylesheets that
+   JavaScript injects at RUNTIME — smart-actions.js `zs-smart-css` and
+   phone-sections.js `cv-region-css`, both appended to document.head. Those
+   land after everything in <head>, so a head link would have to fight them
+   with prefixes; from the body we simply win on order.
+
+   ───────────────────────────────────────────────────────────────────────────
+   WHAT WAS WRONG, MEASURED.
+
+   Nine "surfaces" were the same fill separated by 2px of corner radius. A
+   card edge measured 1.12:1 against its own fill — not subtle, absent. The
+   section header was 12px/700 over a 14.5px/400 row title, so the label was
+   louder than the thing it named. Four "pick one of N" controls painted their
+   selected state as the same flat cyan slab as the primary button, so on one
+   screen a cyan block meant "which tab", "which mode", "which filter" AND
+   "press this". And the most-emitted component in the product — .note, 207
+   call sites across the two renderers — was a grey paragraph in a
+   PlayStation-blue box, on Xbox screens too.
+
+   Everything looked like one thing because, measured, everything WAS one
+   thing.
+
+   FOUR MOVES, in order of how much they matter:
+
+   1. TYPE DOES THE WORK. Seven sizes, three weights (400/600/700 — the only
+      three every system stack actually has; Segoe UI silently rounds 500 and
+      650, so a six-weight scale renders as three unpredictable ones). A
+      config name is 26px/700 over an 11.5px/700 tracked eyebrow. That is a
+      2.26x ratio, and the hierarchy stops being upside down.
+
+   2. FOUR MATERIALS, EACH WITH A JOB.
+        GROUND   the page.                --bg, untouched
+        CARD     groups things.           card overlay, --line edge, lit top
+        CONTROL  you press it.            control overlay, --zs-edge, a wall
+        WELL     holds a selection.       negative overlay, a groove
+      They differ in fill AND edge AND elevation, so they survive greyscale.
+
+   3. CYAN MEANS ONE THING AGAIN. A solid ion fill is "press this to do the
+      thing" and nothing else. Selection became a raised neutral pill with an
+      ion rail under it — a different SHAPE as well as a different colour.
+
+   4. THE MARK DOES WORK. The reticle's corner bracket introduces every
+      section; the reticle itself is engraved into the hero. Before this the
+      brand appeared on exactly one element in the whole product, which is why
+      the app read as anonymous.
+
+   ───────────────────────────────────────────────────────────────────────────
+   CONTRAST. Every pair below was computed, not estimated — the numbers in the
+   comments come from a script that composites the actual overlays and runs
+   the WCAG formula. Nothing here puts text under 4.5:1 or a control boundary
+   under 3:1, in any of the six modes this app can be in. Where a number is
+   deliberately below 3:1 it says so and says why.
+
+   ───────────────────────────────────────────────────────────────────────────
+   WHAT THIS FILE WILL NOT TOUCH, because something else owns it and stomping
+   it would break shipped behaviour. Full pseudo-element census taken across
+   phone.html, zs-brand.css, zs-anim.css and zs-micro.css:
+
+     .appbar::after / .phead::after   zs-brand — the chrome fade
+     .sheet .shead::before            zs-brand — the drag grabber
+     .sw::after                       phone.html — the knob (travel is
+                                      hardcoded translateX 22px / 28px)
+     .sw::before                      zs-micro:47 — the ion bloom  (see §9.1:
+                                      this file adjusts it rather than
+                                      replacing it, and that is the only
+                                      reason the 44px fix is legitimate)
+     .btn.primary::after              zs-micro:116 — the commit glow
+     .pk::after                       zs-micro:155 — the lock ring
+     .stp .sv::after                  phone.html — content:attr(data-suffix)
+     .ib::after                       phone.html — the hit-area expander
+     .aimpage .fld::after             phone.html — a clearfix
+     .item .ico.ico-*                 phone.html:589 — the five editor hues,
+                                      at (0,3,0). Already shipping. §5.3.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ 1. TOKENS ════════════════════════════════════════════════════════════ */
+
+:root {
+
+  /* ── 1.1 TYPE ────────────────────────────────────────────────────────────
+     Seven sizes, three weights, tracking specified per size because letters
+     drift apart as they grow. This continues the rule zs-brand.css set; it
+     just now has sizes attached to it. */
+  --fs-hero:    26px;   --fw-hero:    700; --lh-hero:    1.10; --tr-hero:   -.028em;
+  --fs-title:   19px;   --fw-title:   700; --lh-title:   1.20; --tr-t:      -.020em;
+  --fs-lead:  17.5px;   --fw-lead:    700; --lh-lead:    1.22; --tr-l:      -.014em;
+  --fs-row:   15.5px;   --fw-row:     600; --lh-row:     1.30; --tr-r:      -.006em;
+  --fs-body:  14.5px;   --fw-body:    400; --lh-body:    1.45; --tr-b:       0;
+  --fs-sub:     13px;   --fw-sub:     400; --lh-sub:     1.55; --tr-s:      .004em;
+  --fs-eyebrow: 11.5px; --fw-eyebrow: 700; --lh-eyebrow: 1.20; --tr-e:      .13em;
+  --fs-micro:  10.5px;
+
+  /* The instrument face. Aim speed, deadzone, Hz, ms, uptime — all of it
+     changes in place many times a second, and a proportional face makes a
+     live readout jitter horizontally as digits swap. Every one of these ships
+     with the OS, so it costs zero bytes on a phone that may be on Bluetooth.
+
+     APPLIED NARROWLY, and the narrowness is the point: .flab .rv and
+     .stp .sv only. I checked the other candidates against the renderers and
+     they carry WORDS — .stat b holds "asking your board…", "● On",
+     "checking…", "3 of 4"; .smval holds preset names like "Standard". Mono on
+     a sentence is a costume, not a gauge. */
+  --zs-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono",
+             "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* ── 1.2 SPACING ─────────────────────────────────────────────────────────
+     Four values. The kit had sixty distinct padding declarations, which is
+     why phone.html needs ten hand-written adjacency rules at the bottom of
+     its <style> to patch the rhythm they destroyed.
+
+     --sp-1h IS NOT A FIFTH RHYTHM VALUE, it is the TOUCH FLOOR. Apple's HIG
+     and this project's own UX data both ask for >= 8px of clear space
+     between two adjacent touch targets, and --sp-1 (4px) is half of that.
+     Every place two tappable things sit side by side takes --sp-1h, and
+     nothing else does — so a future edit that reaches for it is announcing
+     "these two are both targets" rather than "I wanted a slightly bigger
+     gap". §14.4 grows it again for body.a11y-big. */
+  --sp-1:  4px;   /* inside a chip; label → sub                   */
+  --sp-1h: 8px;   /* THE MINIMUM between two adjacent TARGETS     */
+  --sp-2: 10px;   /* between siblings in a row; control padding   */
+  --sp-3: 16px;   /* card padding; the standard gutter            */
+  --sp-4: 26px;   /* between one section and the next             */
+
+  /* ── 1.3 RADIUS AND THE SHEAR ────────────────────────────────────────────
+     The three existing tokens are re-pointed rather than replaced, so all ~21
+     call sites move at once and the 30 hardcoded radii scattered through the
+     kit get restated below.
+
+     THE SHEAR is the one piece of pure identity in the geometry: the mark is
+     a heavy sheared italic, so a control cuts its top-right and bottom-left
+     corners almost square and rounds the other two. It is one border-radius
+     shorthand, it survives borders and box-shadows where clip-path would not,
+     and it is the cheapest way to make a rectangle look machined.
+
+     IT IS DEPLOYED ON CONTROLS ONLY, NOT CARDS, and that restraint is
+     deliberate. The Overview screen draws eleven cards; eleven sheared
+     silhouettes plus their edges is a costume, not a product. Buttons are
+     few, and "the boxes the buttons sit in" is the thing the owner named. So
+     the language is: containers are soft, controls are machined. */
+  --r-chip:   8px;
+  --r-ctl:   12px;
+  --r-card:  18px;
+  --r-sheet: 26px;
+  --r-pill:  999px;
+  --zs-cut:  2px;
+  --zs-shear-ctl:  var(--r-ctl) var(--zs-cut) var(--r-ctl) var(--zs-cut);
+  /* .hero and .cfg carry the inline console-family stripe on their left edge.
+     Squaring the two LEFT corners makes that stripe read as a solid machined
+     bar instead of a curved sliver — it strengthens the signal from rule 7
+     while touching nothing but border-radius. */
+  --zs-shear-rail: var(--zs-cut) var(--zs-cut) var(--r-card) var(--zs-cut);
+
+  /* ── 1.4 EDGES — two tiers, and the honest reason ────────────────────────
+     WCAG 1.4.11 asks 3:1 of a boundary that IDENTIFIES a control or a state.
+     It does not ask it of a decorative grouping edge, and a 3:1 grey outline
+     around all eleven cards on Overview reads as a wireframe.
+
+     2026-08-18 — ALL THREE WERE RAISED ONE STEP, because §1.5 raised the
+     fills underneath them. A brighter surface eats an edge: every number
+     below was recomputed against the new composites, not carried over.
+
+     --line     CONTAINERS   #5c7089   (was #485b73)
+                  3.88:1 vs --bg · 2.96:1 vs a card top · 3.63:1 vs the page
+                  well · 1.84:1 vs a selected pill.
+                Baseline was #212b39 at 1.12:1 against the card it bordered,
+                i.e. photometrically not there. Deliberately still short of
+                3:1 on a card: this is a decorative GROUPING edge, and a card
+                is never identified by its outline alone — it has fill, sheen
+                and elevation. The old note said "if the cards still read
+                flat, THIS is the first value to raise, before anything else
+                in the file." The owner said they still read flat. Raised.
+
+     --zs-edge  CONTROLS     #7387a3   (was #657791)
+                  vs the LIGHT END of its own control gradient (#32373f) 3.26
+                  vs the dark end (#1f242d)                             4.60
+                  vs --bg                                               5.37
+                  vs a card top (#21272f)                               4.10
+                  vs the page well (#111419)                            5.03
+
+     THE INWARD NUMBER IS THE ONE EVERYBODY MISSED, and it is the number that
+     set this value. 1.4.11 wants 3:1 against adjacent colours, and the top of
+     a button's own fill is adjacent. #657791 on the NEW control face measures
+     2.62:1 — so raising the fill without raising the edge would have shipped
+     a control boundary that fails, which is exactly the trade every "just add
+     more contrast" pass makes without noticing. 3.26:1 solves it inward, and
+     inward is the tight side; every outward adjacency clears 4:1.
+
+     --zs-edge-hi  STATE EDGES  #8296b0   (was #6d8099)
+                One step brighter again, and it exists for exactly one job:
+                the boundary of a SELECTED segment. That pill sits on a
+                recessed track, so its edge has three adjacencies rather
+                than two, and --zs-edge measures 2.54:1 against the new
+                pill's own fill — under 1.4.11 on the one boundary in the
+                app that carries "which one is on".
+                  vs the selected pill #43474e  3.08
+                  vs a control face    #32373f  3.96
+                  vs a card top                 4.97
+                  vs the page ground            6.51
+
+                ONE CAVEAT, ON THE RECORD RATHER THAN GLOSSED. §8 stacks an
+                ion (or, under §17, a section) WASH on top of that pill, and
+                against the washed fill (#405b60) this edge reads 2.41:1 —
+                under 1.4.11. It was 2.35:1 before this change, so the
+                ladder improves it rather than causing it. It is not fixed
+                from here because the token has exactly one consumer and
+                pushing it to ~#a3b3c9 would put a 8.2:1 outline round the
+                selected tab — louder than the state it marks. The pill's
+                3px ION RAIL is the non-text indicator that carries the
+                requirement: 4.14:1 against the washed fill, plus --text at
+                6.33:1, plus weight, plus elevation. The border is the
+                fourth of five redundant channels, not the load-bearing
+                one. If the wash is ever tuned, re-measure the RAIL first. */
+  --line:        #5c7089;
+  --zs-edge:     #7387a3;
+  --zs-edge-hi:  #8296b0;
+
+  /* ── 1.5 MATERIALS ───────────────────────────────────────────────────────
+     Overlays, never hex fills. An overlay composites onto whatever --panel
+     currently is, so body.zs-oled keeps its true black and still gets the
+     same RELATIVE lift; a hardcoded #1c222a would freeze OLED mode into
+     looking like the default theme, which is how a theme quietly dies.
+
+     ── 2026-08-18: THE LADDER WAS RE-CUT. The owner: "the background and the
+     buttons are all the same color". He is right, and here is the number the
+     old values produced — a button face sitting on a card:
+
+         CARD top #1c222a → CONTROL top #21272f       1.06:1
+
+     1.06:1 is a 6% luminance difference. On a 375px phone in daylight that is
+     not "subtle", it is ABSENT. The kit compensated with edges, a 2px wall
+     and gradients, and those are real — but they are all OUTLINE channels,
+     and the FILL channel was doing nothing. Fill is what the eye reads first
+     at arm's length.
+
+     Composited on the default --panel #0f151e (measured, not estimated):
+                        was          now
+       card top      #1c222a  →  #21272f
+       card bottom   #141a23  →  #161c25
+       ctl  top      #21272f  →  #32373f
+       ctl  bottom   #161c25  →  #1f242d
+       selected pill #2e333b  →  #43474e
+       well on a card         →  #0a0e14
+       well on the page       →  #111419   (on --bg, where it is used)
+
+     THE HEADLINE: card → button goes 1.06:1 → 1.26:1, and page → button
+     1.30:1 → 1.64:1. "Background and buttons are the same colour" stops being
+     true at the FILL level, not only at the outline level.
+
+     THE HONEST CAVEAT, STATED ONCE. On a near-black ground you CANNOT stack
+     three raised tiers each ~1.3:1 apart and still carry AA secondary text:
+     to put CONTROL 1.30:1 above a CARD that is itself 1.30:1 above the
+     GROUND, the control face must reach L≈.040 (#3f444b), where --muted
+     measures 3.22:1 and FAILS. So the rule that replaces "add more greys" is
+     structural, and it is the load-bearing sentence of this section:
+
+         A CONTROL NEVER SITS ON A CARD THAT SITS ON A CARD. Two raised
+         tiers, ever. Separation past that comes from edge + wall + hue,
+         never from a third fill.
+
+     That is also why the PAGE well drops from .05 to .035: it now has to read
+     as BELOW the ground (1.07:1 under it), not as a fourth grey competing
+     with the card.
+
+     THE CONTROL TOP IS .145, and that single number is set by --muted. At
+     .145 the new --muted (#93a1b4, raised alongside — see phone.html's
+     :root) measures 4.56:1 on a control face, PASSING AA. The old --muted
+     #8695a8 measures 3.92:1 there and fails, which is why it moved in the
+     same edit rather than in a later one. The principle the old comment got
+     right is kept: AA on a button face is preserved BY CONSTRUCTION, not by
+     a standing rule someone has to remember. A rule you have to remember is
+     a bug with a delay on it.
+
+     ONE PROHIBITION FALLS OUT OF THE TABLE: --muted may NOT sit on a
+     SELECTED pill (3.55:1). It does not today — §8 gives the selected
+     segment color:var(--text) at 8.11:1 — so this is a guard to keep, not a
+     fix to make. */
+  --zs2-card-a: rgba(255,255,255,.075);
+  --zs2-card-b: rgba(255,255,255,.030);
+  --zs2-ctl-a:  rgba(255,255,255,.145);
+  --zs2-ctl-b:  rgba(255,255,255,.065);
+  --zs2-sel:    rgba(255,255,255,.215);
+  --zs2-well:   rgba(0,0,0,.34);
+  --zs2-well-pg: rgba(255,255,255,.035);  /* black on near-black is nothing,
+                                             so on --bg a well goes UP        */
+
+  /* The seam between two rows inside one card. A machined panel has a CUT,
+     not a drawn line: dark on top, one sliver of bounce underneath. The step
+     across the pair is 1.38:1 where a single hairline manages 1.26:1 — small
+     numbers, but it is the whole difference between reading the 22-row
+     Keybinds wall and scanning it. Deliberately quiet: the card's own edge
+     does the grouping, the seam only stops two rows touching. */
+  --zs2-cut:    rgba(0,0,0,.50);
+  --zs2-bounce: rgba(255,255,255,.055);
+
+  --zs2-sheen:  inset 0 1px 0 rgba(255,255,255,.075);  /* light on a top edge */
+  --zs2-lit:    inset 0 1px 0 rgba(255,255,255,.14);   /* …on a raised key    */
+  --zs2-groove: inset 0 2px 5px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.06);
+
+  /* The side wall of a key: the 2px of plastic you can see between the cap
+     and the board. It collapses to nothing on press, which is what makes a
+     button read as pressABLE before it is touched — the thing a flat
+     rectangle of slightly different grey can never say. */
+  --zs2-wall:   0 2px 0 rgba(0,0,0,.62);
+  --zs2-sunk:   inset 0 2px 5px rgba(0,0,0,.55);
+
+  /* Ion surfaces, RE-MEASURED on the new card (#21272f):
+       tint .14   → #234045 · accent on it 6.31:1 · --text on it 9.65:1
+       line .55   → #298986 · 3.59:1 vs its own card
+       dash .45   → #1d7c79 · 3.02:1 vs the page ground                     */
+  --zs2-ion-tint: rgba(111, 155, 255,.14);
+  --zs2-ion-line: rgba(111, 155, 255,.55);
+  --zs2-ion-dash: rgba(111, 155, 255,.45);
+
+  /* The side wall of the ONE solid-accent cap in the app. Hand-derived from
+     --accent rather than computed, because there is no way to darken a custom
+     property inside a box-shadow that is safe on every engine this ships to.
+     IF --accent EVER MOVES, MOVE THIS TOO. It moved on 2026-08-28 when the
+     cap stopped being cyan→blue→teal and became a ramp of the accent itself
+     (phone.html :root --cap-*): #123a6b measures 3.27:1 against the cap's new
+     bottom stop #5b86e8, which is what makes the wall visible as a wall. */
+  --zs2-ion-wall: #123a6b;
+
+  /* The second ink. The app measured 44–90% one single grey by character
+     count, which is most of why it read as a settings list: when everything
+     is secondary, nothing is primary. This is the middle level — bright
+     enough to be content, dim enough to sit under a title.
+       #b9c7d7 on a card 8.75:1 · on a control face 6.96:1 · on --bg 11.45:1
+       · on a well 11.25:1 · on a selected pill 5.43:1
+     --muted stays, demoted to true metadata: counts, units, timestamps. It
+     lives in phone.html's :root and went to #93a1b4 in the same edit that
+     raised the control face — see §1.5. The two inks stay 1.53:1 apart, so
+     they remain distinguishable from each other, not only from the page. */
+  --zs-ink-2: #b9c7d7;
+}
+
+
+/* ══ 2. TYPE, APPLIED ═════════════════════════════════════════════════════
+   The inversion fix is the whole of this section. The primary label of every
+   settings row was 14.5px/400 — the same weight as the paragraph in the note
+   underneath it — while the uppercase header introducing it was 12px/700.
+   Row titles go to 15.5px/600 in --text and headers drop to 11.5px muted, so
+   size and colour now outrank weight and the order is right way up. */
+
+.hero .nm {
+  font-size: var(--fs-hero); font-weight: var(--fw-hero);
+  line-height: var(--lh-hero); letter-spacing: var(--tr-hero);
+}
+/* phone.html already puts white-space:nowrap + ellipsis on .phead h2 and on
+   .hero .nm, so 26px and 19px cannot wrap a long config name — they clip,
+   which is what the ellipsis is for. Verified in the markup before sizing up. */
+.phead h2, .zs-gate h2, .sheet .shead h3, .aimph b {
+  font-size: var(--fs-title); font-weight: var(--fw-title);
+  line-height: var(--lh-title); letter-spacing: var(--tr-t);
+}
+.appbar h1 { font-size: 16.5px; letter-spacing: var(--tr-l); }
+
+.cfg .cn .name, .smtitle {
+  font-size: var(--fs-lead); font-weight: var(--fw-lead);
+  line-height: var(--lh-lead); letter-spacing: var(--tr-l);
+}
+
+/* THE ROW TITLE — the most common line of text in the product. One rule for
+   a settings row on Home and a settings row in the editor, because they are
+   the same object and used not to look like it. .flab is a DIV in the
+   renderer (fld() builds `<div class="flab">`), so this lands on the whole
+   label block and the <em> under it is re-quietened below. */
+.drow .t .lab, .item .t .lab, .flab, .acc > .ah, .lrow .src, .salab {
+  font-size: var(--fs-row); font-weight: var(--fw-row);
+  line-height: var(--lh-row); letter-spacing: var(--tr-r); color: var(--text);
+}
+.lrow .src { font-size: 14.5px; }
+.card .cn  { font-size: 14px; font-weight: var(--fw-row); letter-spacing: var(--tr-r); }
+
+/* Secondary lines. ONE size for every explanatory string in the app — hints,
+   notes, sub-labels, leads, card descriptions — because they are the same
+   kind of sentence and were previously six sizes between 11.5 and 13.5px. */
+.drow .t .hint, .item .t .hint, .flab em, .note, .lead, .card .cd,
+.hero .live, .idline .mt, .phead .psub, .smsub, .smcap, .pkr .pkn em,
+.acc > .ab .lead, .ph, .sahcap, .satnote, .mechcurve span {
+  font-size: var(--fs-sub); font-weight: var(--fw-sub);
+  line-height: var(--lh-sub); letter-spacing: var(--tr-s);
+}
+
+/* THE EYEBROW. 11.5px/700 uppercase at --muted: 6.45:1 on --bg, 5.24:1 on a
+   card — both past AA, and unmistakably subordinate to a 15.5px/600 title. */
+.grp, .sh, .pkh {
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-eyebrow);
+  line-height: var(--lh-eyebrow); letter-spacing: var(--tr-e);
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* THE READOUTS. Mono + tabular, and only here — see the --zs-mono comment for
+   why .stat b and .smval are excluded by name. */
+.flab .rv, .stp .sv, .stp input.svedit {
+  font-family: var(--zs-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: -.01em;
+}
+/* .stat b still gets tabular figures — a number that ticks 59→60 must not
+   shove its row sideways — it just does not get the mono FACE, because half
+   of them are sentences. */
+.stat b, .dvb-meta b, .lrow .rt b {
+  font-variant-numeric: tabular-nums;
+}
+/* The ● that promises "this saves to your board". phone.html paints its
+   COLOUR at runtime from the live link state — that is a signal, so this only
+   sizes and spaces it. */
+.livedot { font-size: 8px; vertical-align: 2px; margin-left: 6px; }
+
+
+/* ══ 3. CHROME — the two header bars ══════════════════════════════════════
+   zs-brand.css already makes these glass and fades their lower boundary
+   instead of ruling it. All that is missing is a lit top edge and enough room
+   for 19px type. */
+
+.appbar, .phead {
+  box-shadow: var(--zs2-sheen);
+  padding-left: var(--sp-3); padding-right: var(--sp-3);
+}
+.phead { padding-bottom: 13px; gap: var(--sp-2); }
+.phead .psub { color: var(--muted); margin-top: 2px; }
+
+/* ‹ Home had a 44px hit area and no visible edges, so on a phone it read as a
+   label rather than a control. It becomes a chip: same target, obviously
+   pressable, and the negative margins keep the header's optical alignment
+   exactly where it was.  --accent on the control face: 8.55:1. */
+.pback {
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 13px;
+  margin: -2px var(--sp-1) -2px -4px;
+  border: 1px solid var(--zs-edge);        /* 3.26:1 inward — see .cogbtn */
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen);
+  color: var(--accent);
+  font-size: var(--fs-body); font-weight: var(--fw-row); letter-spacing: var(--tr-r);
+}
+.pback:active { filter: none; border-color: var(--accent); }
+.appbar .cogbtn {
+  width: 44px; height: 44px; min-height: 44px;
+  padding: 0; margin: 0 -4px 0 0; flex: none;
+  border: 1px solid var(--zs-edge); border-radius: var(--r-pill);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen);
+  color: var(--zs-ink-2);                  /* 8.75:1 on that face */
+  display: flex; align-items: center; justify-content: center;
+}
+.appbar .cogbtn svg { width: 21px; height: 21px; }
+/* The logo chip was rgba(88,166,255,…) — the PlayStation family colour spent
+   as brand furniture, which rule 6 forbids in both directions. */
+.appbar .logochip {
+  border-radius: var(--zs-shear-ctl);
+  background: var(--zs2-ion-tint);
+  border-color: var(--zs2-ion-line);
+  color: var(--accent);
+}
+
+
+/* ══ 4. SECTION HEADERS — .grp, .sh, .pkh ═════════════════════════════════
+   These three were pixel-identical and yet collapsed differently against
+   their siblings, which is the entire reason phone.html carries
+   `.sh+.grp-card,.sh+.acc,…{margin-top:0}` at line 366. One component now,
+   one rhythm: --sp-4 above, --sp-2 below, and the space under a header
+   belongs to the header (§13 restates the adjacencies so nothing below adds
+   its own).
+
+   THE BRACKET IS THE RETICLE'S CORNER — 9px, two 2px arms. It is identical on
+   every header, carries no state, and is what makes eight consecutive
+   sections read as eight sections instead of one long run. It is also the
+   only piece of the actual mark that appears anywhere between the app bar and
+   the hero.  --accent on the ground: 11.20:1. */
+.grp, .sh, .pkh {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.grp::before, .sh::before, .pkh::before {
+  content: ""; flex: none;
+  width: 9px; height: 9px;
+  border-left: 2px solid var(--accent);
+  border-top: 2px solid var(--accent);
+  border-top-left-radius: 1px;
+}
+/* Only .sh and .pkh get the trailing rule. .grp can carry a .gact pinned
+   right with margin-left:auto, and a flex-grow pseudo-element would land
+   AFTER it in flex order and shove it inward. Verified against phone.html
+   1333 and 1346, which are the only two .gact call sites. */
+.sh::after, .pkh::after {
+  content: ""; flex: 1 1 auto; height: 1px; min-width: 12px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+.grp { padding: var(--sp-4) 2px var(--sp-2); }
+.sh  { margin: var(--sp-4) 2px var(--sp-2); }
+.pkh { margin: var(--sp-3) 2px var(--sp-2); }
+/* Restated at (0,2,0) to beat phone.html:253. It is dead today — renderEdMenu
+   emits five .item rows and no headers at all — but it is one line, and the
+   day a header is added to that screen it would otherwise sit at an 18px
+   indent while its rows sit at 14px. */
+.menu .grp { padding: var(--sp-4) 4px var(--sp-2); }
+
+/* THE HEADER'S TRAILING ACTION, SPLIT ON THE TAG.
+   Since 2026-08-18 renderHome emits `<button class="gact" id="livechip">` —
+   the chip DOES something now (it opens the board-facts sheet), so it wears
+   the pressable chip treatment below alongside the Configs screen's
+   `<button class="gact" id="orderbtn">Reorder</button>`. Its green/amber
+   state colour is written inline by renderHome/setOnline and out-ranks the
+   accent here, which is exactly right: the state is the signal, the border
+   and fill only say "tappable". The span.gact rule stays for any future
+   read-only report a header carries. */
+.grp button.gact {
+  min-height: 44px; padding: 0 12px; margin-right: -4px;
+  border: 1px solid var(--zs-edge);        /* a KEY's edge, not a card's:
+                                              --line reads 2.36:1 on this
+                                              fill and misses 1.4.11        */
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen);
+  color: var(--accent);
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.grp span.gact {
+  padding: 5px 10px; margin-right: -2px;
+  border: 1px solid var(--line); border-radius: var(--r-chip);
+  background: var(--zs2-well-pg);
+  font-size: var(--fs-eyebrow); font-weight: 700; letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+/* The first thing on a screen should not be pushed down by a full section
+   gap. (0,2,0) to match phone.html's `.dbody>:first-child`. */
+.dbody > :first-child, .home > :first-child, .menu > :first-child { margin-top: 4px; }
+.dbody > .sh:first-child { padding-top: 2px; }
+
+
+/* ══ 5. SURFACES ══════════════════════════════════════════════════════════
+   Every box in the app is now exactly one of four materials. The card
+   gradient runs light→dark top to bottom; that is not a flourish, it is the
+   cheapest possible way to say "a physical panel lit from above", and it is
+   why the card no longer needs a loud 3:1 outline to be seen. */
+
+.hero, .cfg, .drow, .item, .grp-card, .acc, .card, .tile, .mechcurve,
+.sastripbox, .sacat {                    /* last two: beats the runtime block */
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen), var(--el-1);
+}
+.grp-card, .acc {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+/* ── 5.1 THE HERO ────────────────────────────────────────────────────────
+   The most important element on the home screen differed from a plain config
+   row by 1px of type and a box-shadow that composited to 1.02:1 against the
+   ground — mathematically invisible. It is now the only surface in the app
+   carrying real elevation, an ion sheen AND the engraved mark, so it is
+   different in KIND rather than in degree.
+
+   RULE 7. renderHome writes `style="border-left-color:<family>"` inline. The
+   `border` SHORTHAND is therefore forbidden here — it would reset
+   border-left-width to 1px and leave a 5px signal painting a hairline.
+   Longhands only, and border-left-color is never named. Same on .cfg. */
+.hero {
+  border-style: solid;
+  border-width: 1px 1px 1px 5px;
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+  border-radius: var(--zs-shear-rail);
+  box-shadow: var(--el-3), var(--zs2-lit);
+  overflow: hidden;
+  position: relative;
+}
+.hero > * { position: relative; z-index: 1; }
+.hero .top { padding: var(--sp-3); gap: var(--sp-3); align-items: flex-start; }
+.hero .art, .hero .top > .art { border-radius: 14px; }
+.hero .nm { margin-bottom: 2px; }
+
+/* THE SHEEN — the premium half. A console card is lit from somewhere; this is
+   that light.
+   THE ALPHA IS CAPPED AT .07 AND THE CAP IS A CONTRAST DECISION. The hero
+   carries --muted text (.idline .mt and .hero .live). At the .11 two of the
+   four directions proposed, --muted on the sheen measures 4.17:1 and FAILS
+   AA. At .07 it is 4.55:1 and passes; --text is 12.08:1 and --accent 7.90:1.
+   Nobody who proposed this sheen measured what was underneath it. */
+.hero::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(130% 85% at 8% -20%, rgba(111, 155, 255,.07), transparent 62%);
+}
+
+/* THE MARK — the restraint half. The reticle from the logo, engraved into the
+   card's top-right corner and clipped by its radius.
+
+   ENGRAVED, NOT GLOWING, and that is contrast rather than taste. A cyan
+   watermark at 13% under the config name drops --muted on top of it to
+   3.97:1 and fails; black at 32% RAISES it — --muted goes 5.24 → 5.89 and
+   --text 13.91 → 15.63. A darker mark can never hurt legibility on a dark
+   card, so it can sit where a lighter one could not. Even stacked on the
+   sheen at its brightest, --muted holds 5.45:1. */
+.hero::after {
+  content: ""; position: absolute; z-index: 0; pointer-events: none;
+  right: -34px; top: -30px; width: 172px; height: 172px;
+  --ret: rgba(0,0,0,.32);
+  background-image:
+    radial-gradient(circle at 50% 50%, transparent 0 43%, var(--ret) 43% 45.4%, transparent 45.9%),
+    radial-gradient(circle at 50% 50%, transparent 0 13%, var(--ret) 13% 15%, transparent 15.5%),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret)),
+    linear-gradient(var(--ret), var(--ret));
+  background-size: 100% 100%, 100% 100%, 2px 17%, 2px 17%, 17% 2px, 17% 2px;
+  background-position: 0 0, 0 0, 50% 6%, 50% 94%, 6% 50%, 94% 50%;
+  background-repeat: no-repeat;
+}
+
+/* THE BOARD LINE — offline guidance only, since 2026-08-18. The online
+   narration ("Board connected · sending inputs · up 103 min") left the hero
+   for the board-facts sheet behind the ● board chip (owner: "that is a
+   debug fact"); what renders here now is ONLY the amber can't-reach
+   guidance, which is help, not telemetry. Same recessed strip as before,
+   so the offline state still reads as a deliberate surface. */
+.hero .live {
+  margin: 0 var(--sp-3) 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-chip);
+  background: var(--zs2-well);
+  box-shadow: var(--zs2-groove);
+  color: var(--muted);                     /* 5.94:1 on that well */
+}
+.hero .live .dot { color: var(--green); font-size: 14px; }
+
+/* "Edit this config" is THE action on HOME, and it was invisible — a faint
+   accent label on a grey rail (owner, 2026-08-17: "edit this config is too
+   hard to see, and not one colour"). It is now the second sanctioned solid-
+   ion surface (§7 owns the first, and the two make the same statement:
+   press this and the thing happens). One colour, full width, welded to the
+   hero's foot, with .btn.primary's own cap physics and its measured pairs —
+   --accent-ink on the three stops 10.77 / 9.75 / 7.91:1, AA everywhere on
+   the face. The chevron rides along so it still reads as a door. */
+.hero .go {
+  min-height: 58px; padding: 0 var(--sp-3);
+  border-top: 1px solid rgba(0,0,0,.38);
+  border-radius: 0;
+  background-image: linear-gradient(180deg, var(--cap-a,#93b6ff) 0%, var(--cap-b,#6f9bff) 52%, var(--cap-c,#5b86e8) 100%);
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 15.5px; font-weight: 700; letter-spacing: var(--tr-r);
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.42), inset 0 -1px 0 rgba(0,0,0,.22);
+}
+.hero .go > span:last-child { font-size: 20px; opacity: .85; }
+.hero .go:active, .hero .go.zs-pressing {
+  filter: none;
+  background-image: linear-gradient(180deg, var(--cap-c,#5b86e8) 0%, var(--cap-b,#6f9bff) 100%);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.28);
+}
+
+/* ── 5.2 CONFIG ROWS ─────────────────────────────────────────────────────
+   Longhand borders again — the inline border-left-color is a signal. */
+.cfg {
+  border-style: solid;
+  border-width: 1px 1px 1px 5px;
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+  border-radius: var(--zs-shear-rail);
+  min-height: 88px;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 14px;
+  gap: 14px;
+}
+body.a11y-big .cfg { min-height: 96px; }
+.cfg .art { border-radius: 14px; }
+.cfg .cn .name { color: var(--text); }
+.idline { margin-top: 4px; gap: 7px; }
+.idline .mt { color: var(--muted); }        /* 5.24:1 on the card */
+
+/* The live row. JS already writes aria-current="true" on it — free state, no
+   new class. A brighter face and a defined edge, so it is a different object
+   rather than the same rectangle with a tick bolted on. */
+.cfg[aria-current="true"] {
+  background-image: linear-gradient(180deg, var(--cur-a), var(--cur-b));
+  border-top-color: var(--zs-edge);
+  border-right-color: var(--zs-edge);
+  border-bottom-color: var(--zs-edge);
+}
+
+/* ✓ / Playing / now.
+   VERIFIED AGAINST THE MARKUP, AND THE MARKUP OVERRULES ONE OF THE GRAFTS I
+   was handed. renderHome emits
+     <span class="cstate"><span class="tick">✓</span>Playing<br>now</span>
+   — with a literal <br>. So this block can never be one line, and turning it
+   into a horizontal pill (as one direction proposed) would produce a pill
+   with a forced line break inside it. It stays a narrow stacked badge, which
+   is what the markup is actually shaped like; what it gains is a wash, a real
+   border and type that is not 11px/700 grey.
+     #56d364 on the green wash 6.44:1 · --green border vs the card 6.30:1
+   Colour is never alone here: the tick AND the words are both present. */
+.cstate {
+  flex: none; width: 62px;
+  padding: 5px 4px 6px;
+  border-radius: var(--r-chip);
+  background: rgba(63,185,80,.15);
+  border: 1px solid var(--green);
+  color: var(--live-ink);
+  font-size: var(--fs-micro); font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; line-height: 1.25;
+}
+.cstate .tick { font-size: 15px; letter-spacing: 0; }
+
+/* ── 5.3 NAVIGATION ROWS — .drow and .item ───────────────────────────────
+   These were the same content model rendered two ways: a card on Home, a bare
+   list line in the editor. The editor menu — the second screen every user
+   reaches, and the product's entire feature set — was five undecorated rows
+   on the raw ground: no cards, no borders, one radius, 80% grey text. It is
+   the most literal case of "this doesn't even look cool".
+
+   One component now. .item supplies its own horizontal margin because .menu
+   pads `8px 0` and there is no wrapper element the renderer emits — the row
+   provides its own gutter, which needs no markup change at all. */
+.drow, .item {
+  display: flex; align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  min-height: 74px;
+  padding: 14px var(--sp-3);
+  gap: 14px;
+}
+.drow { margin-top: var(--sp-2); }
+.item { margin: var(--sp-2) 14px; }
+/* phone.html gives .item a bottom hairline that belonged to the flat list.
+   Named explicitly rather than left to the shorthand above, so it is obvious
+   this was deliberate and not an accident of ordering. */
+.item { border-bottom-color: var(--line); }
+body.a11y-big .drow, body.a11y-big .item { min-height: 82px; }
+.drow:active, .item:active, .drow.zs-pressing, .item.zs-pressing {
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  border-color: var(--zs-edge);
+}
+
+/* THE ICON CONTAINER. It existed, it was 30px, it was --muted on --panel2,
+   and it appeared on seven rows in the entire app. At 42px it is the cheapest
+   scanning aid available — shape first, so it works with colour off.
+
+   GEOMETRY ONLY. `.item .ico.ico-*` at phone.html:589 is (0,3,0) and already
+   ships five per-section hues (Overview ion, Aim gold, Keybinds steel, Smart
+   Actions orange, Computer Vision the brand gradient). This rule is (0,2,0),
+   so width / height / border-radius land everywhere and background /
+   border-color / color lose on all five editor rows — which is correct, and
+   is why background and colour are set on `.drow .ico` alone. renderEdMenu
+   emits `class="ico ico-<id>"` on every single row, and renderHome's two
+   device rows emit a bare `class="ico"`; both verified in source.
+
+   Re-measured on THIS file's card fill, because the five hues were tuned
+   against the old --panel and a lighter card could have broken them:
+     Overview  ion   6.89:1   Aim    gold  6.51:1
+     Keybinds  steel 7.46:1   Smart  orange 5.92:1
+   All four past AA. (Computer Vision is a gradient border, not a glyph
+   colour, so there is no single pair to state.) */
+.drow .ico, .item .ico {
+  width: 42px; height: 42px; flex: none;
+  border-radius: var(--zs-shear-ctl);
+  display: flex; align-items: center; justify-content: center;
+}
+.drow .ico svg, .item .ico svg { width: 21px; height: 21px; }
+.drow .ico {
+  background: var(--zs2-ion-tint);
+  border: 1px solid var(--zs2-ion-line);
+  color: var(--accent);                    /* 6.70:1 on its own tint;
+                                              the edge 3.72:1 vs the card */
+}
+/* .item.gated is dead code today — no entry in phone.html's SECTIONS array
+   carries a `gate:` property, so gateOK() always returns true and the class
+   is never emitted. It is fixed anyway because it costs one line and it is
+   wrong: phone.html:225 paints it in rgba(88,166,255,…), the PlayStation
+   family colour, as generic chrome. The :not() guard is what stops this from
+   ever overwriting one of the five section hues. */
+.item.gated .ico:not([class*="ico-"]) {
+  background: var(--zs2-ion-tint);
+  border-color: var(--zs2-ion-line);
+  color: var(--accent);
+}
+.chev { color: var(--muted); font-size: 17px; flex: none; }
+.item:active .chev, .drow:active .chev, .cfg:active .chev { color: var(--accent); }
+
+/* ── 5.4 CARDS, TILES, PLACEHOLDERS ─────────────────────────────────────── */
+.cards { gap: var(--sp-2); }
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 14px var(--sp-2) var(--sp-3);
+  display: flex; flex-direction: column; min-height: 118px;
+}
+/* The icon gets a ruled shelf, so a 31-card grid has a horizon to scan along
+   instead of 31 free-floating blobs. .card.satpl carries an inline
+   `border-left:3px solid <family>` from smart-actions.js — inline beats this
+   file, so that stripe survives untouched. Verified at smart-actions.js:3374. */
+.card .ci {
+  color: var(--accent);                    /* 9.10:1 on the card */
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--zs2-cut);
+  box-shadow: 0 1px 0 var(--zs2-bounce);
+}
+.card .ci svg { width: 24px; height: 24px; }
+.card .cn { margin-top: var(--sp-2); color: var(--text); }
+.card .cd { color: var(--muted); margin-top: var(--sp-1); }
+.card:active, .card.zs-pressing {
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  border-color: var(--zs-edge);
+}
+
+.tile {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: var(--sp-3) var(--sp-2);
+  position: relative;
+}
+.tile .tart { height: 48px; }
+/* Selected: a 2px edge (a WIDTH change, readable with colour off), an ion
+   wash, and a tick in the corner. Three channels, per rule 6. */
+.tile.on {
+  border-width: 2px; border-color: var(--accent);
+  padding: 15px 9px;                       /* hold the box the same size */
+  background-image: linear-gradient(180deg, var(--zs2-ion-tint), rgba(111, 155, 255,.06));
+}
+.tile.on::after {
+  content: "✓"; position: absolute; top: 6px; right: 9px;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+}
+
+/* "Nothing here yet" should not look like a finished surface — dashed stays,
+   but on a recess rather than a fake card. */
+.ph {
+  background: var(--zs2-well-pg);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--zs2-groove);
+  padding: var(--sp-3);
+  color: var(--muted);                     /* 5.88:1 on that well */
+}
+.mechcurve { border: 1px solid var(--line); border-radius: var(--r-card); padding: var(--sp-3); }
+.mechcurve span { color: var(--zs-ink-2); }
+.art { border-radius: var(--zs-shear-ctl); background: var(--zs2-well-pg); }
+.art.photo { box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+
+/* ── THE NO-PHOTO ART TILE (.art.mkart) ──────────────────────────────────
+   Owner, 2026-08-17: "the picture for configs needs to be better" — with no
+   photo the tiles were small dark squares. artHTML (phone.html) now emits a
+   COMPOSED tile: the config's own colour (--cfg, inline on the span — the
+   same colour the left stripe and the pad's light bar carry, so it is
+   config identity, never a family badge) becomes a real backdrop; the
+   family mark floats on it at 70% with a shadow instead of wallpapering the
+   whole square; and a game-locked config engraves its game's initial behind
+   the mark on tiles big enough to hold it (the hero). Everything here is
+   decorative — the idline text beside the tile is the accessible identity.
+
+   color-mix DEGRADES SAFELY: if the engine lacks it the background-image
+   declaration is invalid and drops, leaving the flat --panel2 tile —
+   exactly yesterday's look, never a broken one. */
+.art.mkart {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  background: var(--panel2);
+  background-image: radial-gradient(130% 130% at 22% 14%,
+    color-mix(in srgb, var(--cfg, #4a5568) 55%, #0d1118),
+    color-mix(in srgb, var(--cfg, #4a5568) 20%, #0d1118) 62%,
+    #0a0e14);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.10),
+              inset 0 -8px 16px rgba(0,0,0,.30);
+}
+.art.mkart .mkbadge {
+  position: relative; z-index: 1;
+  width: 70%; height: 70%; display: block;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.5));
+}
+/* phone.html's `.art svg{width:100%;height:100%}` already fills the badge
+   into this wrapper; restated here so the tile never depends on rule order. */
+.art.mkart .mkbadge svg { width: 100%; height: 100%; display: block; }
+/* the engraved game initial: behind the badge, clipped by the tile, and at
+   an alpha that can only ever be texture — never a second glyph competing
+   with the mark. font-size arrives inline from artHTML (92% of the tile). */
+.art.mkart .gm0 {
+  position: absolute; z-index: 0;
+  right: -3%; bottom: -16%;
+  font-style: normal; font-weight: 800; line-height: 1;
+  letter-spacing: -.04em;
+  color: rgba(255,255,255,.15);
+  pointer-events: none; user-select: none;
+}
+
+
+/* ══ 6. ROWS INSIDE A CARD ════════════════════════════════════════════════
+   .fld is the workhorse — every toggle, slider, stepper and dropdown in the
+   product. The row gets a real height so a 44px control has somewhere to
+   live, and the divider becomes a machined seam: a dark cut with a light
+   bounce under it, which steps 1.38:1 across the pair against the 1.26:1 a
+   single hairline manages. */
+.fld {
+  padding: 13px var(--sp-3);
+  min-height: 60px; gap: 14px;
+  border-bottom: 1px solid var(--zs2-cut);
+  box-shadow: 0 1px 0 var(--zs2-bounce);
+}
+.fld:last-child { border-bottom: none; box-shadow: none; }
+.fld.col { padding-top: 14px; padding-bottom: var(--sp-3); }
+.fld.col .rng { margin-top: 12px; }
+.flab em {
+  display: block; font-style: normal; margin-top: 3px;
+  color: var(--muted); font-weight: var(--fw-sub);   /* 5.24:1 on the card */
+}
+.flab .rv { color: var(--accent); font-weight: 700; font-size: 13.5px; }  /* 9.10:1 */
+.fld.tapper:active, .fld.tapper.zs-pressing { background-color: var(--press-wash); }
+.grp-card + .grp-card { margin-top: var(--sp-2); }
+
+/* List rows and stat rows keep their border-TOP direction (phone.html's
+   :first-child rules depend on it), so the bounce goes INSIDE at the top —
+   dark cut, then the light catching the lower lip of the groove. Same
+   physics, opposite geometry. */
+.lrow {
+  padding: 13px 0; gap: var(--sp-2); min-height: 54px;
+  border-top: 1px solid var(--zs2-cut);
+  box-shadow: inset 0 1px 0 var(--zs2-bounce);
+}
+.stat {
+  padding: 12px 0; gap: var(--sp-2);
+  border-top: 1px solid var(--zs2-cut);
+  box-shadow: inset 0 1px 0 var(--zs2-bounce);
+  font-size: var(--fs-sub); color: var(--zs-ink-2);   /* 9.31:1 on the card */
+}
+.lrow:first-child, .stat:first-child { box-shadow: none; }
+.grp-card > .stat, .grp-card > .lrow { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+/* Every stat value used to be ion. Accent on 71 read-only numbers is accent
+   meaning nothing — it is the same colour as the primary button. --text/700
+   (13.91:1); only a genuinely good state stays green (6.30:1). */
+.stat b { color: var(--text); font-size: var(--fs-body); font-weight: 700; text-align: right; }
+.stat b.ok, .stat .ok { color: var(--green); }
+.lrow .arrow { color: var(--accent); font-weight: 700; opacity: .8; }
+.lrow .rt { gap: var(--sp-2); }
+
+
+/* ══ 7. BUTTONS ═══════════════════════════════════════════════════════════
+   The owner named these twice, so they get the most work in the file. The
+   second time, verbatim: "the background and the buttons are all the same
+   color" and "obviously button clicks is too much of the same colors".
+
+   A button is a KEY: a face lit from above, a defined edge at 3.26:1 against
+   its own fill and 5.37:1 against the page, 2px of visible side wall, and
+   52px of height. On press the wall collapses and the face sinks. Nothing
+   here is decoration for its own sake — the wall is what makes a rectangle
+   read as pressABLE before it is touched, and `filter:brightness()` (what the
+   kit used) cannot express any of it: it just makes the same flat rectangle
+   paler, which says "this got hotter", the wrong metaphor for a key going
+   down.
+
+   ── FIVE ROLES, ZERO RENAMES (2026-08-18) ────────────────────────────────
+   Every class below already existed. What is new is that each one now says
+   WHICH KIND OF ACTION it is, and each is measured against ITS OWN FILL —
+   not against the page — because the fill is the adjacency 1.4.11 cares
+   about and the one every earlier pass skipped.
+
+     1 PRIMARY      .btn.primary, .hero .go, and the ONE create control that
+                    is a screen's whole first move (zs-fixes §11's ＋ New
+                    config, §17's ＋ Add a button on Keybinds)
+                    "Press this and the thing happens." Solid ion. The census
+                    is short on purpose and every addition to it is argued
+                    where it is made — the RULE is that a cyan slab makes
+                    that one statement and nothing else ever borrows the
+                    appearance. Never tinted (§17), never dimmed.
+     2 SECONDARY    .btn, .ib, .pbtn, .pback, .grp button.gact, .mechpill,
+                    .stp button, .appbar .cogbtn, .sheet .shead .sclose,
+                    .pk, .pkr
+                    "Available, and it is a key." The control face + edge +
+                    wall. This is the role the ladder change is FOR.
+     3 DESTRUCTIVE  .btn.danger, .ib.danger
+                    "This removes something." Red wash + hazard hatch + red
+                    edge, and NO lit top edge — so it reads as a different
+                    MATERIAL, not merely a red key.
+     4 QUIET        .btn.ghost, .grp span.gact, .chev
+                    "Available, but not the move." No fill, no wall, no
+                    lift. That absence IS the role.
+     5 CREATE       .newcfg, .addbtn
+                    An empty socket. Recessed, dashed, ion glyph.
+
+   NOT A BUTTON ROLE: .seg2/.subtabs/#edtabs `.on`. That is SELECTION and it
+   lives in §8. It must never take a solid ion fill — that is the whole
+   reason §8 exists.
+
+   The shear runs across every one of them, so the control layer has a
+   silhouette of its own that the card layer does not. */
+
+.btn {
+  min-height: 52px;
+  padding: 0 var(--sp-3);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--text);                      /* 10.41:1 on the face's top stop,
+                                              13.53:1 on its bottom          */
+  font-size: 15px; font-weight: var(--fw-row); letter-spacing: var(--tr-r);
+  box-shadow: var(--zs2-lit), var(--zs2-wall), var(--el-1);
+  margin-top: var(--sp-2);
+}
+/* Small still means tappable. 44px is the floor, not a suggestion — this used
+   to render at ~37.6px, which is under the threshold on the one product whose
+   entire purpose is lowering physical demand. */
+.btn.sm {
+  min-height: 44px; padding: 0 var(--sp-3);
+  font-size: 13.5px; display: inline-flex; width: auto; margin-top: 0;
+}
+
+/* THE SOLID ACCENT SURFACE. After §8, exactly two elements in the app wear
+   it: this button and HOME's "Edit this config" rail (§5.1) — tabs and
+   segments no longer borrow the appearance, so this face means "press this
+   and something happens" and nothing else. Both surfaces make that statement.
+
+   IT USED TO BE CYAN, AND THAT WAS THE APP'S "NOT ONE COLOUR" BUG. The three
+   stops were #3ee3d8 → #6f9bff → #26c4ba, so the accent was the middle 52%
+   of the loudest object on every screen and the eye read the teal ends. The
+   stops are now a light-to-deep ramp of the accent itself (--cap-a/b/c, set
+   in phone.html's :root beside --btn-1-*), which is the only change: the lit
+   top edge, the hard side wall and the inverted press are untouched.
+
+   The hard `0 3px 0` side wall is the whole trick — it is what reads as a
+   physical cap rather than a coloured rectangle, and a flat alpha overlay has
+   nothing like it.
+     --btn-1-ink #04120f  on the top stop #93b6ff   9.44:1
+                          on the mid stop #6f9bff   7.11:1
+                          on the low stop #5b86e8   5.48:1
+     the wall #123a6b against the cap's own bottom  3.27:1
+     the cap's low stop against the page ground     5.20:1
+   AA at every point on the face.
+
+   Prefixed with `body` so it beats zs-brand.css:252 AND the runtime blocks. */
+body .btn.primary {
+  background-image: linear-gradient(180deg, var(--cap-a,#93b6ff) 0%, var(--cap-b,#6f9bff) 52%, var(--cap-c,#5b86e8) 100%);
+  background-color: var(--accent);
+  border-color: var(--btn-1-edge, #a8c4ff);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.42),
+              inset 0 -1px 0 rgba(0,0,0,.22),
+              0 3px 0 var(--zs2-ion-wall),
+              0 8px 20px var(--zs-ion-glow);
+}
+/* PRESSED. The gradient INVERTS as well as sinking — light comes from above,
+   so a cap that has travelled down is lit from a lower angle. The wall is
+   gone, which is the part the eye actually reads. */
+body .btn.primary:active, body .btn.primary.zs-pressing {
+  filter: none;
+  background-image: linear-gradient(180deg, var(--cap-c,#5b86e8) 0%, var(--cap-b,#6f9bff) 100%);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.28), 0 0 14px rgba(111, 155, 255,.16);
+}
+
+/* DISABLED — AND THIS IS THE ONE RULE IN §7 THAT IS COUNTER-INTUITIVE.
+   NEVER DIM A PRIMARY. The generic `.btn:disabled{opacity:.55}` below drops a
+   cyan cap to a washed-out cyan cap: still obviously the loudest thing on the
+   screen, still the thing the eye goes to, and now unreadable. A disabled
+   primary is not a quieter primary — it is NOT THE PRIMARY RIGHT NOW. So it
+   swaps down a whole role, to the SECONDARY face, and keeps full opacity.
+     --muted #93a1b4 on that face 4.56:1 — AA, deliberately still readable,
+     because "why can't I press this" is answered by the label.
+   The wall goes, so it does not read as pressable. aria-disabled is honoured
+   as well as :disabled — smart-actions.js uses the attribute form, and a
+   role that only styles one of the two is a role with a hole in it. */
+body .btn.primary:disabled,
+body .btn.primary[aria-disabled="true"] {
+  opacity: 1;
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  border-color: var(--zs-edge);
+  color: var(--muted);
+  text-shadow: none;
+  box-shadow: none;
+}
+
+/* ROLE 3 — DESTRUCTIVE. IT IS A SOLID RED KEY. (2026-08-18)
+
+   WHAT WAS WRONG, AND IT WAS MEASURED ACROSS THE WHOLE APP: forty-one
+   captured frames of the running product contained 0.00% of #cf3f45. Not one
+   pixel. Every screen. The role token existed in phone.html (--btn-3-bg
+   #cf3f45 on #ffffff), the renderers tagged eleven controls `.btn.danger` and
+   three `.ib.danger` — and this rule, loading later, threw the fill away and
+   painted a 10%-alpha wash that composites to #372d33 on a card. So "Factory
+   reset — erase phone-app data" and "Delete this config" rendered as GREY
+   KEYS WITH A RED OUTLINE, indistinguishable at arm's length from "Restart
+   adapter" beside them. A destructive control you have to read to identify
+   is not a destructive control.
+
+   The wash was defensible when it was written — it made red a WARNING rather
+   than an invitation — but it optimised the wrong risk. armConfirm() already
+   makes every one of these a two-tap control; the first tap cannot destroy
+   anything. Nothing here is a hair trigger, so the fill is free to be loud,
+   and loud is what "this removes something" needs to be from across a room.
+
+   COLOUR IS STILL NEVER THE ONLY SIGNAL, and all three other channels are
+   kept intact — the hatch, the missing lit edge, and the words:
+     · the 4px hazard hatch stays, inverted. It was light-red-on-dark; it is
+       now black-on-red, so it still reads with the colour channel removed
+       and still says "hazard tape" rather than "button".
+     · NO lit top edge, where every other key has one, so it is a different
+       MATERIAL and not merely a red key.
+     · armConfirm() still rewrites the label to "Tap again to confirm".
+   MEASURED on the solid fill:
+     #ffffff ink on #cf3f45                4.72:1  (AA)
+     #ffffff ink on the hatch's dark band  6.03:1
+     the fill against a card               3.86:1  (1.4.11 wants 3:1)
+     the fill against the page             4.25:1
+     the #ff8078 edge against the fill     1.61:1 — decorative only, which is
+       fine now: the FILL identifies the control, so the border no longer has
+       to carry 1.4.11 on its own the way an outlined ghost's did.
+   #e5484d (--red) is NOT used as the fill: with white it measures 3.91:1 and
+   misses AA on a 15px label. It stays where it is ink on dark. */
+.btn.danger {
+  background-color: var(--btn-3-bg, #cf3f45);
+  background-image: repeating-linear-gradient(-45deg,
+      rgba(0,0,0,.16) 0 4px, transparent 4px 9px);
+  border-color: var(--btn-3-bg, #cf3f45);
+  color: var(--btn-3-ink, #ffffff);
+  font-weight: 700;
+  text-shadow: none;
+  box-shadow: 0 3px 0 #7e2429, 0 8px 20px rgba(207,63,69,.26);
+}
+/* PRESSED: the wall goes and the face darkens — the same physics as the
+   primary's, so the two loud roles behave identically under a finger. */
+.btn.danger:active, .btn.danger.zs-pressing {
+  filter: none;
+  background-color: var(--btn-3-press);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.42);
+}
+/* …and once armConfirm() has armed it, the key goes brighter still. The
+   label already changed; this is the second channel for the same fact. */
+.btn.danger[data-armed="1"] {
+  background-color: var(--red);
+  box-shadow: 0 3px 0 #7e2429, 0 0 0 2px rgba(255,128,120,.55),
+              0 8px 22px rgba(229,72,77,.34);
+}
+
+/* ROLE 3b — CAUTION. THE OLD DESTRUCTIVE FACE, KEPT, WITH A JOB OF ITS OWN.
+   Solid red now means "this removes something". A handful of controls are
+   serious but REVERSIBLE — "Restart board agent" drops your link for a few
+   seconds and gives it back — and calling those the same colour as a factory
+   reset is the exact defect this pass is fixing, in the other direction. So
+   they get the treatment `.btn.danger` used to have: red edge, red ink,
+   hazard hatch, NO fill. Read left to right the ladder is now legible:
+     solid ion = do the thing · solid red = destroy the thing ·
+     red outline = it will interrupt you · grey key = ordinary.
+     #ff8078 on the wash 7.31:1 page · 5.43:1 card
+     the --red border vs the page 6.70:1 · vs a card 5.12:1 */
+.btn.caution {
+  background-color: rgba(255,98,89,.10);
+  background-image: repeating-linear-gradient(-45deg,
+      rgba(255,98,89,.09) 0 4px, transparent 4px 9px);
+  border-color: var(--red);
+  color: var(--red-ink);
+  text-shadow: none;
+  box-shadow: var(--zs2-wall), var(--el-1);
+}
+.btn.caution:active, .btn.caution.zs-pressing {
+  filter: none; background-color: rgba(255,98,89,.17); box-shadow: var(--zs2-sunk);
+}
+
+/* THE SMALL DESTRUCTIVE KEY — the ✕ that deletes a step, a target, a
+   shortcut. It is the same role at 44px, and it exists as a CLASS because
+   today it is eight inline `style="color:var(--red)"` strings: a role
+   expressed as an inline colour cannot be restyled, cannot be measured, and
+   cannot follow the ladder when the ladder moves. One modifier on an existing
+   class, so nothing renames and the class API is unchanged.
+     #ff8078 on the wash over a card 5.43:1 · --red edge vs that wash 4.51:1 */
+/* GEOMETRY IS DELIBERATELY NOT RESTATED: .ib is already a 38px cap with a
+   48px hit box via phone.html's ::after expander, so the target is legal and
+   a 44px cap here would make the ✕ visibly larger than the ↑ ↓ beside it —
+   an inconsistency, not a fix. Role changes the MATERIAL, never the size. */
+/* …AND IT IS SOLID TOO, for the same measured reason. Global Settings /
+   General carries three of these — the ✕ that removes a Navigate-Mode
+   shortcut — and every one of them painted #28313f, i.e. the ordinary
+   secondary key. The DOM said danger and the pixels said "any other button".
+     #ffffff on #cf3f45 4.72:1 · the fill vs a card 3.86:1 */
+.ib.danger {
+  background-image: repeating-linear-gradient(-45deg,
+      rgba(0,0,0,.16) 0 4px, transparent 4px 9px);
+  background-color: var(--btn-3-bg, #cf3f45);
+  border-color: var(--btn-3-bg, #cf3f45);
+  color: var(--btn-3-ink, #ffffff);
+  box-shadow: 0 2px 0 #7e2429;
+}
+.ib.danger:active, .ib.danger.zs-pressing {
+  background-color: var(--btn-3-press); box-shadow: inset 0 2px 5px rgba(0,0,0,.42);
+}
+/* The token re-point two rules below (`.lrow .rt .ib { --red:#ff8078 }`) is
+   for an .ib that asks for --red as INK on a dark face. A solid red .ib does
+   not, and must not inherit a pink ✕ on a red ground — 1.63:1. Inside a
+   SOLID red key the token that means "danger ink" is the white. */
+.lrow .rt .ib.danger { --red: var(--btn-3-ink, #ffffff); }
+/* …and the call sites that still carry the pre-class inline colour get the
+   right ink WITHOUT anyone fighting an inline declaration with !important.
+   --red #ff6259 measures 4.07:1 on the new #32373f key face — a fail the
+   ladder introduced, on a glyph that deletes things. Re-pointing the TOKEN
+   inside this one component is the mechanism CSS provides for exactly this:
+   an .ib that never says var(--red) is untouched, and an .ib that does gets
+   4.91:1 instead. Delete this rule the day the three call sites take
+   .ib.danger (phone-sections.js:5460, smart-actions.js:2304 and :2620). */
+.lrow .rt .ib { --red: var(--red-ink); }
+
+/* ROLE 4 — QUIET. The only button that is NOT a key: no wall, no lift. That
+   is its whole job — "available, but not the move" — and keeping it flat is
+   what lets the raised keys mean something.
+
+   ITS BORDER IS --zs-edge, NOT --line, and the distinction is the whole of
+   1.4.11. A ghost has no fill and no elevation, so its BOUNDARY is the only
+   thing that identifies it as a control — which puts it in the 3:1 class,
+   unlike a card's decorative grouping edge. --line measures 2.96:1 on a card
+   and misses; --zs-edge is 4.10:1 there and 5.37:1 on the page. */
+.btn.ghost {
+  background-image: none; background-color: transparent;
+  border-color: var(--zs-edge); box-shadow: none;
+  color: var(--zs-ink-2);                  /* 11.45:1 ground · 8.75:1 card */
+  font-weight: var(--fw-row);
+}
+.btn.ghost:active, .btn.ghost.zs-pressing {
+  background-color: var(--zs2-well-pg); color: var(--text);
+}
+
+/* DISABLED, every role but PRIMARY (which swaps face instead — see above).
+   The wall goes first: a key with no side wall does not invite a press. .55
+   over the page ground leaves the label at 4.45:1 against its own dimmed
+   face — legible but inert, which is what a disabled control should be.
+   (WCAG 1.4.3 exempts inactive components from the 4.5:1 floor; this is
+   close to it anyway, on purpose, because "greyed out to invisible" is how
+   users end up unable to tell a disabled control from a broken screen.)
+   aria-disabled is styled alongside :disabled — both forms ship. */
+.btn:disabled, .btn[aria-disabled="true"],
+.ib:disabled, .ib[aria-disabled="true"],
+.pbtn:disabled, .pbtn[aria-disabled="true"] {
+  box-shadow: none; opacity: .55;
+}
+
+/* PRESS, for every key. The wall collapses into a groove and the face sinks.
+   zs-brand.css owns the scale dip and the .zs-pressing class that lets a
+   press release when a finger slides off the target; this is only the part
+   scale cannot say. `filter:none` cancels phone.html's brightness() so the
+   two feedbacks do not fire as two separate events. */
+.btn:active, .ib:active, .pbtn:active, .pk:active, .pkr:active,
+.stp button:active, .mechpill:active, .sheet .shead .sclose:active,
+.appbar .cogbtn:active,
+.btn.zs-pressing, .ib.zs-pressing, .pbtn.zs-pressing, .pk.zs-pressing,
+.pkr.zs-pressing, .stp button.zs-pressing, .mechpill.zs-pressing {
+  filter: none;
+  box-shadow: var(--zs2-sunk);
+}
+
+/* "Add something" — one component, two call sites. These were the same button
+   at radius 14 and radius 10. An EMPTY SOCKET: recessed, dashed, ion glyph,
+   which is exactly what it means. Dashes at 3.02:1 against the page; a dashed
+   line at the old 1.38:1 was a rumour. Ion label at 10.20:1 on the well. */
+.newcfg, .addbtn {
+  min-height: 54px; padding: 0 var(--sp-3);
+  border: 1px dashed var(--zs2-ion-dash);
+  border-radius: var(--r-card);
+  background: var(--zs2-well-pg);
+  box-shadow: var(--zs2-groove);
+  color: var(--accent);
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  margin-top: var(--sp-2);
+}
+.addbtn { margin-top: var(--sp-3); }
+.newcfg:active, .addbtn:active {
+  filter: none; border-style: solid; border-color: var(--accent);
+  background: rgba(111, 155, 255,.10);
+}
+
+/* THE SMALL SQUARE KEY. 38px of visible cap, 48px of hit area via the
+   ::after expander phone.html already ships — the target is legal without the
+   button having to look chunky. */
+.ib {
+  width: 38px; height: 38px;
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--r-chip);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  color: var(--zs-ink-2);                  /* 8.75:1 on the face */
+  font-size: 15px; font-weight: var(--fw-row);
+  box-shadow: var(--zs2-lit), var(--zs2-wall);
+}
+.ib::after { inset: -5px; }                /* 48px hit target */
+.cfg .ib { width: 44px; height: 44px; }
+
+/* ── THE HIT BOXES THAT OVERLAPPED ───────────────────────────────────────
+   The ::after expander above is what makes a 38px cap legal, and it is also
+   a trap nobody had measured: it puts 5px of INVISIBLE target on every side.
+   `.lrow .rt` sets gap:8px, so two adjacent .ib keys have caps 8px apart and
+   hit boxes that OVERLAP BY 2px. A tap landing in that seam hit-tests to
+   whichever ::after paints last.
+
+   That is not cosmetic. The two keys it happens on are ↑ and ↓ — the Smart
+   Actions step reorder (phone-sections.js:5459, smart-actions.js:2302) — so
+   a user could press "move up" and get "move down", on precision work, in an
+   accessibility product. The author half-knew: phone-sections.js:5460 emits
+   `<span style="width:8px">` to buy clearance before the ✕, but nothing
+   between the two arrows.
+
+   The arithmetic, stated so nobody "tidies" it back: the row's own 8px flex
+   gap PLUS this 10px margin = 18px between caps; minus the 5px of expander
+   each side = exactly --sp-1h (8px) of clear air between hit boxes. Scoped
+   to .rt so it can only ever affect a row's trailing control cluster. */
+.lrow .rt .ib + .ib { margin-left: var(--sp-2); }
+
+/* The ••• that hides five settings behind an unlabelled affordance. CSS
+   cannot give it a word, but it can give it a target and an edge you can
+   find. */
+.mechpill {
+  min-height: 44px; padding: 0 22px;
+  border: 1px solid var(--zs-edge); border-radius: var(--r-pill);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-lit), var(--zs2-wall);
+  color: var(--zs-ink-2); font-size: var(--fs-body); letter-spacing: .3em;
+}
+
+
+/* ══ 8. PICK-ONE-OF-N — .seg2, .subtabs, #edtabs ══════════════════════════
+   Four controls doing one job in four geometries, and the SELECTED state of
+   all four was byte-identical to .btn.primary. So on a single screen a cyan
+   slab meant "which tab you are on", "which mode is selected", "which filter
+   is applied" AND "press this to do the thing". This is the change that gives
+   cyan its meaning back.
+
+   THE TRACK is a well: the group of options is one recessed object, so the
+   choice reads as "one of these", not "four buttons that happen to be
+   adjacent".
+
+   THE SELECTED OPTION is a raised neutral pill with an ion rail folded into
+   its own box-shadow — no pseudo-element, which is what keeps it out of the
+   way of body.a11y-big's padding. Its state is carried on four independent
+   channels, which is what rule 6 asks for:
+     · label colour   --text 11.04:1 on the pill  vs  --muted 5.94:1 on a
+                      track over a card, 5.88:1 over the page
+     · weight         700 vs 600
+     · elevation      a lit, walled pill vs a flat track, and the pill's own
+                      boundary at --zs-edge-hi — 3.14:1 against its top stop,
+                      4.49:1 against the track (see §1.4: --zs-edge misses
+                      this one adjacency, which is why the token exists)
+     · the rail       ion at 7.22:1 on the pill — the ≥3:1 non-text indicator
+                      1.4.11 wants, and it is a shape, so greyscale keeps it */
+
+/* THE GAP IS --sp-1h, NOT --sp-1, and it is a touch fix rather than a
+   rhythm one. These are 44px-tall buttons sitting 4px apart, edge to edge,
+   and .seg2 wraps — so the VERTICAL gap was 4px too, on the control that is
+   on nearly every editor screen. 8px is the floor. At 375px a 3-up strip
+   still gives ~101px per segment, so no label is under pressure.
+   Mitigation already on record: these sit on a recessed track and the
+   selected pill is raised with an edge and a 3px rail, so a mis-tap is
+   visible immediately. It was still under the guideline. */
+.seg2 {
+  margin-top: var(--sp-2);
+  gap: var(--sp-1h); padding: var(--sp-1);
+  background: var(--zs2-well);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--r-ctl) + 4px);
+  box-shadow: var(--zs2-groove);
+}
+.seg2 button, .subtabs button, #edtabs button {
+  position: relative;
+  min-height: 44px;
+  padding: 12px 8px;
+  border: 1px solid transparent;
+  background: none;
+  border-radius: var(--r-ctl);
+  color: var(--muted);
+  font-size: var(--fs-sub); font-weight: var(--fw-row); letter-spacing: var(--tr-s);
+  box-shadow: none;
+}
+/* `body` prefix beats zs-brand.css:252 and both runtime blocks.
+   2026-08-18 — the selected pill gained a wash of the selection colour over
+   its neutral lift (owner: "button clicks is too much of the same colours"
+   — ON and OFF were separated by elevation and a 3px rail, which was
+   legible but not LOUD). The wash is a fifth channel on top of the four
+   documented above, and under a tinted section (§17) it re-inks to the
+   section's own hue. --text on the washed pill still measures over 10:1. */
+body .seg2 button.on, body .subtabs button.on, body #edtabs button.on {
+  background-image: linear-gradient(180deg, var(--zs2-ion-tint), rgba(111, 155, 255,.04) 72%),
+                    linear-gradient(180deg, var(--zs2-sel), var(--zs2-ctl-a));
+  background-color: var(--panel);
+  border-color: var(--zs-edge-hi);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--zs2-lit), var(--zs2-wall), inset 0 -3px 0 var(--accent);
+}
+body .seg2 button.on:active, body .subtabs button.on:active,
+body #edtabs button.on:active {
+  box-shadow: var(--zs2-sunk), inset 0 -3px 0 var(--accent);
+}
+.seg2 button:active, .subtabs button:active, #edtabs button:active {
+  filter: none; color: var(--text);
+}
+
+/* THE STICKY SUB-TAB STRIP bleeds to the screen edge (margin:0 -18px) so it
+   can occlude content scrolling under it. The TRACK therefore cannot be the
+   element's own background, or it would bleed too. ::before draws the well
+   inside the bleed.
+
+   position IS NOT TOUCHED. phone.html:431 sets `position:sticky` on .subtabs
+   and sticky is already a positioned value, so an absolutely-positioned
+   pseudo-element resolves against it correctly. One of the four directions
+   wrote `position:relative` here, which would have un-stuck the tab strip on
+   every editor screen — a motor-accessibility regression, not a cosmetic one.
+   If a future build ever drops the pseudo-element, the strip degrades to
+   exactly today's flat row. */
+.subtabs {
+  padding: var(--sp-2) 18px;
+  margin-bottom: var(--sp-2);
+  gap: var(--sp-1h);                       /* touch floor — see .seg2 above */
+}
+.subtabs::before {
+  content: ""; position: absolute; z-index: 0;
+  left: 18px; right: 18px; top: 6px; bottom: 6px;
+  border-radius: calc(var(--r-ctl) + 4px);
+  background: var(--zs2-well-pg);
+  border: 1px solid var(--line);
+  box-shadow: var(--zs2-groove);
+  pointer-events: none;
+}
+.subtabs button { z-index: 1; }
+
+/* #edtabs is display:none'd by openEditor() — the Essentials/Advanced split
+   went away with the tiers. Kept correct rather than deleted so the day it
+   comes back it arrives wearing the kit. */
+#edtabs {
+  gap: var(--sp-1h); padding: var(--sp-2) 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+
+/* ══ 9. VALUE CONTROLS ════════════════════════════════════════════════════ */
+
+/* ── 9.1 THE TOGGLE, AND THE 44px FIX THAT IS ACTUALLY LEGITIMATE ────────
+   .sw renders 52x32 — under the touch-target floor, on the one product whose
+   entire purpose is lowering physical demand.
+
+   Inside a .fld this does not bite: phone.html:2033 adds .tapper to the
+   enclosing row and forwards the tap, so the real target is the 60px row. But
+   smart-actions.js:actionRow emits a .sw inside `.lrow .rt` with NO .fld
+   around it, so `el.closest('.fld')` returns null and the 52x32 switch is the
+   only target. That is the Smart Actions on/off switch — the most-tapped
+   control on that screen.
+
+   BOTH PSEUDO-ELEMENTS ARE SPOKEN FOR: ::after is the knob (phone.html, with
+   translateX hardcoded at 22px / 28px, so the geometry cannot move) and
+   ::before is zs-micro.css:47's ion bloom, declared `pointer-events:none`.
+   Every other direction bolted an ::before expander on top of that and every
+   one of them was inert, because none of them loads after zs-micro.
+
+   THIS FILE DOES. So instead of replacing the bloom, it adjusts it: the same
+   layer, the same box-shadow, the same opacity-0 resting state and the same
+   animation — six more pixels of vertical bleed and pointer-events back on.
+   52+10 = 62 wide, 32+12 = 44 tall. A tap anywhere in that box hit-tests to
+   the pseudo-element, and a pseudo-element delivers its events to the
+   originating element, so .sw's own click handler fires with no JS change.
+   The bloom's geometry moves by 1px on the vertical, which is invisible on a
+   14px-blurred glow.
+
+   Off and on differ by knob POSITION first, then track fill, then knob
+   colour. Position is the channel that survives everything.
+     grey knob #8b98a5 on the off well     6.16:1
+     accent knob on the on track #223350   4.63:1
+     the on track's accent border vs card  6.61:1
+   THE KNOB WAS A CYAN→BLUE GRADIENT (#6bf0e6→#6f9bff) until 2026-08-28, i.e.
+   "on" was a different colour from the accent that means "on" everywhere
+   else. It is a ramp of the accent now, like the cap. */
+.sw {
+  background: var(--zs2-well);
+  border: 1px solid var(--zs-edge);
+  box-shadow: var(--zs2-groove);
+}
+.sw::before {
+  top: -6px; bottom: -6px;                 /* 32 → 44px of touchable height */
+  pointer-events: auto;
+}
+.sw::after { background: linear-gradient(180deg,var(--knob-a),var(--knob-b)); box-shadow: var(--el-1); }
+body .sw.on { background: rgba(111, 155, 255,.28); border-color: var(--accent); }
+body .sw.on::after {
+  background: linear-gradient(180deg, var(--cap-a,#93b6ff), var(--cap-b,#6f9bff));
+  box-shadow: 0 0 10px var(--zs-ion-glow), inset 0 1px 0 rgba(255,255,255,.5);
+}
+
+/* ── 9.2 THE SLIDER ─────────────────────────────────────────────────────
+   A milled groove with a knurled cap riding in it. The knurl is a repeating
+   gradient, not an image — it costs nothing and it is the most hardware-
+   looking pixel in the app, on the one control that is pure drag with no
+   label, where an achromatic texture cue is the only extra channel available.
+
+   Three background layers on the input's own background-box, which is exactly
+   the mechanism phone.html already used. ::-webkit-slider-runnable-track is
+   deliberately NOT used: it would give rounded ends, and a slider that
+   silently loses its track in a packaged build is worse than square ends. The
+   44px height is the touch target and does not move.
+     ion thumb against the groove 10.32:1 */
+input[type=range].rng {
+  height: 44px; border-radius: var(--r-chip);
+  background:
+    linear-gradient(var(--track-hi), var(--track-hi))
+      50% calc(50% + 4px) / 100% 1px no-repeat,
+    linear-gradient(180deg, var(--track-a), var(--track-b))
+      50% 50% / 100% 8px no-repeat,
+    linear-gradient(var(--panel), var(--panel))
+      50% 50% / 100% 8px no-repeat;
+}
+input[type=range].rng::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 30px; height: 30px;
+  border-radius: 50%; border: none;
+  /* the cap it rides was teal (#6bf0e6→#22bdb3) — the one control in the app
+     that is pure drag with no label was painted in a colour that meant
+     nothing anywhere else. It is the accent's ramp now; the knurl, which is
+     the channel that survives colour being removed, is untouched. */
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--cap-a,#93b6ff), var(--cap-c,#5b86e8));
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--zs2-ion-line),
+              0 3px 7px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.5);
+}
+input[type=range].rng::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%; border: none;
+  background: linear-gradient(180deg, var(--cap-a,#93b6ff), var(--cap-c,#5b86e8));
+  box-shadow: 0 0 0 3px var(--bg), 0 3px 7px rgba(0,0,0,.65);
+}
+
+/* ── 9.3 THE STEPPER ─────────────────────────────────────────────────────
+   The most instrument-like control in the kit, and it was a rounded pill with
+   two glyphs in it. It becomes literal: a well holding two raised caps, with
+   the number engraved in the recess between them and a division line on each
+   side of it. The divisions matter directly for a tremor user — they are what
+   makes the two keys separately identifiable from the tappable value field.
+     ion glyph on a cap 8.55:1 · --text value on the well 15.77:1            */
+.stp {
+  background: var(--zs2-well);
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  box-shadow: var(--zs2-groove);
+  gap: 0; padding: 3px; overflow: hidden;
+}
+.stp button {
+  width: 46px; height: 46px;
+  border-radius: var(--r-chip);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-lit), var(--zs2-wall);
+  color: var(--accent); font-size: 21px; font-weight: var(--fw-row);
+}
+.stp button:first-child { margin-right: 1px; border-right: 1px solid var(--zs2-cut); }
+.stp button:last-child  { margin-left:  1px; border-left:  1px solid var(--zs2-cut); }
+body.a11y-big .stp button { width: 50px; height: 50px; }
+.stp .sv {
+  min-width: 58px; min-height: 44px; padding: 0 var(--sp-1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: var(--text);
+}
+/* phone.html owns the suffix via content:attr(data-suffix) — this only
+   re-inks and un-monos it, because "%" / "ms" / "Hz" are words. */
+.stp .sv::after {
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 11px; font-weight: var(--fw-row); color: var(--zs-ink-2);
+  letter-spacing: 0; margin-left: 4px;
+}
+.stp input.svedit {
+  border-radius: var(--r-chip); font-size: 16px; font-weight: 700;
+  background: var(--zs2-well); border-color: var(--accent);
+  box-shadow: var(--zs2-groove);
+}
+
+/* ── 9.4 SELECTS AND TEXT FIELDS ─────────────────────────────────────────
+   Not on the brief's list, but they sit inside .fld on every screen and a
+   restyled row with a stock select in it looks broken. You type INTO these,
+   so they are wells, not keys. */
+select.sel, input.txt {
+  min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  background: var(--zs2-well);
+  background-color: var(--panel);
+  box-shadow: var(--zs2-groove);
+  color: var(--text);                      /* 15.77:1 on that well */
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+}
+input.txt { padding: 12px 14px; font-weight: var(--fw-body); }
+select.sel:focus, input.txt:focus { border-color: var(--accent); }
+/* 40px was 4px under the floor on a PRIMARY interaction, and there was room
+   for it all along: .lrow is min-height 54px (60 in body.a11y-big), so 44px
+   collides with nothing. A select you can miss is a select you set wrong. */
+.lrow .sel { min-height: 44px; font-size: var(--fs-sub); }
+
+/* ── 9.5 PROGRESS ───────────────────────────────────────────────────────
+   Styled in three files and emitted ZERO times — I grepped both renderers.
+   It is the only home the brand gradient has, so it is kept correct rather
+   than deleted: the first screen that needs a bar gets the house one instead
+   of inventing another.  ion against the well: 10.32:1 */
+.prog {
+  height: 10px; border-radius: var(--r-pill);
+  background: var(--zs2-well);
+  box-shadow: var(--zs2-groove);
+  margin-top: var(--sp-2);
+}
+.prog > i { background: var(--zs-grad); border-radius: var(--r-pill); }
+
+/* ── 9.6 SWATCHES ───────────────────────────────────────────────────────
+   Colour IS the content here — the one place hue may stand alone — so the
+   selected state cannot be another colour: it is a ring plus a white tick
+   with its own shadow, which survives on any swatch value including
+   near-white. 36px is under the floor; ::before buys 46px without growing the
+   dot, which has to stay small enough to sit six across at 390px.
+   ::before and ::after on .sc are both free — full census in the header.
+
+   THE ROW GAP IS 18px, AND IT COSTS A WRAP. .swatches shipped gap:12px, so
+   36px dots with 46px hit boxes sat 2px apart — the tightest adjacency in
+   the app. 18px puts exactly 8px of clear air between hit boxes.
+
+   Measured in the real container rather than assumed: the six-colour row
+   lives in a .grp-card (14px padding, 1px border) inside an accordion .ab
+   (14px padding) inside .dbody (18px). At 375px that is 339 − 28 − 2 − 28 =
+   281px of content, and 6×36 + 5×18 = 306px. SO IT WRAPS, to five and one.
+   That is the honest trade and it is the right way round: six 44px targets
+   with 8px between them need 304px and the row has 281, so one row of six
+   was never compatible with the touch floor. If someone later "fixes" the
+   wrap by tightening this gap, they are re-breaking the target spacing —
+   move the swatches out of the nested card instead. */
+.swatches { gap: 18px; }
+.sc {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.28),
+              inset 0 -3px 5px rgba(0,0,0,.35), var(--el-1);
+}
+.sc::before { content: ""; position: absolute; inset: -5px; }
+.sc.on::after {
+  content: "✓"; font-size: 17px; font-weight: 700; color: #fff; line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.8);
+}
+
+
+/* ══ 10. PICKERS — .pk, .pkr, .pbtn ═══════════════════════════════════════
+   THREE REAL BUGS DIE HERE, all found by reading the renderers rather than by
+   looking at the screen:
+
+   1. `.pk` never declared a colour, so it inherits the UA button default.
+      There is no `color-scheme` declaration anywhere in this app — I grepped
+      all four stylesheets — so `buttontext` resolves to BLACK. It is masked
+      on the button-picker grid only because every child overrides it and the
+      glyph SVGs carry their own fills. It is NOT masked on the Computer
+      Vision region sheet: phone-sections.js:8508 emits a full-width `.pk`
+      whose `<b>` and `<span>` are direct children with no colour of their
+      own. That heading renders black on a dark panel today, at 1.19:1.
+
+   2. `.pk` and `.pbtn` both set font-family:inherit and forgot font-size, so
+      they run at 13.333px — the browser's default button size, and one of the
+      ten font sizes counted on the CV screen. Nobody chose it.
+
+   3. That same CV sheet marks the chosen kind with `.pk.on`, and NO RULE FOR
+      `.pk.on` EXISTS anywhere in the app. The selected region kind has been
+      visually identical to the unselected ones. Fixed below, on the same
+      three channels as `.pk.cur`.
+
+   .pk and .pkr use the CARD face rather than the control face, and that is
+   deliberate rather than arbitrary: both carry small --muted sub-labels, and
+   --muted reads 5.24:1 on a card against 4.93:1 on a control. Both pass; the
+   card is the more comfortable of the two at 9.5px. */
+.pk {
+  width: 58px; min-height: 58px;
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen), var(--zs2-wall);
+  color: var(--text);                  /* fixes the inherited UA black */
+  font-size: 12px;                     /* fixes the 13.333px UA default */
+  padding: var(--sp-1) 2px; gap: 3px;
+  position: relative;
+}
+.pk .pklab { font-size: var(--fs-micro); color: var(--zs-ink-2); }  /* 9.31:1 */
+.pk.wide { width: 84px; }
+body.a11y-big .pk { width: 66px; }
+body.a11y-big .pk.wide { width: 92px; }
+.pk.cur, .pk.on {
+  border-width: 2px; border-color: var(--accent);
+  padding: 3px 1px;                    /* hold the box the same size */
+  background-image: linear-gradient(180deg, var(--zs2-ion-tint), rgba(111, 155, 255,.05));
+}
+/* The tick goes on the LABEL's ::before, never on the cell's ::after, because
+   .pk::after is zs-micro.css:155 — the lock ring it flashes when a button is
+   chosen. Two of the four directions put a tick there; both would have
+   inherited that rule's `opacity:0` (so the tick would never have painted)
+   AND destroyed the ring's geometry on precisely the cell that gets locked.
+   Where a cell is glyph-only and emits no .pklab the tick is simply absent
+   and the 2px border carries the state, which is the graceful degradation
+   this whole file is written to. */
+.pk.cur .pklab::before, .pk.on .pklab::before {
+  content: "✓ "; color: var(--accent); font-weight: 700;
+}
+.pkgrid { gap: var(--sp-2); }
+
+.pkr {
+  min-height: 60px; padding: var(--sp-2) 14px; gap: 14px;
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-card-a), var(--zs2-card-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen), var(--zs2-wall);
+  color: var(--text);
+  font-size: var(--fs-body); font-weight: var(--fw-row);
+  margin-top: var(--sp-2);
+}
+/* The leading glyph gets the same container the menu rows use, so a picker
+   row and a settings row look like relatives. */
+.pkr .pki {
+  width: 36px; height: 36px; flex: none;
+  border-radius: var(--zs-shear-ctl);
+  background: var(--zs2-ion-tint);
+  border: 1px solid var(--zs2-ion-line);
+  color: var(--accent);
+}
+.pkr .pki svg { width: 20px; height: 20px; }
+.pkr .pkn em { color: var(--muted); margin-top: 2px; }
+.pkr.cur { border-width: 2px; border-color: var(--accent); padding: 9px 13px; }
+
+/* THE PICKER TRIGGER — shows the current choice, opens the sheet. It was
+   40px, so it also missed the floor. */
+.pbtn {
+  min-height: 44px; padding: 0 var(--sp-2); gap: var(--sp-2);
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-lit), var(--zs2-wall);
+  color: var(--text);
+  font-size: var(--fs-sub);            /* fixes the 13.333px UA default */
+}
+.pbtn .plab { font-size: var(--fs-sub); font-weight: var(--fw-row); }
+.pbtn .pchev { color: var(--zs-ink-2); font-size: 13px; }
+body.a11y-big .pbtn { min-height: 50px; }
+
+
+/* ══ 11. CHIPS — .tag, .badge, .pill ══════════════════════════════════════
+   Six chip types existed at 11 / 11 / 12 / 12 / 12.5 / 11.5px and radii
+   6 / 6 / 999 / 999 / 999. Two shapes now, and the shape is the meaning:
+
+     rounded rect (--r-chip)   METADATA — a fact about the thing
+     pill (--r-pill)           STATUS   — something true right now
+
+   OUTLINE CHIPS ARE SAFE HERE, and I verified it rather than assuming it: all
+   six .tag call sites across both renderers emit a <span>, none has a click
+   handler, and no querySelectorAll('.tag') exists. A chip is static metadata,
+   so 1.4.11 does not apply and a 2.30:1 boundary is legal. IF ONE IS EVER
+   MADE TAPPABLE it needs --zs-edge, not --line.
+
+   --muted on the card behind an outline chip is 5.24:1. A filled chip would
+   have put it on a lifted face; the fill goes, the border stays.
+
+   .pill and .badge are emitted ZERO times today — .pill only from a gated
+   section, and no section carries a gate. Kept correct, not deleted. */
+.tag, .badge {
+  min-height: 22px; padding: 2px var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--muted);
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-row);
+  letter-spacing: var(--tr-s);
+  display: inline-flex; align-items: center;
+}
+.pill {
+  min-height: 22px; padding: 2px 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--zs2-ion-line);
+  background: var(--zs2-ion-tint);
+  color: var(--accent);                    /* 6.70:1 on its own wash */
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-row);
+}
+/* .tag.accent used the PlayStation blue as a generic "interesting" colour.
+   Ion label 6.70:1 on the wash, edge 3.72:1 against the card. */
+.tag.accent {
+  background: var(--zs2-ion-tint);
+  border-color: var(--zs2-ion-line);
+  color: var(--accent);
+}
+/* Green here is semantic (Xbox / live) and never alone — the label says the
+   word. #56d364 6.44:1 on its wash; the --green border 6.30:1 against a card.
+   NOTE: renderHome's "✓ Playing now" tag carries all three of these as INLINE
+   styles, so that one instance keeps its own values regardless. Verified at
+   phone.html:1339 — no conflict, it degrades to the same appearance. */
+.tag.on {
+  background: rgba(63,185,80,.15);
+  border-color: var(--green);
+  color: var(--live-ink);
+}
+.badges { gap: 6px; margin-top: 4px; }
+
+
+/* ══ 12. NOTES, ACCORDIONS, OVERLAYS ══════════════════════════════════════ */
+
+/* ── 12.1 THE NOTE — the app's most-emitted component ────────────────────
+   207 call sites across the two renderers (170 in phone-sections.js, 37 in
+   smart-actions.js), up to nineteen on one screen. Every one was a 12.5px
+   grey paragraph inside a rgba(88,166,255,.08) box — the PlayStation family
+   colour used as the generic information wash, on Xbox screens too. Ninety
+   per cent of the Smart Actions screen is grey text, and this component is
+   why.
+
+   A note stops being a box. It becomes a margin note: a 2px rule and an
+   indent, which is what a note has looked like in print for four hundred
+   years. THE CONSEQUENCE IS THE POINT — when 207 of them stop drawing boxes,
+   the things on the screen that ARE boxes finally read as boxes.
+     --muted on the page ground 6.45:1 (up from 5.4 on the old blue wash)
+     --text on it              17.12:1
+     the rule                   2.83:1 */
+.note {
+  background: none;
+  border: none;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  padding: 2px 0 2px 14px;
+  margin-top: var(--sp-3);
+  color: var(--muted);
+}
+.note b { color: var(--text); font-weight: var(--fw-row); }
+
+/* A WARNING KEEPS ITS BOX, and now it is the ONLY note with one — which is
+   the entire reason warnings were invisible before: every note looked like a
+   callout, so a callout meant nothing. warnNotes() already prefixes "⚠", so
+   the signal is glyph + box + rule + colour, never colour alone.
+     --muted on the amber wash 5.67:1 · --text 15.04:1
+     the 3px amber rule        8.88:1 vs the page · 7.80:1 vs its own wash
+   The thin box border is decorative at 2.57:1 and says so; the rule and the
+   glyph are what carry the meaning. */
+.note.warn {
+  background: rgba(224,163,58,.10);
+  border: 1px solid rgba(224,163,58,.45);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r-ctl);
+  padding: 12px 14px;
+}
+.note.warn b { color: var(--amber); }
+.lead { color: var(--muted); margin: 0 0 var(--sp-2); }
+
+/* ── 12.2 THE ACCORDION ─────────────────────────────────────────────────
+   The header is a key, the body is the recess it was covering — which is
+   literally what an accordion does, and it makes "there is more under here"
+   legible before the tap. The renderer puts the title as a DIRECT text child
+   of .ah (verified: acc() at phone-sections.js:253), so the header type is
+   set on .ah itself in §2 and the chevron and icon are re-sized here. */
+.acc > .ah {
+  min-height: 58px; padding: 0 var(--sp-3); gap: var(--sp-2);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-lit), inset 0 -1px 0 var(--zs2-cut);
+}
+.acc > .ah .aicon {
+  width: 34px; height: 34px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-chip);
+  background: var(--zs2-well);
+  border: 1px solid var(--line);
+  color: var(--zs-ink-2);
+}
+.acc > .ah .aicon svg { width: 18px; height: 18px; }
+.acc.open > .ah .aicon { color: var(--accent); }   /* and the chevron rotation
+                                                      carries the same state
+                                                      without any colour */
+.acc > .ah .chev { color: var(--zs-ink-2); font-size: 17px; }
+.acc > .ah:active, .acc > .ah.zs-pressing { box-shadow: var(--zs2-sunk); }
+/* Open: the body sinks into a well, so "expanded" is legible from the
+   silhouette rather than only from the height. */
+.acc.open > .ab {
+  padding: 14px var(--sp-3) var(--sp-3);
+  background: var(--zs2-well);
+  box-shadow: inset 0 3px 6px -2px rgba(0,0,0,.55);
+}
+.acc.open > .ab > :first-child { margin-top: 0; }
+.acc, .acc + .acc { margin-top: var(--sp-2); }
+body.a11y-big .acc > .ah { min-height: 64px; }
+
+/* ── 12.3 THE VIZBOX — a screen, not a card ─────────────────────────────
+   .vizbox holds live pad art, response curves and the CV picture. A screen is
+   recessed and dark; that alone stops it being confused with the .grp-card
+   sitting under it, and it is emitted 17 times so the distinction earns its
+   keep. */
+.vizbox {
+  background: var(--zs2-well-pg);
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--zs2-groove);
+  padding: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* ── 12.4 THE SHEET ─────────────────────────────────────────────────────
+   zs-brand.css owns its glass and its drag grabber (.sheet .shead::before is
+   NOT touched here). This is geometry, type and one control that missed the
+   floor: .sclose rendered at 38px. */
+.sheet { border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
+.sheet .shead { padding: 20px var(--sp-3) var(--sp-2); }
+.sheet .shead h3 { color: var(--text); flex: 1; }
+.sheet .shead .sclose {
+  width: 44px; height: 44px; margin: -2px -2px -2px 0;
+  border: 1px solid var(--zs-edge);
+  border-radius: var(--r-pill);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-lit);
+  color: var(--zs-ink-2); font-size: 16px;
+}
+.sheet .sbody { padding: 2px var(--sp-3) 22px; }
+
+/* ── 12.5 THE TOAST ─────────────────────────────────────────────────────
+   A small floating chip, so it takes the pill shape rather than a card
+   radius — it is not a panel and should not look like one. Its button had
+   `padding:8px` and no min-height, computing to about 40px; that is the last
+   sub-44px target in the kit.
+     --text on the toast fill #1d2530 13.42:1 · the ion action 8.78:1 */
+.toast {
+  border-radius: var(--r-pill);
+  min-height: 48px; padding: var(--sp-2) 20px;
+  font-size: var(--fs-body); font-weight: var(--fw-row); letter-spacing: var(--tr-r);
+  gap: var(--sp-3);
+}
+.toast button {
+  min-height: 44px; min-width: 44px; padding: 0 var(--sp-2);
+  font-size: var(--fs-body); font-weight: 700;
+}
+
+
+/* ══ 13. VERTICAL RHYTHM ══════════════════════════════════════════════════
+   phone.html patches spacing with ten adjacency rules because there is no
+   owned stack. Those rules are (0,2,0) and load before us, so they beat a
+   plain `.grp-card{margin-top}`. Rather than fight them with !important, the
+   same adjacencies are restated here at the same specificity in the right
+   order: everything gets the section gap, and then anything immediately after
+   a header gets nothing, because the header already spent that space in §4.
+
+   ORDER IS LOAD-BEARING IN THIS BLOCK. The reset must come second.
+
+   Deliberately NOT `.grp + *, .sh + * { margin-top: 0 !important }` — a
+   universal sibling with !important zeroes margins on elements it was never
+   shown, and one of the four directions shipped exactly that. */
+.note + .grp-card, .vizbox + .grp-card, .acc + .grp-card,
+.btn + .grp-card, label + .grp-card,
+.grp-card + .note, .grp-card + .btn, .grp-card + .acc,
+.note + .btn, .btn + .btn, .note + .acc, .acc + .note {
+  margin-top: var(--sp-3);
+}
+.sh + .grp-card, .sh + .acc, .sh + .vizbox, .sh + .note, .sh + .btn,
+.sh + .cards, .sh + .seg2, .sh + .lead, .sh + .card, .sh + .addbtn,
+.sh + .aimpager, .sh + .prog, .sh + .ph,
+.grp + .drow, .grp + .cfg, .grp + .hero, .grp + .item, .grp + .grp-card,
+.grp + .acc, .grp + .note, .pkh + .pkgrid {
+  margin-top: 0;
+}
+.dbody { padding-left: 18px; padding-right: 18px; }
+
+
+/* ══ 14. ACCESSIBILITY ════════════════════════════════════════════════════
+   Six signals, each honoured on its own terms. None is treated as a
+   downgrade — high contrast gets a BETTER edge, not a cheaper one. */
+
+/* ── 14.1 MORE CONTRAST ─────────────────────────────────────────────────
+   Both edge tiers are promoted and the decorative gradients come off, because
+   a gradient is exactly the thing that blurs a boundary for someone who asked
+   for boundaries. RE-MEASURED against the 2026-08-18 ladder — this mode needed
+   NO retune, which is the check worth having done rather than assumed:
+     --line    #8296b0  6.62:1 vs --bg · 5.87:1 vs a card · 4.34:1 vs a
+                        control face. ONE value, phone.html's: this file
+                        loads last, and it used to set a dimmer #74829a
+                        that silently won over the one phone.html documents
+                        (m68, 2026-10-10; test-contrast-mode.js holds them
+                        together)
+     --zs-edge #8c9bb2  6.98:1 vs --bg · 5.33:1 vs a card · 4.25:1 vs a
+                        control top
+     --muted becomes #bcc7d3: 8.77:1 on a card, 11.49:1 on the ground,
+     6.98:1 on the brighter control face, 5.44:1 on a selected pill — the one
+     surface the default --muted is forbidden on, and here it passes.
+     IT IS SET IN BOTH BRANCHES NOW. phone.html's :root sets it for
+     body.a11y-contrast; the OS-level media query below sets it too, so a user
+     who asks their PHONE for more contrast and never opens our settings gets
+     the same ink. That asymmetry was real and silent.
+
+   AND THE RAISED / RECESSED LANGUAGE IS RE-EXPRESSED AS BORDER WEIGHT rather
+   than merely brightened, so this design's core semantic channel survives for
+   the users who most need it:
+     keys  2px --text  16.57:1 against a key face
+     slabs 1px --muted 10.68:1 against --panel
+     wells 1px --muted, inset
+   That is the single best idea any of the four directions had, and it costs
+   this file nothing to take. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: #8296b0; --zs-edge: #8c9bb2; --zs-edge-hi: #a4b2c6;
+    --zs-ink-2: #d7e1ec; --muted: #bcc7d3;
+  }
+}
+body.a11y-contrast {
+  --line: #8296b0; --zs-edge: #8c9bb2; --zs-edge-hi: #a4b2c6;
+  --zs-ink-2: #d7e1ec; --muted: #bcc7d3;
+}
+
+@media (prefers-contrast: more) {
+  .hero, .cfg, .drow, .item, .grp-card, .acc, .vizbox, .tile, .card,
+  .mechcurve, .note, .ph {
+    background-image: none; box-shadow: none;
+    border-color: var(--muted);
+  }
+  .btn, .ib, .pbtn, .pk, .pkr, .stp button, .acc > .ah, .hero .go,
+  .newcfg, .addbtn, .mechpill, .pback, .appbar .cogbtn,
+  .sheet .shead .sclose, .grp button.gact {
+    background-image: none; background-color: var(--panel2);
+    border: 2px solid var(--text); box-shadow: none; color: var(--text);
+  }
+  .seg2, .stp, .sw, .prog, .tag, .badge, .hero .live,
+  select.sel, input.txt, .vizbox {
+    background: var(--bg); border: 1px solid var(--muted); box-shadow: none;
+  }
+  body .btn.primary { border-color: var(--text); text-shadow: none; }
+  body .seg2 button.on, body .subtabs button.on, body #edtabs button.on {
+    background-image: none; background-color: var(--panel2);
+    border: 2px solid var(--text);
+    box-shadow: inset 0 -3px 0 var(--accent);
+  }
+  .hero::before, .hero::after { display: none; }   /* no wash under text */
+  .tile.on, .pk.cur, .pk.on, .pkr.cur { border-width: 3px; }
+  .note { border-left-width: 3px; }
+  .fld, .lrow, .stat { border-color: var(--muted); box-shadow: none; }
+  /* DESTRUCTIVE KEEPS ITS FILL IN HIGH CONTRAST. The generic key rule above
+     flattens every .btn to the control face — which used to be right, because
+     danger was a wash and a wash is decoration. It is a SOLID ROLE now, and
+     the one control class whose whole job is being identifiable across a room
+     must not be the one that goes grey when a user asks for MORE contrast.
+     #ffffff on #cf3f45 is 4.72:1 and the 2px --text border this mode gives
+     every key rides on top, so the fill is bounded as well as coloured. */
+  body .btn.danger, body .ib.danger {
+    background-image: none;
+    background-color: var(--btn-3-bg, #cf3f45);
+    color: var(--btn-3-ink, #ffffff);
+    border: 2px solid var(--text);
+  }
+  body .btn.caution {
+    background-image: none; background-color: var(--bg);
+    color: var(--red-ink); border: 2px solid var(--red);
+  }
+}
+/* The app's own switch, restated so it always wins over the OS's — the
+   behaviour a user who set both would expect. */
+body.a11y-contrast .hero, body.a11y-contrast .cfg, body.a11y-contrast .drow,
+body.a11y-contrast .item, body.a11y-contrast .grp-card, body.a11y-contrast .acc,
+body.a11y-contrast .vizbox, body.a11y-contrast .tile, body.a11y-contrast .card,
+body.a11y-contrast .mechcurve, body.a11y-contrast .note, body.a11y-contrast .ph {
+  background-image: none; box-shadow: none; border-color: var(--muted);
+}
+body.a11y-contrast .btn, body.a11y-contrast .ib, body.a11y-contrast .pbtn,
+body.a11y-contrast .pk, body.a11y-contrast .pkr, body.a11y-contrast .stp button,
+body.a11y-contrast .acc > .ah, body.a11y-contrast .hero .go,
+body.a11y-contrast .newcfg, body.a11y-contrast .addbtn,
+body.a11y-contrast .mechpill, body.a11y-contrast .pback,
+body.a11y-contrast .appbar .cogbtn, body.a11y-contrast .sheet .shead .sclose {
+  background-image: none; background-color: var(--panel2);
+  border: 2px solid var(--text); box-shadow: none; color: var(--text);
+}
+body.a11y-contrast .seg2, body.a11y-contrast .stp, body.a11y-contrast .sw,
+body.a11y-contrast .prog, body.a11y-contrast .tag, body.a11y-contrast .badge,
+body.a11y-contrast .hero .live, body.a11y-contrast select.sel,
+body.a11y-contrast input.txt, body.a11y-contrast .vizbox {
+  background: var(--bg); border: 1px solid var(--muted); box-shadow: none;
+}
+body.a11y-contrast .btn.primary { border-color: var(--text); text-shadow: none; }
+body.a11y-contrast .seg2 button.on, body.a11y-contrast .subtabs button.on,
+body.a11y-contrast #edtabs button.on {
+  background-image: none; background-color: var(--panel2);
+  border: 2px solid var(--text);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+body.a11y-contrast .hero::before, body.a11y-contrast .hero::after { display: none; }
+body.a11y-contrast .fld, body.a11y-contrast .lrow, body.a11y-contrast .stat {
+  border-color: var(--muted); box-shadow: none;
+}
+/* the app's own switch, same reasoning as the @media twin above */
+body.a11y-contrast .btn.danger, body.a11y-contrast .ib.danger {
+  background-image: none;
+  background-color: var(--btn-3-bg, #cf3f45);
+  color: var(--btn-3-ink, #ffffff);
+  border: 2px solid var(--text);
+}
+body.a11y-contrast .btn.caution {
+  background-image: none; background-color: var(--bg);
+  color: var(--red-ink); border: 2px solid var(--red);
+}
+/* In this mode --muted is #bcc7d3, which is BRIGHTER than --zs-ink-2's normal
+   value — so hand the secondary slots back to it rather than capping them. */
+body.a11y-contrast .ib, body.a11y-contrast .pk .pklab,
+body.a11y-contrast .pbtn .pchev, body.a11y-contrast .btn.ghost,
+body.a11y-contrast .stp .sv::after, body.a11y-contrast .stat,
+body.a11y-contrast .mechcurve span { color: var(--muted); }
+
+/* ── 14.2 REDUCED TRANSPARENCY ──────────────────────────────────────────
+   Every overlay in this file composites onto an OPAQUE parent, so almost
+   nothing here is see-through in the sense the setting means. What goes is
+   the handful of places a translucent surface stacks on another one — the
+   well drawn over the sticky sub-tab strip, the tinted press states, the
+   grooves — and the ion wash on the hero. */
+@media (prefers-reduced-transparency: reduce) {
+  .subtabs::before { background: var(--panel); }
+  .seg2, .stp, .sw, input[type=range].rng, .prog,
+  select.sel, input.txt, .vizbox, .ph, .hero .live { box-shadow: none; }
+  .hero::before { display: none; }
+  .fld.tapper:active, .acc > .ah:active { background-color: var(--panel2); }
+  .newcfg, .addbtn { background: var(--panel); box-shadow: none; }
+  /* Reduced transparency takes the HATCH off (it is an overlay), never the
+     fill — the fill was never translucent and the role depends on it. */
+  .btn.danger, .ib.danger { background-image: none; }
+  .btn.caution { background-image: none; background-color: var(--caution-bg); }
+  .acc.open > .ab { background: var(--bg); box-shadow: none; }
+  .lrow, .stat, .fld { box-shadow: none; }
+}
+
+/* ── 14.3 REDUCED MOTION ────────────────────────────────────────────────
+   This file adds no animation and no transition of its own — zs-brand.css §7
+   and zs-micro.css already cover the press springs and the one-shots, and
+   body.a11y-motion kills every transition and animation in the document with
+   !important. The only motion-adjacent things added here are static ticks on
+   a selected tile or picker cell, and a tick that simply exists cannot
+   trigger anything. The rules below are on the record rather than implied,
+   and they make sure the press FEEDBACK still lands: reduced motion means a
+   gentler equivalent, never nothing, so a key that cannot travel still
+   answers the finger by swapping its wall for a groove. */
+@media (prefers-reduced-motion: reduce) {
+  .tile.on::after, .sc.on::after, .hero::after, .hero::before {
+    transition: none; animation: none;
+  }
+  .btn:active, .ib:active, .pbtn:active, .pk:active, .pkr:active,
+  .stp button:active, .hero .go:active, .acc > .ah:active,
+  .btn.zs-pressing, .ib.zs-pressing, .pk.zs-pressing, .pkr.zs-pressing {
+    box-shadow: var(--zs2-sunk);
+  }
+}
+body.a11y-motion .btn:active, body.a11y-motion .ib:active,
+body.a11y-motion .pk:active, body.a11y-motion .pkr:active,
+body.a11y-motion .stp button:active, body.a11y-motion .hero .go:active,
+body.a11y-motion .zs-pressing {
+  box-shadow: var(--zs2-sunk);
+}
+
+/* ── 14.4 BIGGER TOUCH TARGETS (the app's own switch) ───────────────────
+   phone.html grows .ib, .sw, .stp button and .pk under body.a11y-big at
+   (0,2,0), which already outranks this file's (0,1,0) sizes — nothing to
+   redo there, and the per-component a11y-big rules above sit beside their
+   own components. These are the ones phone.html missed. */
+body.a11y-big .btn { min-height: 58px; }
+body.a11y-big .btn.sm { min-height: 48px; }
+body.a11y-big .fld { min-height: 68px; }
+body.a11y-big .lrow { min-height: 60px; }
+body.a11y-big .hero .go { min-height: 64px; }
+body.a11y-big .pback, body.a11y-big .grp button.gact { min-height: 50px; }
+
+/* AND THE GAPS GROW TOO — this mode raised every cap and not one space
+   between them, so the six adjacency defects the touch audit found all got
+   WORSE in the mode a user turns on precisely because they are missing
+   targets. Every value here is derived, not chosen: --sp-1h goes to 12px, so
+   the segment strips, the .rt key clusters and the swatch row all inherit
+   the wider clear air from the tokens they already use. The two places that
+   hardcode their own separation get the matching bump by hand. */
+body.a11y-big { --sp-1h: 12px; }
+body.a11y-big .lrow .rt .ib + .ib { margin-left: 14px; }
+body.a11y-big .swatches { gap: 22px; }
+
+/* ── 14.5 OLED ──────────────────────────────────────────────────────────
+   --panel drops to #0a0d11 and --bg to true black. Because every surface
+   above is an OVERLAY rather than a hex fill, the whole system moves with it
+   for free — the same RELATIVE lift, not a frozen copy of the default theme.
+
+   THE ALPHAS ARE RESTATED HERE EVEN WHERE THEY NOW MATCH §1.5, and that is
+   deliberate. Before 2026-08-18 this block existed to push OLED HIGHER than
+   the base, because black is less forgiving than near-black. The new base
+   ladder has caught up with (and passed) those numbers, so an override left
+   at its old value would now DARKEN OLED instead of lifting it — the exact
+   inversion that kills a theme quietly. Pinning the measured values keeps
+   this mode solved on its own terms whichever way the base moves next.
+
+   Composited on the OLED --panel #0a0d11:
+     card top #1c1f23 · card bottom #111418
+     ctl  top #2e3034 · ctl  bottom #1a1d20
+     selected pill     #3f4144
+     well on the page  #090909  (on true black, where it is used)
+   Card-vs-black 1.24:1 and card-vs-control 1.25:1 — the same relationships
+   the default theme now has, which is the whole point of overlays.
+
+   The wells still go all the way down: an OLED recess should be a hole. */
+body.zs-oled {
+  --zs2-card-a: rgba(255,255,255,.075);
+  --zs2-card-b: rgba(255,255,255,.030);
+  --zs2-ctl-a:  rgba(255,255,255,.145);
+  --zs2-ctl-b:  rgba(255,255,255,.065);
+  --zs2-sel:    rgba(255,255,255,.215);
+  --zs2-well:   rgba(0,0,0,.62);
+}
+
+/* ── 14.6 FOCUS ─────────────────────────────────────────────────────────
+   The ring itself is zs-brand.css's — 2px ion at 11.20:1 against the ground
+   with a 5px wash halo, and it is not touched.
+
+   WHAT IS FIXED is phone.html:518, which sets `border-radius:4px` on EVERY
+   :focus-visible. A focus ring that reshapes the element it is pointing at
+   makes the target harder to find, which is precisely backwards for the
+   keyboard and switch-access users this ring exists for. Each family gets its
+   own shape back. */
+.btn:focus-visible, .btn.sm:focus-visible, .newcfg:focus-visible,
+.addbtn:focus-visible, .seg2 button:focus-visible,
+.subtabs button:focus-visible, #edtabs button:focus-visible,
+.pbtn:focus-visible, .pk:focus-visible, .stp button:focus-visible,
+select.sel:focus-visible, input.txt:focus-visible,
+.pback:focus-visible, .safil button:focus-visible {
+  border-radius: var(--r-ctl);
+}
+.grp-card:focus-visible, .card:focus-visible, .tile:focus-visible,
+.cfg:focus-visible, .drow:focus-visible, .item:focus-visible,
+.pkr:focus-visible, .acc > .ah:focus-visible, .vizbox:focus-visible,
+.lrow:focus-visible {
+  border-radius: var(--r-card); outline-offset: -3px;
+}
+.ib:focus-visible, .sw:focus-visible, .sc:focus-visible, .tag:focus-visible,
+.mechpill:focus-visible, .grp .gact:focus-visible,
+.appbar .cogbtn:focus-visible, .sheet .shead .sclose:focus-visible,
+.toast button:focus-visible {
+  border-radius: var(--r-pill);
+}
+.hero:focus-visible, .hero .go:focus-visible {
+  border-radius: 0 0 var(--r-card) var(--r-card); outline-offset: -3px;
+}
+
+
+/* ══ 15. THE TWO RUNTIME-INJECTED STYLESHEETS, RECONCILED ═════════════════
+   smart-actions.js appends <style id="zs-smart-css"> and phone-sections.js
+   appends <style id="cv-region-css"> to document.head AT RUNTIME, so both
+   land after every file in <head>. Loading from the BODY is what lets these
+   rules win on plain source order instead of needing prefixes — and it is why
+   only the genuine defects are corrected here.
+
+   The rest of those blocks is left alone on purpose: rewriting a stylesheet
+   this file cannot see the whole of is how a design system breaks a screen it
+   was never shown. `cv-region-css` in particular is a drag-handle overlay
+   whose blue / dashed / dotted / green box states are a DIAGRAM, not chrome —
+   the hues there encode region kind and hit state, so they are signal and
+   stay untouched. */
+
+/* .satile.sel used rgba(88,166,255,.35) — the PlayStation family colour — as
+   a generic "this one is selected" glow, on every screen including Xbox
+   configs. Ion, plus a width change so the state is not colour alone. */
+.satile.sel {
+  border-color: var(--accent);
+  border-width: 2px;
+  box-shadow: inset 0 2px 0 var(--accent), 0 0 0 2px var(--zs-ion-glow);
+}
+/* .satile.now means "running right now" — green is correct and the row says
+   so in words. It only needs the shape channel. */
+.satile.now { border-width: 2px; box-shadow: inset 0 2px 0 var(--green); }
+.satile {
+  border-radius: var(--zs-shear-ctl);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  border-color: var(--zs-edge);
+  box-shadow: var(--zs2-sheen);
+  color: var(--zs-ink-2);
+}
+/* .sapreview is a card wearing the PlayStation wash for the same reason. */
+.sapreview {
+  background: none;
+  border: none;
+  border-left: 2px solid var(--zs2-ion-line);
+  border-radius: 0;
+  padding-left: 14px;
+  color: var(--zs-ink-2);
+}
+/* The family/filter chips and the pills inherit the kit's two shapes and its
+   44px floor. .safil button was 8px/13px padding with a 12.5px label, which
+   computes to about 35px. */
+.safil button, .sapill {
+  border-radius: var(--r-pill); min-height: 44px;
+  border-color: var(--zs-edge);
+  background-image: linear-gradient(180deg, var(--zs2-ctl-a), var(--zs2-ctl-b));
+  background-color: var(--panel);
+  box-shadow: var(--zs2-sheen);
+  color: var(--zs-ink-2);
+}
+body .safil button.on {
+  background-image: linear-gradient(180deg, var(--zs2-sel), var(--zs2-ctl-a));
+  background-color: var(--panel);
+  border-color: var(--zs-edge);
+  color: var(--text); font-weight: 700;
+  box-shadow: var(--zs2-lit), inset 0 -3px 0 var(--accent);
+}
+.sacat, .sastripbox { border-radius: var(--r-card); border-color: var(--line); }
+.sacat b { font-size: 14px; font-weight: var(--fw-row); color: var(--text); }
+.sacat i, .safam i { color: var(--zs-ink-2); }
+.sacat .saci, .safam .safi { color: var(--accent); }
+.lrow.seqline { border-left-color: var(--zs-edge); }
+.hmrow { min-height: 60px; }
+.grp-card.saoff { opacity: .55; }
+
+
+/* ══ 16. THE AIM PAGER ════════════════════════════════════════════════════
+   The best-designed screen in the app and the only place a card layout
+   already existed — so this is type, targets and materials, never layout. Its
+   own (0,2,0)/(0,3,0) overrides in phone.html keep the centred-stack, and
+   these match that specificity so the sizes move with the rest of the scale
+   while the layout does not.
+
+   The hip/ADS header colours stay exactly as they are: white on #8a6410 is
+   5.37:1 and on #1a6e30 is 6.33:1, and they are that screen's own semantic. */
+.aimph {
+  border-radius: var(--r-card); padding: 13px var(--sp-3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22),
+              inset 0 -2px 6px rgba(0,0,0,.30), var(--el-1);
+}
+.aimph em { font-size: var(--fs-sub); opacity: .95; }
+.aimpage .fld .flab { font-size: 15px; font-weight: var(--fw-row); }
+.aimpage .fld .flab em { font-size: var(--fs-sub); line-height: var(--lh-sub); }
+.aimpage .fld .stp .sv { font-size: 19px; font-weight: 700; }
+/* phone.html:407 shrinks the stepper keys to 44x40 inside an aim page — under
+   the floor on the axis a thumb actually misses, on the Aim screen, which is
+   the core accommodation in the whole product. Restated at matching
+   specificity, because at (0,1,0) it would silently lose. */
+.aimpage .fld .stp button { width: 46px; height: 46px; font-size: 21px; }
+/* …and the rule above then OUT-RANKS body.a11y-big's own `.stp button{50px}`,
+   which is (0,2,0). Caught by measuring in the browser, not by reading: with
+   Bigger touch targets ON, the Aim stepper was coming back at 46px instead of
+   growing. A fix that quietly shrinks a target for the user who asked for
+   bigger ones is worse than the bug it replaced, so it is restored here at
+   (0,4,0) — and above 50px, because this is the screen where it matters. */
+body.a11y-big .aimpage .fld .stp button { width: 52px; height: 52px; }
+/* Large/XL text (body.a11y-text, set by phone.html's applyAccess): the zoomed
+   row can no longer fit a label beside the fixed-width stepper — the label
+   was collapsing to ONE WORD PER LINE beside it, in exactly the accessibility
+   mode this product leads with. Let the row wrap: the label takes the full
+   line and the control drops below it with the whole row to spend. Layout
+   only — no renderer, label or key changes. */
+body.a11y-text .aimpage .fld { flex-wrap: wrap; }
+body.a11y-text .aimpage .fld .flab { flex: 1 1 100%; }
+/* The stepper rows never give the label even 40% of the row at ANY size —
+   46px keys + a 74px value well is a 176px control in a ~313px row, leaving
+   a 77px (25%) label column that breaks "Mouse DPI" across two lines at
+   Default. Measured in the browser, not guessed. So stepper rows wrap
+   always; rows with small controls (switches) keep the side-by-side layout
+   until Large/XL (the body.a11y-text rules above). Old engines without
+   :has() simply keep the side-by-side row — nothing breaks. */
+.aimpage .fld:has(.stp) { flex-wrap: wrap; }
+.aimpage .fld:has(.stp) .flab { flex: 1 1 100%; }
+.aimdots i { background: var(--line); }        /* 2.83:1 — was 1.38:1 */
+.aimdots i.on { background: var(--accent); box-shadow: 0 0 8px var(--zs-ion-glow); }
+.smblk { padding: 14px var(--sp-3) 2px; }
+.smcar .smval {
+  min-width: 150px; min-height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--zs-edge); border-radius: var(--zs-shear-ctl);
+  background: var(--zs2-well);
+  background-color: var(--panel);
+  box-shadow: var(--zs2-groove);
+  font-size: 15px; font-weight: 700;
+}
+.smcar .arr { color: var(--accent); font-size: 26px; }
+.smcar .arr:not([disabled]):active { filter: none; opacity: .6; }
+
+
+/* ══ 17. SECTION TINTS — the colour-separation system (2026-08-18) ═════════
+   Owner: "the app needs some more colour … more colour separation" — the
+   editor MENU rows carry per-section tinted chips (phone.html ico-*), but
+   the screens BEHIND them were monochrome, so "which screen am I on" had no
+   colour answer. This section extends each section's established menu hue
+   into its own content.
+
+   ── THE CONTRACT (read this before using it from a renderer) ─────────────
+   One attribute:   data-tint="overview" | "aim" | "bindings" | "smart"
+                              | "vision" | "global"
+   Set AUTOMATICALLY by phone.html's openDetail() on #dbody for the five
+   editor sections AND for Global Settings — a section renderer gets its
+   tint with NO markup change.
+   A renderer may ALSO put the attribute on any container of its own (a
+   card, a sheet body) to tint just that subtree, or on a neutral screen's
+   sub-region if that region is genuinely about one section.
+
+   Inside a tinted subtree these custom properties are live for ad-hoc use
+   (e.g. style="color:var(--tint)"):
+     --tint          the section's flat hue (glyphs, rails, readouts)
+     --tint-wash     its ~13% wash          (chip/selection backgrounds)
+     --tint-strong   its ~30% wash          (the ON switch track)
+     --tint-edge     its ~50% border        (chip/selection edges)
+
+   The hues are the SAME five the menu chips already ship (phone.html
+   ico-*): Overview = the product's Ion, Aim = gold, Keybinds = steel,
+   Smart Actions = rose (Auto Actions' own, D127; it was bolt-orange),
+   Computer Vision = the premium gradient
+   (flat fallback: Ion — the gradient itself appears where a border-image
+   can carry it, e.g. the accordion chip below). They dodge the semantic
+   set on purpose: blue/green/purple keep meaning PS/Xbox/M&K and are NOT
+   legal tint values, ever.
+
+   WHAT A TINT MAY TOUCH (and what this section wires): the corner bracket
+   of .sh/.pkh/.grp headers, accordion header icons, and the aim page's
+   header rule — i.e. the things that say WHERE YOU ARE.
+
+   WHAT A TINT MUST NEVER TOUCH: anything that says WHAT IS ON or WHAT YOU
+   PRESSED. The ON state of .sw/.seg2/.subtabs/#edtabs, the .stp +/- keys,
+   .flab .rv readouts and the slider thumb were all tinted here until
+   2026-08-28 and are now the accent, once, in zs-fixes §16: a control that
+   changes colour by room makes the user re-learn "selected" five times.
+   Also never: .btn.primary and the hero's Edit rail (a solid accent cap
+   means "press this", app-wide), focus rings (one colour everywhere or
+   keyboard users lose the thread), the danger/warn reds and ambers, family
+   colours, and any text that carries meaning. Colour is never the only
+   signal here — every tinted element sits beside a label that already says
+   which section this is. */
+
+[data-tint] {
+  --tint: var(--accent);
+  --tint-wash: var(--zs2-ion-tint);
+  --tint-strong: rgba(111, 155, 255,.28);
+  --tint-edge: var(--zs2-ion-line);
+}
+/* Overview IS the product — it keeps Ion, i.e. the defaults above. */
+[data-tint="aim"] {
+  --tint: var(--gold);
+  --tint-wash: rgba(227,179,65,.13);
+  --tint-strong: rgba(227,179,65,.30);
+  --tint-edge: rgba(227,179,65,.50);
+}
+/* KEYBINDS IS THE MOUSE-AND-KEYBOARD ROOM, SO IT WEARS M&K VIOLET.
+   It used to be --steel #b9c6d8, and steel is not a colour: measured across
+   the whole app the Keybinds screen came back 3.0% chromatic pixels — second
+   lowest in the product — because data-tint="bindings" WAS being set and
+   bought nothing. One of five rooms had no hue at all, which is the same as
+   the code having a hole in it.
+
+   THIS IS NOT THE FAMILY SET BEING REPURPOSED, and the distinction is the
+   whole justification: --purple means keyboard & mouse, and Keybinds is the
+   screen where a key becomes a button. The colour is being used FOR ITS OWN
+   MEANING, not borrowed for decoration — which is exactly what the rule
+   above ("blue/green/purple are NOT legal tint values") was written to stop.
+   Blue and green stay illegal as tints: no room is "the PlayStation room".
+     #a371f7 measures 5.30:1 on a card; --purple-ink #b98cff 5.17:1 on a
+     control face, which is where the wash-backed chips sit. */
+[data-tint="bindings"] {
+  --tint: var(--purple);
+  --tint-wash: rgba(163,113,247,.14);
+  --tint-strong: rgba(163,113,247,.30);
+  --tint-edge: rgba(163,113,247,.52);
+}
+/* SMART ACTIONS WEARS AUTO ACTIONS' ROSE (D127). The owner: "make the Smart
+   Actions tab the same type of red as the Auto Actions, I like that theme."
+   Two rooms, one hue, and that is not the "five rooms, four colours" defect
+   above: Auto Actions IS the Smart Actions room, scoped to one weapon (D122
+   section 3), so the same editor, list and library now look the same in
+   both doors. The values are auto-actions.js's `html [data-tint="auto"]`
+   exactly; --rose lives on phone.html's :root. It was bolt orange #ff9457.
+     rose 8.03:1 on the page, 7.12:1 on a card; --accent-ink on it 7.66:1. */
+[data-tint="smart"] {
+  --tint: var(--rose, #f47fa4);
+  --tint-wash: rgba(244,127,164,.13);
+  --tint-strong: rgba(244,127,164,.30);
+  --tint-edge: rgba(244,127,164,.50);
+}
+/* SCREEN ASSIST IS CYAN, AND THAT IS WHAT FINALLY SEPARATES IT FROM OVERVIEW.
+   It took the middle stop of the premium gradient, #6f9bff — which is also
+   --accent, which is also Overview's tint. Five rooms, four colours: "the
+   blue one" identified nothing, and the accent, the colour that is supposed
+   to mean "press this", was doubling as a room's name.
+   Cyan is legal and it is free. Legal: the reserved set is blue/green/purple
+   (PS / Xbox / M&K) plus the warning amber and the error red, and cyan is
+   none of them. Free: it used to be the top and foot of every primary button
+   in the app (#3ee3d8 → #26c4ba), and that cap is now a ramp of the accent
+   instead (phone.html :root --cap-*), so no action wears cyan any more.
+     #5ccfd6 measures 9.60:1 on a card, 10.83:1 on the page. */
+[data-tint="vision"] {
+  --tint: var(--tint-vision);
+  --tint-wash: rgba(92,207,214,.13);
+  --tint-strong: rgba(92,207,214,.28);
+  --tint-edge: rgba(92,207,214,.50);
+}
+/* GLOBAL SETTINGS IS NOT A ROOM, SO IT WEARS THE NEUTRAL.
+   Measured, its Performance tab was the least colourful screen in the whole
+   app (meanChroma 11.5) and its active tab was ION — the same treatment as
+   Overview's, so device settings and config settings were indistinguishable
+   at a glance. Steel is the hue Keybinds just vacated and it is the honest
+   one here: this screen is about the BOX, not about a config, and hardware
+   is neutral. It is a real step of colour separation without adding a sixth
+   hue to a five-hue code.
+     --steel #b9c6d8 measures 10.27:1 on a card — it is an ink-grade value,
+     which is why it can carry a tick and a rail as well as an edge. */
+[data-tint="global"] {
+  --tint: var(--steel, #b9c6d8);
+  --tint-wash: rgba(185,198,216,.13);
+  --tint-strong: rgba(185,198,216,.30);
+  --tint-edge: rgba(185,198,216,.46);
+}
+
+/* the header bracket: the one mark that repeats down a whole screen, so it
+   is the cheapest "you are on the gold screen" signal available */
+[data-tint] .sh::before, [data-tint] .pkh::before, [data-tint] .grp::before {
+  border-color: var(--tint);
+}
+/* accordion header icons wear the section chip treatment the menu rows
+   established — same wash, same edge, same glyph colour */
+[data-tint] .acc > .ah .aicon {
+  background: var(--tint-wash);
+  border-color: var(--tint-edge);
+  color: var(--tint);
+}
+/* Screen Assist's accordion chip used to be the brand gradient in its border
+   with the glyph left --text — the one room whose chip did not look like the
+   other five, on top of sharing Overview's hue. It takes the same wash / edge
+   / glyph treatment as every other room, in cyan. */
+/* THE STATE CHANNELS LEFT THIS SECTION (2026-08-28).
+   Five rules used to live here — the live readout, the stepper keys, the ON
+   switch, the selected segment/tab and the slider thumb — each re-inked in
+   the room's hue. Measured on the running app that gave the SAME segmented
+   control four different "selected" colours on four screens (teal / gold /
+   orange / blue), and the same for every switch and every thumb, so "which
+   one is on" had to be re-learnt in every room. They are one rule each now,
+   in the accent, in zs-fixes.css §16 — read the argument there. A tint may
+   still say WHERE YOU ARE; it may not say WHAT IS ON. Everything left in
+   this section is the first kind: the header bracket, the accordion chip and
+   the aim page's rule. */
+/* the aim page's stance-header rule joins its own screen's tint */
+[data-tint] .aimph::after {
+  background: linear-gradient(90deg, var(--tint-edge), transparent);
+}
+
+/* ── 17.1 THE ACCESSIBILITY MODES KEEP THEIR FLATTENING ──────────────────
+   §14 strips washes and gradients for the users who asked for boundaries;
+   the tint rules above load later and would quietly paint them back. These
+   restatements keep the flattened look and keep ONLY the strong indicators
+   — the 3px rail and the tinted border — which is the same trade §14
+   already makes with the accent. Same selectors, later in the file, so
+   they win the tie the way §14's own rules do. */
+@media (prefers-contrast: more) {
+  body [data-tint] .sw.on { background: var(--bg); }
+  body [data-tint] .seg2 button.on, body [data-tint] .subtabs button.on,
+  body [data-tint] #edtabs button.on {
+    background-image: none; background-color: var(--panel2);
+    border: 2px solid var(--text);
+    box-shadow: inset 0 -3px 0 var(--tint);
+  }
+  body [data-tint] .acc > .ah .aicon { background: var(--bg); border-color: var(--muted); }
+  .art.mkart { background-image: none; }
+  .art.mkart .gm0 { display: none; }
+}
+body.a11y-contrast [data-tint] .sw.on { background: var(--bg); }
+body.a11y-contrast [data-tint] .seg2 button.on,
+body.a11y-contrast [data-tint] .subtabs button.on,
+body.a11y-contrast [data-tint] #edtabs button.on {
+  background-image: none; background-color: var(--panel2);
+  border: 2px solid var(--text);
+  box-shadow: inset 0 -3px 0 var(--tint);
+}
+body.a11y-contrast [data-tint] .acc > .ah .aicon {
+  background: var(--bg); border-color: var(--muted);
+}
+body.a11y-contrast .art.mkart { background-image: none; }
+body.a11y-contrast .art.mkart .gm0 { display: none; }

@@ -1,0 +1,1596 @@
+/* sections/06-velocity-cal.js — the EXO's Reticle Velocity Calibration and calibration packs.
+ *
+ * openCal: the four-sweep sheet that measures the game's turn speed against
+ * the board (mouseTranslation.calibration.{hipX,hipY,adsX,adsY}), the
+ * "does up/down feel like left/right" balance (vhBalance), the packs screen
+ * and Save-as-pack under Global Settings > Developer, and the Overview picker.
+ * The Core measures its own way: 13-calibrate.js and 14-manual-cal.js.
+ *
+ * Also offers on ZS:          ZS.openCal, ZS.openCalPacks
+ * Core / board routes:        /calibration/assemble, /calibration/native,
+ *                             /calibration/packs, /calibration/start, /calibration/stop,
+ *                             /profiles, /status
+ * Tests:                      test-vertical-balance.js, test-render.js, emulate-app.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('velocity-cal', function (SEC) {
+  /* from the files before this one */
+  var armConfirm = SEC.armConfirm, btn = SEC.btn, btnP = SEC.btnP, card = SEC.card,
+      esc = SEC.esc, fld = SEC.fld, helpHTML = SEC.helpHTML, note = SEC.note,
+      pic = SEC.pic, sh = SEC.sh, stepper = SEC.stepper, toggleFld = SEC.toggleFld,
+      txtFld = SEC.txtFld, ZS = SEC.ZS, ovGameOf = SEC.ovGameOf,
+      packOfConfig = SEC.packOfConfig;
+
+  /* ══ Reticle Velocity Calibration ═══════════════════════════════════
+     XIM's one measurement, ported. Everything else on the aim side is a
+     PREFERENCE (how fast do I want to turn); this is a FACT about the game
+     (how fast CAN it turn), and until it is measured the board has to guess
+     it from translate/translators/<game>.json — a guess that is not merely
+     imprecise but self-contradictory, because those files ask for a specific
+     in-game sensitivity slider position and then state a turn rate for a
+     different one. No amount of better guessing fixes a number that depends
+     on a slider we cannot see. So the user sweeps a known angle, the board
+     integrates the stick it emitted, and one division gives the answer:
+
+         Vmax = Θ / Σ forward_norm(|s|)·dt      [deg/s at full deflection]
+
+     Θ is 360° for an X run (a full turn back to a landmark) and 180° for a
+     Y run — the two ends of the game's own pitch clamps, "straight down at
+     your feet" up to "the reticle stops", which needs no landmark and no
+     eyeballing because the engine provides both endpoints.
+
+     The APP's whole job here is: start the run, show the prompt, stop the
+     run, and store the four numbers. The integral lives on the board (it
+     owns the game model and the value actually on the wire); this file must
+     never try to compute it from telemetry.
+
+     Stored as deg/s in mouseTranslation.calibration, because that is the
+     unit game_model.GameMode.max_turn_speed already uses and the range
+     [10, 2000] is that field's own bound — a calibrated value is a legal
+     maxTurnSpeed by construction. XIM's integer (milliseconds of full stick
+     per 360°) is the reciprocal, 360000/V, and is a DISPLAY conversion only:
+     showing it means the numbers can be compared with a XIM by eye without
+     us having to be right about anybody's internal tick rate. */
+  var CAL_RUNS = [
+    {key:'hipX', mode:'hip', axis:'x', lab:'Calibrate Hip X', row:'Hip X'},
+    {key:'hipY', mode:'hip', axis:'y', lab:'Calibrate Hip Y', row:'Hip Y'},
+    {key:'adsX', mode:'ads', axis:'x', lab:'Calibrate ADS X', row:'ADS X'},
+    {key:'adsY', mode:'ads', axis:'y', lab:'Calibrate ADS Y', row:'ADS Y'}
+  ];
+  /* THE REFERENCE SWEEP — the fifth run, and the one that turns the other
+     four from "observed at some force" into real degrees per second.
+
+     It was a FULL-STICK sweep for about an hour, and the owner was right to
+     reject that (2026-08-05): "full stick speed is too fast to control
+     precisely and stop". Concretely — feet to sky at full stick is over in
+     ~1.5 s, so a quarter-second late on the trigger is a 17% error, and it
+     scales EVERY other number.
+
+     So the reference is Hip Y again, at a SECOND locked force. Two slow
+     sweeps of one axis at two known forces pin down the game's deadzone and
+     hence the absolute speed (translate/calibration.py assemble, route 2),
+     and a slow sweep barely cares about reaction time — 10 s with the same
+     quarter-second error is 2%. Nothing in the flow asks for a full-stick
+     turn any more.
+
+     Hip Y because pitch has free landmarks: the game stops you at your feet
+     and at the sky, so neither sweep can be overshot. */
+  var PACK_REF = {key:'refY', mode:'hip', axis:'y',
+                  lab:'Reference · 2nd force',
+                  row:'Reference — Hip Y at a second force'};
+  /* The reference's force: clearly apart from the primary so the two
+     equations are well conditioned, without going near the edge. */
+  function cpForceSecond(primary){
+    var p = (primary > 0) ? primary : CP_FORCE_DEFAULT;
+    return Math.min(0.90, Math.max(p * 2, p + 0.20));
+  }
+
+  /* the same bound game_model._parse_mode puts on maxTurnSpeed */
+  var CAL_MIN = 10, CAL_MAX = 2000;
+  var CAL_MS_MIN = 180, CAL_MS_MAX = 36000;      /* = 360000/CAL_MAX .. /CAL_MIN */
+  function calMs(deg){ return Math.round(360000 / deg); }
+  function calDeg(ms){ return 360000 / ms; }
+  function calObj(full){
+    var mt = (full || {}).mouseTranslation;
+    var c = mt && mt.calibration;
+    return (c && typeof c === 'object' && !(c instanceof Array)) ? c : null;
+  }
+  /* A measurement or 0 — never null, never NaN, and never a number outside
+     the range the engine will accept, so a corrupt profile shows "not
+     measured" instead of putting a lie on a button. */
+  function calVal(full, key){
+    var c = calObj(full);
+    var v = c ? Number(c[key]) : NaN;
+    return (isFinite(v) && v >= CAL_MIN && v <= CAL_MAX) ? v : 0;
+  }
+  function calCount(full){
+    var n = 0, i;
+    for(i=0;i<CAL_RUNS.length;i++) if(calVal(full, CAL_RUNS[i].key)) n++;
+    return n;
+  }
+  /* Measured against a DIFFERENT game model. We keep using it and badge it
+     amber rather than discarding it — throwing away somebody's four sweeps
+     because they browsed the game picker is the worse failure. (And note the
+     asymmetry: a translator change we can see; the user moving an in-game
+     slider we can never see, which is why the sheet says so out loud.) */
+  function calStale(full){
+    var c = calObj(full);
+    if(!c || !calCount(full)) return false;
+    var was = typeof c.game === 'string' ? c.game : '';
+    var mt = (full || {}).mouseTranslation || {};
+    var now = (typeof mt.game === 'string' && mt.game) ? mt.game : 'generic';
+    return !!was && was !== now;
+  }
+  /* Why the four buttons cannot be pressed, in the user's words, or ''.
+     Returns HTML (calPlain strips it for toasts). */
+  function calBlockedWhy(p){
+    if(ZS.live.online===false || !ZS.live.full[p.id])
+      return 'Your board is offline. The sweep is measured <b>on the board</b>, so there is nothing to calibrate with until it is back.';
+    /* "is there a mouse?", not "is it the mouse type?" — a Joystick + Mouse
+       config aims with a real mouse and can be calibrated like any other */
+    if(!ZS.inputShows(p.input, 'mouse'))
+      return 'This config is set to <b>Controller</b>. Reticle velocity is measured from mouse aim — switch it to <b>Mouse + Keyboard</b> or <b>Joystick + Mouse</b> under “What you play with”, then come back.';
+    var cm = Number(((ZS.live.full[p.id] || {}).mouseTranslation || {}).cm360);
+    if(!(isFinite(cm) && cm > 0))
+      return 'Reticle velocity calibration needs a <b>Speed</b> set. This config’s Speed is 0, so the board is using the standard aim speed — there is nothing for a measurement to go into. Set <b>Speed</b> on the Aim screen first.';
+    return '';
+  }
+  function calShortWhy(p){
+    if(ZS.live.online===false || !ZS.live.full[p.id]) return 'board offline';
+    if(!ZS.inputShows(p.input, 'mouse')) return 'mouse configs only';
+    return 'needs a Speed set on the Aim screen';
+  }
+  function calPlain(h){ return String(h||'').replace(/<[^>]*>/g, ''); }
+  /* the axis IS the icon: a reticle with the arrow of the sweep through it */
+  function calIcon(axis){
+    var arrow = axis === 'y'
+      ? '<path d="M12 21.5 V4.5 M8.3 8.2 L12 4.5 L15.7 8.2"/>'
+      : '<path d="M2.5 12 H19.5 M15.8 8.3 L19.5 12 L15.8 15.7"/>';
+    return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" '+
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" '+
+      'style="display:block;margin:0 auto">'+
+      '<circle cx="12" cy="12" r="6.2" opacity=".5"/>'+
+      '<g stroke="var(--accent)">'+arrow+'</g></svg>';
+  }
+
+  /* the ADVANCED row on Overview: what the four sweeps add up to, in a word */
+  function calStatusB(p){
+    if(calBlockedWhy(p))
+      return '<b style="color:var(--amber)">'+esc(calShortWhy(p))+'</b>';
+    var full = ZS.live.full[p.id] || null;
+    var n = calCount(full);
+    if(!n) return '<b style="color:var(--amber)">not calibrated</b>';
+    if(calStale(full))
+      return '<b style="color:var(--amber)">'+n+' of 4 · rerun needed</b>';
+    return '<b class="ok">'+n+' of 4 measured</b>';
+  }
+
+  /* The sheet. One screen, four buttons, one running prompt, one values
+     block — the same shape as XIM's pager, flattened because a phone sheet
+     scrolls and a desktop card does not.
+
+     `opt` (every field optional) turns this SAME sheet into the calibration-
+     PACK measuring flow. There is deliberately no second calibration client:
+     /calibration/start and /calibration/stop, the banding, the live line, the
+     running prompt and every word of the instruction copy are shared, because
+     two copies of them would drift and then disagree with each other on screen.
+
+       pack      a draft {hipX,hipY,adsX,adsY} to measure INTO instead of the
+                 config. A pack is a measurement of the GAME, so the config the
+                 user happened to have open must come back untouched.
+       title     the sheet's title
+       headHTML  fn -> HTML pinned above everything (the measure-mode banner)
+       footHTML  fn -> HTML appended below everything (SAVE / CANCEL)
+       wireFoot  fn(body) to wire what footHTML drew
+       onClose   fn run when the sheet actually closes                        */
+  function openCal(p, opt){
+    /* M10 (audit 2026-10-10): this sheet drives the A7S agent's sweep. A
+       Core refuses its start (no dead zone in the body) and has no packs;
+       a Core measures through Calibrate on Translation (D178), so any door
+       left pointing here lands there instead of on a dead end. */
+    if(ZS.productHides && ZS.productHides('exoVelocityCal')){
+      ZS.openDetail({ id:'translation', lab:'Translation' }, p);
+      return;
+    }
+    opt = opt || {};
+    var pack = (opt.pack && typeof opt.pack === 'object') ? opt.pack : null;
+    var pid = p.id;
+    var run = null;        /* the CAL_RUNS entry mid-sweep, else null */
+    var busy = false;      /* a start/stop request is in flight */
+    var msg = '', msgKind = '';
+    var pollIv = null;
+    var firstOpen = true;
+
+    /* LAST KNOWN, not "only while online": the board is where these numbers
+       live, and hiding them the moment the link drops would read as "your
+       calibration is gone". What the link gates is WRITING, which is what
+       calBlockedWhy() says. */
+    function fullOf(){
+      var f = ZS.live.full[pid] || null;
+      if(!pack) return f;
+      /* the draft wearing a profile's shape, so calVal / calCount / calStale /
+         valuesHTML / pinHTML keep working with no second implementation. The
+         cm/360 and the game model are the CONFIG's — those are what the sweep
+         is actually being run through — but the four numbers are the draft's. */
+      var mt = (f || {}).mouseTranslation || {};
+      return { mouseTranslation: { cm360: mt.cm360, game: mt.game, calibration: pack } };
+    }
+    function mtOf(){ return (fullOf() || {}).mouseTranslation || {}; }
+    function runOf(key){
+      var i;
+      for(i=0;i<CAL_RUNS.length;i++) if(CAL_RUNS[i].key===key) return CAL_RUNS[i];
+      if(key === PACK_REF.key) return PACK_REF;
+      return null;
+    }
+    /* Raw sweeps, by run key — what the board's assemble() divides down into
+       the four caps. Kept beside `pack` rather than inside it because two of
+       these describe the SAME axis (Hip Y at full stick and Hip Y at the
+       locked force) and it is precisely their ratio that carries the answer. */
+    var packRuns = {};
+    var packProblems = [];
+    function say(t, kind){ msg = t || ''; msgKind = kind || ''; }
+
+    function stopPoll(){ if(pollIv){ clearInterval(pollIv); pollIv = null; } }
+    /* The device "flashes blue as it runs" on a XIM; we have no user LED, so
+       the honest equivalent is the board saying calibrating:{mode,axis} in
+       /status and this line repeating it back. When the board offers nothing,
+       it shows elapsed time and says only that — never a made-up number. */
+    function startPoll(){
+      stopPoll();
+      pollIv = setInterval(function(){
+        if(!run){ stopPoll(); return; }
+        ZS.api('/status').then(function(j){
+          if(!run) return;
+          var st = (j && j.ok && j.data) || null;
+          var c = (st && st.calibrating && typeof st.calibrating === 'object') ? st.calibrating : null;
+          /* THE FIRE BUTTON ENDED IT. The board finished the sweep and is
+             holding the result; the app never pressed Done, so without this
+             the run just appears to vanish and the measurement is thrown
+             away on the next poll (owner hit exactly that). Collect it and
+             finish through the same path Done uses. */
+          if(st && !c && st.calibrationResult){
+            stopPoll();
+            adoptResult(st.calibrationResult);
+            return;
+          }
+          var el = document.getElementById('cal-live');
+          if(!el) return;
+          var line = (run.armed && st && c && c.armed !== false && !c.elapsedMs)
+            ? 'waiting for your fire button…'
+            : 'recording · ' + Math.max(0, Math.round((Date.now()-run.at)/1000)) + ' s';
+          var d = c ? Number(c.degPerSec) : NaN;
+          if(isFinite(d) && d > 0) line += ' · so far about ' + Math.round(d) + ' °/s';
+          if(st && !c) line += ' · the board is not reporting a run';
+          el.textContent = line;
+          /* STICK AT THE EDGE, live. A measure-mode sweep is a stopwatch only
+             while the stick is pegged — held part way, the board has to model
+             how the game answers a half-pushed stick, and for an unmeasured
+             game that model reads far too slow (owner, 2026-08-05: "i measured
+             pushing 50 percent and pushing 20 and got different values").
+             The board refuses such a run at the end; showing it DURING the
+             turn is what stops that costing another 360. */
+          var pin = document.getElementById('cal-pin');
+          if(pin){
+            var pf = c ? Number(c.pinnedFraction) : NaN;
+            if(!c || !c.pinnedRequired || !isFinite(pf)){ pin.textContent = ''; return; }
+            var p = Math.round(pf * 100);
+            pin.style.color = (p >= 80) ? 'var(--green)' : 'var(--amber)';
+            pin.textContent = (p >= 80)
+              ? 'stick at the edge · ' + p + '%'
+              : 'PUSH THE STICK ALL THE WAY · only ' + p + '% at the edge';
+          }
+        });
+      }, 700);
+    }
+
+    /* What the board handed back. The stop route's shape is the engine
+       half's to choose, so read the reasonable spellings rather than pin one
+       and break on a rename — but accept ONLY a positive finite number, so a
+       missing field can never be read as a measurement of zero. */
+    function calResult(d, key){
+      if(!d || typeof d !== 'object') return 0;
+      /* degPerS is translate/calibration.py's OWN spelling; degPerSec is the
+         alias the board adds on the way out. Read both, because a sweep the
+         fire button ended once arrived under the engine's name and this
+         function returned 0 — reported to the user as "that didn't look
+         like a full turn" while the number sat right there in the payload. */
+      var cands = [d.degPerSec, d.degPerS, d.maxTurnSpeed, d.turnSpeed, d[key]];
+      if(d.apply && typeof d.apply === 'object')
+        cands.push(d.apply[key], d.apply.degPerSec, d.apply.degPerS);
+      if(d.suggested && typeof d.suggested === 'object')
+        cands.push(d.suggested[key], d.suggested.degPerSec, d.suggested.maxTurnSpeed);
+      if(d.calibration && typeof d.calibration === 'object')
+        cands.push(d.calibration[key]);
+      var i, v;
+      for(i=0;i<cands.length;i++){
+        v = Number(cands[i]);
+        if(isFinite(v) && v > 0) return v;
+      }
+      return 0;
+    }
+
+    function writeCal(key, deg, done){
+      if(pack){
+        /* Pack mode writes NOTHING — not to the config, not to the board. The
+           draft lives in memory until it is named and saved, so backing out
+           leaves the config exactly as it was found. */
+        pack[key] = Math.round(deg*10)/10;
+        if(done) done(true);
+        return;
+      }
+      if(ZS.live.online===false || !ZS.live.full[pid]){
+        ZS.toast('Your board is offline — this is stored on the board');
+        if(done) done(false);
+        return;
+      }
+      var g = mtOf().game;
+      var game = (typeof g === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(g)) ? g : 'generic';
+      var at = Math.round(Date.now()/1000);
+      ZS.putProfile(pid, function(f){
+        if(!f.mouseTranslation) f.mouseTranslation = {};
+        var c = f.mouseTranslation.calibration;
+        if(!c || typeof c !== 'object' || (c instanceof Array))
+          c = {hipX:null, hipY:null, adsX:null, adsY:null};
+        c[key] = Math.round(deg*10)/10;
+        c.game = game;                 /* what it was measured against */
+        c.at = at;
+        f.mouseTranslation.calibration = c;
+      }).then(function(j){ if(done) done(!!(j && j.ok)); },
+              function(){ if(done) done(false); });
+    }
+
+    function startRun(r){
+      var why = calBlockedWhy(p);
+      if(why){ ZS.toast(calPlain(why)); return; }
+      if(busy || run) return;
+      busy = true;
+      /* RE-ASSERT measure mode before every sweep while authoring a pack.
+         Cancelling a run turns it off on the board (that is deliberate — a
+         closed sheet must never leave a silently dead mouse), so the second
+         sweep after a cancel would otherwise be measured through the whole
+         tuned chain instead of the raw stick, or refused outright. Cheap and
+         idempotent; the board answers instantly when it is already on. */
+      /* Re-assert measure mode AND the stick force before every sweep: a
+         cancelled run turns measure mode off (so a closed sheet can never
+         leave a dead mouse), and the force goes off with it. Re-recording an
+         axis after a cancel would otherwise run un-measured, or pegged when
+         the user had chosen a fixed force. Whatever the board currently
+         reports is what gets re-sent, so this preserves the choice rather
+         than overriding it. */
+      /* The reference runs at a SECOND locked force; every other pack sweep
+         runs at the primary one. Two forces on one axis is what fixes the
+         absolute scale — and both of them stay slow, which is the entire
+         reason it is done this way rather than with a full-stick sweep. */
+      if(pack) ZS.api('/calibration/native','POST',
+                      {enabled:true,
+                       force:(r.key === PACK_REF.key)
+                         ? cpForceSecond(cpForceWanted) : cpForceWanted});
+      /* armed:true hands the run to the FIRE BUTTON — nothing is counted
+         until the player pulls it, and the next pull ends the sweep. Both
+         hands stay on the mouse and pad at the moment precision matters,
+         which is the whole point; DONE and CANCEL below still work and
+         still win. */
+      ZS.api('/calibration/start','POST',
+             {kind:'velocity', mode:r.mode, axis:r.axis, armed:true})
+        .then(function(j){
+          busy = false;
+          if(!j || j.ok===false){
+            say('Your board would not start that sweep: '+esc((j && j.error) || 'no answer from the board'), 'warn');
+            draw(); return;
+          }
+          run = {key:r.key, mode:r.mode, axis:r.axis, lab:r.lab, at:Date.now(),
+                 armed:true};
+          say('', '');
+          draw();
+          startPoll();
+        });
+    }
+
+    /* ONE place that turns a finished sweep into a stored number, so the
+       Done button and the fire button cannot drift apart. */
+    function adoptResult(d){
+      if(!run) return;
+      var key = run.key, lab = runOf(run.key);
+      busy = false; run = null;
+      applyMeasured(d, key, lab);
+    }
+
+    function finishRun(){
+      if(!run || busy) return;
+      var key = run.key, lab = runOf(run.key);
+      busy = true; stopPoll();
+      ZS.api('/calibration/stop','POST',{}).then(function(j){
+        busy = false; run = null;
+        if(!j || j.ok===false){
+          say('Your board could not finish that sweep: '+esc((j && j.error) || 'no answer from the board'), 'warn');
+          draw(); return;
+        }
+        applyMeasured((j && j.data) || null, key, lab);
+      });
+    }
+
+    /* PACK MODE takes a different route out of a finished sweep, because a
+       locked-stick run's own deg/s is NOT its answer. Its honest content is
+       `observedDegPerS` — angle over turning time, with no game model in it —
+       and the four caps come from the ratios between those (assemble() on the
+       board). So the raw run is what gets stored, and the draft's four numbers
+       are recomputed from ALL runs after every sweep. */
+    function applyPackRun(d, key, lab){
+      var obs = Number(d && d.observedDegPerS);
+      var force = Number(d && d.stickForce) || 0;
+      if(!isFinite(obs) || obs <= 0){
+        say('That sweep did not record a turn — the stick never moved the '+
+            'reticle. <b>Nothing was stored.</b> Try it again.', 'warn');
+        draw(); return;
+      }
+      packRuns[key] = {mode: lab ? lab.mode : 'hip', axis: lab ? lab.axis : 'x',
+                       observedDegPerS: Math.round(obs * 10) / 10,
+                       stickForce: force};
+      reassemble(function(){
+        say('<b>'+esc((lab && lab.row) || 'That sweep')+' recorded</b> — turned '+
+            Math.round(obs)+' °/s at '+
+            (force ? ('a locked '+Math.round(force*100)+'% stick.')
+                   : 'full stick.'), '');
+        draw();
+      });
+    }
+
+    /* Hand every raw run to the board and take back the four caps. Runs after
+       EVERY sweep, so the draft is always the best answer the runs so far can
+       support and a missing reference shows up immediately rather than at
+       save time. */
+    function reassemble(done){
+      var list = [], k;
+      for(k in packRuns) if(Object.prototype.hasOwnProperty.call(packRuns, k))
+        list.push(packRuns[k]);
+      if(!list.length){
+        packProblems = [];
+        CAL_RUNS.forEach(function(r){ pack[r.key] = null; });
+        if(done) done();
+        return;
+      }
+      ZS.api('/calibration/assemble','POST',{runs:list}).then(function(j){
+        if(j && j.ok !== false && j.data && j.data.calibration){
+          CAL_RUNS.forEach(function(r){
+            pack[r.key] = j.data.calibration[r.key] || null;
+          });
+          packProblems = Array.isArray(j.data.problems) ? j.data.problems : [];
+        } else {
+          packProblems = ['Your board could not work those sweeps out'+
+            ((j && j.error) ? ': '+String(j.error) : '')+'.'];
+        }
+        if(done) done();
+      }, function(){
+        packProblems = ['Your board stopped answering, so these sweeps have '+
+                        'not been worked out yet.'];
+        if(done) done();
+      });
+    }
+
+    function applyMeasured(d, key, lab){
+        if(pack){ applyPackRun(d, key, lab); return; }
+        var deg = calResult(d, key);
+        /* Replace, never average — but band it first. A garbage run stored
+           is worse than no run at all, because an uncalibrated axis falls
+           back to its calibrated SIBLING and the garbage would poison that
+           axis too. */
+        if(!deg || deg < CAL_MIN || deg > CAL_MAX){
+          say('That didn’t look like a full turn'+
+              (deg ? ' — it measured '+Math.round(deg)+' °/s, outside the '+CAL_MIN+'–'+CAL_MAX+' °/s a game can turn' : '')+
+              '. <b>Nothing was stored.</b> Try again, and finish the sweep before pressing Done.', 'warn');
+          draw(); return;
+        }
+        writeCal(key, deg, function(ok){
+          var name = lab ? lab.row : 'That axis';
+          say(ok
+            ? '<b>'+esc(name)+' measured: '+Math.round(deg)+' °/s</b> at full stick ('+calMs(deg)+' ms per 360°).'
+            : 'It measured '+Math.round(deg)+' °/s, but your board would not store it.', ok ? '' : 'warn');
+          draw();
+        });
+    }
+
+    function cancelRun(){
+      if(!run) return;
+      stopPoll(); run = null; busy = false;
+      /* discard: this run must not become a measurement */
+      ZS.api('/calibration/stop','POST',{cancel:true, discard:true});
+      say('Sweep cancelled — nothing was changed.', '');
+      draw();
+    }
+
+    function resetAll(){
+      if(pack){
+        packRuns = {};
+        reassemble(function(){
+          say('Draft cleared — every sweep is back to not measured, the '+
+              'reference included. Nothing had been saved either way: a pack '+
+              'only exists once you name it.', '');
+          draw();
+        });
+        return;
+      }
+      if(ZS.live.online===false || !ZS.live.full[pid]){ ZS.toast('Your board is offline'); return; }
+      ZS.putProfile(pid, function(f){
+        if(!f.mouseTranslation) f.mouseTranslation = {};
+        f.mouseTranslation.calibration = null;
+      }).then(function(j){
+        say((j && j.ok)
+          ? 'Calibration cleared. All four sweeps are back to not measured, and the board is back to the translator’s own turn speed.'
+          : 'Your board would not clear it.', (j && j.ok) ? '' : 'warn');
+        draw();
+      });
+    }
+
+    /* ── the parts ── */
+    function stepsHTML(){
+      var sub = 'color:var(--muted);font-size:12.5px;line-height:1.6';
+      return '<div class="grp-card" style="background:var(--bg);padding:13px 14px">'+
+        '<div style="'+sub+'">'+
+          '<div><b style="color:var(--text)">STEP 1:</b> Start a <b style="color:var(--text)">private match</b> or training.</div>'+
+          '<div style="margin-top:9px"><b style="color:var(--text)">STEP 2:</b> '+
+            '<b style="color:var(--accent)">For X Calibration:</b> place your reticle on a '+
+            '<b style="color:var(--text)">recognizable landmark</b> in the map that is '+
+            '<b style="color:var(--amber)">approximately level vertically</b>.</div>'+
+          '<div style="margin-top:5px;padding-left:52px">'+
+            '<b style="color:var(--accent)">For Y Calibration:</b> place your reticle '+
+            '<b style="color:var(--amber)">straight down at your feet</b>.</div>'+
+          '<div style="margin-top:9px"><b style="color:var(--text)">STEP 3:</b> Press a Calibrate '+
+            'button to begin and <b style="color:var(--text)">follow directions</b>.</div>'+
+        '</div></div>';
+    }
+
+    /* The plan, said once, in the order the buttons appear. Without it the
+       reference sweep looks like a fifth chore rather than the thing that
+       lets the other four be done gently. */
+    function packPlanHTML(){
+      var a = cpForceWanted, b = cpForceSecond(a);
+      var done = !!packRuns[PACK_REF.key];
+      var pc = function(v){ return Math.round(v*100)+'%'; };
+      return sh('How this pack gets measured')+
+        '<div class="grp-card" style="background:var(--bg);padding:13px 14px;'+
+          'font-size:12.5px;line-height:1.6;color:var(--muted)">'+
+          '<div><b style="color:var(--text)">Every sweep here is slow.</b> '+
+            'Nothing asks you to peg the stick — your stick is clamped, so '+
+            'you choose direction and the board chooses the speed.</div>'+
+          '<div style="margin-top:9px"><b style="color:var(--text)">'+
+            'The four sweeps</b> run at a locked <b>'+pc(a)+'</b>.</div>'+
+          '<div style="margin-top:6px"><b style="color:'+
+            (done?'var(--green)':'var(--accent)')+'">'+(done?'✓ ':'')+
+            'The reference</b> is <b style="color:var(--text)">Hip Y again, '+
+            'at '+pc(b)+'</b> — the same axis at a different force. Measuring '+
+            'one axis at two known forces is what tells the board what a '+
+            'locked stick is actually worth, and turns the other three into '+
+            'real degrees per second.</div>'+
+          '<div style="margin-top:9px">Do the vertical ones by looking at '+
+            'your feet and holding up until the reticle stops at the sky — '+
+            '<b style="color:var(--text)">both ends are hard stops the game '+
+            'enforces</b>, so they cannot be overshot and being a moment late '+
+            'on the trigger costs almost nothing at these speeds.</div>'+
+        '</div>';
+    }
+
+    function buttonHTML(r, full, blocked){
+      /* The reference sweep has no entry among the four caps — it is a raw
+         run, and its tick has to come from whether that run exists. */
+      var v = (pack && r.key === PACK_REF.key)
+        ? (packRuns[PACK_REF.key] ? 1 : 0)
+        : calVal(full, r.key);
+      var stale = !!v && r.key !== PACK_REF.key && calStale(full);
+      var col = !v ? 'var(--red)' : (stale ? 'var(--amber)' : 'var(--green)');
+      var state = !v ? 'not calibrated'
+                     : (stale ? 'calibrated against a different game — rerun it' : 'calibrated');
+      return '<button class="btn" id="cal-'+r.key+'"'+(blocked?' disabled':'')+
+        ' aria-label="'+esc(r.lab+' — '+state)+'"'+
+        ' style="position:relative;margin-top:0;padding:12px 8px 11px'+(blocked?';opacity:.45':'')+'">'+
+        '<span aria-hidden="true" style="position:absolute;top:6px;right:9px;font-size:14px;'+
+          'line-height:1;color:'+col+'">'+(v?'✓':'✗')+'</span>'+
+        calIcon(r.axis)+
+        '<span style="display:block;font-size:12.5px;margin-top:3px">'+esc(r.lab)+'</span>'+
+        '</button>';
+    }
+    function groupHTML(title, mode, full, blocked){
+      var h = sh(title) + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+      /* The reference sweep leads the hip group while authoring a pack: it is
+         the one that has to be done first, because nothing else can be turned
+         into a real speed without it. */
+      if(pack && mode === 'hip') h += buttonHTML(PACK_REF, full, blocked);
+      CAL_RUNS.forEach(function(r){
+        if(r.mode === mode) h += buttonHTML(r, full, blocked);
+      });
+      return h + '</div>';
+    }
+
+    function runningHTML(){
+      var yy = run.axis === 'y';
+      return note('<b>'+esc(run.lab.replace('Calibrate ',''))+'</b> is running. Your aim is locked '+
+                  (yy ? 'horizontally' : 'vertically')+' while it records, so the whole sweep counts as '+
+                  (yy ? 'pitch' : 'yaw')+'.')+
+        card('<div style="padding:14px">'+
+          '<div style="color:var(--accent);font-weight:700;font-size:14.5px">'+
+            'Pull your <b>fire button</b> to start — then turn.</div>'+
+          '<div style="margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--muted)">'+
+            'Pull it again when you land to finish. Lining up on your landmark '+
+            'first is free — nothing counts until that first pull. '+
+            '(<b>Done</b> below works too, if the phone is easier to reach.)</div>'+
+          '<div style="margin-top:9px;border:1px solid rgba(210,153,34,.45);'+
+            'background:rgba(210,153,34,.08);border-radius:10px;padding:11px 12px;'+
+            'font-size:12.5px;line-height:1.55;color:var(--muted)">'+
+            /* XIM's own wording here was "you don't need to land exactly",
+               and it is wrong for OUR maths. Nothing about the timing
+               matters — only stick push is counted, so pausing, easing in
+               and taking your time are all free — but the angle is ASSUMED
+               to be a full 360, so where you STOP is the one real error.
+               Say that, because it is the only thing the user controls that
+               can spoil the number. (Owner caught the contradiction,
+               2026-08-05.) */
+            (yy
+              ? 'Aim <b>upwards</b> until your reticle <b>stops</b> — that is straight up, and the game '+
+                'will not let you go past it. Then finish. <b>No landmark needed:</b> both ends are hard '+
+                'stops the game itself enforces, so this axis cannot be overshot.'
+              : 'Turn a <b>full 360°</b> and stop with your crosshair back <b>exactly on your landmark</b> '+
+                '— that part matters, because the maths assumes exactly one turn. Take as long as you '+
+                'like: pausing, going slowly and easing in at the end cost nothing, since only the time '+
+                'you are actually pushing is measured.')+
+          '</div>'+
+          '<div id="cal-live" style="margin-top:10px;font-size:12.5px;color:var(--muted)">recording…</div>'+
+          '<div id="cal-pin" role="status" style="margin-top:4px;font-size:12.5px;font-weight:600"></div>'+
+        '</div>')+
+        btn('DONE','primary','cal-done')+
+        btn('CANCEL',null,'cal-cancel');
+    }
+
+    function valuesHTML(full){
+      var rows = '';
+      CAL_RUNS.forEach(function(r){
+        var v = calVal(full, r.key);
+        if(!v){
+          /* nothing to nudge: an empty stepper would invite the user to
+             invent a measurement */
+          rows += '<div class="fld"><div class="flab">'+esc(r.row)+
+            '<em>not measured yet</em></div>'+
+            '<span class="stp" style="opacity:.45">'+
+              '<button disabled aria-hidden="true">−</button>'+
+              '<b class="sv">—</b>'+
+              '<button disabled aria-hidden="true">+</button></span></div>';
+          return;
+        }
+        rows += stepper(r.row, calMs(v), 1, CAL_MS_MIN, CAL_MS_MAX, '',
+          Math.round(v)+' °/s at full stick', null, ' data-calkey="'+r.key+'"');
+      });
+      return sh('Calibration values')+ card(rows)+
+        note('Type the four numbers in by hand — <b>milliseconds of full stick per 360°</b>, the '+
+             'same figure some other adapters show. <b>A measured sweep is better</b>, so only do this if you '+
+             'already know the numbers.', 'warn');
+    }
+
+    /* The acceptance test the owner can see: this is paintVcap's line on the
+       Aim screen, recomputed against the MEASURED cap instead of the
+       translator's guess. Before calibration it reads about 19 cm/s — the
+       "pegged and stiff" — and after it should read tens. */
+    function pinHTML(full){
+      var cm = Number((full && full.mouseTranslation || {}).cm360);
+      var v = calVal(full, 'hipX') || calVal(full, 'hipY');
+      if(!(isFinite(cm) && cm > 0) || !v) return '';
+      return note('ⓘ With this measurement, a full-speed swipe pins the game’s turn cap at <b>'+
+        (cm*v/360).toFixed(1)+' cm/s</b> of hand speed. Anything faster than that reaches the game '+
+        'as the same turn.');
+    }
+
+    function sheetHTML(){
+      var full = fullOf();
+      var why = calBlockedWhy(p);
+      var h =
+        (opt.headHTML ? opt.headHTML() : '')+
+        note('<b>Velocity Calibration</b> teaches ZeroStick how fast your game really turns, so '+
+             'your Speed means the same thing in every game. <b>Run it again whenever your in-game '+
+             'aim settings change</b> — nothing here can see you move a slider in the game.');
+      if(why) h += note('⚠ '+why, 'warn');
+      if(run) return h + runningHTML();
+      h += stepsHTML()+
+        (pack ? packPlanHTML() : '')+
+        groupHTML('Hip Velocity', 'hip', full, !!why)+
+        groupHTML('ADS Velocity', 'ads', full, !!why);
+      if(msg) h += note(msg, msgKind, true); /* say() answers a press — never a chip */
+      if(pack && packProblems.length)
+        h += note('<b>Not finished yet.</b><br><br>'+
+                  packProblems.map(function(s){ return esc(String(s)); })
+                    .join('<br><br>'), 'warn');
+      h += valuesHTML(full)+ pinHTML(full)+
+        btn('RESET', 'danger', 'cal-reset')+
+        note(pack
+          ? 'RESET clears this draft’s four measurements. Nothing here is saved yet either way, and '+
+            'your config’s own calibration is untouched.'
+          : 'RESET clears all four measurements — you would have to run all four sweeps again.');
+      if(opt.footHTML) h += opt.footHTML();
+      return h;
+    }
+
+    function wireSheet(body){
+      var full = fullOf();
+      var blocked = !!calBlockedWhy(p);
+      CAL_RUNS.concat(pack ? [PACK_REF] : []).forEach(function(r){
+        var b = body.querySelector('#cal-'+r.key);
+        if(b && !blocked) b.addEventListener('click', function(){ startRun(r); });
+      });
+      var dn = body.querySelector('#cal-done');
+      if(dn) dn.addEventListener('click', finishRun);
+      var cn = body.querySelector('#cal-cancel');
+      if(cn) cn.addEventListener('click', cancelRun);
+      var rs = body.querySelector('#cal-reset');
+      if(rs) armConfirm(rs, resetAll);
+      /* Before the blocked gate too: SAVE and CANCEL are how the pack flow
+         turns measure mode back off, so they must work even when the sweeps
+         themselves cannot be started. */
+      if(opt.wireFoot) opt.wireFoot(body);
+      /* Before the blocked gate: DONE, CANCEL and the live line must keep
+         working even if the board drops out mid-sweep — that is exactly when
+         the user needs to be able to end it. */
+      if(run) startPoll();
+      /* The value steppers are wired BY HAND rather than through ZS.wire:
+         the displayed number (ms/360) is the reciprocal of the stored one
+         (deg/s), which a data-bind's linear scale cannot express, and wire()
+         would also cache the display in localStorage and show it back over
+         the board's real value on the next open. */
+      if(blocked) return;
+      body.querySelectorAll('.sv[data-calkey]').forEach(function(sv){
+        var key = sv.getAttribute('data-calkey');
+        var stp = sv.parentNode;
+        var fldEl = stp && stp.parentNode;
+        var cap = (fldEl && fldEl.querySelector) ? fldEl.querySelector('.flab em') : null;
+        var btns = stp ? stp.querySelectorAll('button') : [];
+        [].forEach.call(btns, function(b){
+          b.addEventListener('click', function(){
+            var d = parseFloat(b.getAttribute('data-d') || '1');
+            var ms = parseFloat(sv.textContent || '0') + (d < 0 ? -1 : 1);
+            if(!isFinite(ms)) return;
+            ms = Math.max(CAL_MS_MIN, Math.min(CAL_MS_MAX, Math.round(ms)));
+            sv.textContent = String(ms);
+            if(cap) cap.textContent = Math.round(calDeg(ms))+' °/s at full stick';
+            writeCal(key, calDeg(ms), null);
+          });
+        });
+      });
+    }
+
+    function onSheetClose(){
+      stopPoll();
+      /* Closing the sheet mid-sweep must not leave the board recording. */
+      if(run){ run = null; ZS.api('/calibration/stop','POST',{cancel:true, discard:true}); }
+      /* …and in pack mode it must not leave MEASURE MODE on either. This is
+         the "back" and "swiped the sheet away" exit path. */
+      if(opt.onClose) opt.onClose();
+    }
+
+    function draw(){
+      var body = ZS.sheetOpen(opt.title || 'Reticle Velocity Calibration', sheetHTML(),
+                              firstOpen ? onSheetClose : null);
+      firstOpen = false;
+      wireSheet(body);
+    }
+    draw();
+  }
+  ZS.openCal = openCal;
+
+  /* ══ Calibration packs ═══════════════════════════════════════════════
+     A pack is ONE game, measured once: the four deg/s sweeps, the name you
+     know that game by, and the in-game settings they are only true at.
+
+     Why it exists. The four sweeps are a fact about the GAME, not about the
+     config — so once "BO2 Plutonium, sensitivity 120" has been measured, every
+     config that plays BO2 at sensitivity 120 can be handed the same four
+     numbers instead of standing in a private match sweeping again. That is the
+     whole feature; everything below is bookkeeping around it.
+
+     MEASURE MODE (/calibration/native) is what makes a pack exact rather than
+     approximately right. While it is on the board emits the pad's own stick
+     essentially untouched — native stick handling, no smoothing, no response
+     curve, no anti-deadzone floor, no mouse-translation contribution — so a
+     sweep taken with the stick PEGGED TO THE EDGE is a pure stopwatch: at full
+     deflection forward_norm(1.0) is exactly 1.0, so S == T, Vmax = angle / T,
+     and the answer is immune to any error in the modelled deadzone or curve.
+     It is a RUNTIME override — the stored config is not touched, and the board
+     drops it on agent restart and on a cancelled run — so the app's whole
+     obligation is to never walk away leaving it on. Every exit path below
+     (save, cancel, back, sheet closed, error) goes through nativeOff(), and
+     /status.nativeMeasure is read back so a flow that died with the app can
+     still be seen and switched off by hand.
+
+     A pack is COPIED into a config, never linked: /apply writes the four
+     numbers and that is all it writes. The contract has no "which pack is
+     applied" field, so the picker derives its selection by comparing values
+     rather than inventing a field the board does not keep.                  */
+
+  function cpVal(c, key){
+    var v = c ? Number(c[key]) : NaN;
+    return (isFinite(v) && v >= CAL_MIN && v <= CAL_MAX) ? v : 0;
+  }
+  function cpCount(c){
+    var n = 0, i;
+    for(i=0;i<CAL_RUNS.length;i++) if(cpVal(c, CAL_RUNS[i].key)) n++;
+    return n;
+  }
+  function cpName(pk){
+    var n = (pk && typeof pk.name === 'string') ? pk.name.replace(/^\s+|\s+$/g,'') : '';
+    return n || (pk && typeof pk.id === 'string' && pk.id) || 'Unnamed pack';
+  }
+  function cp2(n){ return (n < 10 ? '0' : '') + n; }
+  /* "when it was made", in the words a person uses — and never a made-up date
+     when the board sent no timestamp. */
+  function cpWhen(sec){
+    var t = Number(sec);
+    if(!isFinite(t) || t <= 0) return 'no date recorded';
+    var days = Math.floor((Date.now()/1000 - t) / 86400);
+    if(days <= 0) return 'made today';
+    if(days === 1) return 'made yesterday';
+    if(days < 30) return 'made '+days+' days ago';
+    var d = new Date(t*1000);
+    return 'made '+d.getFullYear()+'-'+cp2(d.getMonth()+1)+'-'+cp2(d.getDate());
+  }
+  /* the four numbers, read-only, in both units — the same pairing the
+     calibration sheet's own value rows use, so the two never disagree */
+  function cpValuesHTML(c){
+    return CAL_RUNS.map(function(r){
+      var v = cpVal(c, r.key);
+      return '<div class="stat"><span>'+esc(r.row)+'</span>'+
+        (v ? '<b>'+Math.round(v)+' °/s <span style="color:var(--muted);font-weight:400">· '+
+             calMs(v)+' ms/360°</span></b>'
+           : '<b style="color:var(--muted)">not measured</b>')+'</div>';
+    }).join('');
+  }
+  /* ── "does up/down feel like left/right?", answered honestly ──────
+     Caleb, 2026-08-05: "up and down should feel just as fast as left and
+     right in proportion to the screen." The maths turns out to be simpler
+     than it sounds, and the intuitive answer is a trap worth naming:
+
+     A 3D game does not squash the vertical axis. Its projection uses ONE
+     focal length for both axes, so at his 107 FOV a degree of pitch and a
+     degree of yaw each move the crosshair 12.4 px — identical, and identical
+     all the way out to the edges, not just at the centre. So "the same speed
+     in proportion to the screen" IS just the same degrees per centimetre.
+     The screen being shorter shows up on its own, in RANGE rather than gain:
+     crossing the full width costs 17.5 cm of mouse and the full height 12.2,
+     because the screen really is 1.44x wider IN ANGLE.
+
+     The trap: vFOV/hFOV at 107 FOV is 0.696, and his Y Scale was sitting at
+     0.70. Scaling vertical down by the screen's shape feels obviously right
+     and is the thing making up/down slow.
+
+     WHAT THIS READS OUT. Once BOTH axes of an aim mode are measured, the
+     elliptical normalisation in mouse_stick makes degrees-per-centimetre
+     equal by construction, so the delivered vertical:horizontal balance is
+     exactly Y Scale — nothing else survives. Uncalibrated, the board has to
+     assume the game pitches as fast as it yaws; it does not (BO2 pitches at
+     about a third of its yaw rate), so the true balance is Y Scale times a
+     number nobody has measured. That case is reported as UNKNOWN rather than
+     guessed, because a made-up percentage here would be indistinguishable
+     from a measured one. */
+  function vhBalance(p){
+    var full = (ZS.live.online!==false ? ZS.live.full[p.id] : null) || null;
+    var mt = (full || {}).mouseTranslation || {};
+    var yx = Number(mt.yxRatio);
+    if(!isFinite(yx) || yx <= 0) yx = 1;
+    var c = calObj(full);
+    function measured(mode){ return !!(cpVal(c, mode+'X') && cpVal(c, mode+'Y')); }
+    return {yx: yx, hip: measured('hip'), ads: measured('ads'), live: !!full};
+  }
+  function vhBalanceHTML(p){
+    var b = vhBalance(p);
+    if(!b.live) return '';
+    var pct = Math.round(b.yx * 100);
+    var rows = [['Hip', b.hip], ['Aiming down sight', b.ads]].map(function(r){
+      return '<div class="stat"><span>'+r[0]+'</span>'+
+        (r[1]
+          ? '<b'+(pct===100 ? '' : ' style="color:var(--amber)"')+'>'+pct+
+            '% of left/right</b>'
+          : '<b style="color:var(--amber)">not matched yet</b>')+'</div>';
+    }).join('');
+    var why =
+      (!b.hip || !b.ads)
+        /* the WHY is load-bearing (test-vertical-balance §3): without both
+           sweeps the true balance is Y Scale times a number nobody has
+           measured, so this reports unknown and says so rather than a guess.
+           The sentence was cut in a 2026-08-18 text pass; restored 2026-09-05. */
+        ? note('This aim mode needs <b>both</b> of its sweeps before it can '+
+               'match. Until then the board has to assume this game looks up '+
+               'and down as fast as it turns left and right — almost no '+
+               'shooter does, so up/down will feel slower, and nothing here '+
+               'can say by how much. Measure it in <b>Aim Speed Match</b> '+
+               'below, or apply a calibration pack.', 'warn')
+        : (pct === 100
+            ? note('Up and down move the crosshair exactly as far as left and '+
+                   'right do, for the same movement of your hand.')
+            : note('You are running vertical at <b>'+pct+'%</b> on purpose. '+
+                   'That is a preference, not a correction — 100% is already '+
+                   '"the same in proportion to the screen". <b>Y Scale</b> '+
+                   '(Hip\u2019s ••• fold) back at 100 matches them.', 'warn'));
+    /* D392: the "Match up/down to left/right" button is gone: it was a
+       second control for Y Scale (it only set yxRatio to 1), and Y Scale's
+       own stepper has a detent at 100 */
+    return sh('Up/down vs left/right')+card(rows)+why;
+  }
+
+  /* The banner. It says the sentence that makes the measurement work, because
+     a user who does not peg the stick gets a number that is wrong in a way
+     nothing downstream can detect. */
+  /* The FIXED-FORCE choices. The point is not which one you pick — it is that
+     every sweep uses the SAME one, so the game's response to that force
+     cancels out of the ratio between two sweeps (translate/measure.py).
+     0 = off, which means the old pegged sweep.
+
+     Nothing below 10% is offered even though the owner suggested 5%: a real
+     game eats the first 12-15% of stick as its own deadzone, and a force
+     under it would move the reticle not at all. */
+  var CP_FORCES = [0, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.55];
+  var CP_FORCE_DEFAULT = 0.25;
+  /* The force the USER chose, remembered in the app. It cannot be read back
+     off the board between sweeps: cancelling a run turns measure mode off and
+     the force goes with it (deliberately — a closed sheet must never leave a
+     stick clamped), so reading the board after a cancel would report 0 and
+     silently demote the next sweep to a pegged one. */
+  var cpForceWanted = CP_FORCE_DEFAULT;
+  function cpForceNow(){
+    var st = ZS.live.status;
+    var v = st ? Number(st.measureForce) : NaN;
+    if(isFinite(v) && v > 0) return v;          /* live on the board */
+    return (st && st.nativeMeasure) ? 0 : cpForceWanted;
+  }
+  function cpForceHTML(){
+    var cur = cpForceNow(), i, v, opts = '';
+    for(i=0;i<CP_FORCES.length;i++){
+      v = CP_FORCES[i];
+      opts += '<option value="'+v+'"'+
+        (Math.abs(v-cur) < 0.005 ? ' selected' : '')+'>'+
+        (v ? Math.round(v*100)+'%' : 'Off — peg the stick myself')+'</option>';
+    }
+    return '<div class="fld col" style="margin-top:10px"><div class="flab">Stick force'+
+      '<em>your stick is clamped to exactly this, however hard you push</em></div>'+
+      '<select class="sel" id="cp-force" data-nosave="1" style="margin-top:8px">'+opts+
+      '</select></div>';
+  }
+  function cpBanner(){
+    var f = cpForceNow();
+    return '<div role="status" style="border:1px solid rgba(210,153,34,.5);'+
+      'background:rgba(210,153,34,.14);border-radius:var(--r-ctl);padding:12px 13px;margin-top:12px;'+
+      'font-size:12.5px;line-height:1.55;color:var(--muted)">'+
+      '<b style="color:var(--amber)">'+(pic('record', 14)||'◉')+' MEASURE MODE IS ON</b><br>'+
+      'Your controller is passed through untouched and your config is not changed. This switches '+
+      'itself off when you leave.'+
+      (f
+        ? '<br><br>Your stick is <b>locked to '+Math.round(f*100)+'%</b> — resting is 0, and any '+
+          'push at all is exactly '+Math.round(f*100)+'%, however hard you shove it. You choose the '+
+          'direction and nothing else, so every sweep is taken at an identical force and the '+
+          'maths can divide out whatever your game does to it. <b>Turn it up if the reticle does '+
+          'not move at all</b> — that means the force is under your game’s own deadzone.'
+        : '<br><br><b>Peg the stick fully to the edge</b> for each sweep — held part way, the board '+
+          'has to guess how your game answers a half-pushed stick and the result reads too slow. '+
+          'If a full-speed 360 is too fast to land, pick a stick force below instead.')+
+      cpForceHTML()+'</div>';
+  }
+
+  /* One delegated listener for every copy of the force control — the banner is
+     rendered by three different screens and re-rendered on every repaint, so
+     binding per-instance would mean three wiring sites and a leak on each
+     redraw. */
+  if(typeof document !== 'undefined' && !window.__zsCpForceWired){
+    window.__zsCpForceWired = true;
+    document.addEventListener('change', function(e){
+      var t = e.target;
+      if(!t || t.id !== 'cp-force') return;
+      var v = Number(t.value);
+      if(!isFinite(v) || v < 0) return;
+      cpForceWanted = v;              /* survives the cancel/restart cycle */
+      t.disabled = true;
+      ZS.api('/calibration/native','POST',{enabled:true, force:v}).then(function(j){
+        t.disabled = false;
+        if(!j || j.ok === false){
+          ZS.toast('Your board would not set the stick force'+
+                   ((j && j.error) ? ': '+j.error : ''));
+          return;
+        }
+        var got = (j.data && Number(j.data.force)) || 0;
+        ZS.toast(got ? ('Stick locked to '+Math.round(got*100)+'%')
+                     : 'Stick force off — peg it yourself');
+        ZS.refreshStatus();
+      }, function(){ t.disabled = false; });
+    });
+  }
+  /* The board's own reading of a pack (translate/calibration.py review()).
+     Derived on every read rather than stored, so a pack saved before the
+     check existed still gets it — which is the case that matters, since the
+     pack that motivated the check was already on Caleb's board.
+
+     Shown rather than enforced. The numbers may still be the best anyone has,
+     and refusing to apply a measurement somebody spent twenty minutes making
+     would be worse than telling them what is wrong with it. */
+  function cpWarnHTML(pk){
+    var w = pk && pk.warnings;
+    if(!Array.isArray(w) || !w.length) return '';
+    return note('<b>These numbers do not add up.</b><br><br>'+
+      w.map(function(s){ return esc(String(s)); }).join('<br><br>'), 'warn');
+  }
+
+  /* Does this config already hold exactly this pack's numbers? Derived, not
+     stored — see the header. Requires at least one real measurement so that a
+     config with nothing measured does not "match" an empty pack. */
+  function cpApplied(c, pk){
+    var k = pk && pk.calibration;
+    if(!k || typeof k !== 'object') return false;
+    var i, key, a, b, any = false;
+    for(i=0;i<CAL_RUNS.length;i++){
+      key = CAL_RUNS[i].key;
+      a = cpVal(c, key); b = cpVal(k, key);
+      if(Math.abs(a - b) > 0.05) return false;
+      if(b) any = true;
+    }
+    return any;
+  }
+
+  /* ── Save this config as a game pack (Global Settings › Developer) ──
+     D115. The owner makes game packs, and the way he will actually make one
+     is to tune a config by hand until it plays right and then keep it. This
+     takes the config he is PLAYING (the one the Raw config JSON above shows)
+     and turns it into a pack file with ZSPACKS.fromConfig: its buttons, its
+     Smart Actions and its aim settings become the block for the way it is
+     played.
+
+     A config whose game already has a pack UPDATES that pack: same id, which
+     is for ever, the next version, and the other ways to play kept as they
+     were, so saving the controller tuning never wipes the mouse tuning.
+
+     Calibrated is HIS claim to make, never this screen's: the switch is off
+     until he turns it on, and on it will not save without a sentence saying
+     who calibrated it, how and when. That sentence is what the wizard shows.
+
+     The file cannot be written into the app's own folder from here (the exe
+     serves its files out of its own package, and a phone has no such
+     folder), so it is copied, and saved as a download where the browser
+     allows one. Then it goes in dashboard/public/game-packs/ by hand. */
+  function openSavePack(){
+    var p = ZS.prof(ZS.activeId);
+    var full = p ? ZS.live.full[p.id] : null;
+    if(!window.ZSPACKS){ ZS.toast('The game packs did not load, so this cannot make one'); return; }
+    if(!p || !full){ ZS.toast('Your board is offline, so this config’s settings are not here to save'); return; }
+    var base = packOfConfig(p, full);
+    var input = p.input;
+    var h = note('Makes a game pack from <b>'+esc(p.name)+'</b>, the config you are playing: its '+
+        'buttons, Scripts and aim settings, as its <b>'+esc(ZS.INP[input]||input)+'</b> block.'+
+        (base ? ' Its game already has a pack, <b>'+esc(base.name)+'</b>, so the file keeps that '+
+                'pack’s id and becomes version '+(base.version+1)+'. Its other blocks are kept.' : ''))+
+      (base ? '' : '<div class="grp-card">'+txtFld('Game name', ovGameOf(p, full) || p.name, 'sp-name')+'</div>')+
+      '<div class="grp-card">'+
+        toggleFld('These settings are calibrated for this game', false,
+                  'only if you measured or tested them in the game', true)+
+        '<div class="sp-srcwrap" style="display:none">'+
+          txtFld('Who calibrated them, how, and when', '', 'sp-src')+'</div>'+
+      '</div>'+
+      btn('⧉ Copy the pack', 'primary', 'sp-copy')+
+      btn('⤓ Save the file', null, 'sp-save')+
+      note('Then put the file in <b>dashboard/public/game-packs/</b>, add its id to '+
+           '<b>index.json</b>, and run <b>node dashboard/tools/test-game-packs.js</b>, which names '+
+           'anything wrong with it. game-packs/README.md has the rest.');
+    var sb = ZS.sheetOpen('Save as a game pack', h, null);
+    ZS.wire(sb, 'global/savepack');
+    var sw = sb.querySelector('.sw');
+    var srcWrap = sb.querySelector('.sp-srcwrap');
+    /* registered after wire()'s own flip, so it reads the switch's new state */
+    if(sw && srcWrap) sw.addEventListener('click', function(){
+      srcWrap.style.display = sw.classList.contains('on') ? '' : 'none';
+    });
+    function make(){
+      var cal = !!(sw && sw.classList.contains('on'));
+      var srcEl = sb.querySelector('.sp-src'), nameEl = sb.querySelector('.sp-name');
+      var src = srcEl ? String(srcEl.value || '').replace(/^\s+|\s+$/g, '') : '';
+      var name = base ? base.name : String((nameEl && nameEl.value) || '').replace(/^\s+|\s+$/g, '');
+      if(cal && !src){
+        ZS.toast('Say who calibrated them, how, and when first. That sentence is what players are shown.');
+        return null;
+      }
+      if(!name){ ZS.toast('Give the game a name first'); return null; }
+      var pack = ZSPACKS.fromConfig(full, {
+        base: base, name: name, calibrated: cal, source: src,
+        aimPreset: base ? undefined : (ZS.store.vals['gamepreset|'+p.id] || null)
+      });
+      /* a name that matches no pack but whose id is taken by one would
+         overwrite that pack's file under a version 1: never */
+      if(!base && ZSPACKS.get(pack.id)){
+        ZS.toast('A pack called "'+pack.id+'" already exists for another game. Change the name.');
+        return null;
+      }
+      var probs = ZSPACKS.validate(pack, pack.id);
+      if(probs.length){ ZS.toast(probs[0], {ms:9000}); return null; }
+      return pack;
+    }
+    var cp = sb.querySelector('#sp-copy');
+    if(cp) cp.addEventListener('click', function(){
+      var pack = make();
+      if(!pack) return;
+      /* m11: the toast is the clipboard's answer */
+      SEC.copyText(ZSPACKS.toText(pack),
+        'Copied '+pack.id+'.json, version '+pack.version+'. Paste it into a file of that name.',
+        'Copy failed. Use Save the file instead.');
+    });
+    var sv = sb.querySelector('#sp-save');
+    if(sv) sv.addEventListener('click', function(){
+      var pack = make();
+      if(!pack) return;
+      try{
+        var blob = new Blob([ZSPACKS.toText(pack)], {type:'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = pack.id+'.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} }, 2000);
+        ZS.toast('Saved '+pack.id+'.json. Move it into dashboard/public/game-packs/.');
+      }catch(e){
+        ZS.toast('This app cannot save a file here. Use Copy the pack instead.');
+      }
+    });
+  }
+
+  /* ── the packs screen (Global Settings › Developer) ──────────────── */
+  function openCalPacks(){
+    var packs = null;      /* null = not fetched, [] = fetched and empty */
+    var err = '';
+    var native = false;    /* measure mode WE turned on, and so must turn off */
+    var draft = null;      /* the four numbers of the pack being measured */
+    var msg = '', msgKind = '';
+    var firstOpen = true;
+    var gone = false;      /* the sheet has closed — stop painting into it */
+
+    function say(t, kind){ msg = t || ''; msgKind = kind || ''; }
+    function online(){ return ZS.live.online !== false && !!ZS.live.status; }
+    function activeProf(){ return ZS.prof(ZS.activeId) || null; }
+    function activeName(){ var a = activeProf(); return (a && a.name) || 'your active config'; }
+    /* The BOARD's word for measure mode, which outlives this screen: an app
+       that was killed mid-flow leaves it on, and only /status can say so. */
+    function boardNative(){
+      var st = ZS.live.status;
+      return !!(online() && st && st.nativeMeasure);
+    }
+
+    function nativeOn(done){
+      /* Measure mode comes up WITH a fixed stick force already on. Pegging a
+         360 at high in-game sensitivity is close to unlandable (owner,
+         2026-08-05: "its too hard ... it moves too fast on high sensitivity"),
+         so the forgiving path is the default and pegging is the opt-out. */
+      ZS.api('/calibration/native','POST',
+             {enabled:true, force:CP_FORCE_DEFAULT}).then(function(j){
+        var ok = !!(j && j.ok !== false);
+        if(ok) native = true;
+        ZS.refreshStatus();
+        done(ok, (j && j.error) || 'no answer from the board');
+      });
+    }
+    /* EVERY exit path lands here. `force` is for the manual switch-off on the
+       list screen, where the board says measure mode is on but this app is not
+       the one that turned it on. */
+    function nativeOff(force){
+      if(!native && !force) return;
+      native = false;
+      ZS.api('/calibration/native','POST',{enabled:false}).then(function(j){
+        if(!j || j.ok === false)
+          ZS.toast('Measure mode may still be on — open Calibration packs and turn it off');
+        return ZS.refreshStatus();
+      }).then(function(){ draw(); }, function(){});
+    }
+
+    function load(){
+      if(!online()) return;
+      ZS.api('/calibration/packs').then(function(j){
+        if(!j || j.ok === false || !Array.isArray(j.data)){
+          packs = null;
+          err = (j && j.error) ? String(j.error) : 'your board did not answer with a list of packs';
+        } else { packs = j.data; err = ''; }
+        draw();
+      });
+    }
+
+    /* ── the list ── */
+    function packCard(pk, i){
+      var c = (pk && pk.calibration) || null;
+      var sub = [];
+      /* "game model: generic" is the pack file's field name and its raw
+         value, printed at a person. It answers "which game was this measured
+         in?", so ask it that way — and "generic" is not a game. */
+      if(pk && typeof pk.game === 'string' && pk.game)
+        sub.push(/^generic$/i.test(pk.game) ? 'measured on no particular game'
+                                            : 'measured on '+pk.game);
+      sub.push(cpWhen(pk && pk.createdAt));
+      var req = (pk && typeof pk.requires === 'string') ? pk.requires : '';
+      return card(
+        '<div class="lrow"><span class="src">'+esc(cpName(pk))+'</span>'+
+          '<span class="rt"><button class="ib danger cp-del" data-i="'+i+'" '+
+            'aria-label="delete the pack '+esc(cpName(pk))+'">✕</button></span></div>'+
+        '<div class="stat"><span>'+esc(sub.join(' · '))+'</span><b>'+cpCount(c)+' of 4</b></div>'+
+        cpValuesHTML(c)+
+        (req
+          ? '<div class="stat" style="display:block"><span style="color:var(--muted)">Only true at</span>'+
+            '<div style="font-size:12px;line-height:1.55;margin-top:3px;white-space:normal">'+
+              esc(req)+'</div></div>'
+          : '<div class="stat"><span>Required in-game settings</span>'+
+            '<b style="color:var(--amber)">not recorded</b></div>'));
+    }
+
+    function listHTML(){
+      if(!online())
+        return note('<b>Your board is offline.</b> Packs live on the board, so there is nothing to '+
+                    'list here and nothing to measure with until it is back.','warn');
+      var h = '';
+      if(native || boardNative())
+        h += cpBanner() + btn('Turn measure mode off', null, 'cp-noff');
+      /* A DEFINITION IS THE CHIP'S JOB. The sheet is titled "Calibration
+         packs" and lists them; a reader who needs the term explained can ask
+         for it, and a reader who came here to make one should not have to
+         read past 26 words to reach the list. */
+      h += helpHTML('cp-what', 'What a calibration pack is',
+                'One game’s four sweeps, measured once and reused — so every config '+
+                'that plays that game gets the same numbers without sweeping again.');
+      if(msg) h += note(msg, msgKind, true); /* say() answers a press — never a chip */
+      if(err) return h + note('⚠ '+esc(err),'warn',true) + btn('Try again', null, 'cp-retry');
+      if(packs === null)
+        return h + card('<div class="stat"><span>Saved packs</span><b>asking your board…</b></div>');
+      h += sh('Saved packs');
+      if(!packs.length)
+        h += note('None yet. Make one below — you will need a private match or training session in '+
+                  'the game you want to measure.');
+      else h += packs.map(packCard).join('');
+      h += btnP('plus','New pack','primary','cp-new')+
+        note('A new pack is measured with your <b>active config</b> ('+esc(activeName())+'), so that '+
+             'config has to be a mouse config with a Speed set on the Aim screen.');
+      return h;
+    }
+
+    function wireList(body){
+      var nb = body.querySelector('#cp-new');
+      if(nb) nb.addEventListener('click', newPack);
+      var rt = body.querySelector('#cp-retry');
+      if(rt) rt.addEventListener('click', function(){ err=''; packs=null; load(); draw(); });
+      var no = body.querySelector('#cp-noff');
+      if(no) no.addEventListener('click', function(){
+        nativeOff(true);
+        say('Measure mode switched off — your config is shaping your controller again.','');
+        draw();
+      });
+      body.querySelectorAll('.cp-del').forEach(function(b){
+        /* Two taps, like every other destructive control here — but a row's ✕
+           is a 36px .ib, so it turns into a red tick rather than armConfirm's
+           "Tap again to confirm", which would simply be clipped. */
+        var armed = false, t = null;
+        b.addEventListener('click', function(){
+          if(armed){ if(t) clearTimeout(t); delPack(+b.getAttribute('data-i')); return; }
+          armed = true;
+          b.textContent = '✓';
+          b.dataset.armed = '1';
+          b.setAttribute('aria-label','tap again to delete this pack');
+          t = setTimeout(function(){
+            armed = false; b.textContent = '✕'; b.dataset.armed = '';
+            b.setAttribute('aria-label','delete this pack');
+          }, 2600);
+        });
+      });
+    }
+
+    function delPack(i){
+      if(!online()){ ZS.toast('Your board is offline'); return; }
+      var pk = packs && packs[i];
+      if(!pk || !pk.id){ ZS.toast('That pack has no id, so there is nothing to delete'); return; }
+      ZS.api('/calibration/packs/'+encodeURIComponent(pk.id),'DELETE').then(function(j){
+        if(!j || j.ok === false){
+          say('Your board would not delete “'+esc(cpName(pk))+'”: '+
+              esc((j && j.error) || 'no answer from the board'), 'warn');
+          draw(); return;
+        }
+        say('“'+esc(cpName(pk))+'” deleted. Configs it was applied to keep their numbers — a pack is '+
+            'copied into a config, never linked to it.', '');
+        packs = null; load(); draw();
+      });
+    }
+
+    /* ── making one ── */
+    function newPack(){
+      if(!online()){ ZS.toast('Your board is offline'); return; }
+      var ap = activeProf();
+      if(!ap){ ZS.toast('There is no active config to measure with'); return; }
+      /* the same gate the calibration sheet uses, asked BEFORE measure mode is
+         turned on — turning the engine's shaping off for a sweep that cannot
+         start would be the worst of both */
+      var why = calBlockedWhy(ap);
+      if(why){ say('⚠ '+why, 'warn'); draw(); return; }
+      say('', '');
+      nativeOn(function(ok, e){
+        if(!ok){
+          say('Your board would not turn measure mode on: '+esc(e)+'. Nothing was changed and no '+
+              'sweep was started.', 'warn');
+          draw(); return;
+        }
+        draft = { hipX:null, hipY:null, adsX:null, adsY:null };
+        openSweeps();
+      });
+    }
+
+    function openSweeps(){
+      var ap = activeProf();
+      if(!ap){ nativeOff(); ZS.toast('There is no active config to measure with'); return; }
+      openCal(ap, {
+        title: 'New calibration pack',
+        pack: draft,
+        headHTML: cpBanner,
+        footHTML: packFootHTML,
+        wireFoot: packWireFoot,
+        onClose: function(){ nativeOff(); }
+      });
+    }
+
+    function packFootHTML(){
+      var ready = cpVal(draft,'hipX') > 0 && cpVal(draft,'hipY') > 0;
+      return sh('Save this as a pack')+
+        note(ready
+          ? '<b>Hip X and Hip Y are measured</b> — the minimum a pack needs. ADS is optional: leave '+
+            'it out and a config falls back to the hip measurement.'
+          : 'A pack needs <b>Hip X and Hip Y</b> at minimum; ADS X and ADS Y are optional. '+
+            '<b>'+cpCount(draft)+' of 4</b> measured so far.')+
+        (ready ? btn('SAVE AS A PACK','primary','cp-save') : '')+
+        btn('CANCEL — throw this draft away', null, 'cp-cancel');
+    }
+
+    function packWireFoot(body){
+      var sv = body.querySelector('#cp-save');
+      if(sv) sv.addEventListener('click', askName);
+      var cn = body.querySelector('#cp-cancel');
+      if(cn) cn.addEventListener('click', function(){
+        draft = null;
+        nativeOff();
+        say('Pack cancelled — nothing was saved, and measure mode is off.', '');
+        draw();
+      });
+    }
+
+    function askName(){
+      if(!draft){ ZS.toast('There is nothing measured to save'); return; }
+      var ap = activeProf();
+      var mt = ((ap && ZS.live.full[ap.id]) || {}).mouseTranslation || {};
+      var game = (typeof mt.game === 'string') ? mt.game : '';
+      var body = ZS.sheetOpen('Name this pack',
+        cpBanner()+
+        note('Name it after <b>the game and the settings you measured at</b> — that is what makes it '+
+             'reusable. “BO2 Plutonium 120” tells you in a list what “Pack 3” never will.')+
+        card('<div class="fld col"><div class="flab">Name</div>'+
+          '<input class="txt" id="cp-nm" data-nosave="1" autocomplete="off" maxlength="64" '+
+            'style="margin-top:10px" placeholder="BO2 Plutonium 120" aria-label="pack name"></div>')+
+        card('<div class="fld col"><div class="flab">Required in-game settings'+
+          '<em>optional — the settings these four numbers are only true at</em></div>'+
+          '<textarea id="cp-req" rows="3" data-nosave="1" maxlength="240" '+
+            'aria-label="required in-game settings" placeholder="Sensitivity 7 · ADS multiplier 1.00 '+
+            '· FOV 90" style="width:100%;box-sizing:border-box;margin-top:10px;background:var(--bg);'+
+            'color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;'+
+            'font-size:12.5px;font-family:inherit"></textarea></div>')+
+        sh('What gets saved')+
+        card(cpValuesHTML(draft))+
+        (game ? note('Measured against the <b>'+esc(game)+'</b> game model, which is saved with the '+
+                     'pack so a config can tell whether it still matches.') : '')+
+        note('These four numbers are only true at the in-game settings you just played at. Move a '+
+             'slider in the game later and this pack stops describing it.','warn')+
+        /* A failed save reports HERE rather than throwing the user back to the
+           list: the draft and the name they typed are still good, and the list
+           has no way back into them. */
+        '<div id="cp-err"></div>'+
+        btn('SAVE PACK','primary','cp-go')+
+        btn('BACK — keep measuring', null, 'cp-back'));
+      var nm = body.querySelector('#cp-nm');
+      if(nm) try{ nm.focus(); }catch(e){}
+      var go = body.querySelector('#cp-go');
+      if(go) go.addEventListener('click', function(){
+        var rq = body.querySelector('#cp-req');
+        savePack(nm ? nm.value : '', rq ? rq.value : '', game);
+      });
+      var bk = body.querySelector('#cp-back');
+      if(bk) bk.addEventListener('click', openSweeps);
+    }
+
+    function savePack(name, requires, game){
+      name = String(name || '').replace(/^\s+|\s+$/g,'');
+      if(!name){ ZS.toast('Give the pack a name first'); return; }
+      if(!draft){ ZS.toast('There is nothing measured to save'); return; }
+      /* Send the four values exactly as the contract types them: hip is real,
+         ADS is a number or null. A 0 would be a legal-looking lie. */
+      var c = { hipX: cpVal(draft,'hipX') || null, hipY: cpVal(draft,'hipY') || null,
+                adsX: cpVal(draft,'adsX') || null, adsY: cpVal(draft,'adsY') || null };
+      if(!c.hipX || !c.hipY){ ZS.toast('Hip X and Hip Y have to be measured first'); return; }
+      ZS.api('/calibration/packs','POST',{
+        name: name,
+        game: String(game || ''),
+        requires: String(requires || '').replace(/^\s+|\s+$/g,''),
+        calibration: c,
+        createdAt: Math.round(Date.now()/1000)
+      }).then(function(j){
+        if(!j || j.ok === false){
+          /* Stay put. Measure mode is still on, the banner above still says so,
+             and both SAVE PACK and BACK still work — a redraw to the list would
+             strand a good draft behind a New pack button that discards it. */
+          var eb = document.getElementById('cp-err');
+          if(eb) eb.innerHTML = note('⚠ Your board would not save that pack: '+
+            esc((j && j.error) || 'no answer from the board')+'. Nothing was lost — your four '+
+            'measurements and this name are still here. Try SAVE PACK again.','warn',true);
+          ZS.toast('Your board would not save that pack');
+          return;
+        }
+        draft = null;
+        nativeOff();
+        say('<b>“'+esc(name)+'” saved.</b> Measure mode is off and your config was never changed. '+
+            'Apply it to a config from that config’s Overview screen, under Advanced.', '');
+        packs = null; load(); draw();
+      });
+    }
+
+    function draw(){
+      if(gone) return;
+      var body = ZS.sheetOpen('Calibration packs', listHTML(), firstOpen ? onClose : null);
+      firstOpen = false;
+      wireList(body);
+    }
+    function onClose(){
+      /* the last exit path: the scrim, the ✕, or Escape */
+      gone = true;
+      nativeOff();
+      draft = null;
+    }
+
+    draw();
+    load();
+  }
+  ZS.openCalPacks = openCalPacks;
+
+  /* ── the Overview picker (part B) ────────────────────────────────────
+     Applying a pack COPIES its four numbers into this config. The selected row
+     is therefore derived from the values themselves, and "None" is the honest
+     label for a config whose numbers match no pack rather than a stored
+     "no pack" state that does not exist. */
+  function cpPicker(root, p, ns){
+    var host = root.querySelector('#ov-pack');
+    if(!host) return;
+    /* packs are the A7S agent's (M10): nothing to list on a Core */
+    if(ZS.productHides && ZS.productHides('calPacks')){ host.innerHTML = ''; return; }
+    function alive(){ return root.dataset.ns === ns; }
+
+    if(ZS.live.online === false || !ZS.live.full[p.id]){
+      host.innerHTML = note('<b>Calibration pack</b> — your board is offline. Packs are stored on the '+
+        'board, so there is nothing here to choose from and nothing that could be applied until it '+
+        'is back.','warn');
+      return;
+    }
+    host.innerHTML = card('<div class="stat"><span>Calibration pack</span><b>asking your board…</b></div>');
+    ZS.api('/calibration/packs').then(function(j){
+      if(!alive()) return;
+      if(!j || j.ok === false || !Array.isArray(j.data)){
+        host.innerHTML = note('<b>Calibration pack</b> — your board did not answer with a list'+
+          ((j && j.error) ? ': '+esc(String(j.error)) : '')+', so there is nothing to choose from. '+
+          'Nothing was applied.','warn');
+        return;
+      }
+      paint(j.data, '');
+    });
+
+    function paint(list, resHTML){
+      var cur = calObj(ZS.live.full[p.id] || null);
+      var sel = 0, i;
+      var opts = '<option>None (measure this profile directly)</option>';
+      for(i=0;i<list.length;i++){
+        opts += '<option>'+esc(cpName(list[i]))+'</option>';
+        if(cpApplied(cur, list[i])) sel = i + 1;
+      }
+      host.innerHTML =
+        card(fld('Calibration pack',
+          '<select class="sel" id="ov-packsel" data-nosave="1">'+opts+'</select>',
+          list.length
+            ? 'hand this config a game somebody has already measured'
+            /* D223: a release build has no Developer tab to send anyone to */
+            : (window.ZS_BUILD && window.ZS_BUILD.dev === true
+                ? 'no packs saved yet — make one in Global Settings › Developer'
+                : 'no packs on this phone yet')))+
+        '<div id="ov-packres">'+(resHTML || '')+'</div>'+
+        note('A pack is <b>copied</b> into this config, not linked: applying one replaces its four '+
+             'sweeps, and deleting the pack later changes nothing. <b>None</b> means this config’s '+
+             'numbers are its own.');
+      var s = host.querySelector('#ov-packsel');
+      if(!s) return;
+      s.selectedIndex = sel;
+      s.addEventListener('change', function(){ onPick(list, s); });
+    }
+
+    function onPick(list, s){
+      var res = host.querySelector('#ov-packres');
+      var i = (s.selectedIndex | 0) - 1;
+      if(i < 0){
+        if(res) res.innerHTML = note('This config keeps its own four measurements. Nothing was changed.');
+        return;
+      }
+      var pk = list[i];
+      if(!pk || !pk.id){
+        if(res) res.innerHTML = note('That pack has no id, so your board cannot be asked for it.','warn',true);
+        return;
+      }
+      if(ZS.live.online === false){
+        if(res) res.innerHTML = note('Your board went offline — nothing was applied.','warn',true);
+        return;
+      }
+      s.disabled = true;
+      if(res) res.innerHTML = card('<div class="stat"><span>Applying “'+esc(cpName(pk))+'”</span>'+
+        '<b>asking your board…</b></div>');
+      /* Land any debounced edit of THIS config first. The board is about to
+         write the same document, and a queued write that read the profile
+         before the apply would still be holding a pre-apply copy. */
+      ZS.flushProfileWrites(p.id)
+        .then(function(){
+          return ZS.api('/calibration/packs/'+encodeURIComponent(pk.id)+'/apply',
+                        'POST',{profileId:p.id});
+        })
+        .then(function(j){
+          s.disabled = false;
+          if(!alive()) return;
+          if(!j || j.ok === false){
+            if(res) res.innerHTML = note('Your board would not apply that pack: '+
+              esc((j && j.error) || 'no answer from the board')+'. Nothing was changed.','warn',true);
+            return;
+          }
+          /* Re-read the config. The board has just rewritten its calibration
+             behind the app's back, and putProfile() clones the CACHED
+             document — leave the cache stale and the next unrelated edit on
+             this screen would quietly write the old numbers back over the
+             pack. */
+          ZS.api('/profiles/'+encodeURIComponent(p.id)).then(function(f){
+            var fresh = !!(f && f.ok && f.data);
+            /* m2 (audit 2026-10-10): NOT by assigning the board's copy over
+               the cache, which dropped staged (unsaved) edits from every
+               screen and left "exit without saving" a stale base. The list
+               reload adopts each board copy with the staged queue on top
+               (adoptBoard); only when it fails, and nothing is staged, does
+               the copy in hand go in as is. */
+            if(fresh){
+              var keep = f.data;
+              Promise.resolve(ZS.reloadProfiles ? ZS.reloadProfiles() : false).then(function(ok){
+                if(!ok && !(ZS.hasUnsaved && ZS.hasUnsaved(p.id))) ZS.live.full[p.id] = keep;
+              }, function(){});
+            }
+            if(!alive()) return;
+            var now = fresh ? calObj(f.data) : (pk.calibration || null);
+            var req = (typeof pk.requires === 'string' && pk.requires) ? pk.requires : '';
+            if(res) res.innerHTML =
+              sh('Applied')+
+              card(cpValuesHTML(now))+
+              cpWarnHTML(pk)+
+              (req
+                ? note('These numbers are only true at the settings this pack was measured at: '+
+                       '<b>'+esc(req)+'</b>. Set the game to match, or measure this config directly '+
+                       'instead.','warn')
+                : note('This pack recorded no required in-game settings, so nothing can tell you what '+
+                       'it was measured at. If your aim feels wrong, measure this config directly.','warn'))+
+              (fresh ? ''
+                     : note('Your board applied the pack but would not hand the config back, so these '+
+                            'are the pack’s numbers rather than the config’s. Reopen this screen to '+
+                            'see what the board actually holds.','warn'));
+            /* the row above must not still read "not calibrated" */
+            var stat = root.querySelector('#ov-calstat');
+            if(stat) stat.innerHTML = '<span>Reticle velocity</span>'+calStatusB(p);
+            ZS.toast('“'+cpName(pk)+'” applied to '+((p && p.name) || 'this config'));
+          });
+        });
+    }
+  }
+
+  /* what the other screen files use from this one */
+  SEC.CAL_RUNS = CAL_RUNS;
+  SEC.calCount = calCount;
+  SEC.calIcon = calIcon;
+  SEC.calObj = calObj;
+  SEC.calStatusB = calStatusB;
+  SEC.cpPicker = cpPicker;
+  SEC.cpVal = cpVal;
+  SEC.openCal = openCal;
+  SEC.openCalPacks = openCalPacks;
+  SEC.openSavePack = openSavePack;
+  SEC.vhBalanceHTML = vhBalanceHTML;
+});

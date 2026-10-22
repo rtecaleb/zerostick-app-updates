@@ -1,0 +1,491 @@
+/* smart-actions/14-palette.js — THE PALETTE: picking what a step presses.
+ *
+ * The tiles a step target is chosen from, per family and page.
+ *
+ * Tests: test-mnk-actions.js, test-smart-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('palette', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var clamp = SEC.clamp, esc = SEC.esc, intOf = SEC.intOf, note = SEC.note,
+      padName = SEC.padName, srcArt = SEC.srcArt, tgtName = SEC.tgtName,
+      tgtShort = SEC.tgtShort, tgtSvg = SEC.tgtSvg, tileName = SEC.tileName, ZS = SEC.ZS,
+      capRecorder = SEC.capRecorder, mark = SEC.mark, MARK_AIM = SEC.MARK_AIM,
+      MARK_CONFIG = SEC.MARK_CONFIG, MARK_SENS = SEC.MARK_SENS, MARK_SWAP = SEC.MARK_SWAP,
+      MARK_WAIT = SEC.MARK_WAIT, sicon = SEC.sicon, catAllowed = SEC.catAllowed;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var deckHTML, sameWord;
+  ZS_SMART_PARTS.after(function () {
+    deckHTML = SEC.deckHTML;
+    sameWord = SEC.sameWord;
+  });
+
+  /* ══ THE PALETTE ══════════════════════════════════════════════════
+     The old picker was a wrapping grid of identical 56px tiles — forty
+     things that look the same, told apart only by reading them. These
+     pages are drawn in the PHYSICAL SHAPE of the thing they stand for, so
+     you point at what your hand already knows: a pad laid out like a pad,
+     a keyboard laid out as QWERTY, a mouse drawn as a mouse.
+
+     ONE LAYOUT, TWO SCREENS. `gridHTML` is called by simple mode (replace
+     what this button sends) and by the editor (add a press), so both get
+     the pad shape from the same renderer and a tap means what it always
+     meant in each.
+
+     COLOUR-CODING IS DELIBERATELY ABSENT on the pad page. XIM paints
+     categories (numpad teal, modifiers red); in OUR palette red means
+     error and teal is the accent, so a red modifier key would read as
+     "this key is broken". Here the CAPTION is the category — five named
+     rows — and the only hue that appears is --purple, which DESIGN.md
+     already spends on "keyboard & mouse". */
+
+  /* THE PAD, AS XIM'S FOUR UNIFORM ROWS (D78, 2026-09-05). The owner, with
+     XIM Matrix screenshots of its Mappings sub-menu: "that's how I want
+     mine in mappings, but obviously with my buttons and art but the same
+     menu organization". So the rows are XIM's: row 1 is the TOP of the
+     pad — both triggers, both bumpers, the home button between them; row
+     2 is the two stick clicks with the menu pair (and, on our pads, the
+     touchpad) between them; row 3 the face; row 4 the D-pad. No visible
+     caption — the rows are uniform and the picture is the category — but
+     each row is a named group for a screen reader (.sabgcap is sr-only).
+     This replaces D71's captioned Face · D-pad · Shoulders · System rows
+     (which replaced the 6×5 silhouette the owner rejected the day before;
+     do not bring that back either). One builder for both sides: the
+     target page (what the console receives) and the trigger page (what
+     you press) differ only in art and attribute. */
+  var PAD_TGT_GROUPS = [
+    ['Triggers, bumpers and the home button', ['lt+', 'l1', 'guide', 'r1', 'rt+']],
+    ['Stick clicks, menu buttons and the touchpad', ['l3', 'select', 'touchpad', 'start', 'r3']],
+    ['Face buttons', ['south', 'east', 'west', 'north']],
+    ['D-pad', ['dpad_up', 'dpad_down', 'dpad_left', 'dpad_right']]
+  ];
+  /* the INPUT side: [neutral (art + name), engine code]. No guide or
+     touchpad — a pad's own PS/Guide press never reaches the agent as a
+     bindable source. */
+  var PAD_SRC_GROUPS = [
+    ['Triggers and bumpers', [['l2', 'lt'], ['l1', 'BTN_TL'], ['r1', 'BTN_TR'], ['r2', 'rt']]],
+    ['Stick clicks and menu buttons', [['l3', 'BTN_THUMBL'], ['select', 'BTN_SELECT'],
+                                       ['start', 'BTN_START'], ['r3', 'BTN_THUMBR']]],
+    ['Face buttons', [['south', 'BTN_SOUTH'], ['east', 'BTN_EAST'], ['west', 'BTN_WEST'], ['north', 'BTN_NORTH']]],
+    ['D-pad', [['dpad_up', 'BTN_DPAD_UP'], ['dpad_down', 'BTN_DPAD_DOWN'],
+               ['dpad_left', 'BTN_DPAD_LEFT'], ['dpad_right', 'BTN_DPAD_RIGHT']]]
+  ];
+  function padGroupsHTML(groups, tile) {
+    var h = '';
+    groups.forEach(function (g) {
+      h += '<div class="sabgrp" role="group" aria-label="' + esc(g[0]) + '">' +
+        '<span class="sabgcap">' + esc(g[0]) + '</span>' +
+        '<div class="sabgrow">' + g[1].map(tile).join('') + '</div></div>';
+    });
+    return h;
+  }
+
+  function cell(col, row) { return ' style="grid-column:' + col + ';grid-row:' + row + '"'; }
+
+  /* one palette tile. `attr` is the data-* the wiring already listens for,
+     so re-laying the grid changed no listener anywhere. */
+  function keyHTML(attr, code, art, label, say, extra, pos) {
+    /* THE SAME WORD, STACKED ON ITSELF. ZSG draws the face buttons as
+       symbols but the shoulders, triggers, stick clicks and the touchpad as
+       their own letters — so half this palette rendered "L2" on top of "L2",
+       "PS" on top of "PS". The caption is the half that carries meaning and
+       the half a screen reader is built from; the picture stands down when it
+       has nothing to add. */
+    return '<button type="button" class="sabkey' + (extra || '') + '" ' + attr + '="' + esc(code) +
+      '"' + (pos || '') + ' aria-label="' + esc(say) + '" title="' + esc(say) + '">' +
+      (sameWord(art, label) ? '' : art) + '<i>' + esc(label) + '</i></button>';
+  }
+
+  /* THE SERIES PAD'S SHARE BUTTON (D279). The owner: when an Xbox
+     controller is detected, Share is a button you can choose. It is the
+     board's extra1 (common/model.py, zs_model.h ZS_BTN_EXTRA1 "capture
+     button"), which the profile already encodes, so it sits in row 2 where
+     the pad has it, between View and Menu. The touchpad stands down for it
+     unless the CONSOLE is a PlayStation: an Xbox has no touchpad to send
+     to (zs_engine.c: "no XInput bit"), but a PS5 fed by an Xbox pad still
+     wants one, and then the row is six wide.
+     TODO(firmware, D279): the Core does not carry Share end to end yet.
+     zs_xpad_report.c reads only the first 14 bytes of a GIP 0x20 report (the
+     Series Share bit is past them), zs_bindings.c has no KEY_RECORD ->
+     EXTRA1 passthrough row, and neither the Pico frame (pico_link_frame.h,
+     16 XInput bits, bit 11 free) nor zs_engine.c's XInput table sends
+     EXTRA1. Until those land a step or binding on Share is stored and
+     encoded but reaches nothing.
+     SO SHARE IS HIDDEN until they land: a button that does nothing is a
+     support ticket. SHARE_LIVE is the ONE switch, read everywhere Share is
+     offered (this pad page, which the Script editor and the Mappings deck
+     both draw, and sections/01-kit.js pickSections via ZS.shareLive). Flip
+     it to true when the firmware carries extra1. window.ZS_SHARE_LIVE is
+     the test harness's way to flip it without editing this file. */
+  var SHARE_LIVE = false;
+  function shareLive() { return SHARE_LIVE || window.ZS_SHARE_LIVE === true; }
+  ZS.shareLive = shareLive;
+  function padTgtGroups(p) {
+    var Z = window.ZSG;
+    if (!shareLive()) return PAD_TGT_GROUPS;
+    if (!Z || typeof Z.padDetected !== 'function' || Z.padDetected() !== 'xb') return PAD_TGT_GROUPS;
+    var keepTouch = SEC.conFam(p) === 'ps';
+    return PAD_TGT_GROUPS.map(function (g) {
+      if (g[1].indexOf('touchpad') < 0) return g;
+      var row = ['l3', 'select'].concat(keepTouch ? ['touchpad'] : [], ['extra1', 'start', 'r3']);
+      return ['Stick clicks, menu buttons, ' + (keepTouch ? 'the touchpad and ' : '') + 'Share', row];
+    });
+  }
+
+  /* THE PAD PAGE, output side. Used by simple mode AND by the editor. */
+  function padTargetPageHTML(p) {
+    return '<div class="sabpad">' + padGroupsHTML(padTgtGroups(p), function (code) {
+      return keyHTML('data-gt', code, tgtSvg(code, p), tgtShort(code, p), tgtName(code, p));
+    }) + '</div>';
+  }
+
+  /* THE QUICK GRID under "Send this instead" is a two-page DECK now — the
+     five button rows (with the ⋯ escape hatch under them), and the sticks &
+     trigger pulls one swipe, or one tap on their name, to the right. It is
+     the editor palette's own deck (deckHTML / wireDeck), so a swipe learned
+     here is the swipe that works there, and the page names stay the primary
+     control: a swipe is only recognisable after you have already swiped.
+     NO KEYBOARD PAGE, and that is not an omission. A target is what the
+     CONSOLE receives, and the console receives a pad — schema._valid_targets
+     is Button ∪ Axis±, parse_target throws a key away. The keyboard page
+     lives where an input genuinely can be a key: the trigger picker and the
+     "move this to a different key" picker (ZS.pickButton). data-noswipe
+     keeps the shell's own sideways gesture — drag-to-go-back, tab step —
+     off the deck; deckBodyHTML's data-nodrag does the same for a sheet. */
+  /* THREE PAGES: Buttons · Keyboard · Mouse (owner, 2026-09-04: "it should
+     be how the buttons are, then you swipe and it lets you do keyboard
+     buttons like on an actual keyboard, and mouse click options — some
+     people might have a reason"). The Sticks & triggers page it carried for
+     an hour is gone; stick directions and the full pulls live in the full
+     list behind the "Send this instead" pill (#sa-tgt → openTargetPane),
+     which also still carries the two Extras the grid never draws. No "⋯
+     Everything else" row either — the pill that names the current target
+     is the door to every other one.
+
+     A KEY OR A CLICK IS A REAL TARGET ON EVERY CONFIG. Since 2026-09-04 a
+     binding may target a KEY_* / BTN_* name (mapping/bindings.py,
+     schema._valid_binding_targets), and the board can be a keyboard and
+     mouse to whatever its USB port is plugged into (outputs/identity.py
+     `kbm`: one HID interface, report ids, this UDC's single interrupt
+     endpoint). On a PS5 or Xbox config the pad travels by Remote Play or the
+     Pico and the USB port is free, so the engine brings it up as a keyboard
+     beside the pad — "the companion keyboard", core/engine._ensure_key_sink
+     — because a console takes a plain USB keyboard and mouse with no
+     licence (Passthrough Mode already leans on that). The owner's rule: "I
+     should be able to bind a PS5 button to a keyboard button even if I
+     don't have a keyboard in." The one case keys cannot reach is a PC
+     identity that owns the USB port as a PAD (DualSense/DS4/generic/Xbox
+     360) — one port, one device — and the board says so in status.keySink,
+     which keysOutNoteHTML turns into the "!" chip. Nothing is guessed from
+     p.platform any more; the board is the authority on what its port is. */
+  /* SIX PAGES, XIM'S (D78): the pad, the mouse, and the keyboard as four
+     alphabetical pages of five or six keys a row — big keys a thumb can
+     hit, instead of the 23px QWERTY the no-scroll budget used to force.
+     The page NAMES stay the primary control (a swipe is only recognisable
+     after you have already swiped); `say` is each name's full accessible
+     label, because "U–0" is a legend, not a sentence. The board's own
+     "can a key reach anything" chip (keysOutNoteHTML) heads every page
+     that offers a key or a click. */
+  function gridPages(p) {
+    var kn = keysOutNoteHTML();
+    return [
+      { n: 'Pad', say: 'controller buttons', h: padTargetPageHTML(p) },
+      { n: 'Mouse', say: 'mouse buttons', h: kn + mousePageHTML('data-gt') },
+      { n: 'A–T', say: 'keys A to T', h: kn + kbXimPageHTML(0, 'data-gt') },
+      { n: 'U–0', say: 'keys U to Z, the digits, Shift, Ctrl and Space', h: kn + kbXimPageHTML(1, 'data-gt') },
+      { n: 'Esc…', say: 'Esc, Tab, Alt, Enter, Backspace, the symbols and the arrows', h: kn + kbXimPageHTML(2, 'data-gt') },
+      { n: 'F-keys', say: 'the F-keys, Home, End, Insert, Delete, Windows and the Page keys', h: kn + kbXimPageHTML(3, 'data-gt') }
+    ];
+  }
+  function gridHTML(p, S) {
+    var pages = gridPages(p);
+    return '<div class="sasgrid" data-noswipe="1">' +
+      deckHTML('sa-sgrid', pages, clamp(intOf(S.gridPage, 0), 0, pages.length - 1)) +
+      '</div>';
+  }
+  /* The board's own word on whether a key can reach anything right now —
+     status.keySink {active, reason} (core/engine). Up, or the primary output
+     is itself a keyboard: no sentence. Blocked or failed: the board's reason
+     as the "!" chip. Offline, or a board older than the field: nothing —
+     neither claim can be made, and a stale warning is worse than none. */
+  function keysOutNoteHTML() {
+    var st = (ZS.live && ZS.live.online !== false && ZS.live.status) || null;
+    if (!st) return '';
+    var be = st.outputBackend && st.outputBackend.name;
+    if (be === 'kbm' || be === 'pad_kbm') return '';
+    var ks = st.keySink;
+    if (!ks || ks.active || !ks.reason) return '';
+    return note(esc(ks.reason), 'warn');
+  }
+
+  /* THE STICKS & TRIGGERS PAGE — two plus-clusters and the two pulls. */
+  function stickPageHTML(p) {
+    function clus(capn, up, dn, lf, rt) {
+      return '<div class="sabstick"><span class="sabcap">' + esc(capn) + '</span>' +
+        keyHTML('data-gt', up, tgtSvg(up, p), '↑', tgtName(up, p), '', cell(2, 2)) +
+        keyHTML('data-gt', lf, tgtSvg(lf, p), '←', tgtName(lf, p), '', cell(1, 3)) +
+        keyHTML('data-gt', rt, tgtSvg(rt, p), '→', tgtName(rt, p), '', cell(3, 3)) +
+        keyHTML('data-gt', dn, tgtSvg(dn, p), '↓', tgtName(dn, p), '', cell(2, 4)) +
+        '</div>';
+    }
+    return '<div class="sabsticks">' +
+      clus('Move', 'ly+', 'ly-', 'lx-', 'lx+') +
+      clus('Aim', 'ry+', 'ry-', 'rx-', 'rx+') + '</div>' +
+      '<div class="sabwide">' +
+      keyHTML('data-gt', 'lt+', tgtSvg('lt+', p), tgtName('lt+', p) + ' pull',
+              'pull ' + tgtName('lt+', p) + ' all the way') +
+      keyHTML('data-gt', 'rt+', tgtSvg('rt+', p), tgtName('rt+', p) + ' pull',
+              'pull ' + tgtName('rt+', p) + ' all the way') + '</div>';
+  }
+
+  /* THE SPECIAL PAGE — the step kinds that are not a button press, in the
+     same tile grammar. The nine explanatory sub-sentences the old category
+     cards carried are gone: a tile that needs a sentence is a tile whose
+     picture is wrong, and the full sentence still shows inside each step's
+     own sheet (SHEET_HELP). Both of XIM's disclosure rules are kept. */
+  /* the set's grabbing hand and open hand (D82) */
+  var MARK_HOLDSTEP = sicon('hold', 'hold');
+  var MARK_RELEASE = sicon('release', 'let go');
+
+  function specialPageHTML(a, p, S) {
+    var h = '<div class="sabspecial">';
+    h += keyHTML('data-cat', 'wait', MARK_WAIT, 'Wait', 'add a pause with a length');
+    h += keyHTML('data-cat', 'hold', MARK_HOLDSTEP, 'Hold', 'hold a button down until a later step lets go');
+    if (catAllowed({ k: 'release' }, a)) {
+      h += keyHTML('data-cat', 'release', MARK_RELEASE, 'Let go', 'let go of a button held earlier');
+    }
+    h += keyHTML('data-cat', 'stick', MARK_AIM, 'Aim', 'push a stick a direction and a distance');
+    h += keyHTML('data-cat', 'sens', MARK_SENS, 'Aim speed', 'make aiming slower or faster');
+    h += keyHTML('data-cat', 'swap', MARK_SWAP, 'Swap', 'the two sticks change places');
+    if (catAllowed({ k: 'config' }, a)) {
+      h += keyHTML('data-cat', 'config', MARK_CONFIG, 'Config', 'switch to another config');
+    }
+    if (capRecorder()) {
+      h += '<button type="button" class="sabkey" id="sa-record" ' +
+        'aria-label="record what you do on the controller and write the steps">' +
+        '<span class="sagm">' + sicon('record', '◉') + '</span><i>Record</i></button>';
+    }
+    /* the guaranteed escape hatch: the full sectioned list of every target,
+       so nothing is ever reachable only through the pager */
+    h += '<button type="button" class="sabkey" id="sa-gmore" ' +
+      'aria-label="every control your console can receive, as one list">' +
+      '<span class="sagm">' + sicon('more', '…') + '</span><i>Everything</i></button>';
+    return h + '</div>';
+  }
+
+  /* THE SPECIALS ROW ON THE PAD PAGE (screen-map §5.2). Wait, Hold and
+     Let-go are the special steps real sequences are actually made of —
+     "press, wait, press" — and they lived one swipe away on the Special
+     page, which a first-time builder has no reason to know exists. This is
+     the compact strip at the foot of the PAD page so the commonest specials
+     sit beside the buttons they punctuate. The full Special page stays: this
+     row is a shortcut, never the only door (the same rule the pager itself
+     follows). Same data-cat attributes, so the editor's one delegated
+     listener already handles these tiles without a new wire. Let-go keeps
+     the same catAllowed gate as the Special page — offering a release with
+     nothing held would mint a step the board rejects. */
+  function padSpecialsRowHTML(a) {
+    return '<div class="sabspecrow">' +
+      keyHTML('data-cat', 'wait', MARK_WAIT, 'Wait', 'add a pause with a length') +
+      keyHTML('data-cat', 'hold', MARK_HOLDSTEP, 'Hold', 'hold a button down until a later step lets go') +
+      (catAllowed({ k: 'release' }, a)
+        ? keyHTML('data-cat', 'release', MARK_RELEASE, 'Let go', 'let go of a button held earlier')
+        : '') +
+      '</div>';
+  }
+
+  /* THE PAD PAGE, input side (the trigger picker). */
+  function padSourcePageHTML() {
+    return '<div class="sabpad">' + padGroupsHTML(PAD_SRC_GROUPS, function (m) {
+      return keyHTML('data-src', m[1], srcArt(m[1]), tileName(m[0]), padName(m[0]));
+    }) + '</div>';
+  }
+
+  /* THE RECORDER'S PAD PAGE (D85) — the same sources plus the TOUCHPAD.
+     The owner's own example of a start/stop key is the touchpad ("I chose
+     the touch pad to be the button that makes it start listening and the
+     touch pad ends it"), and it IS a real source the board can watch
+     (BTN_TRIGGER_HAPPY1, mapping/labels.py) — it is simply not on D78's
+     trigger-picker page, whose four rows are four wide. So the recorder
+     gets its own copy with that one row grown to XIM's five, in XIM's
+     order (l3 · select · touchpad · start · r3, the same order the target
+     pad page already uses). Nothing else on this page moves, and
+     PAD_SRC_GROUPS — the trigger picker's own — is untouched. */
+  var REC_SRC_GROUPS = PAD_SRC_GROUPS.map(function (g) {
+    if (g[0].indexOf('Stick clicks') !== 0) return g;
+    return [g[0], [g[1][0], g[1][1], ['touchpad', 'BTN_TRIGGER_HAPPY1'], g[1][2], g[1][3]]];
+  });
+  function recSourcePageHTML() {
+    return '<div class="sabpad">' + padGroupsHTML(REC_SRC_GROUPS, function (m) {
+      /* "Touchpad" is one character past what the 46 px tile holds beside
+         Create and Options, and it ellipsised to "Touch…" in the browser.
+         The CAPTION is shortened, never the accessible name: the label and
+         the tooltip still say Touchpad — the same trade DPAD_TILE already
+         makes for "D-pad Down". */
+      var cap = m[0] === 'touchpad' ? 'Touch' : tileName(m[0]);
+      return keyHTML('data-src', m[1], srcArt(m[1]), cap, padName(m[0]));
+    }) + '</div>';
+  }
+
+  /* THE KEYBOARD PAGE — a real QWERTY with its row stagger, because that is
+     the picture already in your hand. 30×46 keys clear the WCAG web target
+     minimum (24 CSS px, the rule the skill points at for web) and every key
+     here is ALSO reachable by "press it and I'll find it" and by the tab
+     order, so nothing is precision-only. */
+  /* `attr` is the data-* the tiles carry: data-src on the trigger picker
+     (which key do you PRESS), data-gt on the button screen and data-tgt in
+     the full target list (which key the PC RECEIVES). Same picture, same
+     keys; only what a tap means changes. */
+  function kbRowHTML(keys, cls, pad, attr) {
+    /* the row carries the class too, so a row of narrow keys can tighten its
+       own gap — twelve F-keys at 26px with the standard 4px gap measured 356
+       against a 341px deck at 375, and the row clipped (2026-08-18, in a
+       browser; the node tests do not do CSS) */
+    var h = '<div class="sabkbrow' + (cls ? ' r-' + cls : '') + '"' +
+      (pad ? ' style="padding-left:' + pad + 'px"' : '') + '>';
+    keys.forEach(function (k) {
+      /* the keycap IS the tile now (keycaps.js): art with the legend cut
+         into it, no caption under it — the aria-label still says the
+         word. Without the art file the old caption-in-a-box comes back. */
+      var art = window.ZSKEYS ? ZSKEYS.svg(k[1]) : '';
+      /* k[3] is a corner mark — "L" / "R" — for the keys whose keycap art
+         is the same picture on both sides of the keyboard (Shift, Ctrl,
+         Win): two identical tiles would be told apart by nothing but
+         position, and the aria-label already says which one it is */
+      if (art && k[3]) art += '<b class="kside" aria-hidden="true">' + esc(k[3]) + '</b>';
+      h += keyHTML(attr || 'data-src', k[1], art, art ? '' : k[0], k[2] || (k[0] + ' key'),
+                   ' mnk' + (art ? ' kart' : '') + (cls ? ' ' + cls : ''));
+    });
+    return h + '</div>';
+  }
+  function letters(str) {
+    return str.split('').map(function (c) { return [c, 'KEY_' + c, c + ' key']; });
+  }
+  function kbPageHTML(attr) {
+    var digits = '1234567890'.split('').map(function (c) { return [c, 'KEY_' + c, c + ' key']; });
+    function r(keys, cls, pad) { return kbRowHTML(keys, cls, pad, attr); }
+    /* every code here is one the board can SEND as well as read:
+       common/hid_keys.py HID_KEYS ∪ HID_MODIFIERS (the kbm gadget's usage
+       table). Add a key to this picture and it must exist there too, or a
+       PC config binds a target the gadget silently drops. */
+    return '<div class="sabkb">' +
+      r(digits) +
+      r(letters('QWERTYUIOP')) +
+      r(letters('ASDFGHJKL'), '', 15) +
+      r(letters('ZXCVBNM'), '', 30) +
+      r([['Shift', 'KEY_LEFTSHIFT'], ['Ctrl', 'KEY_LEFTCTRL'],
+         ['Alt', 'KEY_LEFTALT'], ['Tab', 'KEY_TAB']], 'w') +
+      r([['Esc', 'KEY_ESC'], ['Enter', 'KEY_ENTER'],
+         ['Caps', 'KEY_CAPSLOCK'], ['⌫', 'KEY_BACKSPACE', 'Backspace key']], 'w') +
+      r([['Space', 'KEY_SPACE']], 'sp') +
+      r([['←', 'KEY_LEFT', 'Left arrow key'], ['↑', 'KEY_UP', 'Up arrow key'],
+         ['↓', 'KEY_DOWN', 'Down arrow key'], ['→', 'KEY_RIGHT', 'Right arrow key'],
+         ['[', 'KEY_LEFTBRACE'], [']', 'KEY_RIGHTBRACE'], ['-', 'KEY_MINUS'],
+         ['=', 'KEY_EQUAL'], [';', 'KEY_SEMICOLON'], ['\'', 'KEY_APOSTROPHE']]) +
+      r([[',', 'KEY_COMMA'], ['.', 'KEY_DOT'], ['/', 'KEY_SLASH'],
+         ['\\', 'KEY_BACKSLASH'], ['`', 'KEY_GRAVE']]) +
+      r([['F1', 'KEY_F1'], ['F2', 'KEY_F2'], ['F3', 'KEY_F3'], ['F4', 'KEY_F4'],
+         ['F5', 'KEY_F5'], ['F6', 'KEY_F6'], ['F7', 'KEY_F7'], ['F8', 'KEY_F8'],
+         ['F9', 'KEY_F9'], ['F10', 'KEY_F10'], ['F11', 'KEY_F11'], ['F12', 'KEY_F12']], 'f') +
+      '</div>';
+  }
+
+  /* THE KEYBOARD AS XIM PAGES IT (D78): four pages, five or six keys a
+     row, alphabetical rather than QWERTY — the picture the owner asked for
+     on the mappings screen, and what lets every key be a 52×44 tile inside
+     the no-scroll budget (the trigger picker keeps its QWERTY). Every code
+     is one the board can SEND (common/hid_keys.py HID_KEYS ∪
+     HID_MODIFIERS), the same rule kbPageHTML lives by. Print Screen,
+     Scroll Lock and Pause have no keycap art in keycaps.js, so they draw as
+     captioned tiles until the art file grows them. */
+  function digitKeys(str) {
+    return str.split('').map(function (c) { return [c, 'KEY_' + c, c + ' key']; });
+  }
+  function fKeys(a, b) {
+    var out = [], i;
+    for (i = a; i <= b; i++) out.push(['F' + i, 'KEY_F' + i, 'F' + i + ' key']);
+    return out;
+  }
+  var KB_XIM_PAGES = [
+    [letters('ABCDE'), letters('FGHIJ'), letters('KLMNO'), letters('PQRST')],
+    [letters('UVWXYZ'), digitKeys('12345'), digitKeys('67890'),
+     [['L Shift', 'KEY_LEFTSHIFT', 'Left Shift key', 'L'], ['L Ctrl', 'KEY_LEFTCTRL', 'Left Ctrl key', 'L'],
+      ['Space', 'KEY_SPACE'], ['R Ctrl', 'KEY_RIGHTCTRL', 'Right Ctrl key', 'R'],
+      ['R Shift', 'KEY_RIGHTSHIFT', 'Right Shift key', 'R']]],
+    [[['Esc', 'KEY_ESC'], ['Tab', 'KEY_TAB'], ['L Alt', 'KEY_LEFTALT', 'Left Alt key', 'L'],
+      ['R Alt', 'KEY_RIGHTALT', 'Right Alt key', 'R'], ['Enter', 'KEY_ENTER'], ['⌫', 'KEY_BACKSPACE', 'Backspace key']],
+     [['Caps', 'KEY_CAPSLOCK', 'Caps Lock key'], ['`', 'KEY_GRAVE', 'backtick key'],
+      ['[', 'KEY_LEFTBRACE', 'left bracket key'], [']', 'KEY_RIGHTBRACE', 'right bracket key'],
+      ['\\', 'KEY_BACKSLASH', 'backslash key'], ['/', 'KEY_SLASH', 'slash key']],
+     [['-', 'KEY_MINUS', 'minus key'], ['=', 'KEY_EQUAL', 'equals key'],
+      ['\'', 'KEY_APOSTROPHE', 'apostrophe key'], [';', 'KEY_SEMICOLON', 'semicolon key'],
+      [',', 'KEY_COMMA', 'comma key'], ['.', 'KEY_DOT', 'full stop key']],
+     [['←', 'KEY_LEFT', 'Left arrow key'], ['↑', 'KEY_UP', 'Up arrow key'],
+      ['↓', 'KEY_DOWN', 'Down arrow key'], ['→', 'KEY_RIGHT', 'Right arrow key']]],
+    [fKeys(1, 6), fKeys(7, 12),
+     [['Home', 'KEY_HOME'], ['End', 'KEY_END'], ['Ins', 'KEY_INSERT', 'Insert key'],
+      ['Del', 'KEY_DELETE', 'Delete key'], ['Pause', 'KEY_PAUSE'], ['Scrl', 'KEY_SCROLLLOCK', 'Scroll Lock key']],
+     [['Prnt', 'KEY_SYSRQ', 'Print Screen key'], ['L Win', 'KEY_LEFTMETA', 'Left Windows key', 'L'],
+      ['R Win', 'KEY_RIGHTMETA', 'Right Windows key', 'R'], ['Pg Up', 'KEY_PAGEUP', 'Page Up key'],
+      ['Pg Dn', 'KEY_PAGEDOWN', 'Page Down key']]]
+  ];
+  function kbXimPageHTML(n, attr) {
+    var rows = KB_XIM_PAGES[n] || [];
+    return '<div class="sabkb saxkb">' + rows.map(function (r) {
+      return kbRowHTML(r, 'x', 0, attr);
+    }).join('') + '</div>';
+  }
+
+  /* THE MOUSE PAGE — drawn as a mouse. Wheel up/down are deliberately absent:
+     srcClass would accept them but nothing else in the app offers them, and a
+     control that silently does nothing is the class of bug this file exists
+     to end. */
+  /* the one piece of genuinely new mouse art: a side button drawn ON a mouse,
+     where srcArt would otherwise hand back a KEYCAP saying "M4" */
+  var MARK_MSIDE = mark('<rect x="15" y="7" width="19" height="34" rx="9.5"/>' +
+    '<path d="M24 7v12"/><rect x="7" y="17" width="6" height="6" rx="2" fill="currentColor" stroke="none"/>' +
+    '<rect x="7" y="27" width="6" height="6" rx="2" fill="currentColor" stroke="none"/>');
+
+  function mousePageHTML(attr) {
+    function m(code, label, say, cls) {
+      /* keycaps.js draws every mouse button ON a mouse, side buttons
+         included, so MARK_MSIDE is only the fallback now */
+      var art = (window.ZSKEYS && ZSKEYS.svg(code)) ||
+        ((code === 'BTN_SIDE' || code === 'BTN_EXTRA') ? MARK_MSIDE : srcArt(code));
+      return keyHTML(attr || 'data-src', code, art, label, say, ' mnk' + (cls || ''));
+    }
+    /* XIM's two rows (D78): the three main buttons, then the two side
+       buttons. Every tile is a mouse with that button lit (keycaps.js), so
+       a row of three mice reads as three buttons; the caption keeps the
+       word. The same picture on the trigger picker — one mouse everywhere. */
+    return '<div class="sabmouse">' +
+      '<div class="sabgrp" role="group" aria-label="mouse buttons"><div class="sabgrow">' +
+      m('BTN_LEFT', 'Left', 'left mouse button') +
+      m('BTN_MIDDLE', 'Wheel', 'middle mouse button', ' mid') +
+      m('BTN_RIGHT', 'Right', 'right mouse button') + '</div></div>' +
+      '<div class="sabgrp" role="group" aria-label="mouse side buttons"><div class="sabgrow">' +
+      m('BTN_SIDE', 'M4', 'mouse button 4') +
+      m('BTN_EXTRA', 'M5', 'mouse button 5') + '</div></div></div>';
+  }
+
+  /* what the other parts use from this one */
+  SEC.MARK_HOLDSTEP = MARK_HOLDSTEP;
+  SEC.MARK_RELEASE = MARK_RELEASE;
+  SEC.gridHTML = gridHTML;
+  SEC.kbPageHTML = kbPageHTML;
+  SEC.keyHTML = keyHTML;
+  SEC.keysOutNoteHTML = keysOutNoteHTML;
+  SEC.mousePageHTML = mousePageHTML;
+  SEC.padSourcePageHTML = padSourcePageHTML;
+  SEC.padSpecialsRowHTML = padSpecialsRowHTML;
+  SEC.padTargetPageHTML = padTargetPageHTML;
+  SEC.recSourcePageHTML = recSourcePageHTML;
+  SEC.specialPageHTML = specialPageHTML;
+  SEC.stickPageHTML = stickPageHTML;
+});

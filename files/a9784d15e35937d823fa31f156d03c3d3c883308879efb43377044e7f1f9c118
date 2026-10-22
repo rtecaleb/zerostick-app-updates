@@ -1,0 +1,74 @@
+{
+  "zerostickCv": 1,
+  "name": "Call of Duty Colour 8/28/26",
+  "publisher": "ZeroStick",
+  "game": "Call of Duty",
+  "version": "0.1.0",
+  "description": "Watches a tight box round the middle of your screen for the purple enemy dot, and nudges your right stick toward it while you are aiming down sights. It arrives UNTAUGHT and TURNED DOWN TO ZERO, and there are four things to do before it helps you. (1) TEACH THE COLOUR. The dot on screen is NOT the colour you set in the game: it is drawn see-through, so what lands on the capture card is that purple mixed with whatever is behind it. Measured, the difference is about 37 counts of chroma — four times bigger than the whole spread the match has to cover — which is why a pack that shipped E600FF would half-work and then drop out whenever the scenery changed. Until you tap the dot, your adapter is hunting its factory colour, RED. Go to Screen Assist → Tune, turn the picture on, and tap the CENTRE of an enemy dot. That is the whole of it; the pack already sets how close the colour has to be, so you do not need to touch 'How close the colour has to be' afterwards. (2) TURN THE NUDGE ON. Installing a pack does not switch on the part that reaches your stick — move 'How fast it moves your aim' once and it comes on. (3) SET HOW MUCH IT HELPS: it ships at 0%, try 60%. (4) BIND AIM TO L2, because this pack only helps while you are aiming down sights. Three things that are easy to break. The search box IS the pack: every number in here — especially how small a thing may be before it counts — assumes your adapter only looks inside that little box, and is far too twitchy without it, so do not delete the 'Search area' box. Leave the 'Ignore things bigger than' slider where it is: this pack sets it to 0.1% of the screen, which is the lowest the adapter allows, and anything higher lets a wall or a muzzle flash count as an enemy. And do not touch the 'Aim point' buttons: they set a SECOND offset, measured in nametag heights, that stacks on top of the one this pack already carries. This pack aims at the chest. Head is a different number in the pack file itself, not a button on any screen — ask for it and it gets rebuilt. Last thing, honestly: if the help gives up while your hand is shaking, that is not this pack. The stick chain is what decides your thumb has taken over, and no pack can reach it. Check Stick mode is 'tuned' rather than 'native', keep Sensitivity near 100%, and raise the right stick's inner dead zone.",
+  "capabilities": ["colorTracking", "inputCorrection"],
+  "requires": "Interface Settings → enemy colour set to E600FF (purple). Player Names → 'Icon Only'. Aim down sights bound to L2. Your reticle colour must NOT be purple. Teach the colour on your own capture before first use — the shipped colour is deliberately blank.",
+  "capture": { "width": 1280, "height": 720, "fps": 60 },
+
+  "enabled": true,
+
+  "target": { "preset": "", "tolerance": 30 },
+  "reject": {},
+  "model": { "enabled": false },
+
+  "fusion": "colour",
+  "mergeRadius": 0.06,
+  "offsetX": 0.0,
+  "offsetY": 0.0,
+  "offsetXFrac": 0.0,
+  "offsetYFrac": 0.0,
+
+  "filters": {
+    "minAreaFrac": 0.000005,
+    "maxAreaFrac": 0.001,
+    "minFill": 0.30,
+    "minAspect": 0.40,
+    "maxAspect": 2.50,
+    "textGap": 0.0,
+    "crosshairRadius": 0.0,
+    "crosshairMaxArea": 0.0,
+    "aimX": 0.5,
+    "aimY": 0.5,
+    "exclude": []
+  },
+
+  "tracking": {
+    "minHits": 2,
+    "lostAfterMs": 350,
+    "matchRadius": 0.05,
+    "staticEps": 0.0025,
+    "staticAfterS": 3.0,
+    "lockBonus": 0.25,
+    "minConfidence": 0.30,
+    "aimX": 0.5,
+    "aimY": 0.5
+  },
+
+  "assist": {
+    "activation": "ads",
+    "mode": "assist",
+    "strength": 0.0,
+    "window": 0.12,
+    "deadZone": 0.012,
+    "verticalScale": 0.6,
+    "playerAuthority": 0.55,
+    "smoothingMs": 75,
+    "leadSeconds": 0.0,
+    "minConfidence": 0.30,
+    "aimX": 0.5,
+    "aimY": 0.450
+  },
+
+  "regions": [
+    {
+      "id": "hunt-area",
+      "name": "Search area",
+      "purpose": "hunt",
+      "rect": [0.459375, 0.427778, 0.08125, 0.144444]
+    }
+  ]
+}

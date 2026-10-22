@@ -1,0 +1,945 @@
+/* mouse-dpi.js: the Mouse DPI flow (D183), ZS_DPI.
+ *
+ * A mouse config needs the mouse's real DPI (mouseTranslation.dpi): the
+ * translator rescales counts to a 1000-DPI ruler with it, so Aim Speed means
+ * the same on any mouse (D164). Most players do not know their number. This
+ * sheet finds it, two ways, offered when a keyboard-and-mouse (or Joystick +
+ * Mouse) config is made and from the Device page's Mouse DPI card (D289;
+ * D375 took the Aim page's DPI row away, the card is the one home):
+ *
+ *   AUTOMATIC  (if you don't know your DPI)
+ *     1. The Core looks at the mouse plugged into it (GET /mouse/info). A
+ *        Logitech mouse that speaks HID++ 2.0 or a Razer mouse that answers
+ *        its DPI command can be SET from here: presets 800 / 1600 / 3200 /
+ *        6400 / 8000 / 12000 or any number in the mouse's own range, 3200
+ *        picked and marked recommended (D186), Apply
+ *        (POST /mouse/dpi), and the mouse reads it back. A ruler check is
+ *        offered after.
+ *     2. Any other mouse is MEASURED, the way the DPI-analyser web pages do:
+ *        pick a reference (a 10 cm ruler, a credit card, or the player's own
+ *        phone, by brand then model, its official height), watch the mouse
+ *        slide from one end to the other in the drawing, then do it: Start,
+ *        slide, Done (POST /mouse/measure). Two or three tries, averaged;
+ *        the nearest common DPI when it is within 5%, the raw number beside.
+ *   MANUAL
+ *     Type the number.
+ *
+ * Under 3200 (or not known) is advice, never a block (D164's words; D186
+ * the owner's sentence, ADVICE below: between 3200 and 12000, 3200
+ * recommended). The wizard and the Translation tab's Calibrate card show
+ * the same sentence through ZS_DPI.advice/wantsAdvice; the Device card's
+ * picker shows its hint and, under 3200, LOW_NOTE.
+ *
+ * The Core does the USB and the counting (components/zs_mousedpi, D183);
+ * this file draws and asks. ES5 only (DESIGN.md). Load after phone-sizes.js.
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 150;
+  var TRIES_WANT = 3;
+  var TRIES_MAX = 6;
+  var NEAR = 0.05;                       /* the Core's ZS_DPI_NEAR */
+  var SPREAD_OK = 0.05;                  /* tries within 5% of each other */
+  var LOW = 3200;
+  var HIGH = 12000;
+  var RECOMMENDED = 3200;
+  var PRESETS = [800, 1600, 3200, 6400, 8000, 12000];
+  var COMMON = [400, 500, 800, 1000, 1200, 1600, 2000, 2400, 3200, 4000, 4800, 5000, 6400,
+    8000, 10000, 12000, 12800, 16000, 20000, 25600, 26000, 30000];
+  var CARD_MM = 85.6;                    /* ISO/IEC 7810 ID-1 */
+  var RULER_MM = 100;
+
+  var supportKnown = null;               /* null unknown, false: a Core before D183 */
+  var cssDone = false;
+
+  function Z() { return window.ZS; }
+  function esc(s) {
+    var z = Z();
+    if (z && z.esc) return z.esc(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function isCore() {
+    var z = Z();
+    return !!(z && typeof z.productId === 'function' && z.productId() === 'core');
+  }
+  function fmt(n) {
+    n = Math.round(num(n, 0));
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /* ── the arithmetic (pinned by test-mouse-dpi.js) ─────────────────── */
+
+  function estimate(counts, mm) {
+    counts = num(counts, 0);
+    mm = num(mm, 0);
+    return mm > 0 ? counts / (mm / 25.4) : 0;
+  }
+  function roundCommon(dpi) {
+    var best = COMMON[0], bd = Infinity, i;
+    for (i = 0; i < COMMON.length; i++) {
+      var d = Math.abs(dpi - COMMON[i]);
+      if (d < bd) { bd = d; best = COMMON[i]; }
+    }
+    return { value: best, near: dpi > 0 && bd <= NEAR * best };
+  }
+  /* the tries that count: the Core saw real movement */
+  function counted(trials) {
+    return (trials || []).filter(function (t) { return t && t.enough !== false && num(t.dpi, 0) > 0; });
+  }
+  function summary(trials) {
+    var ts = counted(trials), i, sum = 0, lo = Infinity, hi = 0;
+    if (!ts.length) return null;
+    for (i = 0; i < ts.length; i++) {
+      var d = num(ts[i].dpi, 0);
+      sum += d;
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    var raw = sum / ts.length;
+    var rc = roundCommon(raw);
+    return {
+      n: ts.length,
+      raw: raw,
+      value: rc.near ? rc.value : Math.round(raw),
+      near: rc.near,
+      common: rc.value,
+      spread: raw > 0 ? (hi - lo) / raw : 0,
+      steady: raw > 0 ? (hi - lo) / raw <= SPREAD_OK : false
+    };
+  }
+  function validDpi(v) {
+    var n = parseInt(String(v == null ? '' : v).replace(/[^0-9]/g, ''), 10);
+    return (n >= 100 && n <= 32000) ? n : 0;
+  }
+
+  /* ── the references ───────────────────────────────────────────────── */
+
+  function phones() {
+    var P = window.ZS_PHONE_SIZES;
+    return (P && P.brands) ? P.brands : [];
+  }
+  function phoneBrand(id) {
+    return phones().filter(function (b) { return b.id === id; })[0] || null;
+  }
+  function phoneModel(brandId, modelId) {
+    var b = phoneBrand(brandId);
+    return b ? (b.models.filter(function (m) { return m.id === modelId; })[0] || null) : null;
+  }
+  function refOf(kind, brandId, modelId) {
+    if (kind === 'ruler') return { kind: 'ruler', mm: RULER_MM, name: 'a ruler', what: '10 cm on the ruler' };
+    if (kind === 'card') return { kind: 'card', mm: CARD_MM, name: 'a bank card', what: 'the card’s long edge (85.6 mm)' };
+    var m = phoneModel(brandId, modelId);
+    if (!m) return null;
+    return { kind: 'phone', mm: num(m.heightMm, 0), name: 'your ' + m.name, what: 'the long edge of your ' + m.name +
+      ' (' + m.heightMm + ' mm)', brand: brandId, model: modelId, phone: m };
+  }
+
+  /* ── the drawings ─────────────────────────────────────────────────── */
+
+  var X0 = 40, X1 = 280, LEN = X1 - X0;
+
+  /* a computer mouse from above, nose up, its LEFT side lit: the side the
+     player lines up with the start, and watches arrive at the end */
+  function mouseSVG(cls, x, y) {
+    return '<g class="' + cls + '"><g transform="translate(' + x + ' ' + y + ')">' +
+      '<path class="dp-mbody" d="M19,0 C31,0 38,9 38,24 L38,44 C38,55 30,62 19,62 C8,62 0,55 0,44 L0,24 C0,9 7,0 19,0 Z"/>' +
+      '<line class="dp-mline" x1="19" y1="1" x2="19" y2="22"/>' +
+      '<rect class="dp-mwheel" x="16.5" y="6" width="5" height="10" rx="2.5"/>' +
+      '<line class="dp-medge" x1="0.5" y1="20" x2="0.5" y2="46"/>' +
+      '</g></g>';
+  }
+  function objectSVG(ref) {
+    var h = '', top = 12, bot, i;
+    if (ref.kind === 'ruler') {
+      bot = top + 40;
+      h += '<rect class="dp-obj" x="' + (X0 - 8) + '" y="' + top + '" width="' + (LEN + 16) + '" height="40" rx="3"/>';
+      for (i = 0; i <= 100; i++) {
+        var x = X0 + i * LEN / 100, len = i % 10 === 0 ? 15 : (i % 5 === 0 ? 10 : 6);
+        h += '<line class="dp-tick" x1="' + x.toFixed(1) + '" y1="' + bot + '" x2="' + x.toFixed(1) + '" y2="' + (bot - len) + '"/>';
+        if (i % 10 === 0) h += '<text class="dp-num" x="' + x.toFixed(1) + '" y="' + (top + 12) + '">' + (i / 10) + '</text>';
+      }
+    } else if (ref.kind === 'card') {
+      var ch = Math.round(LEN * 53.98 / CARD_MM);
+      bot = top + ch;
+      h += '<rect class="dp-obj" x="' + X0 + '" y="' + top + '" width="' + LEN + '" height="' + ch + '" rx="11"/>' +
+        '<rect class="dp-chip" x="' + (X0 + 22) + '" y="' + (top + 46) + '" width="34" height="26" rx="5"/>' +
+        '<rect class="dp-bar" x="' + (X0 + 22) + '" y="' + (top + 92) + '" width="150" height="9" rx="4.5"/>' +
+        '<rect class="dp-bar" x="' + (X0 + 22) + '" y="' + (top + 112) + '" width="80" height="7" rx="3.5"/>';
+    } else {
+      /* a phone lying on its side, back up: a plain rounded slab with a
+         camera bump, no maker's marks (the owner's rule) */
+      var ph = 112;
+      bot = top + ph;
+      h += '<rect class="dp-obj" x="' + X0 + '" y="' + top + '" width="' + LEN + '" height="' + ph + '" rx="20"/>' +
+        '<rect class="dp-bump" x="' + (X0 + 12) + '" y="' + (top + 12) + '" width="48" height="48" rx="13"/>' +
+        '<circle class="dp-lens" cx="' + (X0 + 26) + '" cy="' + (top + 26) + '" r="8"/>' +
+        '<circle class="dp-lens" cx="' + (X0 + 46) + '" cy="' + (top + 26) + '" r="8"/>' +
+        '<circle class="dp-lens" cx="' + (X0 + 26) + '" cy="' + (top + 46) + '" r="8"/>';
+    }
+    return { svg: h, bottom: bot };
+  }
+  /* the whole picture: the object, the start and end lines, the mouse.
+     `mode` 'demo' loops the slide (a still start and end under Reduce
+     Motion); 'live' leaves the mouse for liveMove() to place. */
+  function sceneSVG(ref, mode) {
+    var o = objectSVG(ref);
+    var my = o.bottom + 8, vbH = my + 62 + 26;
+    var label = 'Slide the mouse from the start line to the end line along ' + ref.what;
+    return '<svg class="dp-scene dp-' + mode + '" viewBox="0 0 320 ' + vbH + '" role="img" aria-label="' + esc(label) + '">' +
+      o.svg +
+      '<line class="dp-guide" x1="' + X0 + '" y1="6" x2="' + X0 + '" y2="' + (my + 66) + '"/>' +
+      '<line class="dp-guide" x1="' + X1 + '" y1="6" x2="' + X1 + '" y2="' + (my + 66) + '"/>' +
+      '<text class="dp-lab" x="' + X0 + '" y="' + (vbH - 6) + '">start</text>' +
+      '<text class="dp-lab" x="' + X1 + '" y="' + (vbH - 6) + '">end</text>' +
+      (mode === 'demo' ? mouseSVG('dp-ghost', X1, my) +
+        '<path class="dp-arrow" d="M' + (X0 + 50) + ',' + (my + 31) + ' L' + (X1 - 12) + ',' + (my + 31) + ' m-8,-6 l8,6 l-8,6"/>' : '') +
+      mouseSVG('dp-m', X0, my) +
+      '</svg>';
+  }
+  function refIcon(kind) {
+    if (kind === 'ruler') {
+      return '<svg viewBox="0 0 44 28" aria-hidden="true"><rect class="dp-obj" x="2" y="7" width="40" height="14" rx="2"/>' +
+        '<path class="dp-tick" d="M6 21v-6M10 21v-3M14 21v-6M18 21v-3M22 21v-6M26 21v-3M30 21v-6M34 21v-3M38 21v-6"/></svg>';
+    }
+    if (kind === 'card') {
+      return '<svg viewBox="0 0 44 28" aria-hidden="true"><rect class="dp-obj" x="4" y="3" width="36" height="23" rx="3"/>' +
+        '<rect class="dp-chip" x="8" y="10" width="7" height="6" rx="1.5"/></svg>';
+    }
+    return '<svg viewBox="0 0 44 28" aria-hidden="true"><rect class="dp-obj" x="2" y="5" width="40" height="19" rx="5"/>' +
+      '<rect class="dp-bump" x="5" y="8" width="9" height="9" rx="3"/></svg>';
+  }
+
+  /* ── the sheet ────────────────────────────────────────────────────── */
+
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'dp-css';
+    s.textContent =
+      '.dp-q{font-size:17px;font-weight:600;letter-spacing:var(--tr-title,-.016em);margin:2px 0 6px}' +
+      '.dp-h{font-size:13.5px;line-height:1.5;color:var(--muted);margin:0 0 12px}' +
+      '.dp-choices{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}' +
+      '.dp-two{display:flex;gap:8px;margin-top:10px;width:100%}' +
+      '.dp-two .btn{flex:1}' +
+      '.dp-choice{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:var(--r-card,14px);' +
+        'background:var(--panel2);border:1.5px solid var(--line);color:var(--text);font:inherit;min-height:44px}' +
+      '.dp-choice b{display:block;font-size:16px;font-weight:600}' +
+      '.dp-choice span{display:block;font-size:13px;color:var(--muted);margin-top:2px}' +
+      '.dp-choice[disabled]{opacity:.5}' +
+      '.dp-list{border-radius:var(--r-card,14px);background:var(--panel2);overflow:hidden;margin:0 0 12px}' +
+      '.dp-row{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:10px 14px;background:none;' +
+        'border:0;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left}' +
+      '.dp-row:last-child{border-bottom:0}' +
+      '.dp-row svg{flex:0 0 44px;height:28px}' +
+      '.dp-row .dp-rt{flex:1}' +
+      '.dp-row .dp-rt em{display:block;font-style:normal;font-size:12.5px;color:var(--muted)}' +
+      '.dp-row .dp-rd{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}' +
+      '.dp-row .dp-chev{color:var(--muted);font-size:18px}' +
+      '.dp-presets{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}' +
+      '.dp-presets button{flex:1 1 60px;min-height:44px;border-radius:var(--r-ctl,10px);background:var(--panel2);' +
+        'border:1.5px solid var(--line);color:var(--text);font:inherit;font-variant-numeric:tabular-nums;font-weight:600}' +
+      '.dp-presets button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}' +
+      '.dp-presets button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}' +
+      '.dp-presets .dp-rec{font-size:11px;font-weight:500;letter-spacing:var(--tr-caption,.004em);opacity:.9}' +
+      '.dp-big{font-size:34px;font-weight:700;letter-spacing:var(--tr-display,-.028em);line-height:1.06;' +
+        'font-variant-numeric:tabular-nums;margin:4px 0 2px}' +
+      '.dp-sub{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;margin:0 0 12px}' +
+      '.dp-livebox{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;font-variant-numeric:tabular-nums}' +
+      '.dp-livebox b{font-size:24px}' +
+      '.dp-tries{list-style:none;padding:0;margin:0 0 10px;font-variant-numeric:tabular-nums}' +
+      '.dp-tries li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}' +
+      '.dp-tries li:last-child{border-bottom:0}' +
+      '.dp-tries em{font-style:normal;color:var(--muted);font-size:12.5px}' +
+      '.dp-steps{margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.5}' +
+      '.dp-steps li{margin:0 0 4px}' +
+      '.dp-scenebox{background:var(--panel2);border-radius:var(--r-card,14px);padding:8px;margin:0 0 12px}' +
+      '.dp-scene{display:block;width:100%;height:auto}' +
+      '.dp-obj{fill:var(--zs-raised,#1d2534);stroke:var(--muted);stroke-width:1.2}' +
+      '.dp-tick{stroke:var(--muted);stroke-width:1;fill:none}' +
+      '.dp-num{fill:var(--muted);font-size:9px;text-anchor:middle}' +
+      '.dp-chip{fill:var(--amber,#e3b341);opacity:.55}' +
+      '.dp-bar{fill:var(--muted);opacity:.35}' +
+      '.dp-bump{fill:var(--zs-control,#27313f);stroke:var(--muted);stroke-width:1}' +
+      '.dp-lens{fill:var(--bg,#06080c);stroke:var(--muted);stroke-width:1}' +
+      '.dp-guide{stroke:var(--accent);stroke-width:1.4;stroke-dasharray:4 4}' +
+      '.dp-lab{fill:var(--accent);font-size:11px;text-anchor:middle;letter-spacing:.02em}' +
+      '.dp-mbody{fill:var(--text);opacity:.92}' +
+      '.dp-mline{stroke:var(--bg,#06080c);stroke-width:1.2}' +
+      '.dp-mwheel{fill:var(--bg,#06080c)}' +
+      '.dp-medge{stroke:var(--accent);stroke-width:3;stroke-linecap:round}' +
+      '.dp-arrow{fill:none;stroke:var(--accent);stroke-width:1.6;opacity:.7}' +
+      '.dp-ghost{opacity:.3;display:none}' +
+      '.dp-arrow{display:none}' +
+      /* the demo: the mouse waits at the start, slides to the end, rests,
+         fades and comes back. Fixed-duration on purpose: nobody can grab it
+         (DESIGN.md: springs are for what a finger touches) */
+      '.dp-demo .dp-m{animation:dp-slide 3.4s cubic-bezier(.45,0,.25,1) infinite}' +
+      '@keyframes dp-slide{0%,14%{transform:translateX(0);opacity:1}62%,84%{transform:translateX(' + LEN + 'px);opacity:1}' +
+        '94%{transform:translateX(' + LEN + 'px);opacity:0}95%{transform:translateX(0);opacity:0}100%{transform:translateX(0);opacity:1}}' +
+      '.dp-live .dp-m{transition:transform 140ms linear}' +
+      /* Reduce Motion: a still start, the end as a ghost, an arrow between */
+      '@media (prefers-reduced-motion: reduce){.dp-demo .dp-m{animation:none}.dp-demo .dp-ghost,.dp-demo .dp-arrow{display:inline}' +
+        '.dp-live .dp-m{transition:none}}' +
+      'body.a11y-motion .dp-demo .dp-m{animation:none}' +
+      'body.a11y-motion .dp-demo .dp-ghost,body.a11y-motion .dp-demo .dp-arrow{display:inline}' +
+      '.dp-fld .salab em{display:block;font-style:normal;font-size:12px;color:var(--muted);font-weight:400}' +
+      /* D289: the shared picker - three presets a row, a quiet hint */
+      '.dp-pick .dp-presets button{flex:1 1 28%}' +
+      '.dp-hint{font-size:12.5px;color:var(--muted);margin:6px 2px 0;line-height:1.4}' +
+      '.dp-low .note{margin:8px 0 0}' +
+      '.dp-back{background:none;border:0;color:var(--accent);font:inherit;font-size:15px;padding:6px 0;margin:0 0 6px;min-height:44px}';
+    document.head.appendChild(s);
+  }
+
+  function btn(label, kind, id, disabled) {
+    return '<button class="btn' + (kind ? ' ' + kind : '') + '" id="' + id + '"' +
+      (disabled ? ' disabled aria-disabled="true"' : '') + '>' + esc(label) + '</button>';
+  }
+  function note(t, kind) {
+    return '<div class="note' + (kind ? ' ' + kind : '') + '">' + t + '</div>';
+  }
+  function api(path, method, body) {
+    var z = Z();
+    if (!z || !z.api) return Promise.resolve({ ok: false, error: 'no answer' });
+    return z.api(path, method, body).then(function (j) { return j || { ok: false, error: 'no answer' }; },
+      function (e) { return { ok: false, error: String(e && e.message || e || 'no answer') }; });
+  }
+  function noRoute(j) {
+    return /does not answer|501|not found|no such|not implemented/i.test(String((j && j.error) || ''));
+  }
+
+  /* D186: the owner's sentence, word for word, wherever a DPI is set or
+     shown and it is under 3200 or not known. A gentle note, never a block. */
+  var ADVICE = 'For the best experience set your mouse between ' + LOW + ' and ' + HIGH +
+    ' DPI (' + RECOMMENDED + ' recommended).';
+  function wantsAdvice(dpi) {
+    var n = Number(dpi);
+    return !(isFinite(n) && n >= LOW);
+  }
+  var LOW_WORDS = ADVICE + ' Lower still works, but small movements get coarse: each step of ' +
+    'the mouse moves your aim further.';
+  var LOW_FIX = 'Most gaming mice have a DPI button (often just behind the scroll wheel, or underneath). ' +
+    'Press it until the mouse is in that range, then measure again.';
+  var LOW_TYPE = ' If your mouse can go higher, set it in that range and type the new number.';
+
+  /* ── one sheet ── */
+
+  function open(opts) {
+    opts = opts || {};
+    css();
+    var W = {
+      opts: opts,
+      page: opts.start === 'manual' ? 'manual' : (opts.start === 'auto' ? 'probe' : 'choose'),
+      stack: [],
+      info: null, err: '', lead: '', busy: false, closed: false,
+      pick: RECOMMENDED, setRes: null, checkSet: 0,
+      refKind: '', brand: '', model: '', ref: null,
+      trials: [], measuring: false, live: null, lastTry: null, timer: null,
+      manual: opts.current ? String(opts.current) : ''
+    };
+    W.paint = function () { paint(W); };
+    /* Automatic needs a Core that has the routes: anywhere else the choice
+       page says why, and Manual is right there */
+    if (W.page === 'probe' && (!isCore() || supportKnown === false)) W.page = 'choose';
+    if (W.page === 'probe') { W.stack.push('choose'); probe(W); }
+    paint(W);
+    return W;
+  }
+
+  function stopPoll(W) {
+    if (W.timer) { clearTimeout(W.timer); W.timer = null; }
+    W.pollGen = (W.pollGen || 0) + 1;    /* an answer still on its way asks no more */
+  }
+  function teardown(W) {
+    if (W.closed) return;
+    W.closed = true;
+    stopPoll(W);
+    if (W.measuring) api('/mouse/measure', 'POST', { op: 'cancel' });
+    W.measuring = false;
+    /* D289: whoever opened the sheet hears it close, used or cancelled (the
+       Device room closes its own panel to open this one and puts it back) */
+    if (W.opts.onClose) { try { W.opts.onClose(!!W.done); } catch (e) {} }
+  }
+  function go(W, page) {
+    W.stack.push(W.page);
+    W.page = page;
+    W.err = '';
+    W.paint();
+  }
+  function back(W) {
+    if (W.measuring) { api('/mouse/measure', 'POST', { op: 'cancel' }); W.measuring = false; stopPoll(W); }
+    W.err = '';
+    W.page = W.stack.length ? W.stack.pop() : 'choose';
+    if (W.page === 'probe') W.page = W.stack.length ? W.stack.pop() : 'choose';
+    W.paint();
+  }
+  function finish(W, dpi, how, words) {
+    var cb = W.opts.onDone;
+    W.done = true;
+    Z().sheetClose();            /* runs teardown */
+    if (cb) cb(dpi, how, words || '');
+  }
+
+  function paint(W) {
+    if (W.closed) return;
+    var html = body(W);
+    var wrap = document.getElementById('sheetwrap');
+    var fresh = !wrap || !wrap.classList.contains('open');
+    var el = Z().sheetOpen('Mouse DPI', html, fresh ? function () { teardown(W); } : undefined);
+    if (fresh) W.closed = false;
+    if (Z().wire) Z().wire(el, 'dpi/sheet');
+    wire(W, el);
+  }
+
+  function backBtn(W) {
+    return W.stack.length ? '<button class="dp-back" id="dp-back">‹ Back</button>' : '';
+  }
+
+  function body(W) {
+    var h = backBtn(W);
+    switch (W.page) {
+    case 'manual': return h + pageManual(W);
+    case 'probe': return h + pageProbe(W);
+    case 'set': return h + pageSet(W);
+    case 'setDone': return h + pageSetDone(W);
+    case 'ref': return h + pageRef(W);
+    case 'brand': return h + pageBrand(W);
+    case 'model': return h + pageModel(W);
+    case 'measure': return h + pageMeasure(W);
+    case 'result': return h + pageResult(W);
+    default: return pageChoose(W);
+    }
+  }
+  function errNote(W) { return W.err ? note(esc(W.err), 'warn') : ''; }
+
+  function pageChoose(W) {
+    var core = isCore(), can = core && supportKnown !== false;
+    return '<p class="dp-q">How do you want to set your mouse’s DPI?</p>' +
+      '<p class="dp-h">DPI is how many steps your mouse counts per inch. The Core needs the real number so your aim ' +
+        'feels the same on any mouse.</p>' +
+      '<div class="dp-choices">' +
+        '<button class="dp-choice" id="dp-auto"' + (can ? '' : ' disabled aria-disabled="true"') + '>' +
+          '<b>Automatic</b><span>if you don’t know your DPI</span></button>' +
+        '<button class="dp-choice" id="dp-manual"><b>Manual</b><span>type the number your mouse is set to</span></button>' +
+      '</div>' +
+      /* D188: the rate test, beside DPI as on XIM */
+      (window.ZS_MRATE ? '<button class="dp-back" id="dp-rate">Check your mouse’s rate (Hz) ›</button>' : '') +
+      (!core ? note('Automatic needs your mouse plugged into a ZeroStick Core.') :
+        supportKnown === false ? note('This Core’s firmware can’t do Automatic yet. Update the Core, or choose Manual.') : '');
+  }
+
+  function pageManual(W) {
+    var v = validDpi(W.manual);
+    var low = v > 0 && v < LOW;
+    return '<p class="dp-q">Type your mouse’s DPI</p>' +
+      '<p class="dp-h">The number your mouse is set to right now (its software shows it).</p>' +
+      '<div class="grp-card"><div class="fld col"><div class="flab">Mouse DPI</div>' +
+        '<input class="txt" id="dp-mval" data-nosave="1" inputmode="numeric" style="margin-top:10px" value="' +
+        esc(W.manual) + '" placeholder="e.g. 3200" aria-label="Mouse DPI"></div></div>' +
+      '<div id="dp-mnote">' + (low ? note(LOW_WORDS + LOW_TYPE) : (v ? '' : note(ADVICE))) + '</div>' +
+      btn(v ? 'Use ' + fmt(v) + ' DPI' : 'Use this DPI', 'primary', 'dp-muse', !v);
+  }
+
+  function pageProbe(W) {
+    var ret = (window.ZSLOGO && ZSLOGO.reticle) ? ZSLOGO.reticle({ size: 28, state: 'scanning' }) : '';
+    return '<p class="dp-q">Looking at your mouse…</p>' +
+      '<p class="dp-h">' + ret + ' The Core is asking the mouse plugged into it what it is.</p>' + errNote(W) +
+      (W.err ? '<div class="dp-two">' + btn('Try again', 'primary', 'dp-retry') + btn('Manual', null, 'dp-tomanual') + '</div>' : '');
+  }
+
+  function rangeOf(info) {
+    var r = info && info.range;
+    if (r && r.max > 0) return { min: Math.max(100, num(r.min, 100)), max: Math.min(32000, num(r.max, 32000)), step: num(r.step, 0) || 50 };
+    return { min: 100, max: 32000, step: 50 };
+  }
+  function pageSet(W) {
+    var i = W.info || {}, r = rangeOf(i), name = i.name || 'mouse';
+    var pre = PRESETS.filter(function (v) { return v >= r.min && v <= r.max; });
+    var h = '<p class="dp-q">Your ' + esc(name) + ' can be set from here</p>' +
+      '<p class="dp-h">' + (i.dpi ? 'It is at <b>' + fmt(i.dpi) + ' DPI</b> now. ' : '') +
+      'Pick a DPI and the Core will set it.</p>';
+    h += '<div class="dp-presets" id="dp-presets" role="group" aria-label="DPI presets">' + pre.map(function (v) {
+      var rec = v === RECOMMENDED;
+      return '<button data-v="' + v + '"' + (W.pick === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') +
+        (rec ? ' aria-label="' + fmt(v) + ', recommended"' : '') + '>' + fmt(v) +
+        (rec ? '<span class="dp-rec" aria-hidden="true">recommended</span>' : '') + '</button>';
+    }).join('') + '</div>';
+    h += '<div class="grp-card"><div class="fld dp-fld"><div class="salab">Or any number<em>' + fmt(r.min) + ' to ' + fmt(r.max) +
+      '</em></div><span class="stp"><button data-d="-' + r.step + '" aria-label="decrease">−</button>' +
+      '<b class="sv" data-nosave="1" data-f="pick" data-min="' + r.min + '" data-max="' + r.max + '">' + W.pick + '</b>' +
+      '<button data-d="' + r.step + '" aria-label="increase">+</button></span></div></div>';
+    if (W.pick < LOW) h += note(LOW_WORDS);
+    h += errNote(W);
+    h += btn(W.busy ? 'Setting…' : 'Apply ' + fmt(W.pick) + ' DPI', 'primary', 'dp-apply', W.busy) +
+      '<div class="dp-two">' + btn('Measure it instead', null, 'dp-tomeasure') + '</div>';
+    return h;
+  }
+  function pageSetDone(W) {
+    var s = W.setRes || {}, name = (W.info && W.info.name) || 'mouse';
+    var h = '<p class="dp-q">Done</p>' +
+      '<div class="dp-big">' + fmt(s.dpi) + ' DPI</div>' +
+      '<p class="dp-sub">' + (s.verified ? 'Your ' + esc(name) + ' confirmed it.' : 'Set, but the mouse did not confirm it.') + '</p>' +
+      (s.note ? note(esc(s.note)) : '') +
+      (num(s.dpi, 0) < LOW ? note(LOW_WORDS) : '') +
+      btn('Use ' + fmt(s.dpi) + ' DPI', 'primary', 'dp-useset') +
+      '<div class="dp-two">' + btn('Check it with a ruler', null, 'dp-check') + '</div>';
+    return h;
+  }
+
+  function pageRef(W) {
+    var h = W.lead ? note(esc(W.lead)) : '';
+    h += '<p class="dp-q">What will you slide the mouse along?</p>' +
+      '<p class="dp-h">You slide the mouse a distance the Core knows, and it counts the steps. Use something flat on your desk.</p>' +
+      '<div class="dp-list" role="list">' +
+      row('ref', 'ruler', refIcon('ruler'), 'Ruler', '10 cm on any ruler', '') +
+      row('ref', 'card', refIcon('card'), 'Credit card', 'any bank card: they are all 85.6 mm', '') +
+      (phones().length ? row('ref', 'phone', refIcon('phone'), 'My phone', 'its long edge, lying on its side', '') : '') +
+      '</div>';
+    return h;
+  }
+  function row(kind, v, icon, title, sub, detail) {
+    return '<button class="dp-row" role="listitem" data-' + kind + '="' + esc(v) + '">' + (icon || '') +
+      '<span class="dp-rt">' + esc(title) + (sub ? '<em>' + esc(sub) + '</em>' : '') + '</span>' +
+      (detail ? '<span class="dp-rd">' + esc(detail) + '</span>' : '') +
+      '<span class="dp-chev" aria-hidden="true">›</span></button>';
+  }
+  function pageBrand(W) {
+    return '<p class="dp-q">Which phone?</p>' +
+      '<div class="dp-list" role="list">' + phones().map(function (b) {
+        return row('brand', b.id, '', b.name, b.models.length + ' models', '');
+      }).join('') + '</div>' +
+      note('Take it out of its case first: a case makes it longer.');
+  }
+  function pageModel(W) {
+    var b = phoneBrand(W.brand);
+    if (!b) return pageBrand(W);
+    return '<p class="dp-q">Which ' + esc(b.name) + '?</p>' +
+      '<p class="dp-h">Newest first. The length is the maker’s own figure, without a case.</p>' +
+      '<div class="dp-list" role="list">' + b.models.map(function (m) {
+        return row('model', m.id, '', m.name, m.note || '', num(m.heightMm, 0).toFixed(1) + ' mm');
+      }).join('') + '</div>';
+  }
+
+  function tryLine(t, i) {
+    var why = !t.enough ? 'not counted: the Core hardly saw it move' :
+      !t.straight ? 'the mouse was turned a little' : !t.steady ? 'it went back a little' : '';
+    return '<li><span>Try ' + (i + 1) + (why ? ' <em>· ' + esc(why) + '</em>' : '') + '</span><b>' +
+      (t.enough ? fmt(t.dpi) + ' DPI' : '—') + '</b></li>';
+  }
+  function pageMeasure(W) {
+    var ref = W.ref;
+    if (!ref) return pageRef(W);
+    var n = counted(W.trials).length, sum = summary(W.trials);
+    var h = '<p class="dp-q">Slide along ' + esc(ref.name) + '</p>' +
+      '<div class="dp-scenebox">' + sceneSVG(ref, W.measuring ? 'live' : 'demo') + '</div>' +
+      '<ol class="dp-steps">' +
+        '<li>' + (ref.kind === 'phone' ? 'Take the phone out of its case and lay it flat on its side'
+          : 'Lay the ' + (ref.kind === 'ruler' ? 'ruler' : 'card') + ' flat') +
+          ', then put the mouse against its bottom edge.</li>' +
+        '<li>Line the mouse’s <b>left side</b> up with the <b>start</b>' + (ref.kind === 'ruler' ? ' (the 0 mark)' : ' (the left end)') + '.</li>' +
+        '<li>Tap Start, slide right until the left side reaches the <b>end</b>' + (ref.kind === 'ruler' ? ' (10 cm)' : '') +
+          ', then tap Done. Keep it straight, and don’t lift it.</li>' +
+      '</ol>';
+    if (W.measuring) {
+      h += '<div class="dp-livebox" aria-live="polite"><span>Try ' + (W.trials.length + 1) + '</span>' +
+        '<span><b id="dp-count">' + fmt(W.live ? W.live.counts : 0) + '</b> counts</span></div>' +
+        '<p class="dp-sub" id="dp-est">' + estWords(W) + '</p>' +
+        '<div class="dp-two">' + btn('Done', 'primary', 'dp-done') + btn('Cancel this try', null, 'dp-cancel') + '</div>';
+    } else {
+      if (W.trials.length) {
+        h += '<ul class="dp-tries">' + W.trials.map(tryLine).join('') + '</ul>';
+      }
+      if (W.lastTry && W.lastTry.enough && !W.lastTry.straight) {
+        h += note('The mouse was turned about ' + Math.round(Math.atan(num(W.lastTry.cross, 0)) * 180 / Math.PI) +
+          '° on that try. The Core allows for it, but holding it square is steadier.');
+      }
+      if (W.lastTry && !W.lastTry.enough) {
+        h += note('The Core hardly saw the mouse move. Is it plugged into the Core? Then try again.', 'warn');
+      }
+      if (sum && n >= 2 && !sum.steady) {
+        h += note('Your tries are ' + Math.round(sum.spread * 100) + '% apart. One more will steady it.');
+      }
+      h += errNote(W);
+      var more = W.trials.length < TRIES_MAX;
+      h += '<div class="dp-two">' +
+        (more ? btn(W.trials.length ? 'Try ' + (W.trials.length + 1) : 'Start', n >= 2 ? null : 'primary', 'dp-start', W.busy) : '') +
+        (n >= 2 ? btn('See the result', 'primary', 'dp-result') : '') + '</div>';
+      if (n < 2) h += '<p class="dp-sub">Do it ' + (n ? 'at least once more' : 'two or three times') + ': the Core averages the tries.</p>';
+    }
+    return h;
+  }
+  function estWords(W) {
+    var c = W.live ? num(W.live.counts, 0) : 0;
+    if (c < 20) return 'Waiting for the mouse to move…';
+    return 'If you are at the end now, that is about ' + fmt(estimate(c, W.ref.mm)) + ' DPI.';
+  }
+
+  function pageResult(W) {
+    var s = summary(W.trials);
+    if (!s) return pageMeasure(W);
+    var h = '<p class="dp-q">Your mouse is at</p>' +
+      '<div class="dp-big">' + (s.near ? 'about ' : '') + fmt(s.value) + ' DPI</div>' +
+      '<p class="dp-sub">measured ' + fmt(s.raw) + ' · ' + s.n + ' tries: ' +
+        counted(W.trials).map(function (t) { return fmt(t.dpi); }).join(', ') + '</p>';
+    if (W.checkSet) {
+      var off = Math.abs(s.raw - W.checkSet) / W.checkSet;
+      h += off <= NEAR
+        ? note('✓ That matches the ' + fmt(W.checkSet) + ' DPI the mouse was set to.')
+        : note('The mouse measured ' + fmt(s.value) + ', not the ' + fmt(W.checkSet) + ' it was set to. Its DPI ' +
+          'button may have changed it. Use the measured number, or set it again.', 'warn');
+    }
+    if (s.value < LOW) h += note(LOW_WORDS + ' ' + LOW_FIX);
+    h += btn('Use ' + fmt(s.value) + ' DPI', 'primary', 'dp-usem') +
+      '<div class="dp-two">' + btn('Measure again', null, 'dp-again') + '</div>';
+    return h;
+  }
+
+  /* ── talking to the Core ── */
+
+  function probe(W) {
+    W.err = '';
+    W.page = 'probe';
+    api('/mouse/info').then(function (j) {
+      if (W.closed) return;
+      if (!j.ok) {
+        if (noRoute(j)) {
+          supportKnown = false;
+          W.stack = [];
+          W.page = 'choose';
+        } else {
+          W.err = String(j.error || 'The Core did not answer.');
+        }
+        W.paint();
+        return;
+      }
+      supportKnown = true;
+      var d = j.data || {};
+      W.info = d;
+      if (!d.present) {
+        W.err = 'No mouse is plugged into the Core. Plug your mouse into the Core’s USB port, then tap Try again.';
+        W.paint();
+        return;
+      }
+      if (d.settable) {
+        W.pick = RECOMMENDED;
+        var r = rangeOf(d);
+        if (W.pick > r.max) W.pick = r.max;
+        W.page = 'set';
+      } else {
+        W.lead = 'The Core can’t set the DPI on ' + (d.name ? 'your ' + d.name : 'this mouse') +
+          ', so let’s measure it. It takes about a minute.';
+        W.page = 'ref';
+      }
+      W.paint();
+    });
+  }
+
+  function apply(W) {
+    W.busy = true;
+    W.err = '';
+    W.paint();
+    api('/mouse/dpi', 'POST', { dpi: W.pick }).then(function (j) {
+      if (W.closed) return;
+      W.busy = false;
+      if (!j.ok) {
+        W.err = String(j.error || 'The mouse did not take it.');
+        W.paint();
+        return;
+      }
+      W.setRes = j.data || {};
+      go(W, 'setDone');
+    });
+  }
+
+  /* CHAINED, not an interval (audit m26): the next ask goes POLL_MS after
+     the last answer, so over Bluetooth, where one answer can take longer
+     than POLL_MS, asks never pile up behind each other */
+  function poll(W) {
+    stopPoll(W);
+    var gen = W.pollGen;
+    function next() {
+      W.timer = setTimeout(function () {
+        W.timer = null;
+        api('/mouse/measure').then(function (j) {
+          if (W.closed || !W.measuring || gen !== W.pollGen) return;
+          if (j && j.ok && j.data) { W.live = j.data; liveUpdate(W); }
+          next();
+        }, function () { if (!W.closed && W.measuring && gen === W.pollGen) next(); });
+      }, POLL_MS);
+    }
+    next();
+  }
+  /* the count and the drawn mouse, without repainting the sheet: the
+     buttons under the player's finger must not be rebuilt 7 times a second */
+  function liveUpdate(W) {
+    var c = document.getElementById('dp-count');
+    var e = document.getElementById('dp-est');
+    if (c) c.textContent = fmt(W.live.counts);
+    if (e) e.innerHTML = estWords(W);
+    /* from the second try the mouse in the drawing moves with the real
+       one: the first try's count is the length of the slide */
+    var prev = counted(W.trials)[0];
+    var m = document.querySelector('.dp-live .dp-m');
+    if (m && prev && num(prev.counts, 0) > 0) {
+      var f = clamp(num(W.live.counts, 0) / num(prev.counts, 1), 0, 1.08);
+      m.style.transform = 'translateX(' + (f * LEN).toFixed(1) + 'px)';
+    }
+  }
+
+  function startTry(W) {
+    W.err = '';
+    W.busy = true;
+    W.lastTry = null;
+    api('/mouse/measure', 'POST', { op: 'start' }).then(function (j) {
+      if (W.closed) return;
+      W.busy = false;
+      if (!j.ok) {
+        W.err = noRoute(j) ? 'This Core’s firmware can’t measure yet. Update the Core, or choose Manual.'
+          : String(j.error || 'The Core did not start.');
+        W.paint();
+        return;
+      }
+      W.measuring = true;
+      W.live = j.data || { counts: 0 };
+      W.paint();
+      poll(W);
+    });
+  }
+  function doneTry(W) {
+    stopPoll(W);
+    api('/mouse/measure', 'POST', { op: 'stop', mm: W.ref.mm }).then(function (j) {
+      if (W.closed) return;
+      W.measuring = false;
+      if (!j.ok || !j.data || !j.data.trial) {
+        W.err = String((j && j.error) || (j.data && j.data.why) || 'The Core did not count that try.');
+        W.paint();
+        return;
+      }
+      var t = j.data.trial;
+      W.lastTry = t;
+      W.trials.push(t);
+      var s = summary(W.trials);
+      if (s && s.n >= TRIES_WANT && s.steady) { go(W, 'result'); return; }
+      W.paint();
+    });
+  }
+
+  /* ── the wiring ── */
+
+  function wire(W, el) {
+    function on(id, fn) {
+      var b = el.querySelector('#' + id);
+      if (b) b.addEventListener('click', function (e) { if (!b.disabled) fn(e, b); });
+    }
+    on('dp-back', function () { back(W); });
+    on('dp-auto', function () { W.stack.push('choose'); probe(W); W.paint(); });
+    on('dp-manual', function () { go(W, 'manual'); });
+    on('dp-rate', function () {
+      Z().sheetClose();            /* runs teardown */
+      if (window.ZS_MRATE) window.ZS_MRATE.open({ start: 'rate' });
+    });
+    on('dp-tomanual', function () { go(W, 'manual'); });
+    on('dp-retry', function () { probe(W); W.paint(); });
+    var mv = el.querySelector('#dp-mval');
+    if (mv) mv.addEventListener('input', function () {
+      W.manual = String(mv.value || '').replace(/[^0-9]/g, '').slice(0, 5);
+      var v = validDpi(W.manual);
+      var nb = el.querySelector('#dp-mnote');
+      if (nb) nb.innerHTML = (v > 0 && v < LOW) ? note(LOW_WORDS + LOW_TYPE) : (v ? '' : note(ADVICE));
+      var u = el.querySelector('#dp-muse');
+      if (u) {
+        u.disabled = !v;
+        if (v) u.removeAttribute('aria-disabled'); else u.setAttribute('aria-disabled', 'true');
+        u.textContent = v ? 'Use ' + fmt(v) + ' DPI' : 'Use this DPI';
+      }
+    });
+    on('dp-muse', function () {
+      var v = validDpi(W.manual);
+      if (v) finish(W, v, 'manual', 'typed in');
+    });
+    var pr = el.querySelector('#dp-presets');
+    if (pr) pr.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () { W.pick = num(b.getAttribute('data-v'), RECOMMENDED); W.paint(); });
+    });
+    el.addEventListener('zsstep', function (e) {
+      var t = e.target, f = t && t.getAttribute ? t.getAttribute('data-f') : null;
+      if (f !== 'pick') return;
+      var r = rangeOf(W.info);
+      W.pick = clamp(Math.round(num(parseFloat(t.textContent), W.pick)), r.min, r.max);
+      W.paint();
+    });
+    on('dp-apply', function () { apply(W); });
+    on('dp-tomeasure', function () { W.lead = ''; go(W, 'ref'); });
+    on('dp-useset', function () {
+      var s = W.setRes || {};
+      finish(W, num(s.dpi, W.pick), 'set', 'set on your ' + ((W.info && W.info.name) || 'mouse'));
+    });
+    on('dp-check', function () { W.checkSet = num((W.setRes || {}).dpi, 0); W.lead = ''; W.trials = []; go(W, 'ref'); });
+    el.querySelectorAll('[data-ref]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-ref');
+        if (k === 'phone') { go(W, 'brand'); return; }
+        W.ref = refOf(k);
+        W.trials = [];
+        W.lastTry = null;
+        go(W, 'measure');
+      });
+    });
+    el.querySelectorAll('[data-brand]').forEach(function (b) {
+      b.addEventListener('click', function () { W.brand = b.getAttribute('data-brand'); go(W, 'model'); });
+    });
+    el.querySelectorAll('[data-model]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        W.model = b.getAttribute('data-model');
+        W.ref = refOf('phone', W.brand, W.model);
+        W.trials = [];
+        W.lastTry = null;
+        if (W.ref) go(W, 'measure');
+      });
+    });
+    on('dp-start', function () { startTry(W); });
+    on('dp-done', function () { doneTry(W); });
+    on('dp-cancel', function () {
+      stopPoll(W);
+      W.measuring = false;
+      api('/mouse/measure', 'POST', { op: 'cancel' });
+      W.paint();
+    });
+    on('dp-result', function () { go(W, 'result'); });
+    on('dp-again', function () { W.trials = []; W.lastTry = null; back(W); });
+    on('dp-usem', function () {
+      var s = summary(W.trials);
+      if (s) finish(W, s.value, 'measured', 'measured along ' + W.ref.name);
+    });
+  }
+
+  /* ── the doors ────────────────────────────────────────────────────── */
+
+  /* D375: the Aim page's DPI row (rowHTML, adviceHTML: Automatic / Manual /
+     Check rate under the Aim stepper) is gone with the stepper; the
+     Device card's picker and its Measure my DPI / Check rate buttons are
+     the one place. */
+  /* ── the DPI picker (D289) ──────────────────────────────────────────
+     The owner, 2026-10-13: "put mouse DPI option inside of the DEVICE ...
+     and when someone makes a config ask ... their DPI". One control for
+     both places, the wizard's "What's your mouse DPI?" step and the Device
+     room's Mouse DPI card: the common presets, a number field, "3200 or
+     higher recommended" as a quiet hint, and under 3200 a one-line amber
+     note (an answer to what was typed, D70's full block). Never a block:
+     every number from 100 to 32,000 is taken. `pre` names the ids;
+     wirePicker reports (dpi, how): how is 'preset', 'typing' (each key) or
+     'typed' (the field let go), dpi 0 for "not a DPI". */
+  var HINT = fmt(RECOMMENDED) + ' or higher recommended';
+  var LOW_NOTE = 'Under ' + fmt(LOW) + ' DPI aim gets coarse: raise it in your mouse’s software.';
+  function lowNote() { return note(esc(LOW_NOTE), 'warn'); }
+  function presetsHTML(pre, v) {
+    return '<div class="dp-presets" id="' + esc(pre) + '-presets" role="group" aria-label="Common DPI values">' +
+      PRESETS.map(function (p) {
+        var on = v === p, rec = p === RECOMMENDED;
+        return '<button type="button" data-v="' + p + '"' + (on ? ' class="on"' : '') + ' aria-pressed="' + on + '"' +
+          (rec ? ' aria-label="' + fmt(p) + ', recommended"' : '') + '>' + fmt(p) +
+          (rec ? '<span class="dp-rec" aria-hidden="true">recommended</span>' : '') + '</button>';
+      }).join('') + '</div>';
+  }
+  function pickerHTML(pre, dpi) {
+    css();
+    var v = validDpi(dpi);
+    return '<div class="dp-pick" data-dppick="' + esc(pre) + '">' +
+      presetsHTML(pre, v) +
+      '<input class="txt" id="' + esc(pre) + '-val" data-nosave="1" inputmode="numeric" maxlength="6" value="' +
+        (v ? v : '') + '" placeholder="Or type it, e.g. 3200" aria-label="Mouse DPI" aria-describedby="' +
+        esc(pre) + '-hint">' +
+      '<div class="dp-hint" id="' + esc(pre) + '-hint">' + esc(HINT) + '</div>' +
+      '<div class="dp-low" id="' + esc(pre) + '-low">' + (v && v < LOW ? lowNote() : '') + '</div></div>';
+  }
+  function pickerPaint(box, v, keepField) {
+    if (!box) return;
+    box.querySelectorAll('.dp-presets button').forEach(function (b) {
+      var on = Number(b.getAttribute('data-v')) === v;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var inp = box.querySelector('input.txt');
+    if (inp && !keepField) inp.value = v ? String(v) : '';
+    var low = box.querySelector('.dp-low');
+    if (low) low.innerHTML = v && v < LOW ? lowNote() : '';
+  }
+  function wirePicker(root, pre, onChange) {
+    var box = root && root.querySelector('[data-dppick="' + pre + '"]');
+    if (!box) return;
+    box.querySelectorAll('.dp-presets button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var v = Number(b.getAttribute('data-v'));
+        pickerPaint(box, v);
+        if (onChange) onChange(v, 'preset');
+      });
+    });
+    var inp = box.querySelector('input.txt');
+    if (!inp) return;
+    inp.addEventListener('input', function () {
+      var v = validDpi(inp.value);
+      pickerPaint(box, v, true);
+      if (onChange) onChange(v, 'typing', inp.value);
+    });
+    inp.addEventListener('change', function () {
+      if (onChange) onChange(validDpi(inp.value), 'typed', inp.value);
+    });
+  }
+
+  /* The DPI is a SETTING (mouseTranslation.dpi, the Device card's), so it
+     waits for the Save key like the others (D257: stageProfile), and
+     the page and the toast say it only once the change is taken (audit
+     m4/m3: they said it before the save had landed, and a save that failed
+     left a DPI on screen the config did not hold). */
+  function saveTo(pid, dpi) {
+    var z = Z();
+    if (!z || !pid) return;
+    var write = z.stageProfile || z.putProfile;
+    Promise.resolve(write(pid, function (f) {
+      if (!f.mouseTranslation) f.mouseTranslation = {};
+      f.mouseTranslation.dpi = dpi;
+    })).then(function (j) {
+      if (!(j && j.ok)) {
+        if (z.toast && z.live && z.live.online === false) z.toast('Mouse DPI not set - your board is not connected');
+        return;
+      }
+      /* D289: the Device room's Mouse DPI card shows the new number */
+      document.querySelectorAll('[data-dppid]').forEach(function (c) {
+        if (c.getAttribute('data-dppid') === String(pid)) pickerPaint(c.querySelector('[data-dppick]'), validDpi(dpi));
+      });
+      if (z.toast) z.toast('Mouse DPI set to ' + fmt(dpi) + (j.staged ? '. Press Save to put it on your board' : ''));
+    }, function () {});
+  }
+  window.ZS_DPI = {
+    open: open,
+    advice: ADVICE,
+    wantsAdvice: wantsAdvice,
+    presets: PRESETS.slice(),
+    recommended: RECOMMENDED,
+    lowWords: LOW_WORDS,
+    /* D289: the picker the wizard and the Device room share */
+    pickerHTML: pickerHTML,
+    wirePicker: wirePicker,
+    pickerPaint: pickerPaint,
+    hint: HINT,
+    lowNote: LOW_NOTE,
+    low: LOW,
+    validDpi: validDpi,
+    /* for the tests */
+    /* D188: the Mouse sensor test (mouse-rate.js) borrows the drawn mouse,
+       these styles and the save */
+    mouseSVG: mouseSVG,
+    css: css,
+    saveTo: saveTo,
+    _math: { estimate: estimate, roundCommon: roundCommon, summary: summary, counted: counted, validDpi: validDpi },
+    _refOf: refOf,
+    _sceneSVG: sceneSVG,
+    _setSupport: function (v) { supportKnown = v; }
+  };
+})();

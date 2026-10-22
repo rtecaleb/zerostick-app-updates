@@ -1,0 +1,337 @@
+/* zs-micro.js — micro-interaction driver (window.ZSMICRO).
+ *
+ * ES5 ONLY. var / function / string concatenation. No arrow functions, no
+ * template literals, no let/const — same discipline as zs-motion.js.
+ *
+ * Attaches from OUTSIDE via delegated listeners on document (the pattern
+ * ZSM.pressable uses). It never edits a renderer, never replaces a handler,
+ * and adding/removing it changes nothing about what the app DOES — only how
+ * confirmations feel. Every class it manages is defined in zs-micro.css.
+ *
+ * ── The two gates every one-shot passes through ──────────────────────────
+ *
+ * 1. USER INTENT (rule 7, the poll-refresh trap). Screens re-render on an
+ *    ~8s poll and on board events; values change under the poll too. A pulse
+ *    that fires on poll data is noise, so nothing here animates unless a real
+ *    pointerdown/keydown happened within the last second. That timestamp —
+ *    lastUserAt — is the single source of truth, and it also disarms any
+ *    programmatic .click() a renderer might fire while refreshing itself.
+ *
+ * 2. REDUCED MOTION, checked LIVE per event (never cached): ZSM.reduced()
+ *    when zs-motion.js is present, an identical fallback when it is not.
+ *    When reduced, the classes are simply never added — the CSS blocks in
+ *    zs-micro.css are the backstop, not the mechanism.
+ *
+ * Cleanup is by timeout, deliberately NOT by animationend: under reduced
+ * motion `animation: none` means animationend never fires, and a class that
+ * lingers is a bug that only appears for the users this product exists for.
+ */
+(function () {
+  'use strict';
+
+  /* ── environment ──────────────────────────────────────────────────────── */
+
+  var mqReduce = null;
+  try {
+    mqReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  } catch (e) { mqReduce = null; }
+
+  function reducedNow() {
+    if (window.ZSM && window.ZSM.reduced) {
+      try { return !!window.ZSM.reduced(); } catch (e) { /* fall through */ }
+    }
+    if (mqReduce && mqReduce.matches) { return true; }
+    var b = document.body;
+    return !!(b && b.classList && b.classList.contains('a11y-motion'));
+  }
+
+  /* ── the user-intent clock ────────────────────────────────────────────── */
+
+  var lastUserAt = 0;     /* any pointer or key */
+  var lastKeyAt = 0;      /* keyboard only — gates the focus bloom */
+  var pointerHeld = false; /* a finger still down IS a live user event — a
+                              hold-to-repeat or a slider drag can easily
+                              outlast the 1s window without going stale */
+  var USER_WINDOW = 1000;
+
+  /* Pure, so the self-test can exercise the logic without an environment. */
+  function gateOk(nowMs, userAtMs, isReduced) {
+    if (isReduced) { return false; }
+    if (!userAtMs) { return false; }
+    var dt = nowMs - userAtMs;
+    return dt >= 0 && dt <= USER_WINDOW;
+  }
+
+  function animOK() {
+    if (pointerHeld) { return !reducedNow(); }
+    return gateOk(Date.now(), lastUserAt, reducedNow());
+  }
+  function userRecent() {
+    return pointerHeld || gateOk(Date.now(), lastUserAt, false);
+  }
+
+  /* ── one-shot class helper ────────────────────────────────────────────── */
+
+  function pulse(el, cls, ms) {
+    if (!el || !animOK()) { return false; }
+    /* restart cleanly if the same pulse is still in flight */
+    el.classList.remove(cls);
+    void el.offsetWidth;                       /* reflow → animation restarts */
+    el.classList.add(cls);
+    if (!el._zsmiT) { el._zsmiT = {}; }
+    if (el._zsmiT[cls]) { clearTimeout(el._zsmiT[cls]); }
+    el._zsmiT[cls] = setTimeout(function () {
+      el.classList.remove(cls);
+      el._zsmiT[cls] = null;
+    }, ms || 700);
+    return true;
+  }
+
+  /* ── listener registry (asserted by the self-test) ────────────────────── */
+
+  var wired = [];
+  function on(type, fn, capture) {
+    document.addEventListener(type, fn, capture === true);
+    wired.push(type + (capture ? ':capture' : ''));
+  }
+
+  /* ── shared transient state ───────────────────────────────────────────── */
+
+  var grabbed = null;   /* the input.rng currently held                      */
+  var heldStp = null;   /* the .stp showing the steady hold-repeat tint      */
+  var heldStpT = null;
+
+  function releaseGrab() {
+    if (grabbed) { grabbed.classList.remove('zs-mi-grab'); grabbed = null; }
+  }
+  function releaseHold() {
+    if (heldStpT) { clearTimeout(heldStpT); heldStpT = null; }
+    if (heldStp) { heldStp.classList.remove('zs-mi-hold'); heldStp = null; }
+  }
+
+  /* ── pointerdown / keydown: the clock, plus grab + direction capture ──── */
+
+  function noteStepDir(target) {
+    var b = target.closest ? target.closest('.stp button') : null;
+    if (!b) { return; }
+    var stp = b.closest('.stp');
+    if (!stp) { return; }
+    stp._zsmiDir = parseFloat(b.dataset.d || '1') < 0 ? -1 : 1;
+    stp._zsmiDirAt = Date.now();
+  }
+
+  on('pointerdown', function (e) {
+    lastUserAt = Date.now();
+    pointerHeld = true;
+    if (!e.target || !e.target.closest) { return; }
+    noteStepDir(e.target);
+    /* slider grab — a held state, not a one-shot; skipped when reduced */
+    if (e.target.matches && e.target.matches('input.rng') && !reducedNow()) {
+      releaseGrab();
+      grabbed = e.target;
+      grabbed.classList.add('zs-mi-grab');
+    }
+  }, true);
+
+  on('keydown', function (e) {
+    lastUserAt = Date.now();
+    lastKeyAt = lastUserAt;
+    if (!e.target || !e.target.closest) { return; }
+    if (e.key === 'Enter' || e.key === ' ') { noteStepDir(e.target); }
+  }, true);
+
+  /* release is a user event too: the click/change that follows a LONG drag
+     or hold must still pass the gate */
+  on('pointerup', function () {
+    lastUserAt = Date.now();
+    pointerHeld = false;
+    releaseGrab(); releaseHold();
+  }, true);
+  on('pointercancel', function () {
+    pointerHeld = false;
+    releaseGrab(); releaseHold();
+  }, true);
+
+  /* ── click: toggle, buttons, picker cell, swatch ──────────────────────── */
+
+  on('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) { return; }
+    if (!userRecent()) { return; }   /* programmatic clicks animate nothing */
+
+    /* toggle .sw — direct tap, or a tap on its whole row (.fld.tapper
+       dispatches a non-bubbling click at the switch; the ORIGINAL row click
+       is what reaches us, after the flip has already run) */
+    var sw = t.closest('.sw');
+    if (!sw) {
+      var row = t.closest('.fld.tapper');
+      if (row && !t.closest('select,input,button,.stp,.sc')) {
+        sw = row.querySelector('.sw');
+      }
+    }
+    if (sw) {
+      pulse(sw, 'zs-mi-flip', 460);
+      /* Decide the ON-bloom a frame later: some switches (kill switch, the
+         PS5 master) flip their class inside their own listeners, and a few
+         do it after a round-trip. Reading now would bloom the OLD state. */
+      setTimeout(function () {
+        if (sw.classList.contains('on')) { pulse(sw, 'zs-mi-bloom', 620); }
+      }, 0);
+      return;
+    }
+
+    /* buttons — commit confirmation on primary, heavier settle on danger */
+    var btn = t.closest('.btn');
+    if (btn && !btn.disabled) {
+      if (btn.classList.contains('danger')) { pulse(btn, 'zs-mi-heavy', 520); }
+      else if (btn.classList.contains('primary')) { pulse(btn, 'zs-mi-commit', 480); }
+      return;
+    }
+
+    /* picker cell — the reticle ring confirms the pick during sheet-exit */
+    var pk = t.closest('.pk');
+    if (pk) { pulse(pk, 'zs-mi-lock', 460); return; }
+
+    /* swatch — settle pulse; the .on ring is the state */
+    var sc = t.closest('.sc');
+    if (sc) { pulse(sc, 'zs-mi-pop', 400); }
+  }, false);
+
+  /* ── zsstep: the stepper's own commit event ───────────────────────────────
+     Fired by wire()'s clampSet after every applied step — press, hold-repeat
+     tick, and typed commit alike. Single steps get the directional slide;
+     hold-repeat (ticks < 220ms apart) gets the steady tint INSTEAD, because
+     a 150ms animation restarted every 70–190ms is a strobe, not feedback. */
+
+  on('zsstep', function (e) {
+    var sv = e.target;
+    if (!sv || !sv.closest) { return; }
+    var stp = sv.closest('.stp');
+    if (!stp || !userRecent()) { return; }
+
+    var tNow = Date.now();
+    var prevAt = sv._zsmiStepAt || 0;
+    sv._zsmiStepAt = tNow;
+
+    var val = parseFloat(sv.textContent || '0');
+    var dir = 0;
+    if (stp._zsmiDirAt && tNow - stp._zsmiDirAt < 1200) { dir = stp._zsmiDir; }
+    else if (sv._zsmiVal != null && !isNaN(val)) {
+      if (val > sv._zsmiVal) { dir = 1; }
+      else if (val < sv._zsmiVal) { dir = -1; }
+    }
+    sv._zsmiVal = val;
+    if (!dir) { return; }                       /* typed the same value, etc. */
+
+    if (tNow - prevAt < 220) {
+      /* hold-repeat: steady state, no per-tick motion */
+      sv.classList.remove('zs-mi-up');
+      sv.classList.remove('zs-mi-down');
+      if (heldStp !== stp) { releaseHold(); heldStp = stp; }
+      stp.classList.add('zs-mi-hold');
+      if (heldStpT) { clearTimeout(heldStpT); }
+      heldStpT = setTimeout(releaseHold, 320);  /* pointerup also releases */
+      return;
+    }
+    sv.classList.remove(dir < 0 ? 'zs-mi-up' : 'zs-mi-down');
+    pulse(sv, dir < 0 ? 'zs-mi-down' : 'zs-mi-up', 320);
+  }, false);
+
+  /* ── change: slider release → readout pulse ───────────────────────────────
+     `change` on a range input fires when the user COMMITS (release, or a
+     keyboard adjustment) — never from the poll, which assigns .value without
+     events. Throttled per element so a held arrow key cannot strobe it. */
+
+  on('change', function (e) {
+    var el = e.target;
+    if (!el || !el.matches || !el.matches('input.rng')) { return; }
+    if (!userRecent()) { return; }
+    var tNow = Date.now();
+    if (el._zsmiRvAt && tNow - el._zsmiRvAt < 250) { return; }
+    el._zsmiRvAt = tNow;
+    var fld = el.closest ? el.closest('.fld') : null;
+    var rv = fld && fld.querySelector('.rv');
+    if (rv) { pulse(rv, 'zs-mi-rv', 400); }
+  }, false);
+
+  /* ── focusin: arrival bloom for keyboard users ────────────────────────────
+     Gated on BOTH :focus-visible and a recent keydown, so pointer taps and
+     the sheet's programmatic first-focus (which follows a tap) stay silent.
+     No movement — the bloom is a fading glow on the spot focus landed. */
+
+  on('focusin', function (e) {
+    var el = e.target;
+    if (!el || el === document.body || !el.classList) { return; }
+    if (!gateOk(Date.now(), lastKeyAt, reducedNow())) { return; }
+    var fv = false;
+    try { fv = el.matches(':focus-visible'); } catch (err) { fv = true; }
+    if (!fv) { return; }
+    pulse(el, 'zs-mi-focusbloom', 520);
+  }, false);
+
+  /* ── public surface (diagnostics only — nothing calls in) ─────────────── */
+
+  window.ZSMICRO = {
+    reduced: reducedNow,
+    gateOk: gateOk,
+    wired: wired
+  };
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     Same convention as zs-motion.js / marks.js. Runs synchronously at load,
+     before any user event can exist, which is itself the fixture for the
+     "nothing animates without a user event" assertions. */
+
+  (function () {
+    var fail = [];
+    function ck(c, m) { if (!c) { fail.push(m); } }
+
+    /* 1. the delegated listeners actually attached */
+    ck(wired.length === 8,
+      'expected 8 delegated listeners, got ' + wired.length);
+    ck(wired.indexOf('pointerdown:capture') > -1 &&
+       wired.indexOf('keydown:capture') > -1 &&
+       wired.indexOf('click') > -1 &&
+       wired.indexOf('zsstep') > -1 &&
+       wired.indexOf('change') > -1 &&
+       wired.indexOf('focusin') > -1,
+      'a required listener is missing: ' + wired.join(','));
+
+    /* 2. no animation without a user event — the gate logic itself */
+    ck(gateOk(5000, 0, false) === false,
+      'gate must refuse when no user event has ever happened');
+    ck(gateOk(5000, 4500, false) === true,
+      'gate must allow within 1s of user input');
+    ck(gateOk(5000, 3000, false) === false,
+      'gate must refuse stale (>1s old) user input');
+    ck(gateOk(5000, 4500, true) === false,
+      'reduced motion must veto even fresh user input');
+
+    /* …and the live state at boot: the page loading is not a user event */
+    ck(lastUserAt === 0, 'boot must not count as a user event');
+    ck(animOK() === false, 'nothing may be allowed to animate at load');
+
+    /* 3. reduced motion collapses, checked LIVE via the app's own switch */
+    var b = document.body;
+    if (b && b.classList) {
+      var had = b.classList.contains('a11y-motion');
+      b.classList.add('a11y-motion');
+      ck(reducedNow() === true,
+        'body.a11y-motion must be seen live by reducedNow()');
+      ck(gateOk(Date.now(), Date.now(), reducedNow()) === false,
+        'body.a11y-motion must collapse the gate');
+      if (!had) { b.classList.remove('a11y-motion'); }
+    } else {
+      fail.push('document.body missing — script loaded too early');
+    }
+
+    /* 4. pulse refuses without a user event (belt to the gate's braces) */
+    var probe = document.createElement('span');
+    ck(pulse(probe, 'zs-mi-pop', 50) === false,
+      'pulse() must refuse when no user event is recent');
+    ck(!probe.classList.contains('zs-mi-pop'),
+      'pulse() must not tag elements when refused');
+
+    window.ZSMICRO_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+  })();
+})();

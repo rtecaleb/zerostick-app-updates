@@ -1,0 +1,751 @@
+/* zs-ble.js — talk to the adapter over Web Bluetooth (window.ZSBLE).
+ *
+ * ES5 ONLY, same discipline as the other modules here. Promises are used (they
+ * are ES6 library, not ES6 syntax, and every browser that has Web Bluetooth
+ * has had them for a decade) but there is no arrow function, template literal
+ * or let/const anywhere in this file.
+ *
+ * ── The trick that makes this worth doing ────────────────────────────────────
+ *
+ * The app is ~800 KB of screens that all reach the board through URLs starting
+ * /agent/. Rewriting every one of them to be transport-aware would be a large,
+ * risky change to code that currently works.
+ *
+ * So instead this file SHIMS window.fetch. Any request to /agent/* is encoded,
+ * chunked over a GATT characteristic, reassembled, and handed back as a real
+ * Response object. Every existing call site — the central api() helper, the
+ * handful of raw fetch()es in phone-sections.js, anything added later — works
+ * unchanged and has no idea it is on a radio.
+ *
+ * That is the entire reason the mobile build has feature parity on day one.
+ *
+ * ── What Bluetooth costs, honestly ───────────────────────────────────────────
+ *
+ * A GATT link is roughly 5-20 KB/s in practice. Loading a config is fine.
+ * Streaming the CV preview is not, and this file does not pretend otherwise:
+ * image endpoints are refused by the board over BLE, and the shim turns that
+ * into an honest error the UI can render rather than a spinner forever.
+ *
+ * ── Where this does NOT work ─────────────────────────────────────────────────
+ *
+ * Web Bluetooth exists in Chrome, Edge and Opera, on Android, Windows, macOS
+ * and ChromeOS. It does NOT exist in Safari or in any browser on iOS, because
+ * iOS forbids it — every iOS browser is WebKit underneath, so "use Chrome on
+ * iPhone" is not a workaround. supported() reports this truthfully so the page
+ * can say so instead of showing a Connect button that can never work.
+ *
+ * It also requires a secure context (https:, or localhost), and the connect
+ * must be started by a real user gesture. Both are checked up front, because
+ * both fail in ways whose error messages explain nothing.
+ */
+(function () {
+  'use strict';
+
+  /* Must match board/agent/zs_agent/ble/gatt.py exactly. */
+  var SVC = '7a5e0001-9d3c-4c5f-9c1e-2b6a4f8e1d70';
+  var CHR_REQUEST = '7a5e0002-9d3c-4c5f-9c1e-2b6a4f8e1d70';
+  var CHR_RESPONSE = '7a5e0003-9d3c-4c5f-9c1e-2b6a4f8e1d70';
+  var CHR_TELEMETRY = '7a5e0004-9d3c-4c5f-9c1e-2b6a4f8e1d70';
+  var CHR_INFO = '7a5e0005-9d3c-4c5f-9c1e-2b6a4f8e1d70';
+
+  /* THE FRAMING LIVES IN zs-frame.js (window.ZSFRAME) since the Core's USB
+     link (zs-serial.js, D104) started carrying the very same frames. It used
+     to be defined here; it moved so two transports cannot drift apart. The
+     names below are bound from there so the rest of this file, and its
+     self-test, read exactly as they always did. A missing zs-frame.js is a
+     packaging mistake, and it fails HERE, loudly, rather than as a Bluetooth
+     link that silently sends nothing. */
+  var F = window.ZSFRAME;
+  if (!F) {
+    throw new Error('zs-ble.js needs zs-frame.js loaded before it');
+  }
+  var HEADER = F.HEADER;
+  var FLAG_FIRST = F.FLAG_FIRST;
+  var FLAG_LAST = F.FLAG_LAST;
+  var FLAG_GZIP = F.FLAG_GZIP;
+  var FLAG_ERROR = F.FLAG_ERROR;
+  var SAFE_CHUNK = F.SAFE_CHUNK;   /* 20-byte ATT payload minus our 2-byte header */
+  var PROTOCOL_VERSION = F.PROTOCOL_VERSION;
+  var encodeFrames = F.encodeFrames;
+
+  /* A request that gets no answer must fail, not hang. 15s is generous for a
+     link this slow while still being inside a human's patience. */
+  var REQUEST_TIMEOUT_MS = 15000;
+
+  var state = {
+    device: null,
+    server: null,
+    chars: null,
+    chunk: SAFE_CHUNK,
+    version: 0,
+    connected: false,
+    pending: new F.PendingTable(),   /* the requests in flight (zs-frame.js, M24) */
+    /* what connect() hung on the device and its characteristics, so the next
+       connect can take it off again (M42: see onGone) */
+    hooks: null,
+    reasm: new F.Reassembler(),   /* the half-finished messages, by id */
+    queue: Promise.resolve()
+  };
+
+  var listeners = { status: [], telemetry: [] };
+
+  function emit(kind, payload) {
+    var ls = listeners[kind] || [];
+    for (var i = 0; i < ls.length; i++) {
+      try { ls[i](payload); } catch (e) { /* a bad listener is not our problem */ }
+    }
+  }
+
+  /* ── capability reporting ──────────────────────────────────────────────────
+     Each branch returns a DIFFERENT reason, because "it didn't work" is
+     useless: the fix for iOS (there isn't one) and the fix for http:// (use
+     https) could not be more different. */
+
+  function supported() {
+    if (typeof navigator === 'undefined' || !navigator.bluetooth) {
+      var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+      /* iPadOS reports as a Mac, so check for touch as well as the obvious
+         strings, or an iPad gets told to install Chrome — which would not
+         help, because every iOS browser is WebKit and WebKit has no Web
+         Bluetooth. */
+      var iOSish = /iPad|iPhone|iPod/.test(ua) ||
+        (/Macintosh/.test(ua) && typeof document !== 'undefined' &&
+          'ontouchend' in document);
+      if (iOSish) {
+        return {
+          ok: false, reason: 'ios',
+          message: 'iPhone and iPad cannot do Web Bluetooth. Apple does not ' +
+            'allow it in any browser, including Chrome. Use the desktop app, ' +
+            'or open this page on an Android phone or a computer.'
+        };
+      }
+      if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) {
+        return {
+          ok: false, reason: 'safari',
+          message: 'Safari does not support Web Bluetooth. Open this page in ' +
+            'Chrome or Edge.'
+        };
+      }
+      return {
+        ok: false, reason: 'unsupported',
+        message: 'This browser does not support Web Bluetooth. Chrome, Edge ' +
+          'and Opera do, on Android, Windows, Mac and ChromeOS.'
+      };
+    }
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      return {
+        ok: false, reason: 'insecure',
+        message: 'Bluetooth only works on a secure page. This one was loaded ' +
+          'over plain http, so the browser blocks it. Open it over https, ' +
+          'or from localhost.'
+      };
+    }
+    return { ok: true, reason: 'ok', message: '' };
+  }
+
+  /**
+   * "Does this MACHINE have a Bluetooth radio?" — a different question from
+   * supported(), and one that has to be asked separately.
+   *
+   * `navigator.bluetooth` exists in Chrome and Edge whether or not any
+   * hardware is fitted, so supported() returning ok only means the BROWSER
+   * could do it. The first build of this page stopped there, showed a Connect
+   * button on a desktop with no Bluetooth at all, and let the user find out
+   * from a raw "Bluetooth adapter not available" thrown by the chooser. That
+   * error names no cause and suggests no fix.
+   *
+   * getAvailability() is the API for the hardware question. It is async, which
+   * is why this is separate rather than folded into supported().
+   */
+  function available() {
+    var cap = supported();
+    if (!cap.ok) { return Promise.resolve(cap); }
+    if (!navigator.bluetooth.getAvailability) {
+      /* Older implementation: we genuinely cannot tell. Let them try rather
+         than refusing on a guess — a false "you have no Bluetooth" is worse
+         than a Connect button that might work. */
+      return Promise.resolve(cap);
+    }
+    return navigator.bluetooth.getAvailability().then(function (has) {
+      if (has) { return cap; }
+      return {
+        ok: false, reason: 'noadapter',
+        message: 'This device has no Bluetooth, or it is switched off. ' +
+          'Turn Bluetooth on, or plug in a USB Bluetooth adapter. ' +
+          'Or open this page on an Android phone — that is what it is for.'
+      };
+    }).catch(function () { return cap; });
+  }
+
+  /**
+   * Turn a thrown Bluetooth error into a sentence worth reading.
+   *
+   * The browser's own messages are written for developers: "NotFoundError:
+   * User cancelled the requestDevice() chooser" is not something to show
+   * somebody trying to set up a controller.
+   */
+  function explain(err) {
+    var msg = String((err && err.message) || err || '');
+    if (/cancel|chooser/i.test(msg)) {
+      return 'No adapter chosen.';
+    }
+    if (/adapter (is )?not available|no.*adapter|globally disabled/i.test(msg)) {
+      return 'Bluetooth is off, or this device has no Bluetooth radio. ' +
+        'Switch it on and try again.';
+    }
+    if (/permission|denied|policy/i.test(msg)) {
+      return 'The browser blocked Bluetooth for this page. It must be opened ' +
+        'over https (or localhost), and Connect must be pressed by hand.';
+    }
+    if (/user gesture|activation/i.test(msg)) {
+      return 'Press Connect again — the browser needs the button pressed ' +
+        'directly.';
+    }
+    if (/insufficient (encryption|authentication)|not paired|pairing/i.test(msg)) {
+      /* D282: the Core takes a NEW phone only in the first 2 minutes after
+         it powers on, and drops a link that has not paired within 30 s. */
+      return 'Your phone and the adapter did not pair. Unplug the adapter, ' +
+        'plug it back in, then press Connect within 2 minutes and tap Pair ' +
+        'when your phone asks.';
+    }
+    if (/GATT|connect/i.test(msg) && /fail/i.test(msg)) {
+      return 'Found the adapter but could not connect. Move closer, then try ' +
+        'again.';
+    }
+    return msg;
+  }
+
+  /* ── framing ───────────────────────────────────────────────────────────────
+     Chunking, reassembly and gunzip are ZSFRAME's (zs-frame.js). What is left
+     here is only the Bluetooth-shaped edge: a DataView from a notification in,
+     a delivered message out. The rules (a FIRST restarts an id, a continuation
+     with no beginning is dropped, GZIP and ERROR are read from the FIRST
+     frame) are unchanged; they simply live in the shared file now. */
+
+  function onResponseFrame(dv) {
+    var bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    var msg = state.reasm.feed(bytes);
+    if (!msg) { return; }                /* short, mid-message, or orphaned */
+    F.decodeMessage(msg).then(function (r) {
+      deliver(r.id, r.obj, r.error, r.text);
+    }).catch(function (e) {
+      deliver(msg.id, null, true, String(e && e.message || e));
+    });
+  }
+
+  function deliver(id, obj, isErr, raw) {
+    if (id === 0) {
+      /* Unsolicited. The board pushes status here so the UI does not have to
+         poll a link this slow. */
+      emit('telemetry', obj);
+      return;
+    }
+    var p = state.pending.take(id);
+    if (!p) { return; }                  /* timed out already, or a duplicate */
+    if (obj === null) {
+      p.reject(new Error(raw || 'the adapter sent something unreadable'));
+      return;
+    }
+    p.resolve({ obj: obj, error: isErr });
+  }
+
+  /* ── connect ───────────────────────────────────────────────────────────── */
+
+  /* ── the remembered EXO (owner, 2026-10-13) ───────────────────────────────
+     "Once I connect once, the app should always auto-connect when opened. If
+     I click ZeroStick EXO / Connect, just put me into it, not a sub-menu to
+     choose my EXO." So the first successful connect remembers the device,
+     and every later connect goes straight to it through
+     navigator.bluetooth.getDevices() (the browser's permitted devices; in the
+     phone app, zs-ble-cap.js answers it from the native plugin). The bond
+     lives in the phone, so a remembered EXO connects with no Pair sheet. The
+     chooser is the fallback: no remembered device, the remembered one not
+     answering within REMEMBERED_MS, or "Use a different EXO" (forget()). */
+  var REMEMBER_KEY = 'zs-ble-last';
+  var REMEMBERED_MS = 8000;
+  function remembered() {
+    try {
+      var o = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
+      return (o && o.id) ? o : null;
+    } catch (e) { return null; }
+  }
+  function remember(device) {
+    try {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id: device.id, name: device.name || '' }));
+    } catch (e) { /* private mode: it simply asks again next time */ }
+  }
+  function forget() {
+    state.autoReconnect = false;
+    try { localStorage.removeItem(REMEMBER_KEY); } catch (e) { /* nothing kept */ }
+  }
+  function findRemembered() {
+    var r = remembered();
+    var bt = navigator.bluetooth;
+    if (!r || !bt || typeof bt.getDevices !== 'function') { return Promise.resolve(null); }
+    return Promise.resolve(bt.getDevices()).then(function (list) {
+      for (var i = 0; list && i < list.length; i++) { if (list[i].id === r.id) { return list[i]; } }
+      return null;
+    }, function () { return null; });
+  }
+  function within(p, ms, what) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error(what)); }, ms);
+      p.then(function (v) { clearTimeout(t); resolve(v); },
+             function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+
+  /* connect({picker}) — picker:false never shows the chooser (app open, and
+     the reconnects after a drop); the default falls back to it. */
+  function connect(opts) {
+    opts = opts || {};
+    var cap = supported();
+    if (!cap.ok) { return Promise.reject(new Error(cap.message)); }
+    state.userClosed = false;
+
+    /* a Connect after a drop: whatever the last session hung on its device
+       and characteristics comes off first */
+    unhook();
+    return findRemembered().then(function (dev) {
+      if (!dev) { return null; }
+      return attach(dev, REMEMBERED_MS).then(null, function (e) {
+        /* the remembered EXO is off or out of range: stop trying it */
+        try { if (dev.gatt) { dev.gatt.disconnect(); } } catch (x) { /* already gone */ }
+        unhook();
+        if (opts.picker === false) { throw e; }
+        return null;
+      });
+    }).then(function (res) {
+      if (res) { return res; }
+      if (opts.picker === false) {
+        throw new Error('Your EXO was not found nearby. Check it is switched on.');
+      }
+      return navigator.bluetooth.requestDevice({
+        filters: [{ services: [SVC] }],
+        optionalServices: [SVC]
+      }).then(function (device) { return attach(device, 0); });
+    });
+  }
+
+  /* One device, start to finish: link, characteristics, the info read (which
+     is where a first-time phone pairs). connectMs bounds ONLY the link step,
+     so a remembered EXO that is off fails fast while a pairing in progress
+     still gets its full time (readInfo). */
+  function attach(device, connectMs) {
+    return Promise.resolve(device).then(function (device) {
+      state.device = device;
+      var onGone = function () {
+        state.connected = false;
+        state.chars = null;
+        /* Fail everything in flight. A promise that never settles is how an
+           app ends up with a spinner that outlives the connection. */
+        state.pending.failAll('the adapter disconnected');
+        state.reasm.reset();
+        /* M42: take this session's listeners off. A reconnect gets new
+           characteristic objects (or, in the mobile app's polyfill, the same
+           plugin channel), and a listener left on the old ones delivered
+           every frame a second time, so every multi-frame reply after a
+           reconnect arrived garbled until the app was killed. */
+        unhook();
+        emit('status', { connected: false, name: device.name || '',
+                         reconnecting: !!(state.autoReconnect && !state.userClosed) });
+        if (state.autoReconnect && !state.userClosed) { scheduleReconnect(); }
+      };
+      device.addEventListener('gattserverdisconnected', onGone);
+      state.hooks = { device: device, onGone: onGone, chars: [] };
+      return connectMs ? within(device.gatt.connect(), connectMs, 'Your EXO did not answer.')
+                       : device.gatt.connect();
+    }).then(function (server) {
+      state.server = server;
+      return server.getPrimaryService(SVC);
+    }).then(function (svc) {
+      return Promise.all([
+        svc.getCharacteristic(CHR_REQUEST),
+        svc.getCharacteristic(CHR_RESPONSE),
+        svc.getCharacteristic(CHR_TELEMETRY),
+        svc.getCharacteristic(CHR_INFO)
+      ]);
+    }).then(function (cs) {
+      state.chars = {
+        request: cs[0], response: cs[1], telemetry: cs[2], info: cs[3]
+      };
+      var onFrame = function (e) { onResponseFrame(e.target.value); };
+      cs[1].addEventListener('characteristicvaluechanged', onFrame);
+      cs[2].addEventListener('characteristicvaluechanged', onFrame);
+      if (state.hooks) { state.hooks.chars.push([cs[1], onFrame], [cs[2], onFrame]); }
+      return cs[1].startNotifications();
+    }).then(function () {
+      return state.chars.telemetry.startNotifications();
+    }).then(function () {
+      return readInfo(state.chars.info);
+    }).then(function (dv) {
+      var text = new TextDecoder('utf-8').decode(dv);
+      try {
+        var info = JSON.parse(text);
+        state.version = info.v || 0;
+        /* Trust the board's number but never exceed what we know is safe if
+           it looks wrong — a bad chunk size corrupts every later message. */
+        state.chunk = (info.c && info.c >= SAFE_CHUNK) ? info.c : SAFE_CHUNK;
+      } catch (e) {
+        state.version = 0;
+        state.chunk = SAFE_CHUNK;
+      }
+      if (state.version && state.version !== PROTOCOL_VERSION) {
+        state.autoReconnect = false;   /* reconnecting cannot fix a version gap */
+        /* Do not try to talk anyway. A framing mismatch produces garbage that
+           looks like a hardware fault, and somebody spends an evening on it. */
+        return state.device.gatt.disconnect(), Promise.reject(new Error(
+          'This page and your adapter are different versions (page speaks ' +
+          PROTOCOL_VERSION + ', adapter speaks ' + state.version +
+          '). Update whichever is older.'));
+      }
+      state.connected = true;
+      state.autoReconnect = true;
+      state.reconnectTries = 0;
+      remember(state.device);
+      emit('status', {
+        connected: true,
+        name: (state.device && state.device.name) || 'ZeroStick EXO',
+        chunk: state.chunk
+      });
+      return { name: state.device.name, chunk: state.chunk };
+    });
+  }
+
+  /* The first protected read. On iOS it is what makes the phone pair: the
+     Core refuses it until the link is encrypted, and while the system's Pair
+     sheet is up the read keeps failing with "Encryption is insufficient" /
+     "Authentication is insufficient". Caught on Caleb's iPhone 2026-10-13: the
+     connect used to give up on the very first refusal, before anyone could
+     tap Pair. So a refusal of THAT kind is retried while the link is up, for
+     the 30 s the Core allows a link to pair in (D282); anything else, or a
+     dropped link, fails at once as before. */
+  var PAIR_WAIT_MS = 30000, PAIR_RETRY_MS = 1500;
+  function readInfo(ch) {
+    var started = Date.now();
+    function attempt() {
+      return ch.readValue().then(null, function (e) {
+        var m = String((e && e.message) || e || '');
+        var pairing = /insufficient (encryption|authentication)/i.test(m);
+        var linkUp = !!(state.device && state.device.gatt && state.device.gatt.connected !== false);
+        if (!pairing || !linkUp || Date.now() - started > PAIR_WAIT_MS) { throw e; }
+        return new Promise(function (r) { setTimeout(r, PAIR_RETRY_MS); }).then(attempt);
+      });
+    }
+    return attempt();
+  }
+
+  /* Off with every listener the current session added (see onGone). The
+     notifications are stopped too, best effort: on a link that is already
+     gone the stack refuses, and that is fine. */
+  function unhook() {
+    var h = state.hooks;
+    state.hooks = null;
+    if (!h) { return; }
+    try { h.device.removeEventListener('gattserverdisconnected', h.onGone); } catch (e) { /* gone */ }
+    for (var i = 0; i < h.chars.length; i++) {
+      var c = h.chars[i][0];
+      try { c.removeEventListener('characteristicvaluechanged', h.chars[i][1]); } catch (e) { /* gone */ }
+      if (c.stopNotifications) {
+        try { Promise.resolve(c.stopNotifications()).catch(function () {}); } catch (e) { /* gone */ }
+      }
+    }
+  }
+
+  /* ── reconnecting after a drop ─────────────────────────────────────────────
+     Only to the remembered EXO and never with the chooser, backing off so a
+     box that is off does not keep the radio busy, and only while the app is
+     on screen (a hidden page waits, then tries the moment it is back). An
+     explicit disconnect() or forget() ends it. */
+  var RECONNECT_MS = [1000, 2000, 4000, 8000, 15000, 30000];
+  function scheduleReconnect() {
+    if (state.reconnectTimer || state.connected || state.userClosed) { return; }
+    var n = state.reconnectTries || 0;
+    state.reconnectTimer = setTimeout(function () {
+      state.reconnectTimer = null;
+      if (state.connected || state.userClosed || !state.autoReconnect) { return; }
+      if (typeof document !== 'undefined' && document.hidden) { state.reconnectWhenVisible = true; return; }
+      state.reconnectTries = n + 1;
+      connect({ picker: false }).then(function () { state.reconnectTries = 0; },
+                                      function () { scheduleReconnect(); });
+    }, RECONNECT_MS[Math.min(n, RECONNECT_MS.length - 1)]);
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden || state.connected || !state.autoReconnect || state.userClosed) { return; }
+      /* back on screen: try now rather than at the end of a long back-off */
+      state.reconnectWhenVisible = false;
+      state.reconnectTries = 0;
+      if (state.reconnectTimer) { clearTimeout(state.reconnectTimer); state.reconnectTimer = null; }
+      scheduleReconnect();
+    });
+  }
+
+  function disconnect() {
+    state.userClosed = true;
+    if (state.reconnectTimer) { clearTimeout(state.reconnectTimer); state.reconnectTimer = null; }
+    if (state.device && state.device.gatt && state.device.gatt.connected) {
+      state.device.gatt.disconnect();
+    }
+  }
+
+  /* ── request/response ──────────────────────────────────────────────────────
+     Writes are SERIALISED through state.queue. Web Bluetooth rejects a write
+     that starts while another is in flight ("GATT operation already in
+     progress"), and the UI happily fires several calls at once on boot. The
+     queue turns that into a well-behaved sequence instead of a race. */
+
+  /* "BUSY; ASK AGAIN" IS ASKED AGAIN, HERE (2026-10-13, the Core's
+     Bluetooth audit). The Core answers {"s":503,"busy":true} when a request
+     could not be taken at all: every reassembly slot held a request still
+     being served (the UI fires several calls at once on boot), or the
+     server was busy with the other link. Either way it never reached an
+     endpoint, so sending it again is safe for any method. It used to be
+     dropped in silence and the caller waited out its timeout; now the
+     caller gets the real answer a moment later. Only "busy" is retried: any
+     other error, a 503 without the mark included, goes to the caller as it
+     came. */
+  var BUSY_RETRIES = 4;
+  var BUSY_PAUSE_MS = 150;
+
+  function isBusy(res) {
+    var o = res && res.obj;
+    return !!(res && res.error && o && o.s === 503 && o.busy === true);
+  }
+
+  /* Same signature as zs-serial.js's. signal: an AbortSignal (the fetch
+     shim passes api()'s 8 s one, m63); when it fires the request leaves the pending table at once. */
+  function request(method, path, body, timeoutMs, signal) {
+    function again(res, attempt) {
+      if (!isBusy(res) || attempt > BUSY_RETRIES || !state.connected ||
+          (signal && signal.aborted)) {
+        return res;
+      }
+      return new Promise(function (r) { setTimeout(r, BUSY_PAUSE_MS * attempt); })
+        .then(function () { return requestOnce(method, path, body, timeoutMs, signal); })
+        .then(function (next) { return again(next, attempt + 1); });
+    }
+    return requestOnce(method, path, body, timeoutMs, signal).then(function (res) {
+      return again(res, 1);
+    });
+  }
+
+  function requestOnce(method, path, body, timeoutMs, signal) {
+    if (!state.connected || !state.chars) {
+      return Promise.reject(new Error('not connected to an adapter'));
+    }
+    if (signal && signal.aborted) { return Promise.reject(new Error('timed out')); }
+    var entry = state.pending.open(timeoutMs || REQUEST_TIMEOUT_MS);
+    if (!entry) {
+      return Promise.reject(new Error('the link is busy: 255 requests are waiting for an answer'));
+    }
+    var id = entry.id;
+    if (signal && signal.addEventListener) {
+      signal.addEventListener('abort', function () {
+        state.pending.cancel(entry, new Error('timed out'));
+      });
+    }
+
+    var req = { m: method || 'GET', p: path };
+    if (body !== undefined && body !== null) { req.b = body; }
+    var payload = new TextEncoder().encode(JSON.stringify(req));
+    var frames = encodeFrames(id, payload, state.chunk);
+
+    var answer = entry.promise;
+
+    state.queue = state.queue.then(function () {
+      var chain = Promise.resolve();
+      /* given up while it waited its turn: do not put it on the air */
+      if (state.pending.live[id] !== entry) { return chain; }
+      frames.forEach(function (f) {
+        chain = chain.then(function () {
+          /* withResponse, not withoutResponse: the "without" variant has no
+             flow control, so on a busy link the controller silently drops
+             frames and the message never completes. Slower and correct beats
+             faster and occasionally corrupt. */
+          return state.chars.request.writeValueWithResponse
+            ? state.chars.request.writeValueWithResponse(f)
+            : state.chars.request.writeValue(f);
+        });
+      });
+      return chain;
+    }).catch(function (e) {
+      state.pending.cancel(entry, e);
+      /* Keep the queue alive: one failed write must not wedge every later
+         request behind a permanently rejected promise. */
+    });
+
+    return answer;
+  }
+
+  /* ── the fetch shim ────────────────────────────────────────────────────────
+     This is what lets the whole existing app run over a radio untouched. */
+
+  function installFetchShim(prefix) {
+    prefix = prefix || '/agent';
+    if (window.__zsBleFetch) { return; }
+    var real = window.fetch ? window.fetch.bind(window) : null;
+    window.__zsBleFetch = true;
+
+    window.fetch = function (input, init) {
+      var url = (typeof input === 'string') ? input
+        : (input && input.url) || '';
+      var isAgent = url.indexOf(prefix + '/') === 0 ||
+        url.indexOf(location.origin + prefix + '/') === 0;
+      if (!isAgent) {
+        return real ? real(input, init)
+          : Promise.reject(new Error('fetch is unavailable'));
+      }
+
+      var path = url.replace(location.origin, '').slice(prefix.length);
+      var opt = init || {};
+      var method = (opt.method || 'GET').toUpperCase();
+      var body;
+      if (opt.body) {
+        try { body = JSON.parse(opt.body); } catch (e) { body = opt.body; }
+      }
+
+      if (!state.connected) {
+        /* Shaped exactly like the dashboard proxy's own 502 body, so the
+           app's existing offline handling recognises it without a change. */
+        return Promise.resolve(jsonResponse(
+          { ok: false, error: 'device-agent unreachable (bluetooth not connected)' },
+          502));
+      }
+
+      /* ONE SLOW REPLY IS NOT A DEAD ADAPTER (owner, 2026-10-14: the phone
+         got 106 replies, one long one never finished, and the app said
+         "Core offline"). A request that runs out of time while the link is
+         still up is asked once more if it is a read (a write may already
+         have been applied, so it is never repeated); if it still fails the
+         caller gets an error that does NOT say "unreachable" or "timed out",
+         because those words are what phone.html's api() reads as "the board
+         is gone". Only a link that is actually down says unreachable. */
+      var attempt = function (n) {
+        return request(method, path, body, undefined, opt.signal).then(null, function (e) {
+          var lost = !state.connected || (opt.signal && opt.signal.aborted);
+          if (!lost && method === 'GET' && n === 0) { return attempt(1); }
+          throw e;
+        });
+      };
+      return attempt(0).then(function (res) {
+        var o = res.obj || {};
+        if (res.error) {
+          /* D335 (Studio's F-3): a refusal that says the other link holds
+             the server ("busy", and which link: "owner") keeps saying so,
+             so the app can wait and try once more instead of matching the
+             sentence */
+          var refusal = { ok: false, error: o.e || 'bluetooth request failed' };
+          if (o.busy === true) { refusal.busy = true; }
+          if (typeof o.owner === 'string') { refusal.owner = o.owner; }
+          return jsonResponse(refusal, o.s || 502);
+        }
+        var payload = (o.b !== undefined && o.b !== null) ? o.b
+          : (o.t !== undefined ? o.t : null);
+        return jsonResponse(payload, o.s || 200);
+      }).catch(function (e) {
+        if (state.connected) {
+          return jsonResponse(
+            { ok: false, error: 'The adapter was slow to answer that one request (' +
+              path + '). The link is still up; try again.' }, 504);
+        }
+        return jsonResponse(
+          { ok: false, error: 'device-agent unreachable (' +
+            String(e && e.message || e) + ')' }, 502);
+      });
+    };
+  }
+
+  function jsonResponse(obj, status) {
+    var text = (typeof obj === 'string') ? obj : JSON.stringify(obj);
+    /* A real Response, so callers can use .json(), .ok, .status exactly as
+       they do over HTTP. Anything less would leak the transport. */
+    return new Response(text, {
+      status: status || 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  window.ZSBLE = {
+    supported: supported,
+    available: available,
+    explain: explain,
+    connect: connect,
+    disconnect: disconnect,
+    forget: forget,
+    remembered: remembered,
+    request: request,
+    installFetchShim: installFetchShim,
+    isConnected: function () { return !!state.connected; },
+    info: function () {
+      return { version: state.version, chunk: state.chunk,
+               name: state.device ? state.device.name : null };
+    },
+    on: function (kind, fn) {
+      if (listeners[kind]) { listeners[kind].push(fn); }
+    },
+    SERVICE_UUID: SVC,
+    PROTOCOL_VERSION: PROTOCOL_VERSION,
+    /* exported for the self-test and for anyone debugging the wire */
+    _encodeFrames: encodeFrames,
+    /* the receive path without a radio, for the PC suites (D335's push
+       test drives a message id 0 through it), as zs-serial.js _feedLine */
+    _onFrame: onResponseFrame
+  };
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     The framing has to agree with protocol.py byte for byte. These assert the
+     half that lives in the browser; test_ble_protocol.py asserts the other. */
+  if (typeof window !== 'undefined') {
+    (function () {
+      /* The self-test runs at LOAD, and the dashboard's test harness loads
+         every script phone.html loads into a bare Node VM — which has no
+         TextEncoder. That harness is testing the CV tab, not Bluetooth, so
+         the honest result there is "not tested here", not a load crash that
+         fails an unrelated suite. Every real browser this file can actually
+         run in has TextEncoder. Found by test-cv-tab.js, not by a browser. */
+      if (typeof TextEncoder === 'undefined') {
+        window.ZSBLE_SELFTEST_RESULT = {
+          pass: true, failures: [],
+          skipped: 'no TextEncoder in this environment (test harness)'
+        };
+        return;
+      }
+      var fail = [];
+      function ck(c, m) { if (!c) { fail.push(m); } }
+
+      var payload = new TextEncoder().encode('{"m":"GET","p":"/status"}');
+      var one = encodeFrames(7, payload, 244);
+      ck(one.length === 1, 'a short request should be one frame');
+      ck(one[0][0] === 7, 'the message id must be byte 0');
+      ck((one[0][1] & FLAG_FIRST) && (one[0][1] & FLAG_LAST),
+        'a single frame must carry FIRST and LAST');
+
+      var many = encodeFrames(9, new Uint8Array(1000), SAFE_CHUNK);
+      ck(many.length === Math.ceil(1000 / SAFE_CHUNK),
+        'wrong frame count at the worst-case MTU');
+      ck((many[0][1] & FLAG_FIRST) && !(many[0][1] & FLAG_LAST),
+        'only the first frame carries FIRST');
+      ck((many[many.length - 1][1] & FLAG_LAST),
+        'the last frame must carry LAST');
+      for (var i = 0; i < many.length; i++) {
+        ck(many[i].length - HEADER <= SAFE_CHUNK,
+          'a frame exceeded the chunk budget — it would be truncated');
+      }
+
+      /* An empty body must still produce one frame, or the board waits for a
+         LAST that never comes. Same invariant as the Python side. */
+      ck(encodeFrames(1, new Uint8Array(0), 20).length === 1,
+        'an empty payload must still produce exactly one frame');
+
+      /* Message id 0 is telemetry's. A reply carrying it would be filed as
+         news and its caller would hang until the timeout. */
+      ck(FLAG_FIRST === 1 && FLAG_LAST === 2 && FLAG_GZIP === 4 &&
+        FLAG_ERROR === 8, 'flag values must match protocol.py');
+      ck(HEADER === 2, 'header size must match protocol.py');
+      ck(SAFE_CHUNK === 18, 'SAFE_CHUNK must match protocol.py (20 - HEADER)');
+
+      window.ZSBLE_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

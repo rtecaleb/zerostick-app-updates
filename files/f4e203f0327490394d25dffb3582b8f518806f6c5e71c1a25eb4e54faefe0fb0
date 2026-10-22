@@ -1,0 +1,318 @@
+/* shell/04-photos.js — a config's photo (D120: in the app, never on the adapter).
+ *
+ * Kept in IndexedDB through zs-photos.js (ZSPHOTOS), keyed by adapter and
+ * config; shrinkPhoto() makes a phone photo small enough first. Whose drawer
+ * (the adapter's deviceId from /status), set, clear and forget.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── config photos (D120: in the app, never on the adapter) ──────────
+     The owner, 2026-09-23: "keep the pictures in the phone app, off the
+     actual memory, which is for firmware and profiles." So a photo lives in
+     this app's own storage (zs-photos.js, IndexedDB) and is NEVER sent to
+     the adapter: not as bytes, not as a URL, not inside a config. Nothing in
+     a config says a photo exists, so neither the Core's D103 blob nor its
+     gzipped SOURCE sidecar can carry one.
+
+     THE ONE COST, and the owner chose it: a photo set on the phone is not on
+     the PC app, and one set on the PC is not on the phone.
+
+     KEYED BY ADAPTER AND CONFIG. PHOTO.dev names whose drawer is open,
+     "<product>:<the adapter's own id>" (photoDevKey below). Every adapter
+     has a config called "default", so a key of the config id alone would
+     put one adapter's photo on another's config.
+
+     A photo an older adapter still lists (the /profiles row's `photo`
+     field) is ignored: the app shows only what is in its own drawer.
+
+     WHY THE SHRINK STAYS, now that nothing is uploaded: the drawer is on a
+     phone, and 512 square at ~50 KB is what keeps twenty configs' photos
+     near a megabyte. Re-encoding through a canvas also strips all EXIF, GPS
+     included. And the phone still has the GPU sitting idle for it. */
+  var PHOTO = {
+    dev: (STORE.photoDev && typeof STORE.photoDev==='string') ? STORE.photoDev : '',
+                                  /* whose drawer is open; '' = the adapter has
+                                     not said who it is. Kept in STORE beside
+                                     the config list so the list shown offline
+                                     and the drawer always belong together. */
+    rev: {},                      /* pid -> int, bumped whenever the picture
+                                     changes; absent = this config has none */
+    url: {},                      /* pid -> the object URL the <img> shows */
+    show: {},                     /* pid -> 'photo'|'mark', the player's choice,
+                                     kept with the picture (zs-photos.js) */
+    gen: 0,                       /* every drawer load bumps it, so a late
+                                     answer for an older load is dropped */
+    TARGET: 512,                  /* stored square. Largest render is the 96px
+                                     hero; at 3x DPR that is 288, so 512 leaves
+                                     headroom for the PC window at 2x and
+                                     still costs only ~50 KB. */
+    FALLBACK: 384,                /* last resort if 512 will not fit the cap */
+    DECODE_MAX: 1024,             /* longest side we ever decode at */
+    MAX_BYTES: 128*1024,          /* one picture's ceiling in the drawer: the
+                                     old upload cap, kept because it is what
+                                     bounds the drawer's size per config */
+    MAX_PICK: 25*1024*1024        /* guards a 108 MP raw before we touch it */
+  };
+  function photoURL(pid){ return PHOTO.url[pid] || ''; }
+  function hasPhoto(pid){ return !!PHOTO.rev[pid]; }
+  /* What a config's tile shows: the player's choice when the app holds one;
+     else what an app before D120 wrote into the config (artwork.kind, which
+     is READ and never written now, so no picture choice costs the adapter a
+     save); else the photo whenever there is one. */
+  function photoKind(pid){
+    if(PHOTO.show[pid]==='photo' || PHOTO.show[pid]==='mark') return PHOTO.show[pid];
+    var full = LIVE.full[pid];
+    var k = full && full.artwork && full.artwork.kind;
+    if(k==='photo' || k==='mark') return k;
+    return hasPhoto(pid) ? 'photo' : 'mark';
+  }
+
+  /* Dimensions straight out of the file header, without decoding it.
+     Worth the 30 lines: it lets createImageBitmap decode a 4032x3024 phone
+     photo straight to 1024 wide instead of materialising 48 MB of RGBA on a
+     phone that may not have it to spare. Any surprise returns null and the
+     caller just decodes normally. */
+  function sniffSize(buf){
+    try{
+      var b = new Uint8Array(buf);
+      /* >=24, not >24: IHDR's height ends at byte 23, so 24 bytes is exactly
+         enough. Caught by the test — the off-by-one made a minimal PNG fall
+         through to the JPEG branch and report "I can't read this". */
+      if(b.length>=24 && b[0]===0x89 && b[1]===0x50 && b[2]===0x4e && b[3]===0x47){
+        var dv = new DataView(buf);          /* PNG: IHDR is always at byte 16 */
+        return { w: dv.getUint32(16), h: dv.getUint32(20) };
+      }
+      if(!(b.length>4 && b[0]===0xff && b[1]===0xd8)) return null;   /* not JPEG */
+      var i = 2;
+      while(i < b.length-9){
+        if(b[i]!==0xff){ i++; continue; }
+        var m = b[i+1];
+        if(m===0xd8 || m===0x01 || (m>=0xd0 && m<=0xd7)){ i+=2; continue; }
+        var len = (b[i+2]<<8) | b[i+3];
+        /* SOF0..SOF15, minus the DHT/JPG/DAC markers that share the range */
+        if(m>=0xc0 && m<=0xcf && m!==0xc4 && m!==0xc8 && m!==0xcc){
+          return { h: (b[i+5]<<8)|b[i+6], w: (b[i+7]<<8)|b[i+8] };
+        }
+        if(len<2) return null;
+        i += 2 + len;
+      }
+    }catch(e){}
+    return null;
+  }
+
+  /* file -> ImageBitmap|HTMLImageElement, upright, no bigger than DECODE_MAX.
+     imageOrientation:'from-image' is MANDATORY — without it an EXIF-rotated
+     phone photo (which is most of them) lands sideways in the canvas. */
+  function decodeImage(file){
+    function viaImg(){
+      return new Promise(function(res, rej){
+        var url = URL.createObjectURL(file);
+        var im = new Image();
+        im.onload = function(){ URL.revokeObjectURL(url); res(im); };
+        im.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('decode failed')); };
+        im.src = url;
+      });
+    }
+    if(!('createImageBitmap' in window)) return viaImg();
+    return file.slice(0, 65536).arrayBuffer().then(function(head){
+      var size = sniffSize(head);
+      var opt = { imageOrientation:'from-image' };
+      if(size && size.w>0 && size.h>0 && Math.max(size.w,size.h) > PHOTO.DECODE_MAX){
+        /* cap the LONGER side, so the aspect ratio survives the decode */
+        if(size.w >= size.h) opt.resizeWidth = PHOTO.DECODE_MAX;
+        else opt.resizeHeight = PHOTO.DECODE_MAX;
+        opt.resizeQuality = 'high';
+      }
+      return createImageBitmap(file, opt);
+    })['catch'](function(){
+      /* older Safari ignores or rejects the options object */
+      return createImageBitmap(file)['catch'](viaImg);
+    });
+  }
+
+  function drawSquare(src, sw, sh, size){
+    var side = Math.min(sw, sh);              /* centre crop to a square */
+    var sx = (sw - side) / 2, sy = (sh - side) / 2;
+    var cur = src, cw = sw, ch = sh, cx = sx, cy = sy, cside = side;
+    /* One huge downscale aliases badly — a face at 4032px reduced straight to
+       512 comes out crunchy. Halve until we are within 2x of the target. */
+    while(cside > size * 2){
+      var half = Math.max(size, Math.round(cside / 2));
+      var mid = document.createElement('canvas');
+      mid.width = half; mid.height = half;
+      mid.getContext('2d').drawImage(cur, cx, cy, cside, cside, 0, 0, half, half);
+      cur = mid; cw = ch = cside = half; cx = cy = 0;
+    }
+    var out = document.createElement('canvas');
+    out.width = out.height = size;
+    var g = out.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    try{ g.imageSmoothingQuality = 'high'; }catch(e){}
+    g.drawImage(cur, cx, cy, cside, cside, 0, 0, size, size);
+    return out;
+  }
+
+  function canvasJPEG(cv, q){
+    return new Promise(function(res){
+      if(cv.toBlob) cv.toBlob(function(b){ res(b); }, 'image/jpeg', q);
+      else res(null);
+    });
+  }
+
+  /* The whole client pipeline. A 12 MB 4032x3024 photo becomes a 512x512 JPEG
+     of ~45-70 KB before a single byte is kept. Re-encoding through a canvas
+     also strips ALL EXIF, including GPS — worth saying in the UI. */
+  function shrinkPhoto(file){
+    if(!file) return Promise.reject(new Error('no file'));
+    if(file.size > PHOTO.MAX_PICK) return Promise.reject(new Error('too big'));
+    return decodeImage(file).then(function(img){
+      var w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
+      if(!w || !h) throw new Error('decode failed');
+      var cv = drawSquare(img, w, h, PHOTO.TARGET);
+      try{ if(img.close) img.close(); }catch(e){}
+      /* Quality ladder. In practice the first rung always wins (512^2 at 0.82
+         measures ~45-70 KB); the rest exist so a pathological image cannot
+         put something over the drawer's per-picture ceiling. */
+      var rungs = [[PHOTO.TARGET,0.82],[PHOTO.TARGET,0.72],[PHOTO.TARGET,0.62],
+                   [PHOTO.FALLBACK,0.72]];
+      var i = 0;
+      function attempt(){
+        var side = rungs[i][0], q = rungs[i][1];
+        var c = side===PHOTO.TARGET ? cv : drawSquare(cv, cv.width, cv.height, side);
+        return canvasJPEG(c, q).then(function(blob){
+          if(!blob) throw new Error('encode failed');
+          if(blob.size <= PHOTO.MAX_BYTES || i >= rungs.length-1) return blob;
+          i++; return attempt();
+        });
+      }
+      return attempt().then(function(blob){
+        if(blob.size > PHOTO.MAX_BYTES) throw new Error('too big');
+        return blob;
+      });
+    });
+  }
+
+  /* ── whose drawer ───────────────────────────────────────────────────────
+     Always the adapter's OWN name for itself, from /status, never one the
+     app invents. A Core reports `deviceId` on every /status (D120), so two
+     Cores can never share a drawer, and a different Core on the same page is
+     noticed on the very next poll. The key is "<product>:<id>", so two
+     products can never share one either.
+
+     AN ADAPTER THAT NAMES NOBODY (a Core flashed before D120, or any adapter
+     whose /status has no deviceId) gets the product's shared drawer,
+     "<product>:". Photos still work on it; the cost, stated rather than
+     discovered, is that two such adapters of one product would show each
+     other's photo on a config id they both have. A Core running this
+     firmware never pays it.
+
+     BEFORE /status HAS LANDED the drawer that is open stays open (the key
+     remembered beside the offline list, PHOTO.dev), so a dropped link never
+     blanks every tile. */
+  var DEV_ID_RE = /^[A-Za-z0-9_-]{4,64}$/;
+  function cleanDevId(v){ return (typeof v==='string' && DEV_ID_RE.test(v)) ? v : ''; }
+  /* null = cannot tell yet; otherwise the key */
+  function photoDevKey(){
+    var st = LIVE.status;
+    if(!st) return null;
+    return productId()+':'+cleanDevId(st.deviceId);
+  }
+
+  /* One tile's picture, and nothing else, changes here. An object URL that is
+     being replaced is revoked, or every reload would leak one per config. */
+  function setPicture(pid, url, show){
+    var old = PHOTO.url[pid];
+    if(old && old !== url && old.indexOf('blob:')===0){ try{ URL.revokeObjectURL(old); }catch(e){} }
+    if(url){
+      PHOTO.url[pid] = url;
+      PHOTO.rev[pid] = (PHOTO.rev[pid]||0) + 1;
+      if(show==='photo' || show==='mark') PHOTO.show[pid] = show;
+    } else {
+      delete PHOTO.url[pid]; delete PHOTO.rev[pid]; delete PHOTO.show[pid];
+    }
+  }
+  function clearPictures(){
+    Object.keys(PHOTO.url).forEach(function(pid){ setPicture(pid, '', ''); });
+    PHOTO.rev = {}; PHOTO.url = {}; PHOTO.show = {};
+  }
+  function storeReady(){ return !!(window.ZSPHOTOS && ZSPHOTOS.available()); }
+
+  /* Open adapter `k`'s drawer (null keeps the one that is open) and fill
+     the tiles from it. */
+  function usePhotoDevice(k){
+    if(typeof k==='string' && k !== PHOTO.dev) PHOTO.dev = k;
+    return loadPhotos();
+  }
+  function loadPhotos(){
+    var gen = ++PHOTO.gen, dev = PHOTO.dev;
+    if(!dev || !storeReady()){
+      clearPictures();
+      return Promise.resolve(false);
+    }
+    return ZSPHOTOS.all(dev).then(function(recs){
+      if(gen !== PHOTO.gen) return false;          /* a newer load owns the tiles */
+      clearPictures();
+      recs.forEach(function(r){ setPicture(r.pid, ZSPHOTOS.urlFor(r), r.show); });
+      paintPhotos();
+      return true;
+    });
+  }
+  /* The tiles that can be on screen when a drawer lands: HOME and the list
+     behind it, through the same gate the poll uses, so a panel the player is
+     reading is never redrawn under them. */
+  function paintPhotos(){ try{ renderHomeIfVisible(); }catch(e){} }
+
+  /* Why a photo cannot be kept here, in a sentence, or '' when it can. */
+  function photoBlocked(){
+    if(!storeReady()) return 'This device would not give the app anywhere to keep pictures, '+
+      'so a photo cannot be set here.';
+    if(!PHOTO.dev) return 'The app does not know which adapter this is yet. Connect it, '+
+      'and try again.';
+    return '';
+  }
+
+  /* KEPT IN THE APP, never sent (D120). The drawer write comes first and the
+     tile changes only once it is really stored, so a photo that could not be
+     kept is never shown as if it had been. */
+  function savePhoto(pid, blob, done){
+    var dev = PHOTO.dev, why = photoBlocked();
+    if(why){ if(done) done(false, why); return; }
+    ZSPHOTOS.put(dev, pid, blob, 'photo').then(function(ok){
+      if(!ok){
+        if(done) done(false, 'This device would not keep the picture. It may be out of space.');
+        return;
+      }
+      return ZSPHOTOS.get(dev, pid).then(function(rec){
+        if(dev === PHOTO.dev) setPicture(pid, ZSPHOTOS.urlFor(rec), 'photo');
+        if(done) done(true, '');
+      });
+    });
+  }
+  /* The tile goes to the mark at once either way; done(false) means this
+     device could not forget it, so it may be back on the next load. */
+  function dropPhoto(pid, done){
+    var dev = PHOTO.dev;
+    var p = (dev && storeReady()) ? ZSPHOTOS.remove(dev, pid) : Promise.resolve(false);
+    setPicture(pid, '', '');
+    p.then(function(ok){ if(done) done(!!ok); });
+  }
+  /* "Use a controller mark instead" and back: the choice lives with the
+     picture, in the app, and costs the adapter nothing. */
+  function setPhotoShow(pid, kind){
+    PHOTO.show[pid] = kind==='mark' ? 'mark' : 'photo';
+    if(PHOTO.dev && storeReady()) ZSPHOTOS.setShow(PHOTO.dev, pid, PHOTO.show[pid]);
+  }
+  /* A deleted config takes its picture with it. */
+  function forgetPhotoFor(pid){
+    setPicture(pid, '', '');
+    if(PHOTO.dev && storeReady()) ZSPHOTOS.remove(PHOTO.dev, pid);
+  }
+
+  /* The tile every screen draws: the photo when this config has one and asked
+     for it, the family mark otherwise. `alt` names the config AND its
+     platform, because a photo carries no information to a screen reader. */

@@ -1,0 +1,276 @@
+/* kbd-map.js - the keyboard and the mouse buttons at the top of Mappings
+ * (D287, amended).
+ *
+ * The owner, 2026-10-13: "take the keyboard from this website and layout and
+ * put it at the top of Mappings, just how there is a controller for
+ * controller configs." Then, on the first cut: "maybe a layout like this
+ * website https://shawon9324.github.io/apps/keytester/ but include M1 and
+ * M2 - the mouse is better [as keys] - and obviously don't make the keyboard
+ * red, but I don't like the idea of a full mouse in the way like that."
+ *
+ * CLEAN ROOM. Both sites were looked at only for the arrangement: nothing of
+ * their code, CSS or pictures is here. The arrangement is the compact
+ * full-size board that page shows: ONE top row of small keys (Esc, F1-F12,
+ * then Pause, Print Screen, Delete, Home, Page Up, Page Down, Scroll Lock,
+ * Insert, End), the main block with the arrows tucked into it (Up beside the
+ * right Shift, Left/Down/Right ending the bottom row) and the number pad
+ * beside it. Measured in key units and drawn as plain buttons in the app's
+ * own flat 8K look (D259), never red: held = the accent, mapped = the blue
+ * tint and a dot, a Script's key = amber with a ▸.
+ *
+ * The mouse is a ROW OF KEYCAPS under the board (M1 left, M2 right, M3
+ * middle, M4, M5, Wheel up, Wheel down), the same buttons as the keys: they
+ * light, open their mapping and wear the same marks. No mouse drawing.
+ *
+ *   ZSKBD.html(o)      the drawing. o.keys = { code: { kind: 'bound' |
+ *                      'script', what: 'Turn assist', glyph: '<svg..>' } }
+ *                      for the controls this config does something with;
+ *                      o.keyboard / o.mouse say which rows to draw.
+ *   ZSKBD.wire(host, onKey)   a tap on a key calls onKey(code, el); the
+ *                      Bigger keys switch is wired here.
+ *   ZSKBD.paint(host)  lights the keys held right now (ZS.liveHeld, the
+ *                      /input/live feed devbar.js polls; HOME reads the same).
+ *   ZSKBD.LAYOUT / ZSKBD.MOUSE   the codes drawn, for the tests.
+ *
+ * Every key is a real <button> with an aria-label ("X: Turn assist"). At
+ * phone width a key is ~17 px, so "Bigger keys" doubles the board and it
+ * scrolls sideways inside its own frame (remembered per viewer). ES5, like
+ * every file phone.html loads.
+ */
+(function () {
+  'use strict';
+  var W = 20.25;                     /* the board's width in key units */
+  var GAP = 0.1;                     /* between two keys */
+  /* [code, legend, x, y, w, h] in key units */
+  var LAYOUT = [];
+  function row(y, x, h, list) {
+    for (var i = 0; i < list.length; i++) {
+      var k = list[i], w = k[2] || 1;
+      LAYOUT.push([k[0], k[1], x, y, w, k[3] || h]);
+      x += w;
+    }
+  }
+  function letters(s) { return s.split('').map(function (c) { return ['KEY_' + c, c]; }); }
+
+  /* the top row: 21 small keys across the whole width */
+  var TOP = [['KEY_ESC', 'Esc']];
+  for (var f = 1; f <= 12; f++) TOP.push(['KEY_F' + f, 'F' + f]);
+  TOP = TOP.concat([['KEY_PAUSE', 'Pau'], ['KEY_SYSRQ', 'Prt'], ['KEY_DELETE', 'Del'], ['KEY_HOME', 'Hm'],
+    ['KEY_PAGEUP', 'PgU'], ['KEY_PAGEDOWN', 'PgD'], ['KEY_SCROLLLOCK', 'Scr'], ['KEY_INSERT', 'Ins'], ['KEY_END', 'End']]);
+  TOP.forEach(function (k) { k[2] = W / TOP.length; });
+  row(0, 0, 0.75, TOP);
+  /* the main block, 16 units wide, the arrows inside it */
+  row(0.9, 0, 1, [['KEY_GRAVE', '`']].concat('1234567890'.split('').map(function (d) { return ['KEY_' + d, d]; }))
+    .concat([['KEY_MINUS', '-'], ['KEY_EQUAL', '='], ['KEY_BACKSPACE', 'Backspace', 3]]));
+  row(1.9, 0, 1, [['KEY_TAB', 'Tab', 1.5]].concat(letters('QWERTYUIOP'))
+    .concat([['KEY_LEFTBRACE', '['], ['KEY_RIGHTBRACE', ']'], ['KEY_BACKSLASH', '\\', 2.5]]));
+  row(2.9, 0, 1, [['KEY_CAPSLOCK', 'Caps', 1.75]].concat(letters('ASDFGHJKL'))
+    .concat([['KEY_SEMICOLON', ';'], ['KEY_APOSTROPHE', '\''], ['KEY_ENTER', 'Enter', 3.25]]));
+  row(3.9, 0, 1, [['KEY_LEFTSHIFT', 'Shift', 2.25]].concat(letters('ZXCVBNM'))
+    .concat([['KEY_COMMA', ','], ['KEY_DOT', '.'], ['KEY_SLASH', '/'], ['KEY_RIGHTSHIFT', 'Shift', 2.75], ['KEY_UP', '▲']]));
+  row(4.9, 0, 1, [['KEY_LEFTCTRL', 'Ctrl', 1.5], ['KEY_LEFTMETA', 'Win', 1.25], ['KEY_LEFTALT', 'Alt', 1.25],
+    ['KEY_SPACE', 'Space', 5], ['KEY_RIGHTALT', 'AltGr', 1.25], ['KEY_COMPOSE', 'Mnu', 1.25], ['KEY_RIGHTCTRL', 'Ctrl', 1.5],
+    ['KEY_LEFT', '◀'], ['KEY_DOWN', '▼'], ['KEY_RIGHT', '▶']]);
+  /* the number pad, after a quarter-unit gap */
+  var NX = 16.25;
+  row(0.9, NX, 1, [['KEY_NUMLOCK', 'Num'], ['KEY_KPSLASH', '/'], ['KEY_KPASTERISK', '*'], ['KEY_KPMINUS', '-']]);
+  row(1.9, NX, 1, [['KEY_KP7', '7'], ['KEY_KP8', '8'], ['KEY_KP9', '9'], ['KEY_KPPLUS', '+', 1, 2]]);
+  row(2.9, NX, 1, [['KEY_KP4', '4'], ['KEY_KP5', '5'], ['KEY_KP6', '6']]);
+  row(3.9, NX, 1, [['KEY_KP1', '1'], ['KEY_KP2', '2'], ['KEY_KP3', '3'], ['KEY_KPENTER', 'Ent', 1, 2]]);
+  row(4.9, NX, 1, [['KEY_KP0', '0', 2], ['KEY_KPDOT', '.']]);
+
+  /* the mouse, as keycaps: one row under the board */
+  var MOUSE = [];
+  (function () {
+    var x = 0, y = 6.05, list = [['BTN_LEFT', 'M1', 2], ['BTN_RIGHT', 'M2', 2], ['BTN_MIDDLE', 'M3', 1.75],
+      ['BTN_SIDE', 'M4', 1.75], ['BTN_EXTRA', 'M5', 1.75], ['BTN_WHEEL_UP', 'Wheel ▲', 2.5],
+      ['BTN_WHEEL_DOWN', 'Wheel ▼', 2.5]];
+    for (var i = 0; i < list.length; i++) {
+      MOUSE.push([list[i][0], list[i][1], x, y, list[i][2], 1]);
+      x += list[i][2];
+    }
+  })();
+
+  var NAMES = {
+    KEY_ESC: 'Esc', KEY_PAUSE: 'Pause', KEY_HOME: 'Home', KEY_SYSRQ: 'Print Screen', KEY_SCROLLLOCK: 'Scroll Lock',
+    KEY_GRAVE: 'Backtick', KEY_MINUS: 'Minus', KEY_EQUAL: 'Equals', KEY_INSERT: 'Insert',
+    KEY_PAGEUP: 'Page Up', KEY_PAGEDOWN: 'Page Down', KEY_DELETE: 'Delete', KEY_LEFTBRACE: 'Left bracket',
+    KEY_RIGHTBRACE: 'Right bracket', KEY_BACKSLASH: 'Backslash', KEY_CAPSLOCK: 'Caps Lock',
+    KEY_SEMICOLON: 'Semicolon', KEY_APOSTROPHE: 'Apostrophe', KEY_LEFTSHIFT: 'Left Shift',
+    KEY_COMMA: 'Comma', KEY_DOT: 'Full stop', KEY_SLASH: 'Slash', KEY_RIGHTSHIFT: 'Right Shift',
+    KEY_UP: 'Up arrow', KEY_DOWN: 'Down arrow', KEY_LEFT: 'Left arrow', KEY_RIGHT: 'Right arrow',
+    KEY_LEFTCTRL: 'Left Ctrl', KEY_LEFTMETA: 'Windows', KEY_LEFTALT: 'Left Alt', KEY_RIGHTALT: 'Alt Gr',
+    KEY_COMPOSE: 'Menu', KEY_RIGHTCTRL: 'Right Ctrl',
+    KEY_NUMLOCK: 'Num Lock', KEY_KPSLASH: 'Keypad slash', KEY_KPASTERISK: 'Keypad star', KEY_KPMINUS: 'Keypad minus',
+    KEY_KPPLUS: 'Keypad plus', KEY_KPENTER: 'Keypad Enter', KEY_KPDOT: 'Keypad dot',
+    BTN_LEFT: 'M1, left click', BTN_RIGHT: 'M2, right click', BTN_MIDDLE: 'M3, middle click',
+    BTN_SIDE: 'M4, mouse button 4', BTN_EXTRA: 'M5, mouse button 5', BTN_WHEEL_UP: 'Wheel up', BTN_WHEEL_DOWN: 'Wheel down'
+  };
+  function nameOf(code, legend) {
+    if (NAMES[code]) return NAMES[code];
+    var m = /^KEY_KP(\d)$/.exec(code);
+    return m ? 'Keypad ' + m[1] : legend;
+  }
+
+  var ZOOM_KEY = 'zs.kbdZoom';
+  function zoomed() { try { return window.localStorage.getItem(ZOOM_KEY) === '1'; } catch (x) { return false; } }
+  function setZoom(on) { try { window.localStorage.setItem(ZOOM_KEY, on ? '1' : '0'); } catch (x) {} }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function pct(v, of) { return (Math.round(v / of * 100000) / 1000) + '%'; }
+
+  function keyHTML(code, legend, style, info, extra) {
+    var k = info || null;
+    var cls = 'kbk' + (k ? (k.kind === 'script' ? ' kb-s' : ' kb-b') : '') + (extra || '');
+    var say = nameOf(code, legend) + ': ' + (k ? k.what : 'not bound');
+    return '<button type="button" class="' + cls + '" data-kcode="' + esc(code) + '" style="' + style +
+      '" aria-label="' + esc(say) + (k ? '' : '. Tap to bind it') + '" title="' + esc(say) + '">' +
+      '<span class="kbl" aria-hidden="true">' + esc(legend) + '</span>' +
+      (k && k.kind === 'script' ? '<i class="kbm kbm-s" aria-hidden="true">▸</i>' : '') +
+      (k && k.kind !== 'script' && k.glyph ? '<i class="kbm kbg" aria-hidden="true">' + k.glyph + '</i>' : '') +
+      (k && k.kind !== 'script' ? '<i class="kbm kbm-b" aria-hidden="true"></i>' : '') +
+      '</button>';
+  }
+
+  function html(o) {
+    o = o || {};
+    css();
+    var keys = o.keys || {}, h = '', i;
+    var showKb = o.keyboard !== false, showMouse = !!o.mouse;
+    var items = (showKb ? LAYOUT : []).concat(showMouse ? MOUSE : []);
+    if (!items.length) return '';
+    /* the board's height is what it holds: the mouse row alone when no
+       keyboard is plugged in */
+    var top = Infinity, bot = 0;
+    for (i = 0; i < items.length; i++) {
+      top = Math.min(top, items[i][3]);
+      bot = Math.max(bot, items[i][3] + items[i][5]);
+    }
+    var H = bot - top;
+    var z = zoomed();
+    h += '<div class="kbmap' + (z ? ' kbzoom' : '') + '" id="sa-kbd" role="group" aria-label="' +
+      esc(showKb ? 'Your keyboard' + (showMouse ? ' and mouse buttons' : '') : 'Your mouse buttons') +
+      '. Keys light while you hold them. Tap one to change what it does.">';
+    h += '<div class="kbscroll"><div class="kbboard" style="aspect-ratio:' + W + '/' + (Math.round(H * 100) / 100) + '">';
+    for (i = 0; i < items.length; i++) {
+      var L = items[i];
+      var st = 'left:' + pct(L[2] + GAP / 2, W) + ';top:' + pct(L[3] - top + GAP / 2, H) +
+        ';width:' + pct(L[4] - GAP, W) + ';height:' + pct(L[5] - GAP, H);
+      var cls = (L[4] >= 1.5 ? ' kbwide' : '') + ((L[5] < 1 || (L[4] <= 1 && String(L[1]).length >= 3)) ? ' kbtop' : '') + (L[0].indexOf('BTN_') === 0 ? ' kbmb' : '');
+      h += keyHTML(L[0], L[1], st, keys[L[0]], cls);
+    }
+    h += '</div></div>';
+    h += '<div class="kbfoot"><span class="kblegend" aria-hidden="true">' +
+      '<span><i class="kbsw kbsw-on"></i>held</span>' +
+      '<span><i class="kbsw kbsw-b"></i>mapped</span>' +
+      '<span><i class="kbsw kbsw-s">▸</i>Script</span></span>' +
+      '<button type="button" class="kbzbtn" id="sa-kbzoom" aria-pressed="' + (z ? 'true' : 'false') + '">' +
+        (z ? 'Smaller keys' : 'Bigger keys') + '</button></div></div>';
+    return h;
+  }
+
+  /* what is held, as a set of names AND evdev numbers: devbar names a code
+     by the first alias with a keycap picture, so BTN_MOUSE and BTN_LEFT (one
+     number) must light the same key */
+  function heldSet() {
+    var held = (window.ZS && ZS.liveHeld && ZS.liveHeld.codes) || [];
+    var C = (window.ZSPROFILE && ZSPROFILE.CODES) || {};
+    var set = {};
+    for (var i = 0; i < held.length; i++) {
+      set['n' + held[i]] = true;
+      if (typeof C[held[i]] === 'number') set['c' + C[held[i]]] = true;
+    }
+    return function (code) {
+      if (set['n' + code]) return true;
+      return typeof C[code] === 'number' && !!set['c' + C[code]];
+    };
+  }
+  function paint(host) {
+    if (!host || !host.querySelectorAll) return;
+    var isHeld = heldSet();
+    var ks = host.querySelectorAll('[data-kcode]');
+    for (var i = 0; i < ks.length; i++) {
+      var on = isHeld(ks[i].getAttribute('data-kcode'));
+      if (ks[i].classList.contains('kb-on') !== on) ks[i].classList.toggle('kb-on', on);
+    }
+  }
+
+  function wire(host, onKey) {
+    if (!host || !host.querySelectorAll) return;
+    var ks = host.querySelectorAll('[data-kcode]');
+    for (var i = 0; i < ks.length; i++) {
+      (function (el) {
+        el.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          if (typeof onKey === 'function') onKey(el.getAttribute('data-kcode'), el);
+        });
+      })(ks[i]);
+    }
+    var zb = host.querySelector('#sa-kbzoom');
+    if (zb) zb.addEventListener('click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      var on = !host.classList.contains('kbzoom');
+      host.classList.toggle('kbzoom', on);
+      zb.setAttribute('aria-pressed', on ? 'true' : 'false');
+      zb.textContent = on ? 'Smaller keys' : 'Bigger keys';
+      setZoom(on);
+    });
+    paint(host);
+  }
+
+  /* the look: the zk tokens Mappings already wears (.zkmap, D242/D259) */
+  var CSS_DONE = false;
+  function css() {
+    if (CSS_DONE || typeof document === 'undefined' || !document.createElement || !document.head) return;
+    CSS_DONE = true;
+    var A = 'var(--zk-accent,#58a6ff)', AM = 'var(--zk-amber,#ffb454)', C3 = 'var(--zk-card3,#2d3036)',
+        LN = 'var(--zk-line,#3a3e45)';
+    var s = document.createElement('style');
+    s.id = 'kbd-map-css';
+    s.textContent =
+      '.kbmap{background:var(--zk-stage,#202327);border:1px solid ' + LN + ';border-radius:14px;' +
+        'padding:8px 6px 8px;margin:0 0 10px;color:var(--zk-text,#eef1f4)}' +
+      '.kbscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;' +
+        'scrollbar-width:thin;padding-bottom:2px}' +
+      '.kbboard{position:relative;width:100%}' +
+      '.kbzoom .kbboard{width:220%}' +
+      '.kbk{position:absolute;box-sizing:border-box;margin:0;padding:0;border-radius:4px;min-height:0;' +
+        'background:' + C3 + ';border:1px solid ' + LN + ';color:var(--zk-dim,#9aa3ad);' +
+        'font-weight:600;font-size:7.5px;line-height:1;font-family:inherit;display:flex;align-items:center;justify-content:center;' +
+        'overflow:hidden;cursor:pointer;transition:background .08s,color .08s,border-color .08s;-webkit-tap-highlight-color:transparent}' +
+      '.kbk.kbtop{font-size:6.5px}' +
+      '.kbk.kbmb{font-size:8px;color:var(--zk-text,#eef1f4)}' +
+      '.kbzoom .kbk{font-size:12px;border-radius:6px}.kbzoom .kbk.kbtop{font-size:10px}.kbzoom .kbk.kbmb{font-size:13px}' +
+      '.kbk .kbl{pointer-events:none;white-space:nowrap}' +
+      '.kbk.kb-b{background:color-mix(in srgb,' + A + ' 20%,' + C3 + ');' +
+        'border-color:color-mix(in srgb,' + A + ' 55%,' + LN + ');color:var(--zk-text,#eef1f4)}' +
+      '.kbk.kb-s{background:color-mix(in srgb,' + AM + ' 18%,' + C3 + ');border-color:' + AM + ';color:var(--zk-text,#eef1f4)}' +
+      '.kbk.kb-on{background:' + A + ';border-color:' + A + ';color:var(--zk-ink,#06172e)}' +
+      '.kbk:focus-visible{outline:2px solid ' + A + ';outline-offset:1px}' +
+      '.kbm{position:absolute;pointer-events:none;font-style:normal}' +
+      '.kbm-b{right:2px;top:2px;width:4px;height:4px;border-radius:50%;background:' + A + '}' +
+      '.kbm-s{right:1px;top:0;font-size:7px;line-height:1;color:' + AM + '}' +
+      '.kbg{display:none}.kbg svg{width:100%;height:100%}' +
+      '.kbzoom .kbg{display:block;width:13px;height:13px;right:2px;top:2px}' +
+      '.kbzoom .kbg + .kbm-b{display:none}' +
+      '.kbzoom .kbm-s{font-size:11px;right:3px;top:2px}' +
+      '.kb-on .kbm-b{background:var(--zk-ink,#06172e)}.kb-on .kbm-s{color:var(--zk-ink,#06172e)}' +
+      '.kbfoot{display:flex;align-items:center;gap:10px;margin-top:8px;padding:0 2px}' +
+      '.kblegend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--zk-dim,#9aa3ad);flex:1 1 auto}' +
+      '.kblegend span{display:inline-flex;align-items:center;gap:6px}' +
+      '.kbsw{display:inline-flex;align-items:center;justify-content:center;width:16px;height:12px;border-radius:3px;' +
+        'font-style:normal;font-size:8px;border:1px solid ' + LN + ';background:' + C3 + '}' +
+      '.kbsw-on{background:' + A + ';border-color:' + A + '}' +
+      '.kbsw-b{background:color-mix(in srgb,' + A + ' 20%,' + C3 + ');border-color:color-mix(in srgb,' + A + ' 55%,' + LN + ')}' +
+      '.kbsw-s{border-color:' + AM + ';color:' + AM + ';background:color-mix(in srgb,' + AM + ' 18%,' + C3 + ')}' +
+      '.kbzbtn{flex:0 0 auto;min-height:36px;padding:0 14px;border-radius:10px;' +
+        'background:var(--zk-card2,#1b1e22);border:1px solid ' + LN + ';color:var(--zk-text,#eef1f4);' +
+        'font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer}';
+    document.head.appendChild(s);
+  }
+
+  window.ZSKBD = { html: html, wire: wire, paint: paint, LAYOUT: LAYOUT, MOUSE: MOUSE, nameOf: nameOf };
+})();

@@ -1,0 +1,249 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   zs-micro.css — micro-interactions for the ZeroStick EXO phone app.
+
+   Partner file: zs-micro.js adds/removes the classes below, and ONLY in
+   response to real user input (pointerdown / keydown within the last second).
+   Nothing in this file self-triggers, so the 8s poll re-render can never make
+   any of it replay — fresh nodes arrive with none of these classes on them.
+
+   Rules held here:
+     • compositor-friendly properties only: transform / opacity, plus the
+       independent `scale` property (so the toggle knob can squash WITHOUT
+       clobbering its translateX travel), and one `filter` used sparingly
+       for the focus bloom.
+     • every animation is a ONE-SHOT with a JS timeout fallback — cleanup
+       never depends on animationend, so `animation: none` under reduced
+       motion cannot strand a class.
+     • reduced motion (BOTH the OS media query and the app's own
+       body.a11y-motion switch) collapses everything to "appear in final
+       state". Every state these animations decorate is already carried by a
+       static signal: knob position + aria-checked, the number itself, the
+       .cur / .on rings, the toast text. Motion here is confirmation, never
+       the message.
+
+   Class prefix: zs-mi-*  (one-shots: flip, bloom, up, down, rv, commit,
+   heavy, lock, pop, focusbloom · held states: grab, hold).
+   All keyframes are zsmi-* so they can be recognised in devtools.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ TOGGLE .sw — knob squash on flip + ion bloom on turning ON ═══════════
+   The knob's resting transform is translateX (0 / 22px / 28px in a11y-big).
+   A keyframe on `transform` would overwrite that and teleport the knob, so
+   the squash animates the independent `scale` property instead: it composes
+   with the existing .16s translateX transition, giving a knob that squashes
+   WHILE it travels. Browsers without the `scale` property simply skip it. */
+
+@keyframes zsmi-knob {
+  0%   { scale: 1; }
+  38%  { scale: 1.16; }
+  72%  { scale: 0.93; }
+  100% { scale: 1; }
+}
+.sw.zs-mi-flip::after { animation: zsmi-knob 300ms var(--ease-settle, ease-out); }
+
+/* The bloom layer exists on every switch at opacity 0 — pre-rendered shadow,
+   opacity is the only thing that ever animates (compositor-cheap). */
+.sw::before {
+  content: "";
+  position: absolute;
+  left: -5px; right: -5px; top: -5px; bottom: -5px;
+  border-radius: 999px;
+  box-shadow: 0 0 14px 3px var(--zs-ion-glow, rgba(111, 155, 255, .30));
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes zsmi-bloom {
+  0%   { opacity: 0; }
+  30%  { opacity: .95; }
+  100% { opacity: 0; }
+}
+.sw.zs-mi-bloom::before { animation: zsmi-bloom 460ms var(--ease-settle, ease-out); }
+
+
+/* ══ STEPPER .stp — direction is meaning ══════════════════════════════════
+   +  → the value slides UP into place (arrives from 5px below)
+   −  → the value slides DOWN into place (arrives from 5px above)
+   Hold-to-repeat gets NO per-tick pulse — at 70–190ms/step that strobes.
+   zs-micro.js swaps to a steady .zs-mi-hold tint instead (static colour,
+   not motion, so it survives reduced-motion honestly). */
+
+@keyframes zsmi-stepup {
+  0%   { transform: translateY(5px);  opacity: .25; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@keyframes zsmi-stepdn {
+  0%   { transform: translateY(-5px); opacity: .25; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+.stp .sv.zs-mi-up   { animation: zsmi-stepup 150ms var(--ease-settle, ease-out); }
+.stp .sv.zs-mi-down { animation: zsmi-stepdn 150ms var(--ease-settle, ease-out); }
+
+/* held repeat: steady accent tint on the value — state, not motion */
+.stp.zs-mi-hold .sv { color: var(--accent); }
+
+
+/* ══ SLIDER .rng — thumb grows while grabbed, readout pulses on release ═══ */
+
+input.rng::-webkit-slider-thumb { transition: transform 90ms var(--ease-settle, ease-out); }
+input.rng::-moz-range-thumb     { transition: transform 90ms ease-out; }
+input.rng.zs-mi-grab::-webkit-slider-thumb { transform: scale(1.16); }
+input.rng.zs-mi-grab::-moz-range-thumb     { transform: scale(1.16); }
+
+/* .rv floats right (blockified, so transforms apply); grow from its right
+   edge so the number does not drift toward the label */
+.flab .rv { transform-origin: 100% 50%; }
+@keyframes zsmi-rv {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+.rv.zs-mi-rv { animation: zsmi-rv 240ms var(--ease-settle, ease-out); }
+
+
+/* ══ BUTTONS — commit settle + glow (primary), heavier feel (danger) ══════ */
+
+@keyframes zsmi-settle {
+  0%   { transform: scale(.97); }
+  62%  { transform: scale(1.006); }
+  100% { transform: scale(1); }
+}
+.btn.zs-mi-commit { animation: zsmi-settle 240ms var(--ease-settle, ease-out); }
+
+/* Pre-rendered glow washed in/out via opacity — never during the press
+   (zs-brand: a pressed primary must not also brighten), only on commit. */
+.btn.primary { position: relative; }
+.btn.primary::after {
+  content: "";
+  position: absolute;
+  left: -3px; right: -3px; top: -3px; bottom: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 20px var(--zs-ion-glow, rgba(111, 155, 255, .30)),
+              0 0 6px  var(--zs-ion-edge, rgba(111, 155, 255, .42));
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes zsmi-glow {
+  0%   { opacity: 0; }
+  28%  { opacity: .9; }
+  100% { opacity: 0; }
+}
+.btn.primary.zs-mi-commit::after { animation: zsmi-glow 320ms var(--ease-settle, ease-out); }
+
+/* Danger is HEAVIER, not louder: a deeper press with a slower return (the
+   --t-press token is what zs-brand's press transition reads), and a damped,
+   near-overshoot-free settle on commit. No glow — destruction is not
+   celebrated — and no shake, ever. */
+.btn.danger { --t-press: 150ms; }
+.btn.danger:active,
+.btn.danger.zs-pressing { transform: scale(.955); }
+@keyframes zsmi-heavy {
+  0%   { transform: scale(.955); }
+  74%  { transform: scale(1.004); }
+  100% { transform: scale(1); }
+}
+.btn.danger.zs-mi-heavy { animation: zsmi-heavy 340ms var(--ease-settle, ease-out); }
+
+
+/* ══ PICKER CELL .pk — the reticle confirms the pick ══════════════════════
+   A ring flashes on around the chosen cell and settles inward — the same
+   shape as the brand reticle acquiring a target. The renderer closes the
+   sheet synchronously, but the sheet's exit is a ~250ms spring and its DOM
+   survives until the next open, so the pulse plays out during the exit. */
+
+.pk { position: relative; }
+.pk::after {
+  content: "";
+  position: absolute;
+  left: -2px; right: -2px; top: -2px; bottom: -2px;
+  border-radius: 13px;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px var(--zs-ion-glow, rgba(111, 155, 255, .30));
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes zsmi-lockring {
+  0%   { opacity: 0; transform: scale(1.22); }
+  30%  { opacity: 1; transform: scale(1); }
+  62%  { opacity: 1; transform: scale(.985); }
+  82%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.pk.zs-mi-lock::after { animation: zsmi-lockring 300ms var(--ease-settle, ease-out); }
+.pk.zs-mi-lock        { animation: zsmi-settle 240ms var(--ease-settle, ease-out); }
+
+
+/* ══ SWATCH .sc — settle pulse on selection (the .on ring is the state) ═══ */
+
+@keyframes zsmi-pop {
+  0%   { transform: scale(.9); }
+  55%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.sc.zs-mi-pop { animation: zsmi-pop 240ms var(--ease-settle, ease-out); }
+
+
+/* ══ TOAST — content slides with the entrance ═════════════════════════════
+   Pure CSS, no JS: toast() rebuilds its children on every call, so a fresh
+   <span>/<button> exists exactly once per toast — the animation fires once
+   per message and can never replay on a poll (polls do not touch #toast). */
+
+@keyframes zsmi-toastin {
+  0%   { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.toast > span,
+.toast > button { animation: zsmi-toastin 190ms var(--ease-settle, ease-out); }
+
+
+/* ══ FOCUS BLOOM — keyboard users get arrival feedback too ════════════════
+   One soft glow that fades as focus lands (keyboard-driven focus only —
+   zs-micro.js gates on :focus-visible + a recent keydown). Deliberately no
+   movement: focus already jumps around the screen, adding travel to it is a
+   vestibular cost. The persistent cyan outline (zs-brand) is the state; this
+   is only the "you have arrived" moment. Filter, used sparingly, one-shot. */
+
+@keyframes zsmi-focusbloom {
+  0%   { filter: drop-shadow(0 0 10px rgba(111, 155, 255, .55)); }
+  100% { filter: drop-shadow(0 0 0 rgba(111, 155, 255, 0)); }
+}
+.zs-mi-focusbloom { animation: zsmi-focusbloom 380ms ease-out; }
+
+
+/* ══ REDUCED MOTION — both signals, honoured on their own terms ═══════════
+   zs-micro.js already refuses to add one-shot classes when ZSM.reduced() is
+   true (checked LIVE per event, never cached), so under reduced motion these
+   rules are defence-in-depth: if the OS setting flips mid-animation, or a
+   class arrives through any path the JS gate missed, everything collapses to
+   "final state, instantly". zs-brand's blanket clamps already cover most of
+   this; the explicit rules below exist so THIS file is safe standing alone —
+   and because the slider-thumb pseudo-elements are NOT matched by the
+   blankets' `*` selectors, they must be silenced here by name.
+
+   State without the motion: knob position + aria-checked (toggle), the
+   number itself (stepper, slider), .cur/.on rings (picker, swatch), toast
+   text, the focus outline. Nothing is conveyed by motion alone. */
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="zs-mi-"],
+  [class*="zs-mi-"]::before,
+  [class*="zs-mi-"]::after,
+  .toast > span,
+  .toast > button { animation: none !important; }
+  input.rng.zs-mi-grab::-webkit-slider-thumb { transform: none; transition: none; }
+  input.rng.zs-mi-grab::-moz-range-thumb     { transform: none; transition: none; }
+  /* the heavier danger press keeps zs-brand's reduced press form (opacity),
+     not a deeper travel */
+  .btn.danger:active,
+  .btn.danger.zs-pressing { transform: none; }
+}
+
+body.a11y-motion [class*="zs-mi-"],
+body.a11y-motion [class*="zs-mi-"]::before,
+body.a11y-motion [class*="zs-mi-"]::after,
+body.a11y-motion .toast > span,
+body.a11y-motion .toast > button { animation: none !important; }
+body.a11y-motion input.rng.zs-mi-grab::-webkit-slider-thumb { transform: none !important; transition: none !important; }
+body.a11y-motion input.rng.zs-mi-grab::-moz-range-thumb     { transform: none !important; transition: none !important; }
+body.a11y-motion .btn.danger:active,
+body.a11y-motion .btn.danger.zs-pressing { transform: none !important; }

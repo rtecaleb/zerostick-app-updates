@@ -1,0 +1,180 @@
+/* sections/15-modifiers.js — Shift Layers: bindings that only apply while another key is held.
+ *
+ * R.modifiers lists bindings[] entries with a chord and adds them with three
+ * pickButton calls (hold, source, target). Profile: bindings[].chord ->
+ * BINDINGS 0x0010 -> components/zs_bindings (chords).
+ *
+ * Screens (window.RENDERERS):  R.modifiers
+ * Tests:                      test-settings-icons.js, test-render.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('modifiers', function (SEC) {
+  /* from the files before this one */
+  var addbtn = SEC.addbtn, card = SEC.card, esc = SEC.esc, FRIENDLY = SEC.FRIENDLY,
+      glyFor = SEC.glyFor, note = SEC.note, outTable = SEC.outTable, R = SEC.R,
+      sh = SEC.sh, srcGly = SEC.srcGly, srcNameOf = SEC.srcNameOf,
+      srcPickKind = SEC.srcPickKind, STICK_TGT = SEC.STICK_TGT, TGT_IDX = SEC.TGT_IDX,
+      TGT_STICK = SEC.TGT_STICK, ZS = SEC.ZS;
+
+  /* ── Shift Layers — REAL, over bindings[].chord ───────────────────
+     What this screen used to be: a "Type: Hold / Toggle / Turbo" segment, a
+     button picker, an "Extra layer it opens: Shift A / Shift B / Turbo set"
+     select, and an "Exclude / Include / Exclude all" segment — every one of
+     them saved to ZS.store.vals['mods|<id>'] and read by nothing. There are no
+     named layers on the board and no per-chord type; the Exclude segment was
+     hard-coded to index 0 and never even read back. Meanwhile the Buttons
+     screen counts real chorded bindings and points the user HERE to manage
+     them, at a screen that could not create one.
+
+     The engine has supported this the whole time. profiles/schema.py validates
+     bindings[].chord as a list of source codes and keys duplicate detection on
+     (source, sorted(chord)); mapping/bindings.py implements it, including the
+     rule that while a chord is complete every chordless entry for that same
+     source is suppressed — which IS XIM's "Exclude" mode, as the only
+     behaviour. So this screen now writes that real field, and offers only what
+     the resolver actually does: one held button, one second button, one target.
+     "Include" and "Exclude all" are not offered because the engine has no such
+     modes — see docs/STATUS.md. */
+  /* A shift layer's identity: the board keys duplicates on (source,
+     sorted(chord)); the target is added so a row is never mistaken for a
+     different job on the same pair. */
+  function slKey(b){
+    return (b && b.source)+'|'+((b && b.chord) || []).slice().sort().join('+')+'|'+(b && b.target);
+  }
+  function slFind(list, id){
+    for(var i=0; list && i<list.length; i++)
+      if(list[i] && list[i].chord && list[i].chord.length && slKey(list[i]) === id) return i;
+    return -1;
+  }
+  /* a staged change says where it is going (D257) */
+  function slLater(j){ return (j && j.staged) ? ' — press Save to send it to your board' : ''; }
+  R.modifiers = function(p){
+    function tgtArtOf(tgt){
+      if(TGT_IDX[tgt]!=null) return glyFor(outTable(p)[TGT_IDX[tgt]][1]);
+      if(STICK_TGT[tgt]) return glyFor(STICK_TGT[tgt].g);
+      return '<span class="tag">'+esc(tgt)+'</span>';
+    }
+    function tgtNameOf(tgt){
+      if(TGT_IDX[tgt]!=null){ var l=outTable(p)[TGT_IDX[tgt]][0]; return FRIENDLY[l]||l; }
+      if(TGT_STICK[tgt]) return TGT_STICK[tgt];
+      return tgt;
+    }
+    return { html:'', after: function(root){
+      function render(){
+        var full = ZS.live.full[p.id] || null;
+        var live = ZS.live.online!==false && !!full;
+        var list = (full && full.bindings) || [];
+        var rows = [];
+        for(var i=0;i<list.length;i++){
+          var b = list[i];
+          if(b && b.source && b.target && b.chord && b.chord.length) rows.push({i:i, b:b});
+        }
+
+        var h = note('A <b>shift layer</b> gives a button a second job while you hold another one — '+
+            'hold <b>L1</b> and <b>✕</b> can mean something different from <b>✕</b> on its own.');
+
+        if(!live){
+          h += note('<b>Board offline.</b> Shift layers live on the board, so they cannot be listed or '+
+                    'changed until it is reachable.','warn');
+          root.innerHTML = h; ZS.wire(root, p.id+'/modifiers'); return;
+        }
+
+        h += sh('Your shift layers');
+        if(!rows.length){
+          h += note('None yet. Add one below, then press Save to send it to your board.');
+        } else {
+          h += card(rows.map(function(r){
+            var hold = r.b.chord[0];
+            /* P4: the held button drawn as well as named. srcGly's .glyimg is
+               NOT decorative by itself, so the aria-hidden wrapper does that
+               job — the words stay, and announced text is unchanged. */
+            return '<div class="lrow" data-i="'+r.i+'">'+
+              '<span class="src"><span class="gly-deco" aria-hidden="true" '+
+                'style="margin-right:6px">'+srcGly(srcNameOf(hold, p), hold)+
+                '</span>Hold '+esc(srcNameOf(hold, p))+'</span>'+
+              srcGly(srcNameOf(r.b.source, p), r.b.source)+
+              '<span class="arrow">→</span>'+ tgtArtOf(r.b.target) +
+              '<span class="rt"><button class="ib danger sl-del" data-i="'+r.i+'" '+
+                'aria-label="remove: hold '+esc(srcNameOf(hold,p))+' and press '+
+                esc(srcNameOf(r.b.source,p))+'">✕</button></span></div>';
+          }).join(''))+
+          note('Each row reads: while you hold the first button, the second one sends '+
+               'the control on the right instead of whatever it normally does.');
+        }
+        h += addbtn('Add a shift layer','sl-add')+
+          note('While you hold the shift button, that second button does its shifted job instead — '+
+               'and goes back the moment you let go.');
+
+        root.innerHTML = h;
+        ZS.wire(root, p.id+'/modifiers');
+
+        [].slice.call(root.querySelectorAll('.sl-del')).forEach(function(btnEl){
+          btnEl.addEventListener('click', function(){
+            var cur = ZS.live.full[p.id];
+            var ent = cur && cur.bindings && cur.bindings[+btnEl.dataset.i];
+            if(!ent) return;
+            var id = slKey(ent);
+            var say = 'Hold '+srcNameOf(ent.chord[0], p)+' + '+srcNameOf(ent.source, p);
+            /* B2 (audit 2026-10-10): the row's index is an index into the
+               app's copy, which can differ from the document the mutation
+               runs on (a staged Mappings edit, or the board's fresh copy at
+               Save), so splicing by index removed an UNRELATED mapping. The
+               mutation finds the entry by what it is (source + chord +
+               target, the board's own duplicate key plus the target), and it
+               is staged like every other setting (D257): it reaches the
+               board when Save is pressed (stageProfile; it saves at once only
+               under the old autosave mode, ZS_AUTOSAVE). */
+            ZS.stageProfile(p.id, function(f){
+              var i = slFind(f.bindings, id);
+              if(i >= 0) f.bindings.splice(i, 1);
+            }).then(function(j){
+              if(j && j.ok){ ZS.toast(say+' removed'+slLater(j)); render(); }
+            });
+          });
+        });
+
+        var add = root.querySelector('#sl-add');
+        if(add) add.addEventListener('click', function(){
+          var kind = srcPickKind(p);
+          ZS.pickButton({kind:kind, p:p, capture:true,
+                         title:'Which button do you HOLD?'}).then(function(holdV){
+            if(!holdV || !holdV.source) return;
+            ZS.pickButton({kind:kind, p:p, capture:true,
+                           title:'…and which button do you press?'}).then(function(srcV){
+              if(!srcV || !srcV.source) return;
+              if(srcV.source === holdV.source){
+                ZS.toast('Pick two different buttons — a button cannot shift itself'); return;
+              }
+              ZS.pickButton({kind:'target', p:p,
+                             title:'What should it send?'}).then(function(tgtV){
+                if(!tgtV || !tgtV.target) return;
+                var ent = {source:srcV.source, target:tgtV.target,
+                           mode:'hold', chord:[holdV.source]};
+                /* staged like every other setting (D257); added once even
+                   if the queue is applied to a copy that already has it */
+                ZS.stageProfile(p.id, function(f){
+                  if(!f.bindings) f.bindings = [];
+                  if(slFind(f.bindings, slKey(ent)) < 0) f.bindings.push(JSON.parse(JSON.stringify(ent)));
+                }).then(function(j){
+                  /* The board keys duplicates on (source, sorted(chord)) and
+                     reports its own refusal through putProfile's toast, so the
+                     same pair added twice already explains itself. */
+                  if(j && j.ok){
+                    ZS.toast('Hold '+srcNameOf(holdV.source,p)+' + '+srcNameOf(srcV.source,p)+
+                             ' → '+tgtNameOf(tgtV.target)+slLater(j));
+                    render();
+                  }
+                });
+              });
+            });
+          });
+        });
+      }
+      render();
+    }};
+  };
+});

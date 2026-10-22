@@ -1,0 +1,90 @@
+/* shell/02-store-link.js — the app's local store and its one way to the adapter.
+ *
+ * STORE / persist(): localStorage 'zs-phone-v2' (the config list as last
+ * seen, the activeId, every screen's remembered values). api(path, method,
+ * body): every /agent/* call, which a Core answers through the USB shim
+ * (zs-serial.js) or the Bluetooth one (zs-ble.js), an EXO through
+ * dashboard/server.js; one failed call is not a dead board (2026-08-05).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── persistent store ──────────────────────────────────────────── */
+  var STORE = { profiles:null, activeId:null, vals:{} };
+  try{ var raw=localStorage.getItem('zs-phone-v2'); if(raw){ var l=JSON.parse(raw); if(l&&l.vals) STORE=l; } }catch(e){}
+  /* audit M26 (app-scripts): says whether the write landed, so a screen that
+     can grow the store (gpc-tab.js) can tell the player it is full rather
+     than every later change silently not being remembered */
+  function persist(){ try{ STORE.profiles=PROFILES; STORE.activeId=activeId; localStorage.setItem('zs-phone-v2', JSON.stringify(STORE)); return true; }catch(e){ return false; } }
+  /* A DELETED CONFIG TAKES ITS LOCAL VALUES WITH IT. Every screen keeps what
+     it remembers for a config under keys that name it: '<id>/<screen>|<label>'
+     (wire()'s keyFor), '<word>|<id>' (its colour, lightbar, preset...) and
+     'gpc|<id>' (its GPC script slots, up to eight scripts of up to 512 KB).
+     Deleting the config used to leave all of them in localStorage for ever:
+     the stress run (2026-10-02) watched the store grow with every config
+     made and deleted, towards the browser's ~5 MB, past which persist()
+     fails and NOTHING the app remembers is saved any more. */
+  function forgetValuesFor(id){
+    if(!id || id==='global' || !STORE.vals) return 0;
+    var n=0, k, bar;
+    /* the Scripts editor's lists (smart-actions 01-model persist): 'sa2|<id>'
+       and each weapon room's 'sa2|<id>|<room>' (audit m18, app-scripts) */
+    var sa = 'sa2|'+id;
+    for(k in STORE.vals){
+      if(!Object.prototype.hasOwnProperty.call(STORE.vals, k)) continue;
+      bar = k.indexOf('|');
+      if(k === sa || k.indexOf(sa+'|')===0 ||
+         k.indexOf(id+'/')===0 || (bar>0 && k.slice(bar+1)===id && /^[A-Za-z]+$/.test(k.slice(0, bar)))){
+        delete STORE.vals[k]; n++;
+      }
+    }
+    return n;
+  }
+
+  /* ── live device-agent link (/agent/* → the board's zs-agent API) ─ */
+  var LIVE = { online:null, status:null, full:{}, saveError:{},   /* full: pid → complete profile JSON; saveError: see noteSave */
+               rowBytes:{},     /* D133: pid → the stored blob's size a Core's GET /profiles row gave, or the last save's */
+               rowStored:{} };  /* D135: pid → what it occupies in the Core's pool, sectors and all */
+  var authToastAt = 0;   /* say "your board refused the key" once, not per call */
+  function api(path, method, body){
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var t = ctl ? setTimeout(function(){ ctl.abort(); }, 8000) : null;
+    var opt = { method: method||'GET', headers:{}, signal: ctl?ctl.signal:undefined };
+    if(body!==undefined){ opt.headers['Content-Type']='application/json'; opt.body=JSON.stringify(body); }
+    return fetch('/agent'+path, opt).then(function(r){ return r.json(); })
+      .then(function(j){
+        if(t) clearTimeout(t);
+        /* proxy 502s come back as {ok:false, error:"device-agent unreachable…"} */
+        var err = (j && j.ok===false && j.error) ? String(j.error) : '';
+        var unreachable = /unreachable|timed out/i.test(err);
+        /* A REFUSED call is not a working link. The agent answers a bad or
+           missing token with 403 {"error":"missing or invalid X-ZS-Token
+           header"} — which used to count as "reachable", so the chip said
+           ● board while every request failed, no config ever loaded and every
+           bound control fell back to preview values that saved nowhere. That
+           is exactly the "it's just menus" symptom; say offline instead. */
+        var refused = /X-ZS-Token/i.test(err);
+        if(refused && !authToastAt){ authToastAt = Date.now();
+          toast('Your board refused the app’s key — restart the ZeroStick app', {ms:7000}); }
+        setOnline(!unreachable && !refused);
+        /* D335: this app's own stored writes, so configRev moving by them
+           is never mistaken for someone else's change (06-core-configs.js) */
+        if(typeof noteOwnWrite === 'function') noteOwnWrite(path, opt.method, j);
+        return j || {ok:false, error:'empty response'};
+      })
+      .catch(function(e){ if(t) clearTimeout(t); setOnline(false); return {ok:false, error:String(e&&e.message||e)}; });
+  }
+  /* ONE failed call is not a dead board (2026-08-05). Every api() failure used
+     to flip the link straight to offline, so a single dropped connection —
+     which is what a burst past the board's accept queue looks like — repainted
+     the whole app as offline, greyed every control, and then went back a
+     second later when the next poll landed. The owner saw it as the board
+     "saying offline online over and over".
+     A board that is genuinely away fails every call, so requiring two in a row
+     costs one poll interval to notice and removes the flapping entirely.
+     Success is still believed IMMEDIATELY: coming back must never be delayed,
+     because that edge is what replays queued edits. */

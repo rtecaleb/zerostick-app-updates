@@ -1,0 +1,1338 @@
+/* sections/07-remote-play.js — which PlayStation account a config plays as, and adding one.
+ *
+ * The Remote Play account seam (rpApi probes the board's /ps5 or /psn route
+ * family once; rpAccountsFetch, rpPairs, rpAcctPaint on Overview,
+ * openRpAccountSheet) and the "Add a PlayStation account" screen (R.psnlink).
+ * An A7S (EXO) feature: a Core cannot stream Remote Play yet. Its setup
+ * steps (sign-in, account ID, PS5 code) are 07a-remote-play-setup.js (D286).
+ *
+ * Screens (window.RENDERERS):  R.psnlink
+ * Core / board routes:        /account, /login-url, /register
+ * Tests:                      test-psn-account.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('remote-play', function (SEC) {
+  /* from the files before this one */
+  var acc = SEC.acc, btn = SEC.btn, btnP = SEC.btnP, card = SEC.card, esc = SEC.esc,
+      note = SEC.note, R = SEC.R, sh = SEC.sh, ZS = SEC.ZS;
+
+  /* ── Remote Play: WHICH PlayStation account this config plays as ──────
+     WHY THIS ROW EXISTS, precisely. The board's Remote Play backend picked
+     the PSN account with `next(iter(profile))` and the console with
+     `next(iter(hosts))` — whichever pair Python's dict order happened to hand
+     it. The pyremoteplay profile file has ALWAYS been able to hold several
+     accounts and several consoles per account, so a second account was not
+     merely unsupported: it was silently unreachable, and which PSN user the
+     board signed in as rode a JSON key order nobody controls. Connecting as
+     the wrong PSN user is a failure you discover from inside somebody else's
+     save file, so this row states the answer in words instead of implying it.
+
+     THE CHOICE IS PER-CONFIG (output.remotePlay.account / .mac) because that
+     is exactly what was asked for — "in remote play you should let people
+     have two profiles for two different accounts". The ZeroStick config
+     carries it, so switching config on HOME switches PSN user, with no second
+     place to remember and nothing global to get out of step.
+
+     NO CLUTTER WHEN THERE IS ONE ACCOUNT, and that is a rule here rather than
+     a preference. With a single pairing linked, this is ONE line inside the
+     card that already existed, it names the account and the console it plays
+     on, and it hedges nothing: "the first one" and "the only one" are the same
+     fact and only one of them is worth saying. The list of choices exists only
+     inside the sheet, behind a tap. The net change to the screen is minus two
+     buttons and minus one note, plus this row — it is smaller than it was.
+
+     A PAIRING IS WHAT YOU PICK, NOT AN ACCOUNT. There were TWO next(iter())s.
+     One PSN user with two consoles registered is two choices; offering only
+     the user would leave the console lottery running and the feature would
+     look finished while still being a coin toss. */
+
+  /* WHICH ROUTE FAMILY THE BOARD SPEAKS — probed once, never assumed.
+     The agent half of this feature is being written in parallel, and the two
+     surveys that preceded it named two different homes for it: `/ps5/accounts`
+     beside the POST /ps5/enabled that already exists, and `/psn/accounts`
+     beside the dashboard's PSN wizard. Rather than guess and ship a screen
+     that is dead against half the boards it could meet, the app asks the
+     first, falls back to the second, and remembers which one answered.
+     A board with NEITHER — which is every board today — answers both with
+     {"ok":false,"error":"unknown route: …"}, and that is a third real state
+     the screen renders as a sentence rather than as a spinner that never
+     stops. */
+  var RP_PREFIXES = ['/ps5', '/psn'];
+  var RP_FAM   = null;    /* null = never probed · '' = no PSN routes at all */
+  var RP_ACCTS = null;    /* the board's list, or null when it could not answer */
+  var RP_AT    = 0;       /* when the answer above was learned — either way */
+  var RP_KNOWN = false;   /* has ANY answer been learned yet? */
+  /* The board's own finished sentence for "there is nothing to list" — a
+     brand-new adapter with no pairing file is the ordinary state, not an
+     error, and the agent already words it. Rendering the board's sentence
+     rather than a second copy of the same idea is what stops the two drifting
+     apart; the app's own wording is the fallback for an older agent that
+     sends none. */
+  var RP_PROBLEM = '';
+  /* WHY THE LISTING FAILED, when it failed for a reason that is NOT "there is
+     no such route". These are two different facts and the screen used to state
+     the wrong one for both: any board whose GET <fam>/accounts answered
+     {ok:false} — a pairing file it could not read, a momentary 500, a token
+     the proxy refused — landed RP_FAM at '' and was told "your adapter's
+     software cannot add accounts yet", with the whole form taken away and no
+     way to ask again. That is a claim about the SOFTWARE made from evidence
+     that only shows one call failed, on a board that may well add accounts
+     perfectly. Capped, because it is a board string on its way into markup. */
+  var RP_LAST_ERR = '';
+  /* Clears the LIST, never the route family. The two answer different
+     questions — "is this list current?" and "does this board speak PSN at
+     all?" — and only the first goes stale when an account is added. */
+  function rpAccountsInvalidate(){ RP_ACCTS = null; RP_AT = 0; RP_KNOWN = false; RP_PROBLEM = ''; }
+  /* Every other PSN call rides the prefix the probe found. Callers only run
+     from inside a screen that has already awaited rpAccountsFetch, so RP_FAM
+     is decided by the time this is reached; the guard is for the board that
+     answered nothing, where the honest result is a refusal and not a 404. */
+  function rpApi(path, method, body){
+    if(!RP_FAM) return Promise.resolve({ ok:false,
+      error:'your board’s software has no PlayStation account routes yet' });
+    return ZS.api(RP_FAM + path, method, body);
+  }
+  /* A BOARD CAN LIST ACCOUNTS AND STILL NOT BE ABLE TO ADD ONE, and on the
+     day this shipped that was the exact state of the agent: GET /ps5/accounts
+     existed, the sign-in and pairing routes did not. There is no cheap way to
+     ask in advance — a GET cannot prove a POST route exists — so the Add
+     screen finds out the first time it tries and then SAYS so, once, instead
+     of leaving a form that answers "unknown route" to every press. Matches the
+     agent's two shapes: the router's 404 ("unknown route: POST /ps5/account")
+     and a handler's own 501 ("this board's agent cannot … yet — update it").
+
+     ONE LATCH PER ROUTE, NOT ONE FOR THE SCREEN. This was a single boolean,
+     and any route answering "unknown route" replaced the WHOLE screen with
+     "your adapter cannot add accounts yet" — including the account the user
+     had just successfully added one step earlier. The agent half is being
+     written by another fleet right now and will arrive a route at a time, so
+     a board that can add an account but not yet pair a console is not a
+     hypothetical, it is the next state this screen will meet. Each half now
+     says its own honest sentence and leaves the halves that work alone.
+       account  POST <fam>/account   — add an account (the login-free path)
+       link     GET  <fam>/login-url + POST <fam>/link — the sign-in fallback
+       register POST <fam>/register  — exchange the 8-digit PIN with the PS5 */
+  var RP_MISSING = { account:false, link:false, register:false };
+  /* MATCH THE TWO SHAPES THAT MEAN "THIS ROUTE IS NOT HERE", AND NOTHING ELSE.
+     The bare /cannot .* yet/ this used to carry was too wide by one sentence,
+     and the sentence it swallowed matters: outputs/psn_link.OLD_HELPER says
+     "This adapter's PlayStation helper is older than its software and cannot
+     do this yet — update the adapter, then try again." That is a DEPLOY that
+     got half-finished, not a feature that was never written, and it names the
+     cure. Matching it threw that away and replaced it with "still being built
+     — use the ZeroStick dashboard on a PC", which would fail in exactly the
+     same way, because the PC wizard drives the very same helper.
+       unknown route: …                     the router's 404
+       this board's agent cannot … yet      api/server.py _NO_PSN, a 501
+     Anything else is a board with an opinion, and its own words are shown. A
+     future 501 worded differently misses this and shows the board's sentence
+     verbatim — the safe way round to be wrong. */
+  function rpMissing(j){
+    return !!(j && j.ok === false &&
+      /unknown route|not implemented|agent cannot .* yet/i.test(String(j.error || '')));
+  }
+  /* WHERE THE REDIRECT URL GOES, probed the same way the prefix is. The agent
+     takes it at POST <fam>/link, and ALSO at POST <fam>/account, which
+     forwards any body carrying `redirectUrl` to the same handler. Both are
+     live in the same build, so this is belt over braces rather than a guess —
+     but it costs one variable and one retry, and it is what makes the screen
+     survive the two routes being split again later. */
+  var RP_LINK_PATH = null;
+  function rpAccountsFetch(cb){
+    /* 60 s on a good answer is a courtesy, not a freshness policy: the list
+       changes only when somebody finishes the Add screen, and that screen
+       invalidates this cache itself. 20 s on a bad one stops a board that
+       cannot answer being asked twice on every redraw — and redrawOpenScreen()
+       fires whenever the connected pad changes family, which is an ordinary
+       thing to do while setting this up. */
+    var ttl = RP_ACCTS ? 60000 : 20000;
+    if(RP_KNOWN && (Date.now() - RP_AT) < ttl){ cb(RP_ACCTS); return; }
+    if(ZS.live.online === false){ cb(null); return; }
+    var tries = RP_FAM ? [RP_FAM] : RP_PREFIXES.slice();
+    var i = 0;
+    RP_LAST_ERR = '';
+    function land(pre, list, problem){
+      RP_FAM = pre; RP_ACCTS = list; RP_AT = Date.now(); RP_KNOWN = true;
+      RP_PROBLEM = rpCap(problem, 200).replace(/\s*[.。]\s*$/, '');
+      cb(list);
+    }
+    function next(){
+      if(i >= tries.length){ land(RP_FAM || '', null, ''); return; }
+      var pre = tries[i++];
+      ZS.api(pre + '/accounts').then(function(j){
+        var d = (j && j.ok && j.data) || null;
+        if(d && isArr(d.accounts)){ land(pre, d.accounts, d.problem); return; }
+        /* A ROUTE THAT IS NOT THERE AND A ROUTE THAT FAILED ARE NOT THE SAME
+           ANSWER. Only the first justifies "your adapter's software cannot do
+           this yet"; the second is a board that could not answer this call,
+           and saying so leaves the user a retry instead of a dead end. */
+        if(j && j.ok === false && !rpMissing(j)) RP_LAST_ERR = rpCap(j.error, 200);
+        next();
+      });
+    }
+    next();
+  }
+  function isArr(v){ return Object.prototype.toString.call(v) === '[object Array]'; }
+
+  /* `mac` is the seam's name for the console handle; `host` was the other
+     proposal on the table while this was being designed. READ both so a config
+     written by either half still resolves to the same console; WRITE only
+     `mac`, so nothing this app saves can be ambiguous later. */
+  function rpChoiceOf(full){
+    var rp = ((full && full.output) || {}).remotePlay || {};
+    return { account: String(rp.account || ''),
+             mac:     String(rp.mac || rp.host || '') };
+  }
+  /* Flatten accounts × consoles into the pairs the board can actually connect
+     with. An account with no console linked yet is still listed — it is a real
+     half-finished state, and hiding it would make the Add screen's own result
+     invisible between step one and step two. */
+  /* THE SAME FOLD THE BOARD USES, and it has to be, or the two halves
+     disagree about the same document. outputs/rp_profile.canonical_mac()
+     strips ":-. _", upper-cases and truncates, and BOTH sides of every
+     comparison over there go through it; profiles/schema.py's validate()
+     folds the same way before bounding, and its comment says out loud that a
+     hand-edited "28:40:DD:3D:7E:DC" is a legal value. This function existed
+     only on the board, so the app compared the raw strings: a config the
+     agent resolves perfectly to "Second_Acct on Front room" was shown here as
+     "not linked to this adapter any more", with no tick in the picker — the
+     app reporting a lottery the board was not running. Folding costs one
+     regex and removes a whole class of "the app and the board disagree". */
+  function rpFoldMac(v){
+    return String(v == null ? '' : v).replace(/[:\-. _]/g, '').toUpperCase().slice(0, 48);
+  }
+  /* THE SAME 64 THE BOARD USES — rp_profile.RP_ACCOUNT_MAX_CHARS, and psn.py's
+     PSN_NAME_MAX_CHARS beside it. Every string this screen takes from a board
+     reply goes on to be markup, a toast, a screen-reader announcement and the
+     `account` a config stores, and only the last of those is bounded by
+     anything (profiles/schema.py). Bounding it here too costs one slice and
+     means an agent that ever answers something absurd cannot turn one reply
+     into a paragraph-long sentence — the 7357-character refusal a review
+     measured on the board side is the same failure from the other end. */
+  function rpCap(v, n){ return String(v == null ? '' : v).slice(0, n || 64); }
+  function rpPairs(list){
+    var out = [], i, k, a, hs;
+    for(i = 0; i < (list || []).length; i++){
+      a = list[i] || {};
+      hs = a.consoles || [];
+      if(!hs.length){ out.push({ acct:String(a.username || ''), mac:'', nick:'' }); continue; }
+      for(k = 0; k < hs.length; k++){
+        out.push({ acct: String(a.username || ''),
+                   /* folded on the way IN, so the value the picker writes back
+                      to the config is already in the pairing file's own form */
+                   mac:  rpFoldMac(hs[k].mac || hs[k].id || ''),
+                   nick: String(hs[k].nickname || hs[k].type || 'PS5') });
+      }
+    }
+    return out;
+  }
+  /* -1 means "this config's choice is not on this board" — either it never
+     chose, or what it chose is not here. Those are NOT the same state and
+     they no longer share a sentence: an empty choice means the board falls
+     back to whatever is first, and a choice that misses means the board
+     REFUSES (rp_profile.keys_for raises, the backend re-raises it as
+     BackendUnavailable, and engine._select_backend lands on `null` — the
+     controller goes silent). rpWhy() below names which one this is. */
+  function rpMatch(pairs, sel){
+    var i, mac = rpFoldMac(sel.mac);
+    if(!sel.account) return -1;
+    for(i = 0; i < pairs.length; i++){
+      if(pairs[i].acct === sel.account && (!mac || pairs[i].mac === mac)) return i;
+    }
+    return -1;
+  }
+  /* Is the ACCOUNT here at all, whatever console it names? The two misses read
+     identically on screen before this and only one of them was ever true. */
+  function rpHasAccount(pairs, account){
+    var i;
+    for(i = 0; i < pairs.length; i++) if(pairs[i].acct === account) return true;
+    return false;
+  }
+  function rpSubEm(t){
+    return '<em style="display:block;font-weight:400;font-style:normal;color:var(--muted);'+
+           'font-size:11.5px;white-space:normal;line-height:1.4">'+esc(t)+'</em>';
+  }
+  /* ONE row, three states, zero new cards and zero new headers. `none` is the
+     "nothing linked / cannot be named" face: amber, the app's colour for
+     "not set up", never red — red is spent on the kill switch and stays spent
+     (docs/DESIGN.md). The words say it too, so the hue is a second channel. */
+  function rpRowHTML(body, sub, none){
+    return '<div class="lrow tapper'+(none ? ' none' : '')+'" id="rp-acct" role="button" '+
+      'tabindex="0" aria-label="'+esc('Play as '+body+'. '+sub+'. Tap to change which '+
+      'PlayStation account this config uses.')+'">'+
+      '<span class="src">Play as <b>'+esc(body)+'</b>'+rpSubEm(sub)+'</span>'+
+      '<span class="rt"><span class="arrow">›</span></span></div>';
+  }
+
+  function rpAcctPaint(root, p, full, ns){
+    var host = root.querySelector('#ov-rpacct');
+    if(!host) return;
+    function alive(){ return root.dataset.ns === ns; }
+    if(ZS.live.online === false){
+      /* The accounts live on the board. Offline there is nothing to name and
+         nothing a tap could change — say that, rather than draw a dead row
+         that opens a sheet with nothing in it. */
+      host.innerHTML = '<div class="stat"><span>Play as</span><b>— board offline</b></div>';
+      return;
+    }
+    host.innerHTML = '<div class="stat"><span>Play as</span><b>asking your board…</b></div>';
+    rpAccountsFetch(function(list){
+      if(!alive()) return;
+      var pairs = rpPairs(list), sel = rpChoiceOf(full), at = rpMatch(pairs, sel);
+      var body, sub, none = false;
+      if(list === null){
+        none = true;
+        body = 'whichever account is first on your board';
+        sub  = 'your board’s software cannot name it yet — tap to see how to add an account';
+      } else if(!pairs.length){
+        none = true;
+        body = 'nobody yet';
+        /* The board's own sentence when it sent one — it knows WHY the list is
+           empty (no pairing file, an unreadable one) and the app does not. */
+        sub  = (RP_PROBLEM || 'no PlayStation account is linked to this adapter')+
+               ' — tap to link one';
+      } else if(at >= 0){
+        body = pairs[at].acct;
+        sub  = pairs[at].nick ? 'on “'+pairs[at].nick+'”' : 'no console linked to it yet';
+      } else if(sel.account){
+        /* THE CONFIG NAMES SOMETHING THIS BOARD DOES NOT HAVE, and this row
+           used to answer it with "using this one instead" over the name of a
+           DIFFERENT PSN account, in plain ink. That was the one sentence in
+           this feature that had to be true and it was the opposite of true:
+           rp_profile.keys_for() refuses by name rather than substituting,
+           remoteplay_backend re-raises the refusal as BackendUnavailable, and
+           engine._select_backend catches it and lands on the `null` backend —
+           so the board does not play as somebody else, it stops sending
+           anything at all. Telling the player "we quietly swapped in another
+           account" is exactly the silent-wrong-account behaviour this whole
+           change exists to delete, and printing it while the controller is
+           dead sends them looking in the wrong place.
+
+           So: name the account THE CONFIG asks for, say the board will not
+           connect, and wear the amber "not set up" face — this is a broken
+           config, not a hedge. */
+        none = true;
+        body = sel.account;
+        sub  = (rpHasAccount(pairs, sel.account)
+                 ? 'the console this config names is not paired to “'+sel.account+'” any more'
+                 : '“'+sel.account+'” is not linked to this adapter')+
+               ' — your board will not connect until you pick one below';
+      } else if(pairs.length === 1){
+        /* THE ONE-ACCOUNT CASE, and the reason there is no hedge in it. With a
+           single pairing on the board, "the first one" and "the only one" are
+           the same account; saying "nothing chosen, falling back" would be
+           true, useless, and exactly the clutter this row was asked not to
+           add. It names the account and the console and stops. */
+        body = pairs[0].acct;
+        sub  = pairs[0].nick ? 'on “'+pairs[0].nick+'”' : 'no console linked to it yet';
+      } else if(list.length === 1){
+        /* ONE account, SEVERAL consoles registered to it. The account is not
+           in doubt; the console is — and that was the second next(iter()), so
+           the hedge has to name the right half or it points at the wrong
+           lottery. Counting `list` (accounts) rather than `pairs` (account ×
+           console) is what keeps these two sentences honest. */
+        body = pairs[0].acct;
+        sub  = 'no console chosen — your board falls back to “'+pairs[0].nick+'”, one of the '+
+               pairs.length+' linked to this account';
+      } else {
+        /* The row used to assert "Play as Assault_cK" in bold and then say
+           "nothing chosen" underneath it — one row contradicting itself in
+           two lines. Both halves were true; only the first one sounded like
+           a decision. Name the account the board WILL use and say that is
+           what it is. */
+        body = pairs[0].acct;
+        sub  = 'not picked yet — your board will use this one, the first of '+
+               list.length+' it holds';
+      }
+      /* THE BOARD'S OWN ANSWER OUTRANKS THE CONFIG'S TEXT, for the config that
+         is actually running. Written as "if the field is present" rather than
+         "if it differs from what I expect", so it stays inert until the Remote
+         Play backend starts publishing `account` in its stats — and is correct
+         the day it does, with no second request and no version check. */
+      var bst = ((ZS.live.status || {}).outputBackend || {}).stats || {};
+      if(bst.account && p.id === ZS.activeId && String(bst.account) !== body)
+        sub += ' — but your board is connected as “'+bst.account+'” right now';
+
+      host.innerHTML = rpRowHTML(body, sub, none);
+      var r = host.querySelector('#rp-acct');
+      if(!r) return;
+      function go(){ openRpAccountSheet(p, pairs, at, list, sel); }
+      r.addEventListener('click', go);
+      r.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); }
+      });
+    });
+  }
+
+  /* ── the picker ────────────────────────────────────────────────────
+     radiogroup/radio, not a row of buttons: this is one choice out of N and
+     the accessibility tree should say so. The tick is ALSO a word — "chosen" —
+     because a check glyph in the accent is a colour signal, and DESIGN.md does
+     not allow that to be the only one. */
+  function openRpAccountSheet(p, pairs, at, list, sel){
+    sel = sel || { account:'', mac:'' };
+    var body = note('Which <b>PlayStation account</b> this config signs in as. Every ZeroStick '+
+                    'config remembers its own, so switching config on the home screen switches '+
+                    'PSN user.');
+    var rows = '', i, q;
+    if(list === null){
+      body += note('Your board did not answer with a list of accounts, so there is nothing to '+
+                   'choose from here yet. It still plays as whichever account happens to be '+
+                   'first in its own file — which is exactly the guesswork this screen exists '+
+                   'to end.','warn');
+    } else if(!pairs.length){
+      body += note((RP_PROBLEM ? esc(RP_PROBLEM)+'. ' : '')+
+                   'No PlayStation account is linked to this adapter yet, so there is nothing '+
+                   'to choose from. Add one below and this list fills in.','warn');
+    } else {
+      for(i = 0; i < pairs.length; i++){
+        q = pairs[i];
+        rows += '<div class="lrow tapper" data-rpi="'+i+'" role="radio" tabindex="0" '+
+          'aria-checked="'+(i === at ? 'true' : 'false')+'" '+
+          'aria-label="'+esc('Play as '+q.acct+(q.nick ? ' on '+q.nick : ''))+'">'+
+          '<span class="src">'+esc(q.acct)+
+            rpSubEm(q.nick ? 'on “'+q.nick+'”' : 'no console linked to it yet')+'</span>'+
+          '<span class="rt">'+(i === at ? '<b class="ok">✓ chosen</b>' : '')+'</span></div>';
+      }
+      body += '<div class="grp-card" role="radiogroup" aria-label="PlayStation account">'+rows+'</div>';
+      /* Only worth saying when there is a real alternative. On a board with one
+         pairing the fallback IS the choice, and printing a warning about it
+         would be noise about nothing. */
+      /* TWO DIFFERENT MISSES, and only one of them is a fallback. An empty
+         choice really does land on "whichever is first in the file". A choice
+         that names something the board does not hold does NOT — keys_for()
+         raises, the backend re-raises, and the engine drops to the null
+         backend — so telling somebody their board "falls back to the first
+         one" here would send them off to play on a controller that is sending
+         nothing. Said whatever the count is, because a board with a single
+         pairing and a config naming a third account is just as broken. */
+      if(at < 0 && sel.account)
+        body += note('This config asks for <b>'+esc(sel.account)+'</b>'+
+                     (sel.mac ? ' on <b>'+esc(rpFoldMac(sel.mac))+'</b>' : '')+
+                     ', which this adapter does not have. Your board will not connect until '+
+                     'you pick one of these.','warn');
+      else if(at < 0 && pairs.length > 1)
+        body += note('None of these is chosen on this config, so your board falls back to the '+
+                     'first one in its own file. Tap one to make it a decision.');
+    }
+    body += btnP('plus','Add another PlayStation account','primary','rp-add');
+    /* THE PROMISE, on the screen where somebody might expect to be asked.
+       There is no password field anywhere in this flow and there must never
+       be one — see R.psnlink. */
+    body += note('Signing in happens <b>at Sony, in your own browser</b>. ZeroStick never sees '+
+                 'your password and will never ask you for one.');
+    if(pairs.length > 1)
+      body += note('Changing this while the config is <b>live</b> drops the Remote Play session '+
+                   'and reconnects as the new account — a second or two of nothing.');
+
+    var sb = ZS.sheetOpen('Play as', body, null);
+
+    sb.querySelectorAll('[data-rpi]').forEach(function(r){
+      function pick(){
+        var q = pairs[parseInt(r.getAttribute('data-rpi'), 10)];
+        if(!q) return;
+        if(ZS.live.online === false || !ZS.live.full[p.id]){
+          ZS.toast('Your board is offline — this has not reached it yet');
+          return;
+        }
+        /* Land any debounced edit of THIS config first: the board is about to
+           be handed the same document, and a queued write that cloned the
+           profile before this one would put the old account straight back
+           (cpPicker's reasoning, same hazard, same channel). */
+        ZS.flushProfileWrites(p.id).then(function(){
+          return ZS.putProfile(p.id, function(f){
+            if(!f.output) f.output = {};
+            /* BOTH halves, always. Writing the account alone would leave the
+               console lottery running — that was the second next(iter()). */
+            f.output.remotePlay = { account: q.acct, mac: q.mac };
+          });
+        }).then(function(j){
+          if(!(j && j.ok)) return;    /* putProfile already toasted the refusal */
+          ZS.sheetClose();
+          ZS.announce('This config now plays as ' + q.acct);
+          ZS.toast('Playing as ' + q.acct + (q.nick ? ' on “' + q.nick + '”' : ''));
+          ZS.redrawOpenScreen();
+        });
+      }
+      r.addEventListener('click', pick);
+      r.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); }
+      });
+    });
+    var add = sb.querySelector('#rp-add');
+    if(add) add.addEventListener('click', function(){
+      ZS.sheetClose();
+      ZS.openDetail({ id:'psnlink', lab:'Add a PlayStation account' }, p);
+    });
+  }
+
+
+  /* ── Add a PlayStation account ─────────────────────────────────────
+     THE APP'S JOB HERE IS TO EXPLAIN, NOT TO AUTHENTICATE, and the honest
+     limit is worth writing down in the file: Sony's login is a web page in the
+     user's OWN browser. The board only ever sees the address that page lands
+     on, reads the one-time code out of it, exchanges it for an 8-byte account
+     id and throws the rest away.
+
+     THERE IS NO PASSWORD FIELD ON THIS SCREEN AND THERE MUST NEVER BE ONE. If
+     a future revision appears to need one, the revision is wrong. tools/
+     test-psn-account.js asserts it by scanning the rendered markup, so this is
+     a promise the build keeps rather than one a reviewer has to remember.
+
+     THE LOGIN-FREE PATH LEADS, and that is a protocol fact rather than a
+     shortcut. pyremoteplay's RPDevice.register() reads exactly ONE field out
+     of an account record — `profile.id`, the 8-byte base64 account id — and
+     libchiaki's ChiakiRegistInfo agrees (psn_account_id[8] + pin; the online
+     id "may be null"). The whole PSN sign-in exists to LEARN those 8 bytes.
+     Anyone who already has them can add an account without signing in at all,
+     so that is the first field on the screen and the browser login is folded
+     into an accordion behind it for people who do not know their id.
+
+     WHAT THE USER STILL HAS TO DO BY HAND, and it cannot be automated away:
+     read the 8-digit Link Device code off their own TV and type it in before
+     it expires. The RegistKey and RP-Key that make Remote Play work exist
+     nowhere until that code is exchanged with the console.
+
+     THE BOARD'S OWN LIST IS THE RECEIPT. Every step here ends by throwing the
+     cached listing away and re-reading GET <fam>/accounts, and the "What this
+     adapter holds" card at the foot of the screen renders THAT — not what
+     this screen believes happened. A POST answering {ok:true} is a claim; the
+     listing is the adapter agreeing with it, and the two can differ (a write
+     that did not reach the pairing file, a second account added from the PC
+     wizard meanwhile). When they differ the screen says so rather than
+     reporting success over a board that holds nothing. It is also where the
+     console's MAC comes from: the register reply carries one too, but what the
+     CONSOLE said and what the adapter's pairing file now holds are different
+     facts, and the file is what the backend reads — so the listing's MAC is
+     preferred and the console's is the fallback for a board that will not
+     list. Before the read-back, step three could only ever write a half-choice.
+
+     THE PIN IS A KEYPAD, NOT A TEXT BOX, and that is the accessibility
+     premise of the whole product rather than a flourish. Eight digits typed
+     against a countdown, one-handed, is precisely where a 16px text field and
+     a popped-up OS keyboard hurt: the keyboard covers the instructions, the
+     keys are 7 mm, and a mis-tap costs the code. The pad is twelve 64 px
+     targets that never move, the value lives in module state so a repaint
+     cannot eat a half-typed code, and the digits stay on screen above it.
+
+     PSN IS MODULE-LEVEL STATE, the same reason P_ORDER is: devbar.js calls
+     ZS.redrawOpenScreen() whenever the connected pad changes family, which
+     re-enters this renderer — a closure would wipe a half-typed PIN, and
+     plugging in the pad you are setting this up for is an ordinary thing to
+     do mid-flow. */
+  var PSN = null;
+  var PSN_CSS_ID = 'zs-psnpad-css';
+  function psnCss(){
+    if(document.getElementById(PSN_CSS_ID)) return;
+    var s = document.createElement('style');
+    s.id = PSN_CSS_ID;
+    s.appendChild(document.createTextNode(
+      /* THE DISPLAY. Eight slots, always eight, so the code's length is a
+         SHAPE you can see filling rather than a number you have to count —
+         and an empty slot differs from a filled one by having a character in
+         it, not only by its border colour (docs/DESIGN.md: never signal with
+         colour alone). tabular-nums so a digit landing never reflows the row. */
+      '.pindisp{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}'+
+      '.pslot{height:46px;display:flex;align-items:center;justify-content:center;'+
+        'font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;'+
+        'background:var(--bg);border:1px solid var(--line);border-radius:var(--r-chip);'+
+        'color:var(--text);min-width:0}'+
+      '.pslot.on{border-color:var(--accent);color:var(--accent)}'+
+      /* THE PAD. 64px is well over the 44px touch floor because this is the
+         one control on the product that is used against a clock by somebody
+         whose hands do not do small: --btn-min is the floor, not the target. */
+      '.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}'+
+      '.pinpad button{min-height:64px;font-size:26px;font-weight:600;'+
+        'font-variant-numeric:tabular-nums;background:var(--btn-2-bg);'+
+        'color:var(--btn-2-ink);border:1px solid var(--line);border-radius:var(--r-ctl);'+
+        'box-shadow:var(--btn-wall),var(--btn-lit);touch-action:manipulation;'+
+        '-webkit-tap-highlight-color:transparent}'+
+      '.pinpad button.wide{font-size:15px;color:var(--muted);letter-spacing:.02em}'+
+      /* Feedback on pointer-DOWN. .zs-pressing is zs-motion's class and wins
+         where it is attached; :active is the floor for everywhere else. */
+      '.pinpad button:active,.pinpad button.zs-pressing{transform:translateY(2px);'+
+        'box-shadow:var(--btn-sunk)}'+
+      '@media (prefers-reduced-motion:reduce){.pinpad button:active,'+
+        '.pinpad button.zs-pressing{transform:none;box-shadow:var(--btn-sunk)}}'+
+      'body.a11y-big .pinpad button{min-height:76px;font-size:29px}'+
+      'body.a11y-big .pslot{height:54px;font-size:21px}'));
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  R.psnlink = function(p){
+    /* WHAT IS IN HERE AND WHY EACH OF IT IS, because a field added carelessly
+       here is a half-typed thing thrown away.
+
+       nm / aid / redir  — THE TYPED FIELDS, for exactly the reason `pin` is.
+         Every press in this flow ends in draw(), which rebuilds the markup,
+         and these inputs carry data-nosave="1" so ZS.wire deliberately neither
+         saves nor restores them (an account ID has no business in
+         localStorage). The consequence was that the ONE refusal a user is
+         likeliest to hit — "give this account a name" — wiped the 19-digit ID
+         they had just pasted, and devbar's redrawOpenScreen() wiped whatever
+         was half-typed when the pad they are setting this up for was plugged
+         in. Worst of the three is `redir`: the redirect URL carries a
+         single-use `code=`, so losing it means a fresh trip to Sony's sign-in
+         page. They live here, in memory, and are cleared the moment they are
+         spent.
+       nick    — what the CONSOLE said it linked. Only the register reply
+                 writes it.
+       listNick / mac — what the ADAPTER'S OWN LIST says. Both are re-derived
+                 from scratch on every read-back and never carried forward:
+                 keeping a stale `mac` is how the screen went on asserting
+                 "your adapter's own list shows that pair" over a read-back
+                 that showed the account gone. */
+    var st = PSN || (PSN = { acct:'', nick:'', listNick:'', mac:'', url:'', pin:'',
+                             nm:'', aid:'', redir:'',
+                             m1:'', m1bad:false, m2:'', m2bad:false,
+                             accOpen:false, replyMac:'', pairs:null, checking:false,
+                             said:'' });
+
+    /* The three things a PS5 asks of the person standing in front of it. Kept
+       as one function because both the working screen and the "your board
+       cannot do this yet" screen have to say exactly the same words — a user
+       who follows the manual route on a PC must not be given different
+       instructions from the one who does it here. */
+    function ps5Steps(){
+      return note('On your PS5: <b>Settings › System › Remote Play › Link Device</b>. An '+
+                  '<b>8-digit code</b> appears on the TV. It expires after a few minutes, so '+
+                  'use it soon. The PS5 must be <b>on</b> and on the same network as your '+
+                  'adapter.')+
+             /* HONEST ABOUT WHAT WE HAVE NOT TESTED. Whether a PS5 will show a
+                Link Device code for an account that is not the one signed in
+                on the console is console behaviour, not code, and it was never
+                confirmed. Saying "we believe" costs one word and stops the
+                screen asserting something it does not know. */
+             note('We believe the PS5 only offers a code for the account that is <b>signed in on '+
+                  'the console</b>. If no code appears, switch users on the PS5 first.','warn');
+    }
+    function msg(t, bad){ return t ? note(esc(t), bad ? 'warn' : null) : ''; }
+
+    /* ── the PIN pad ────────────────────────────────────────────────
+       The value is `st.pin`. `#psn-pin` is a hidden mirror of it, so val()
+       reads one place whatever put the digits there and a repaint restores
+       what was typed. Digits only, capped at 8 by construction — a keypad
+       cannot paste, and the container's keydown filter is the only other way
+       in. */
+    function pinSlots(v){
+      var s = '', i;
+      for(i = 0; i < 8; i++)
+        s += '<span class="pslot'+(i < v.length ? ' on' : '')+'">'+
+             (i < v.length ? esc(v.charAt(i)) : '')+'</span>';
+      return s;
+    }
+    function pinSays(v){
+      return v.length ? v.length+' of 8 digits entered: '+v.split('').join(' ')
+                      : 'no digits entered yet, 8 needed';
+    }
+    function pinKey(k, lab, aria, wide){
+      return '<button type="button" data-k="'+esc(k)+'"'+(wide ? ' class="wide"' : '')+
+             ' aria-label="'+esc(aria)+'">'+esc(lab)+'</button>';
+    }
+    function pinPadHTML(){
+      var v = st.pin, h = '', i;
+      h += '<div class="grp-card">'+
+             '<div class="flab">The 8-digit code on your TV</div>'+
+             /* role="img" + a written label, so a screen reader gets the whole
+                code as one sentence instead of eight unlabelled boxes. */
+             '<div class="pindisp" id="psn-disp" role="img" style="margin-top:10px" '+
+               'aria-label="'+esc(pinSays(v))+'">'+pinSlots(v)+'</div>'+
+             '<div class="visually-hidden" id="psn-count" aria-live="polite" role="status">'+
+               esc(pinSays(v))+'</div>'+
+             /* role="group" AND a label. An aria-label on a bare <div> is
+                dropped by most screen readers — the twelve keys were reachable
+                and the thing they belonged to was not named. */
+             '<div class="pinpad" id="psn-pad" role="group" aria-label="number pad">';
+      for(i = 1; i <= 9; i++) h += pinKey(String(i), String(i), 'digit '+i);
+      h += pinKey('clear','Clear','clear all the digits', true)+
+           pinKey('0','0','digit 0')+
+           pinKey('del','⌫','delete the last digit', true);
+      h += '</div>'+
+           '<input type="hidden" id="psn-pin" value="'+esc(v)+'">'+
+           '</div>';
+      return h;
+    }
+
+    /* ── the receipt ───────────────────────────────────────────────
+       The adapter's own answer, drawn from RP_ACCTS and nothing else. This is
+       the difference between "we told you it worked" and "here it is". */
+    function heldHTML(){
+      var h = sh('What this adapter holds'), i, q, isNew;
+      if(st.checking) return h + card('<div class="stat"><span>Reading it back</span><b>asking…</b></div>');
+      if(st.pairs === null)
+        /* SAY WHY WHEN THE BOARD SAID WHY. "did not answer" and "could not
+           read the pairing file" are different problems with different cures,
+           and the board words the second one itself. */
+        return h + note('Your adapter did not answer with a list'+
+                        (RP_LAST_ERR ? ' (“'+esc(RP_LAST_ERR)+'”)' : '')+
+                        ', so this screen cannot show you what it holds. Nothing above is '+
+                        'confirmed by the adapter itself.','warn')+
+                   btn('Check again', null, 'psn-recheck');
+      if(!st.pairs.length)
+        return h + note((RP_PROBLEM ? esc(RP_PROBLEM)+'. ' : '')+
+                        'This adapter holds <b>no PlayStation accounts yet</b>.'+
+                        (st.acct ? ' Not even the one added above — so that step did not stick.' : ''),
+                        st.acct ? 'warn' : null)+
+                   btn('Check again', null, 'psn-recheck');
+      var rows = '';
+      for(i = 0; i < st.pairs.length; i++){
+        q = st.pairs[i];
+        isNew = !!st.acct && q.acct === st.acct;
+        rows += '<div class="stat"><span>'+esc(q.acct)+
+          (isNew ? ' <b class="ok" style="font-weight:600">· just added</b>' : '')+'</span>'+
+          '<b'+(q.nick ? ' class="ok"' : '')+'>'+
+          esc(q.nick ? q.nick : 'no console linked')+'</b></div>';
+      }
+      return h + card(rows)+
+        note('This is the adapter’s <b>own</b> list, read back after every step — not what this '+
+             'screen thinks happened. Every account here can be picked on any config.')+
+        btn('Check again', null, 'psn-recheck');
+    }
+
+    return { html:'', after: function(root){
+      var ns = root.dataset.ns || (p.id + '/psnlink');
+      psnCss();
+
+      function build(){
+        var lead = note('Adding an account is <b>two things</b>: telling this adapter which '+
+                        'PlayStation account you are, then letting your PS5 hand it the key that '+
+                        'lets it connect. Your password goes <b>to Sony and nowhere else</b> — '+
+                        'this app never sees it and never asks for it.');
+        /* OFFLINE FIRST, or the probe never answers and "asking…" becomes a
+           permanent state. Every step of this needs the board — it holds the
+           account file, it talks to Sony, it talks to the PS5 — so there is
+           nothing here that could be done ahead of time. */
+        if(ZS.live.online === false)
+          return lead +
+            note('<b>Your adapter is offline.</b> Every step of this runs on it — it keeps the '+
+                 'account, it does the sign-in, and it is what your PS5 pairs with — so there is '+
+                 'nothing here to start until it is back.','warn')+
+            sh('The console half, for when it is')+
+            ps5Steps();
+        /* THE GATE IS RP_FAM, NOT RP_KNOWN, and the difference cost a working
+           screen once already. RP_KNOWN answers "is the account LIST fresh?"
+           and is cleared every time this screen adds or links something —
+           so gating on it sent the form back to "asking…" the moment an
+           account was added, with nothing left on screen to continue with.
+           RP_FAM answers the question this screen actually has: "does this
+           board speak the PSN routes at all?", and it is sticky by design. */
+        if(RP_FAM === null)
+          return lead + card('<div class="stat"><span>Your board</span><b>asking…</b></div>');
+
+        if(RP_FAM === ''){
+          /* The board answered nothing usable. TWO DIFFERENT REASONS LIVE HERE
+             and they used to share one sentence — which stated the harsher of
+             the two as a fact about the adapter's SOFTWARE:
+
+               * the routes are genuinely absent ("unknown route: …"), which is
+                 what the sentence below describes, and every board the day
+                 this shipped; or
+               * the listing route exists and FAILED — a pairing file it could
+                 not read, a 500, a token the proxy refused. That board may add
+                 accounts perfectly well, and telling its owner the feature is
+                 not built yet is simply false. It also left no way back: this
+                 branch draws no form, and drew no retry either, so the only
+                 cure was to leave the screen and wait out a 20 s cache.
+
+             Every control on the working screen would be dead either way, so
+             none of them is drawn — a disabled form is a worse lie than a
+             sentence — but the sentence has to be the TRUE one, and there is a
+             way to ask again in both. */
+          return lead +
+            (RP_LAST_ERR
+              ? note('<b>Your adapter did not answer</b> when this screen asked which '+
+                     'PlayStation accounts it holds (“'+esc(RP_LAST_ERR)+'”). That is not the '+
+                     'same as it being unable to add one — it may simply not have answered this '+
+                     'time.','warn')
+              : note('<b>Your adapter’s software cannot add accounts yet.</b> The part that links a '+
+                     'PlayStation account is still being built, so there is nothing on this screen '+
+                     'that could reach it.','warn'))+
+            btn('Check again', null, 'psn-recheck')+
+            sh('What to do instead')+
+            note('Use the <b>ZeroStick dashboard on a PC</b> — its PlayStation panel runs the '+
+                 'same sign-in and the same 8-digit pairing, straight onto the board. Nothing '+
+                 'you set up there is lost when this screen takes over.')+
+            sh('The console half, either way')+
+            ps5Steps();
+        }
+
+        var h = lead + sh('1 · Which account');
+        /* THE QUESTION THIS ROW ANSWERS CHANGED when the read-back landed.
+           It used to say "This adapter knows: Second_Acct" off the POST's own
+           reply — a claim about the BOARD made from something that is only a
+           claim itself, and it sat two lines above a read-back saying the
+           board's list held no such account. Whether the adapter knows an
+           account is now the receipt card's question and only its question;
+           this row names which account the steps below are for. */
+        h += card('<div class="stat"><span>These steps are for</span><b'+(st.acct?' class="ok"':'')+'>'+
+                  (st.acct ? esc(st.acct) : 'no account yet')+'</b></div>');
+        if(!st.acct && RP_MISSING.account && RP_MISSING.link){
+          /* Both ways in are missing. Same sentence as a board with no routes
+             at all, because from here it is the same situation. */
+          h += note('<b>Your adapter’s software cannot add accounts yet.</b> The part that links '+
+                    'a PlayStation account is still being built, so there is nothing on this '+
+                    'screen that could reach it.','warn')+
+               note('Use the <b>ZeroStick dashboard on a PC</b> — its PlayStation panel runs the '+
+                    'same sign-in and the same 8-digit pairing, straight onto the board.');
+        } else if(!st.acct){
+          if(!RP_MISSING.account){
+            h += note('The quick way needs <b>no sign-in at all</b>. Your <b>PlayStation account '+
+                      'ID</b> is a short code that identifies your PSN account — Chiaki-ng shows '+
+                      'it, and so does any Chiaki or PS Play config you already have. Paste it '+
+                      'here with a name you will recognise.')+
+                 /* value= FROM MODULE STATE, for the reason the PIN is: every
+                    press here ends in draw(), and data-nosave="1" means ZS.wire
+                    neither stores nor restores these (an account ID has no
+                    business in localStorage). So the commonest refusal on the
+                    screen — "give this account a name" — used to wipe the
+                    19-digit ID that had just been pasted, and devbar's
+                    redrawOpenScreen() wiped both the moment the pad being set
+                    up was plugged in. */
+                 card('<div class="fld col"><div class="flab">A name for this account</div>'+
+                      '<input class="txt" id="psn-name" data-nosave="1" style="margin-top:10px" '+
+                      'autocomplete="off" maxlength="64" placeholder="your PSN online ID" '+
+                      'value="'+esc(st.nm)+'"></div>')+
+                 card('<div class="fld col"><div class="flab">PlayStation account ID</div>'+
+                      '<input class="txt" id="psn-id" data-nosave="1" style="margin-top:10px" '+
+                      'autocomplete="off" maxlength="64" placeholder="e.g. 7QDxxxxxxxx= or 1234567890123456789" '+
+                      'value="'+esc(st.aid)+'"></div>')+
+                 btn('Add this account','primary','psn-add');
+          } else {
+            /* The login-free route is gone but the sign-in one has not been
+               tried, or works. Say which half is missing rather than replacing
+               the screen — the fallback below is still a way in, and blanking
+               everything for one dead route once threw away an account the
+               user had already added. */
+            h += note('<b>Your adapter’s software cannot add accounts yet from a pasted ID</b> — '+
+                      'that part of it is still being built. The Sony sign-in below is the other '+
+                      'way in, and it is a separate piece: it may well still work.','warn');
+          }
+          /* The browser login is the FALLBACK, folded away, because it is
+             the longer road and most people setting up a second account
+             already have the id in another app. Closed by default so the
+             screen opens on one decision, not two — but forced OPEN once the
+             quick way is known to be missing, or the only remaining way in
+             would be hidden behind a chevron. */
+          h += acc('I don’t know my account ID','sliders',
+                 (RP_MISSING.link
+                   ? note('<b>This adapter cannot do the Sony sign-in yet</b> — that part of its '+
+                          'software is still being built. Use the <b>ZeroStick dashboard on a '+
+                          'PC</b>, which runs the same sign-in straight onto the board.','warn')
+                   : note('Then sign in at Sony instead. You will land on a <b>blank page, or one '+
+                          'that says it cannot be reached — that is normal</b>: Sony puts a '+
+                          'one-time code in that page’s web address. Copy the whole address and '+
+                          'paste it below.')+
+                     btn('Open the PlayStation sign-in page',null,'psn-open')+
+                     (st.url
+                       ? card('<div class="fld col"><div class="flab">If the page did not open, copy '+
+                              'this link</div><input class="txt" id="psn-url" data-nosave="1" readonly '+
+                              'style="margin-top:10px" value="'+esc(st.url)+'"></div>')+
+                         btn('⧉ Copy the link',null,'psn-copy')
+                       : '')+
+                     /* THE MOST EXPENSIVE FIELD ON THE SCREEN TO LOSE, and it
+                        was the one being lost. The redirect URL carries a
+                        single-use `code=` that Sony will not issue twice, so a
+                        refusal that wiped the box — "that link did not carry a
+                        working code", the one refusal it is actually FOR — sent
+                        the user back through the whole sign-in for a fresh
+                        link. It is held in memory only, never in the store, and
+                        dropped the moment it is spent. */
+                     card('<div class="fld col"><div class="flab">The address that page landed on</div>'+
+                          '<input class="txt" id="psn-redir" data-nosave="1" style="margin-top:10px" '+
+                          'inputmode="url" autocomplete="off" '+
+                          'placeholder="https://remoteplay.dl.playstation.net/…?code=…" '+
+                          'value="'+esc(st.redir)+'"></div>')+
+                     btn('Save this account',null,'psn-save')),
+                 /* OPEN WHEN THERE IS SOMETHING INSIDE THE USER MUST SEE, and
+                    that is not only "the quick way is gone". Every press in
+                    this flow ends in draw(), which rebuilds the markup — so an
+                    accordion the user opened by hand SNAPS SHUT on the next
+                    redraw and takes the copyable sign-in link, the paste box
+                    and any refusal message down with it. st.accOpen remembers
+                    that they opened it; the two RP_MISSING flags force it for
+                    a message they never asked to see. */
+                 st.accOpen || RP_MISSING.account || RP_MISSING.link || !!st.url,
+                 null, false);
+        }
+        h += msg(st.m1, st.m1bad);
+
+        h += sh('2 · Link your PS5 to it');
+        if(!st.acct){
+          h += note('Finish step 1 first — a console is linked to an <i>account</i>, so there '+
+                    'has to be an account for it to link to.');
+        } else if(st.nick || st.mac){
+          /* TWO SENTENCES, AND ONLY THE CONFIRMED ONE MAY ASSERT. This branch
+             used to say "that is the pair this adapter can connect with"
+             unconditionally, directly above a read-back saying the adapter's
+             own list showed no such console — the screen contradicting itself
+             in consecutive paragraphs, with the reassuring half first. What
+             the console replied and what the adapter holds are different
+             facts; the claim is only made when they agree.
+
+             AND THE CONFIRMATION HAS TO BE THE CURRENT ONE. st.mac was set by
+             a read-back and never cleared by a later one, so pressing "Check
+             again" after the adapter lost the pairing left this paragraph
+             still saying "your adapter's own list shows that pair" over a
+             receipt card listing no such account — and with step three's
+             button correctly withheld, so the screen asserted a working pair
+             and refused to use it in the same breath. reread() now re-derives
+             mac and listNick from scratch every time, so this sentence can
+             only survive as long as the list does. */
+          h += st.mac
+            ? note('Linked to <b>'+esc(st.listNick || st.nick)+'</b>, and your adapter’s own '+
+                   'list shows that pair. That is what it can connect with.')
+            : note('Your PS5 says it linked <b>'+esc(st.nick)+'</b>.');
+        } else if(RP_MISSING.register){
+          h += note('<b>This adapter cannot exchange the pairing code yet</b> — that part of its '+
+                    'software is still being built, so there is no point typing the code in '+
+                    'here. The account above is saved and will be waiting.','warn')+
+               note('Use the <b>ZeroStick dashboard on a PC</b> to do the 8-digit pairing, then '+
+                    'come back and pick the account on any config.')+
+               sh('The console half, either way')+
+               ps5Steps();
+        } else {
+          h += ps5Steps()+
+               pinPadHTML()+
+               btn('Link this PS5','primary','psn-link');
+        }
+        h += msg(st.m2, st.m2bad);
+
+        /* STEP THREE IS A LOADED GUN WHEN THE ACCOUNT IS NOT REALLY THERE.
+           A config naming an account the adapter does not hold does not fall
+           back to another one: rp_profile.keys_for() raises, the backend
+           re-raises, and the engine drops to the null backend — the pad goes
+           SILENT. So the button is only offered when the adapter's own list
+           agrees the account exists, or when there is no list to disagree
+           with; the third case gets the sentence instead. */
+        if(st.acct && (st.nick || st.mac)){
+          var known = st.pairs === null || rpHasAccount(st.pairs, st.acct);
+          h += sh('3 · Use it here');
+          if(known){
+            h += btn('Play “'+((p && p.name) || 'this config')+'” as '+st.acct,'primary','psn-use')+
+                 note('This changes <b>this config only</b>. Your other configs keep the account '+
+                      'they already had — which is the whole point of having two.')+
+                 (st.pairs === null
+                   ? note('Your adapter would not list its accounts back, so this screen could '+
+                          'not check that it really holds this one.','warn')
+                   : '');
+          } else {
+            h += note('Your adapter’s own list does not hold <b>'+esc(st.acct)+'</b>, so this '+
+                      'config must not be pointed at it yet: a config naming an account the '+
+                      'adapter does not have does not fall back to another one — it stops '+
+                      'sending anything at all. Finish the steps above, then come back.','warn');
+          }
+        }
+
+        h += heldHTML();
+        return h;
+      }
+
+      function draw(){
+        /* KEEP WHAT IS TYPED BEFORE THE MARKUP HOLDING IT IS DESTROYED. Every
+           caller of draw() is some step of this flow finishing, and several of
+           them (a refusal, a redrawOpenScreen from devbar) happen with a field
+           half-filled. Harvesting here rather than in each handler means a
+           draw() added later cannot forget to. */
+        keep();
+        root.innerHTML = build();
+        ZS.wire(root, ns);
+        wire();
+        /* SAY THE OUTCOME, do not only draw it. draw() replaces the whole
+           screen, so a refusal or a confirmation rendered into brand-new
+           markup is silent to a screen reader — and this is the one flow in
+           the product where a user is following instructions against a code
+           that expires. ZS.announce is the app's single persistent live
+           region; announcing only on CHANGE keeps the several draws inside one
+           step from repeating themselves. */
+        var say = [st.m1, st.m2].filter(function(t){ return !!t; }).join('. ');
+        if(say && say !== st.said){ st.said = say; ZS.announce(say); }
+        if(!say) st.said = '';
+      }
+      /* The three typed fields into module state. Called before every repaint
+         and on every keystroke, so neither route loses them. */
+      function keep(){
+        var el = root.querySelector('#psn-name'); if(el) st.nm = rpCap(el.value, 64);
+        el = root.querySelector('#psn-id');       if(el) st.aid = rpCap(el.value, 64);
+        el = root.querySelector('#psn-redir');    if(el) st.redir = rpCap(el.value, 2048);
+      }
+      /* AND THE MARKUP, IN THAT ORDER. keep() harvests the live fields before
+         draw() replaces them, so a success path that cleared only the state
+         would have the very next repaint put the account ID — and the spent
+         one-time `code=` — straight back out of the DOM it had not blanked
+         yet. Both halves, or neither is forgotten. */
+      function forget(){
+        ['psn-name','psn-id','psn-redir'].forEach(function(id){
+          var el = root.querySelector('#'+id);
+          if(el) el.value = '';
+        });
+        st.nm = ''; st.aid = ''; st.redir = '';
+      }
+
+      /* Re-read the board's listing and land whatever it says in `st`. Called
+         after every write, because a POST answering {ok:true} is a claim and
+         this is the adapter agreeing with it. Also where the MAC step three
+         writes comes from: the register reply carries one too, but what the
+         CONSOLE said and what the adapter's pairing file now holds are
+         different facts, and the file is what remoteplay_backend reads. */
+      function reread(then){
+        st.checking = true;
+        draw();                         /* "asking…" while it is in flight */
+        rpAccountsInvalidate();
+        rpAccountsFetch(function(list){
+          var i;
+          st.checking = false;
+          st.pairs = list === null ? null : rpPairs(list);
+          /* FROM SCRATCH, EVERY TIME. These two are the LIST's answer, and a
+             list that no longer holds the pairing has to be able to take the
+             answer back — otherwise "your adapter's own list shows that pair"
+             outlives the list that showed it, which is the same class of
+             self-contradiction the read-back was added to end. A list that
+             cannot be read (st.pairs === null) is not an answer either way, so
+             it clears them too: the screen then says only what the CONSOLE
+             said, and step three falls back to the register reply's own MAC. */
+          st.mac = '';
+          st.listNick = '';
+          if(st.pairs && st.acct)
+            for(i = 0; i < st.pairs.length; i++)
+              if(st.pairs[i].acct === st.acct && st.pairs[i].mac){
+                st.mac = st.pairs[i].mac;
+                st.listNick = rpCap(st.pairs[i].nick);
+                break;
+              }
+          if(then) then();
+          draw();
+        });
+      }
+
+      function val(id){
+        var el = root.querySelector('#'+id);
+        return String((el && el.value) || '').replace(/^\s+|\s+$/g, '');
+      }
+      function working(b, word){ if(b){ b.disabled = true; b.textContent = word; } }
+
+      /* The pad edits in PLACE. A full draw() per digit would rebuild the
+         screen and throw away the scroll position eight times while somebody
+         is racing an expiring code. */
+      function pinPaint(){
+        var d = root.querySelector('#psn-disp'),
+            c = root.querySelector('#psn-count'),
+            i = root.querySelector('#psn-pin');
+        if(d){ d.innerHTML = pinSlots(st.pin); d.setAttribute('aria-label', pinSays(st.pin)); }
+        if(c) c.textContent = pinSays(st.pin);
+        if(i) i.value = st.pin;
+      }
+      function pinPush(k){
+        if(k === 'del') st.pin = st.pin.slice(0, -1);
+        else if(k === 'clear') st.pin = '';
+        else if(/^[0-9]$/.test(k) && st.pin.length < 8) st.pin += k;
+        else return;
+        pinPaint();
+      }
+
+      function wire(){
+        var b, pad, ac;
+
+        /* EVERY KEYSTROKE INTO MODULE STATE. draw()'s own keep() covers the
+           repaints this screen starts, but not the one it does not: devbar.js
+           calls ZS.redrawOpenScreen() when the connected pad changes family,
+           and openDetail() writes over #dbody's markup BEFORE the renderer
+           runs — so by the time anything here could look, the half-typed field
+           is already gone. Plugging in the pad you are setting this up for is
+           an ordinary thing to do mid-flow; it is the same event the PIN is
+           held in state for. */
+        ['psn-name','psn-id','psn-redir'].forEach(function(id){
+          var el = root.querySelector('#'+id);
+          if(el) el.addEventListener('input', keep);
+        });
+
+        /* WHICH WAY THE DISCLOSURE IS FACING SURVIVES THE REDRAW. ZS.wire
+           attached first, so by the time this listener runs the generic
+           handler has already toggled the class — read it rather than
+           second-guess it, and the module remembers. Without this, opening the
+           sign-in fallback and pressing anything inside it closed the very box
+           the answer was about to be rendered into. */
+        ac = root.querySelector('.acc');
+        if(ac){
+          var ah = ac.querySelector('.ah');
+          if(ah) ah.addEventListener('click', function(){
+            st.accOpen = ac.classList.contains('open');
+          });
+        }
+
+        pad = root.querySelector('#psn-pad');
+        if(pad){
+          pad.querySelectorAll('button').forEach(function(k){
+            k.addEventListener('click', function(){ pinPush(k.getAttribute('data-k')); });
+          });
+          /* A hardware or Bluetooth keyboard still works: the keys bubble to
+             here from whichever pad button has focus. Nothing else on the
+             screen listens, so no digit can be swallowed by a text field. */
+          pad.addEventListener('keydown', function(e){
+            var key = e.key;
+            if(/^[0-9]$/.test(key)){ pinPush(key); e.preventDefault(); }
+            else if(key === 'Backspace'){ pinPush('del'); e.preventDefault(); }
+          });
+        }
+
+        b = root.querySelector('#psn-recheck');
+        if(b) b.addEventListener('click', function(){
+          working(b, 'Reading it back…');
+          reread(null);
+        });
+
+        b = root.querySelector('#psn-add');
+        if(b) b.addEventListener('click', function(){
+          var name = val('psn-name'), id = val('psn-id');
+          if(!name){ st.m1 = 'Give this account a name first — it is how it will be listed.';
+                     st.m1bad = true; draw(); return; }
+          if(!id){ st.m1 = 'Paste the account ID, or open “I don’t know my account ID” below.';
+                   st.m1bad = true; draw(); return; }
+          working(b, 'Adding…');
+          /* accountId AND name, because the login-free path has no other way
+             to key the record: pyremoteplay's profile file is keyed by the PSN
+             online id, and nothing in the 8 bytes carries a name. The agent
+             reads exactly these two keys off the body (api/server.py
+             _h_ps5_account_add), so this is the contract and not a guess. */
+          rpApi('/account','POST',{ name:name, accountId:id }).then(function(j){
+            /* The route is not there. Say the honest thing once, and only
+               about the half that is missing — the sign-in below may still
+               work, and blanking the whole screen for it once threw away an
+               account the user had already added. */
+            if(rpMissing(j)){ RP_MISSING.account = true; draw(); return; }
+            var d = (j && j.ok && j.data) || null;
+            if(d){
+              st.acct = rpCap(d.username || d.account || name);
+              /* SPENT. The ID identifies a real person's PSN account, so it is
+                 dropped the moment it has been accepted rather than left in
+                 memory for the rest of the session. */
+              forget();
+              st.m1bad = false;
+              st.m1 = 'Added ' + st.acct + '. Reading it back from your adapter…';
+              draw();
+              /* THE ADAPTER'S OWN LIST IS THE ANSWER, not the reply above. */
+              reread(function(){
+                var held = st.pairs && rpHasAccount(st.pairs, st.acct);
+                if(st.pairs === null){
+                  st.m1 = 'Added ' + st.acct + ' — but your adapter would not list its accounts '+
+                          'back, so this screen cannot confirm it stuck.';
+                  st.m1bad = true;
+                } else if(held){
+                  st.m1 = 'Your adapter now lists ' + st.acct + '.';
+                  st.m1bad = false;
+                } else {
+                  st.m1 = 'Your adapter said it added ' + st.acct + ', but its own list does not '+
+                          'show it. Treat that step as unfinished.';
+                  st.m1bad = true;
+                }
+              });
+            } else {
+              st.m1 = String((j && j.error) ||
+                'Your board would not take that account ID. Check it for stray spaces and try '+
+                'again, or use the sign-in below.');
+              st.m1bad = true;
+              draw();
+            }
+          });
+        });
+
+        b = root.querySelector('#psn-open');
+        if(b) b.addEventListener('click', function(){
+          st.accOpen = true;             /* every answer lands inside this box */
+          rpApi('/login-url').then(function(j){
+            if(rpMissing(j)){ RP_MISSING.link = true; draw(); return; }
+            var d = (j && j.ok && j.data) || null;
+            if(!d || !d.url){
+              st.m1 = String((j && j.error) ||
+                'Your board could not produce a sign-in link.'); st.m1bad = true;
+              draw(); return;
+            }
+            st.url = String(d.url);
+            /* window.open, never a navigation: leaving the page kills the app
+               and the user comes back to a blank slate mid-flow. If the webview
+               blocks the popup — and over Bluetooth it may — the copyable link
+               below is the way through, which is why it is rendered either way
+               rather than only after a failure the app cannot detect. */
+            /* m7 (audit 2026-10-10): only an https link is opened. The app
+               runs in shells (Capacitor, the Edge app window) where another
+               scheme can launch a handler; anything else is still shown
+               below as text to copy. */
+            if(/^https:\/\//i.test(st.url)){
+              try{ window.open(st.url, '_blank', 'noopener'); }catch(e){}
+            }
+            draw();
+          });
+        });
+
+        b = root.querySelector('#psn-copy');
+        if(b) b.addEventListener('click', function(){
+          var i = root.querySelector('#psn-url');
+          if(!i) return;
+          try{ i.select(); document.execCommand('copy'); ZS.toast('Sign-in link copied'); }
+          catch(e){ ZS.toast('Copy it by hand — long-press the box above'); }
+        });
+
+        b = root.querySelector('#psn-save');
+        if(b) b.addEventListener('click', function(){
+          st.accOpen = true;
+          var v = val('psn-redir');
+          if(!v){ st.m1 = 'Paste the whole web address from that page first.';
+                  st.m1bad = true; draw(); return; }
+          working(b, 'Asking Sony…');
+          /* The redirect URL carries a single-use `code=` — a short-lived
+             bearer credential. It goes in the request BODY and is never
+             logged, echoed back, or put in a query string. */
+          function attempt(path, andThen){
+            rpApi(path,'POST',{ redirectUrl:v }).then(function(j){
+              if(rpMissing(j)){ andThen(); return; }
+              RP_LINK_PATH = path;
+              var d = (j && j.ok && j.data) || null;
+              if(d && (d.username || d.account)){
+                st.acct = rpCap(d.username || d.account);
+                /* SPENT, and this one is a live credential until it is: the
+                   redirect carries a single-use `code=`. It is held only long
+                   enough to survive a refusal and dropped the moment the board
+                   has exchanged it. */
+                forget();
+                st.m1bad = false;
+                st.m1 = 'Signed in as ' + st.acct + '. Reading it back from your adapter…';
+                draw();
+                reread(function(){
+                  if(st.pairs === null){
+                    st.m1 = 'Signed in as ' + st.acct + ' — but your adapter would not list its '+
+                            'accounts back, so this screen cannot confirm it stuck.';
+                    st.m1bad = true;
+                  } else if(rpHasAccount(st.pairs, st.acct)){
+                    st.m1 = 'Your adapter now lists ' + st.acct + '.';
+                    st.m1bad = false;
+                  } else {
+                    st.m1 = 'Your adapter said it signed in as ' + st.acct + ', but its own list '+
+                            'does not show it. Treat that step as unfinished.';
+                    st.m1bad = true;
+                  }
+                });
+              } else {
+                st.m1 = String((j && j.error) ||
+                  'That link did not carry a working code. They expire — get a fresh sign-in link '+
+                  'and try again.');
+                st.m1bad = true;
+                draw();
+              }
+            });
+          }
+          if(RP_LINK_PATH) attempt(RP_LINK_PATH, function(){ RP_MISSING.link = true; draw(); });
+          else attempt('/link', function(){
+            attempt('/account', function(){ RP_MISSING.link = true; draw(); });
+          });
+        });
+
+        b = root.querySelector('#psn-link');
+        if(b) b.addEventListener('click', function(){
+          var pin = val('psn-pin').replace(/\D/g, '');
+          if(pin.length !== 8){ st.m2 = 'The code is exactly 8 digits.'; st.m2bad = true;
+                                draw(); return; }
+          st.pin = pin;
+          working(b, 'Talking to your PS5…');
+          /* THE ACCOUNT NAME IS SENT, and it is not belt-and-braces: the
+             board's own register helper picked users[0] — the same
+             next(iter()) defect one layer down — so a second account paired
+             without naming it would be registered onto the FIRST account, and
+             nothing on screen could show that it had happened. */
+          rpApi('/register','POST',{ account:st.acct, pin:pin }).then(function(j){
+            if(rpMissing(j)){ RP_MISSING.register = true; draw(); return; }
+            var d = (j && j.ok && j.data) || null;
+            if(d && (d.console || d.nickname)){
+              st.nick = rpCap(d.console || d.nickname);
+              /* THE REPLY'S MAC IS KEPT SEPARATELY FROM THE LISTING'S, and the
+                 two are not interchangeable. psn_link.cmd_register hands back
+                 a canonical `mac`, but what the CONSOLE said and what the
+                 adapter's pairing FILE now holds are different facts — and the
+                 file is what remoteplay_backend reads. So the listing's MAC is
+                 what step three writes; this one is the fallback for a board
+                 that would not list at all, where there is nothing better and
+                 an account-only choice would be the poorer answer. */
+              st.replyMac = rpFoldMac(d.mac || '');
+              st.pin = '';                     /* the code is spent */
+              st.m2bad = false;
+              st.m2 = 'Linked to ' + st.nick + '. Reading it back from your adapter…';
+              draw();
+              /* The register reply carries no MAC, so this pass is also where
+                 step three learns WHICH console it just paired — without it
+                 the config could only ever name half a pairing. */
+              reread(function(){
+                if(st.pairs === null){
+                  st.m2 = 'Linked to ' + st.nick + ' — but your adapter would not list its '+
+                          'accounts back, so this screen cannot confirm it stuck.';
+                  st.m2bad = true;
+                } else if(st.mac){
+                  st.m2 = 'Your adapter now holds ' + st.acct + ' on ' + st.nick + '.';
+                  st.m2bad = false;
+                } else {
+                  st.m2 = 'But your adapter’s own list shows no console against ' + st.acct +
+                          ' yet, so that pairing has not landed.';
+                  st.m2bad = true;
+                }
+              });
+            } else {
+              st.m2 = String((j && j.error) ||
+                'Your PS5 did not accept that code. Codes expire after a few minutes — get a '+
+                'fresh one on the console and try again.');
+              st.m2bad = true;
+              draw();
+            }
+          });
+        });
+
+        b = root.querySelector('#psn-use');
+        if(b) b.addEventListener('click', function(){
+          var acct = st.acct, nick = st.nick,
+              /* the LISTING's MAC, or the console's own only when there is no
+                 listing to prefer — never a MAC the pairing file contradicts */
+              mac = st.mac || (st.pairs === null ? st.replyMac : '');
+          if(ZS.live.online === false || !ZS.live.full[p.id]){
+            ZS.toast('Your board is offline — this has not reached it yet');
+            return;
+          }
+          ZS.flushProfileWrites(p.id).then(function(){
+            return ZS.putProfile(p.id, function(f){
+              if(!f.output) f.output = {};
+              /* BOTH halves when the board's own list gave us the second one.
+                 The register reply carries no MAC, so this used to write an
+                 empty one and leave the console lottery running for anybody
+                 who later added a second console to the same account; the
+                 read-back above is what closed that. An empty `mac` is still
+                 legal and still correct on a board that would not list — it
+                 pins the account, which is the half that was actually broken. */
+              f.output.remotePlay = { account: acct, mac: mac || '' };
+            });
+          }).then(function(j){
+            if(!(j && j.ok)) return;
+            PSN = null;                       /* the next entry starts clean */
+            ZS.announce('This config now plays as ' + acct);
+            ZS.toast('“' + ((p && p.name) || 'This config') + '” now plays as ' + acct +
+                     (nick ? ' on “' + nick + '”' : ''));
+            ZS.openDetail({ id:'overview', lab:'Device' }, p);
+          });
+        });
+      }
+
+      draw();
+      /* One question to the board, for the same reason the row asks it: which
+         route family this software speaks, and whether it speaks one at all —
+         and, now, what it actually holds, which is what the foot of the screen
+         renders. Cached, so re-entering the screen mid-flow costs nothing. */
+      rpAccountsFetch(function(list){
+        st.pairs = list === null ? null : rpPairs(list);
+        draw();
+      });
+    }};
+  };
+
+  /* what the other screen files use from this one */
+  SEC.rpAcctPaint = rpAcctPaint;
+  /* the PIN pad's stylesheet, for the Core's Remote Play setup (07a, D286) */
+  SEC.psnCss = psnCss;
+});

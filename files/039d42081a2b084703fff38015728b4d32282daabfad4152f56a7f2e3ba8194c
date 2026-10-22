@@ -1,0 +1,10 @@
+{
+  "zerostickReferenceFrame": 1,
+  "game": "cod-bo2",
+  "image": "reference-frame.webp",
+  "width": 960,
+  "height": 540,
+  "box": [0.6, 0.815, 0.33, 0.047],
+  "shows": "B23R | LONG BARREL",
+  "source": "A real Black Ops II frame from the Core's own capture (ZeroStick Model Library, frames/play/B23R/20260924_233148_core_full.jpg), scaled to 960x540. The box is recognition.json's box.suggested, the one the reader was trained on (D398)."
+}

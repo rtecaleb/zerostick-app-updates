@@ -1,0 +1,163 @@
+/* smart-actions/07-recoil-doors.js — the Recoil Workshop's doors (D170).
+ *
+ * workshopOffered / openWorkshop: the doors into recoil-workshop.js (mouse) and
+ * recoil-pad.js (controller); what they hand back is saved as an ordinary action.
+ *
+ * Tests: test-recoil-workshop.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('recoil-doors', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var clone = SEC.clone, normAction = SEC.normAction, saveAll = SEC.saveAll, ZS = SEC.ZS,
+      newSmartAction = SEC.newSmartAction;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var openRecordSheet, draw;
+  ZS_SMART_PARTS.after(function () {
+    openRecordSheet = SEC.openRecordSheet;
+    draw = SEC.draw;
+  });
+
+  /* ══ D170: the Recoil Workshop's doors ═════════════════════════════
+     recoil-workshop.js (ZS_RECOIL) is the workshop; these are where it is
+     reached from: Smart mappings, the Fire button's own panel, and the
+     wrench on an action it made. Accept hands back an action in this
+     file's shape, which is saved the way every other edit is.
+     D418 (the owner, 2026-10-20: "it should auto save, no save button"):
+     the Lab hands it back AS SOON AS it has a model and again after every
+     change on Tune, with the Lab still open; every call after the first
+     REPLACES the same action (by id), never adds a second one. */
+  function workshopOffered(p) {
+    return !!(window.ZS_RECOIL && ZS_RECOIL.offered(p));
+  }
+  function isRecoilAction(a) {
+    return !!(a && a.recoil && typeof a.recoil === 'object');
+  }
+  function openWorkshop(root, p, S, idx, direct) {
+    if (!window.ZS_RECOIL) return;
+    var existing = (idx != null && idx >= 0 && S.actions[idx]) ? S.actions[idx] : null;
+    var savedId = null, autoId = null;      /* D418: what this Lab saved first */
+    ZS_RECOIL.open(p, {
+      action: existing ? clone(existing) : null,
+      direct: !!direct,
+      /* D404: the gun page it was opened from (a scoped room), so the Lab
+         says where the Script goes */
+      room: S.scope ? { title: S.scope.title || '' } : null,
+      onAccept: function (made) {
+        var forGun = made && made.forGun;
+        if (made) delete made.forGun;
+        /* D404: opened from no gun page, while the Core's reader sees a gun
+           out: the Script is that gun's (an Auto Action, auto-actions.js's
+           shape: switched by auto.on, the document's own flag off) */
+        if (!existing && !savedId && !S.scope && forGun && forGun.pack && forGun.item && SEC.toBoard &&
+            (ZS.putProfileAuto || ZS.putProfileDebounced)) {
+          if (autoId) made.id = autoId;
+          var j = SEC.toBoard(p, normAction(made));
+          var firstAuto = !autoId;
+          autoId = j.id;
+          j.auto = { pack: forGun.pack, item: forGun.item, on: true };
+          j.enabled = false;
+          (ZS.putProfileAuto || ZS.putProfileDebounced)(p.id, function (f) {
+            var list = Array.isArray(f.accessibilityActions) ? f.accessibilityActions.slice() : [], k, put = false;
+            for (k = 0; k < list.length; k++) {
+              if (list[k] && list[k].id === j.id) { list[k] = j; put = true; }
+            }
+            if (!put) list.push(j);
+            f.accessibilityActions = list;
+            if (window.ZSAUTO && typeof ZSAUTO.retie === 'function') ZSAUTO.retie(f);
+          });
+          if (firstAuto && ZS.toast) ZS.toast('Recoil model added to Fire for the ' + (forGun.name || 'gun you have out'));
+          return;
+        }
+        if (savedId) made.id = savedId;
+        var na = normAction(made);
+        na.edited = true;
+        var cur = existing;
+        if (!cur && savedId) cur = S.actions.filter(function (a) { return a && a.id === savedId; })[0] || null;
+        var first = !savedId;
+        var at = cur ? S.actions.indexOf(cur) : -1;
+        if (at >= 0) {
+          na.id = cur.id;
+          na.name = na.name || cur.name;       /* D418: the name is the Lab's now */
+          na.colour = cur.colour || na.colour;
+          S.actions[at] = na;
+          if (S.editIdx === at) { S.draft = clone(na); S.unsaved = false; }
+        } else {
+          S.actions.push(na);
+        }
+        savedId = na.id;
+        if (existing) existing = na;        /* the next save replaces this one */
+        saveAll(p, S);
+        draw(root, p);
+        /* D398: from a weapon's page the model is that weapon's Script
+           (the room is scoped, so saveAll stamps it as the weapon's).
+           D418: said once; the saves after it are quiet ("Saved" on Tune) */
+        if (first && ZS.toast) ZS.toast(existing ? 'Recoil model updated'
+          : 'Recoil model added to Fire' + (S.scope && S.scope.title ? ' for ' + S.scope.title : ''));
+      },
+      /* D418: the Lab's Delete (asked there once): this Script out of the
+         config by id; a gun's Auto Action out of the profile, retied */
+      onDelete: function () {
+        var id = autoId || savedId || (existing && existing.id) || null;
+        if (!id) return;
+        if (autoId && (ZS.putProfileAuto || ZS.putProfileDebounced)) {
+          (ZS.putProfileAuto || ZS.putProfileDebounced)(p.id, function (f) {
+            f.accessibilityActions = (Array.isArray(f.accessibilityActions) ? f.accessibilityActions : []).filter(function (a) {
+              return !(a && a.id === id);
+            });
+            if (window.ZSAUTO && typeof ZSAUTO.retie === 'function') ZSAUTO.retie(f);
+          });
+          autoId = null;
+          return;
+        }
+        var at = -1, k;
+        for (k = 0; k < S.actions.length; k++) if (S.actions[k] && S.actions[k].id === id) at = k;
+        if (at < 0) return;
+        S.actions.splice(at, 1);
+        if (S.editIdx === at) { S.editIdx = -1; S.draft = null; S.unsaved = false; }
+        else if (S.editIdx > at) S.editIdx--;
+        savedId = null;
+        existing = null;
+        saveAll(p, S);
+        draw(root, p);
+      }
+    });
+  }
+
+  function wireSmartMap(root, p, S) {
+    var nw = root.querySelector('#sa-new');
+    if (nw) nw.addEventListener('click', function () { newSmartAction(root, p, S); });
+    var rm = root.querySelector('#sa-readymade');
+    if (rm) rm.addEventListener('click', function () { S.screen = 'templates'; draw(root, p); });
+    /* a gun page's Rapid fire / Aim assist / Anti-recoil tiles (06-mappings.js) */
+    root.querySelectorAll('[data-quick]').forEach(function (b) {
+      /* owner 2026-10-17: one slider, Add or Cancel (11-library.js openQuickAdd) */
+      b.addEventListener('click', function () {
+        var id = b.id.replace(/^sa-quick-/, '');
+        if (SEC.openQuickAdd) SEC.openQuickAdd(root, p, S, id);
+        else if (SEC.openTemplate) SEC.openTemplate(root, p, S, +b.dataset.quick);
+      });
+    });
+    var rec = root.querySelector('#sa-record-seq');
+    if (rec) rec.addEventListener('click', function () { openRecordSheet(root, p, S); });
+    var rw = root.querySelector('#sa-recoil');
+    if (rw) rw.addEventListener('click', function () { openWorkshop(root, p, S, -1); });
+    /* the Mappings fold: the kit's wire() flips it; remember the answer per
+       config so a repaint (the polls, an edit in the panel) keeps it where
+       you left it. Registered after ZS.wire, so it reads the flipped state. */
+    var fold = root.querySelector('#sa-mapfold');
+    var ah = fold ? fold.querySelector('.ah') : null;
+    if (ah) ah.addEventListener('click', function () { S.mapFold = fold.classList.contains('open'); });
+  }
+
+  /* what the other parts use from this one */
+  SEC.isRecoilAction = isRecoilAction;
+  SEC.openWorkshop = openWorkshop;
+  SEC.wireSmartMap = wireSmartMap;
+  SEC.workshopOffered = workshopOffered;
+});

@@ -1,0 +1,215 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  hid-proxy.js — WebHID -> ESP32 bridge
+//
+//  dualshock-tools normally talks to the controller through the browser's
+//  WebHID API (navigator.hid), which only exists in desktop Chrome. On this
+//  device the controller is plugged into the ESP32 instead — so this file
+//  installs a FAKE navigator.hid whose "device" forwards every report over
+//  HTTP to the ESP32 firmware, which relays it to the controller over USB.
+//
+//  ESP32 endpoints used:
+//    /hid/dev            -> {connected, vid, pid, name}
+//    /hid/sfr?id=&data=  -> send feature report   (hex-encoded bytes)
+//    /hid/gfr?id=        -> get feature report    (returns hex)
+//    /hid/sor?id=&data=  -> send output report    (rumble, lights, ...)
+//    /hid/input          -> last input report     (returns hex, incl. report id)
+//
+//  The new Bluetooth dongle (CH582F) offers the same five calls over BLE
+//  (hid-ble.js, window.ZSHIDBLE). Which link is used is decided per call:
+//  if the Bluetooth dongle is connected it wins, otherwise Wi-Fi as before.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// crypto.randomUUID() requires a secure context (HTTPS). This page is served
+// over plain HTTP from the ESP32, so we polyfill it using getRandomValues()
+// which DOES work on HTTP.
+if (typeof crypto !== 'undefined' && !crypto.randomUUID) {
+  crypto.randomUUID = function () {
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {
+      return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+    });
+  };
+}
+
+(function () {
+  'use strict';
+
+  function hex2u8(h) {
+    const a = new Uint8Array(h.length >> 1);
+    for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16);
+    return a;
+  }
+  function u82hex(a) {
+    let s = '';
+    for (let i = 0; i < a.length; i++) s += a[i].toString(16).padStart(2, '0');
+    return s;
+  }
+
+  function useBle() {
+    return !!(window.ZSHIDBLE && window.ZSHIDBLE.isConnected());
+  }
+  function nameFor(pid) {
+    if (pid === 0x0DF2) return 'DualSense Edge';
+    if (pid === 0x0CE6) return 'DualSense Wireless Controller';
+    if (pid === 0x05C4 || pid === 0x09CC) return 'DualShock 4';
+    return 'PSVR2 Sense Controller';
+  }
+  // {connected, vid, pid, name} from whichever link is up
+  async function devInfo() {
+    if (useBle()) {
+      const d = await window.ZSHIDBLE.dev();
+      d.name = d.connected ? nameFor(d.pid) : '';
+      return d;
+    }
+    const r = await window.espFetch('/hid/dev');
+    return r.json();
+  }
+
+  let disconnectHandlers = [];
+  let currentDevice = null;
+
+  class ProxyHIDDevice {
+    constructor(info) {
+      this.vendorId = info.vid;
+      this.productId = info.pid;
+      this.productName = info.name;
+      this.opened = false;
+      this.oninputreport = null;
+      // Minimal stub: alloc_req() in base-controller falls back to the data's
+      // own length when a report isn't found here, which works fine over USB.
+      this.collections = [{ featureReports: [] }];
+      this._timer = null;
+      this._busy = false;
+    }
+
+    async open() {
+      this.opened = true;
+      if (useBle()) {
+        // The dongle pushes reports itself (~100 a second is plenty here).
+        await window.ZSHIDBLE.input(100, (bytes) => this._deliver(bytes));
+        return;
+      }
+      this._timer = setInterval(() => this._poll(), 100);
+    }
+
+    async close() {
+      this.opened = false;
+      if (this._timer) clearInterval(this._timer);
+      this._timer = null;
+      if (useBle()) { try { await window.ZSHIDBLE.input(0); } catch (e) {} }
+    }
+
+    _deliver(bytes) {
+      if (!this.opened || bytes.length < 2) return;
+      const cb = this.oninputreport;
+      if (cb) cb({
+        reportId: bytes[0],                                      // WebHID splits the id...
+        data: new DataView(bytes.buffer, bytes.byteOffset + 1),  // ...from the payload
+        device: this
+      });
+    }
+
+    // Fetch the latest input report and hand it to the page's handler,
+    // exactly shaped like a WebHID "inputreport" event.
+    async _poll() {
+      if (!this.opened || !this.oninputreport || this._busy) return;
+      this._busy = true;
+      try {
+        const r = await window.espFetch('/hid/input');
+        const h = (await r.text()).trim();
+        if (h.length >= 4) this._deliver(hex2u8(h));
+      } catch (e) { /* board busy — try again next tick */ }
+      this._busy = false;
+    }
+
+    async sendFeatureReport(reportId, data) {
+      let u8;
+      if (data instanceof Uint8Array) u8 = data;
+      else if (data instanceof ArrayBuffer) u8 = new Uint8Array(data);
+      else if (ArrayBuffer.isView(data)) u8 = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      else u8 = new Uint8Array(data);
+      if (useBle()) { await window.ZSHIDBLE.sfr(reportId, u8); return; }
+      const r = await window.espFetch('/hid/sfr?id=' + reportId + '&data=' + u82hex(u8));
+      const t = await r.text();
+      if (!t.startsWith('ok')) throw new Error('sendFeatureReport failed: ' + t);
+    }
+
+    async receiveFeatureReport(reportId) {
+      if (useBle()) {
+        const b = await window.ZSHIDBLE.gfr(reportId, 64);
+        return new DataView(b.buffer, b.byteOffset, b.byteLength);
+      }
+      const r = await window.espFetch('/hid/gfr?id=' + reportId);
+      const t = (await r.text()).trim();
+      if (!t || t.startsWith('err')) throw new Error('receiveFeatureReport failed: ' + t);
+      // Chrome's WebHID includes the report id as byte 0 — so do we.
+      return new DataView(hex2u8(t).buffer);
+    }
+
+    async sendReport(reportId, data) {
+      const u8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+      if (useBle()) { await window.ZSHIDBLE.sor(reportId, u8); return; }
+      const r = await window.espFetch('/hid/sor?id=' + reportId + '&data=' + u82hex(u8));
+      const t = await r.text();
+      if (!t.startsWith('ok')) throw new Error('sendReport failed: ' + t);
+    }
+  }
+
+  async function queryDevice() {
+    const info = await devInfo();
+    if (!info.connected) return null;
+    if (!currentDevice || currentDevice.productId !== info.pid) {
+      currentDevice = new ProxyHIDDevice(info);
+    }
+    return currentDevice;
+  }
+
+  // Watch for the controller being unplugged so the page reacts the same way
+  // WebHID would (fires the "disconnect" listeners the page registered).
+  setInterval(async () => {
+    if (!currentDevice) return;
+    try {
+      const info = await devInfo();
+      if (!info.connected) {
+        const dev = currentDevice;
+        currentDevice = null;
+        dev.close();
+        disconnectHandlers.forEach(h => { try { h({ device: dev }); } catch (e) {} });
+      }
+    } catch (e) {}
+  }, 2000);
+
+  // Bluetooth drops are reported at once (no 2 s poll needed).
+  if (window.ZSHIDBLE) {
+    window.ZSHIDBLE.onDisconnect(() => {
+      if (!currentDevice) return;
+      const dev = currentDevice;
+      currentDevice = null;
+      dev.opened = false;
+      if (dev._timer) clearInterval(dev._timer);
+      disconnectHandlers.forEach(h => { try { h({ device: dev }); } catch (e) {} });
+    });
+  }
+
+  const fakeHid = {
+    requestDevice: async function () {
+      const d = await queryDevice();
+      return d ? [d] : [];
+    },
+    getDevices: async function () {
+      const d = await queryDevice();
+      return d ? [d] : [];
+    },
+    addEventListener: function (type, handler) {
+      if (type === 'disconnect') disconnectHandlers.push(handler);
+    },
+    removeEventListener: function (type, handler) {
+      disconnectHandlers = disconnectHandlers.filter(h => h !== handler);
+    }
+  };
+
+  try {
+    Object.defineProperty(navigator, 'hid', { value: fakeHid, configurable: true });
+  } catch (e) {
+    navigator.hid = fakeHid;
+  }
+})();

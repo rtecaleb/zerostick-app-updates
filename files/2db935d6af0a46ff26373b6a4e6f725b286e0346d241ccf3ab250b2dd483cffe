@@ -1,0 +1,339 @@
+/* sections/07a-remote-play-setup.js — PS5 Remote Play setup on a Core (D286).
+ *
+ * The owner (2026-10-13): "as a connection method you need to add PS5 Remote
+ * Play, NOT RECOMMENDED but works ... if they choose it, put the Remote Play
+ * steps: log in to the PS5 account, get the browser URL and stuff."
+ *
+ * The steps are the A7S's (R.psnlink in 07-remote-play.js, board/psn.py):
+ *   1. sign in to PlayStation, in the player's own browser, at Sony;
+ *   2. paste back the address the sign-in lands on (it carries a one-time
+ *      sign-in code — NOT the account ID, which the adapter learns by
+ *      trading that code with Sony);
+ *   3. the account ID itself, for a player who has it (the A7S's login-free
+ *      path), saved by a name;
+ *   4. the 8-digit code the PS5 shows at Settings > System > Remote Play >
+ *      Link Device.
+ *
+ * HONEST ABOUT THE CORE. A Core cannot stream Remote Play yet
+ * (docs/REMOTE-PLAY-CORE.md is the plan). So every step that only the
+ * adapter can finish — trading the sign-in code with Sony, pairing with the
+ * PS5 — says so instead of pretending, and the screen ends with "Remote Play
+ * on the Core is coming in a firmware update". Nothing here ever reports a
+ * pairing or a sign-in that did not happen.
+ *
+ * WHAT IS KEPT, AND WHERE. The A7S kept the account in its own pairing file;
+ * a Core has no such store yet, so the account (a name and the 8-byte ID)
+ * waits on THIS phone or PC, in its own localStorage key RP_KEY: never in a
+ * config (configs are copied and shared), never in the app's main store,
+ * never logged, never sent anywhere. The firmware update hands it to the
+ * Core. The sign-in code and the PS5's pairing code are NEVER kept: both
+ * expire within minutes, so keeping them would only be keeping something
+ * that no longer works.
+ *
+ * On an EXO (an A7S, which streams), this screen is R.psnlink.
+ *
+ * Screens (window.RENDERERS):  R.rpsetup
+ * Pure rules:                 psn-oauth.js (window.ZSPSN)
+ * Tests:                      test-psn-oauth.js, test-remote-play-setup.js
+ *
+ * ONE OF THE APP'S SCREEN FILES; phone-sections.js explains the rules.
+ */
+ZS_SECTIONS.add('remote-play-setup', function (SEC) {
+  /* from the files before this one */
+  var btn = SEC.btn, card = SEC.card, copyText = SEC.copyText, esc = SEC.esc,
+      helpHTML = SEC.helpHTML, note = SEC.note, psnCss = SEC.psnCss, R = SEC.R,
+      sh = SEC.sh, ZS = SEC.ZS;
+
+  var RP_KEY = 'zs-rp-setup';
+
+  /* the account waiting for the Core: {name, id} or null. Every read and
+     write is guarded: storage can be off (a private window) and the screen
+     must still draw. */
+  function savedAccount(){
+    try{
+      var v = JSON.parse(localStorage.getItem(RP_KEY) || 'null');
+      if(v && typeof v.name === 'string' && typeof v.id === 'string' && v.name && v.id) return v;
+    }catch(e){}
+    return null;
+  }
+  function saveAccount(name, id){
+    try{ localStorage.setItem(RP_KEY, JSON.stringify({ name: name, id: id })); return true; }
+    catch(e){ return false; }
+  }
+  function forgetAccount(){
+    try{ localStorage.removeItem(RP_KEY); }catch(e){}
+  }
+
+  /* MODULE STATE, for the reason R.psnlink keeps it: devbar.js redraws the
+     open screen when a pad is plugged in, and that must not wipe what was
+     typed. In memory only; the sign-in address and the PIN are dropped the
+     moment they have been read. */
+  var RS = null;
+
+  R.rpsetup = function(p){
+    /* an EXO streams: its own, working screen */
+    if(!(ZS.productHides && ZS.productHides('remotePlay')) && R.psnlink) return R.psnlink(p);
+
+    var st = RS || (RS = { url:'', redir:'', nm:'', aid:'', pin:'',
+                           m1:'', m1bad:false, m2:'', m2bad:false, m3:'', m3bad:false,
+                           m4:'', m4bad:false, codeRead:false, said:'' });
+    var Z = window.ZSPSN;
+    var dev = ZS.productShort ? ZS.productShort() : 'adapter';
+
+    function msg(t, bad){ return t ? note(esc(t), bad ? 'warn' : null, true) : ''; }
+
+    function pinSlots(v){
+      var s = '', i;
+      for(i = 0; i < 8; i++)
+        s += '<span class="pslot'+(i < v.length ? ' on' : '')+'">'+(i < v.length ? esc(v.charAt(i)) : '')+'</span>';
+      return s;
+    }
+    function pinSays(v){
+      return v.length ? v.length+' of 8 digits entered: '+v.split('').join(' ') : 'no digits entered yet, 8 needed';
+    }
+    function pinKey(k, lab, aria, wide){
+      return '<button type="button" data-k="'+esc(k)+'"'+(wide ? ' class="wide"' : '')+
+             ' aria-label="'+esc(aria)+'">'+esc(lab)+'</button>';
+    }
+    function pinPadHTML(){
+      var h = '<div class="grp-card"><div class="flab">The 8-digit code on your TV</div>'+
+        '<div class="pindisp" id="rps-disp" role="img" style="margin-top:10px" aria-label="'+esc(pinSays(st.pin))+'">'+
+          pinSlots(st.pin)+'</div>'+
+        '<div class="visually-hidden" id="rps-count" aria-live="polite" role="status">'+esc(pinSays(st.pin))+'</div>'+
+        '<div class="pinpad" id="rps-pad" role="group" aria-label="number pad">', i;
+      for(i = 1; i <= 9; i++) h += pinKey(String(i), String(i), 'digit '+i);
+      h += pinKey('clear','Clear','clear all the digits', true)+pinKey('0','0','digit 0')+
+           pinKey('del','⌫','delete the last digit', true);
+      return h+'</div></div>';
+    }
+
+    function build(){
+      var acct = savedAccount(), h = '';
+      h += '<div class="ovplay-desc ovplay-notrec" style="text-align:left;margin:0 0 6px">'+
+             '<b>Not recommended — works, but adds delay</b></div>'+
+           note('Remote Play connects to your PS5 over your home network, signed in as '+
+                '<b>your own PlayStation account</b>. Your password goes <b>to Sony and nowhere else</b>.')+
+           helpHTML('rps-why', 'Why it is not recommended',
+             'Remote Play is the PlayStation’s own streaming link (the same one the PS Remote Play '+
+             'app uses). It needs <b>no cable to the console and no P5General</b>, but every input '+
+             'travels over your network into the PS5’s streaming session, and that adds '+
+             '<b>delay you can feel</b> on top of everything the adapter does. A busy or wireless '+
+             'network makes it worse. For the quickest PS5 path, use <b>P5General</b>.')+
+           note('Your '+esc(dev)+' cannot play over Remote Play yet. You can do these steps now; '+
+                'what can be kept is kept for the firmware update.');
+
+      /* 1 · sign in */
+      h += sh('1 · Sign in to PlayStation');
+      h += note('Opens Sony’s own sign-in page in your browser. Sign in with the PlayStation '+
+                'account that is <b>signed in on your PS5</b>.')+
+           btn('Open the PlayStation sign-in page', 'primary', 'rps-open')+
+           (st.url
+             ? card('<div class="fld col"><div class="flab">If the page did not open, copy this link</div>'+
+                    '<input class="txt" id="rps-url" data-nosave="1" readonly style="margin-top:10px" value="'+
+                    esc(st.url)+'"></div>')+
+               btn('Copy the link', null, 'rps-copy')
+             : '')+
+           helpHTML('rps-signin', 'Signing in',
+             'The sign-in happens on <b>Sony’s own page</b>, in your own browser. ZeroStick never '+
+             'sees your password and never asks for it. All it ever reads is the web address the page '+
+             'sends you to afterwards.');
+      h += msg(st.m1, st.m1bad);
+
+      /* 2 · the address it lands on */
+      h += sh('2 · Paste the address you land on');
+      h += note('After you sign in you land on a <b>blank page, or one that says it cannot be '+
+                'reached. That is normal.</b> Copy that page’s whole web address and paste it here.')+
+           card('<div class="fld col"><div class="flab">The address that page landed on</div>'+
+                '<input class="txt" id="rps-redir" data-nosave="1" style="margin-top:10px" inputmode="url" '+
+                'autocomplete="off" placeholder="https://remoteplay.dl.playstation.net/…?code=…" value="'+
+                esc(st.redir)+'"></div>')+
+           btn('Read it', null, 'rps-read')+
+           helpHTML('rps-code', 'What that address holds',
+             'It holds a <b>one-time sign-in code</b> from Sony. Your adapter trades that code with '+
+             'Sony for your <b>account ID</b>, the one thing a PS5 needs to link to you. The code runs '+
+             'out within minutes, so it is <b>never kept</b>: it is used once, or thrown away.');
+      h += msg(st.m2, st.m2bad);
+
+      /* 3 · the account ID */
+      h += sh('3 · Your account ID');
+      if(acct){
+        h += card('<div class="stat"><span>Saved for the update</span><b class="ok">'+esc(acct.name)+'</b></div>')+
+             note('Kept on <b>this phone or PC only</b>, ready to hand to your '+esc(dev)+'.')+
+             btn('Forget this account', null, 'rps-forget');
+      } else {
+        h += note('If you already know your <b>PlayStation account ID</b>, enter it here and it is '+
+                  'saved now. Chiaki-ng shows it, and so does any Chiaki or PS Play setup.')+
+             card('<div class="fld col"><div class="flab">A name for this account</div>'+
+                  '<input class="txt" id="rps-name" data-nosave="1" style="margin-top:10px" autocomplete="off" '+
+                  'maxlength="64" placeholder="your PSN online ID" value="'+esc(st.nm)+'"></div>')+
+             card('<div class="fld col"><div class="flab">PlayStation account ID</div>'+
+                  '<input class="txt" id="rps-id" data-nosave="1" style="margin-top:10px" autocomplete="off" '+
+                  'maxlength="64" placeholder="e.g. 7QDxxxxxxxx= or 1234567890123456789" value="'+
+                  esc(st.aid)+'"></div>')+
+             btn('Save this account', null, 'rps-save')+
+             helpHTML('rps-id-help', 'Your account ID',
+               'An account ID is a short code ending in <b>=</b>, or a long number. Both work. It is '+
+               'not a password, but it does identify your PlayStation account, so ZeroStick keeps it '+
+               'only on this phone or PC, never inside a config you might share, and never sends it '+
+               'anywhere but your own adapter.');
+      }
+      h += msg(st.m3, st.m3bad);
+
+      /* 4 · the PS5 */
+      h += sh('4 · Link your PS5');
+      h += note('On your PS5: <b>Settings › System › Remote Play › Link Device</b>. An '+
+                '<b>8-digit code</b> appears on the TV. The PS5 must be <b>on</b> and on the same '+
+                'network as your adapter.')+
+           pinPadHTML()+
+           btn('Link this PS5', 'primary', 'rps-link')+
+           helpHTML('rps-pin', 'The code on your TV',
+             'The PS5 gives your adapter a key with this code, so it can connect as you. The code '+
+             'runs out after a few minutes, so it is <b>never kept</b>. We believe the PS5 only offers '+
+             'a code for the account that is signed in on the console: if none appears, switch users '+
+             'on the PS5 first.');
+      h += msg(st.m4, st.m4bad);
+
+      /* the end, honest */
+      h += sh('Where this is');
+      h += card('<div class="stat"><span>Account</span><b'+(acct ? ' class="ok"' : '')+'>'+
+                  (acct ? esc(acct.name)+', saved' : 'not saved yet')+'</b></div>'+
+                '<div class="stat"><span>PS5 linked</span><b>with the update</b></div>'+
+                '<div class="stat"><span>Plays over Remote Play</span><b>with the update</b></div>')+
+           '<div id="rps-soon">'+note('<b>Remote Play on the '+esc(dev)+' is coming in a firmware update.</b> '+
+                'Until then your configs keep playing the way they do now.')+'</div>';
+      return h;
+    }
+
+    return { html:'', after: function(root){
+      var ns = root.dataset.ns || (p.id + '/rpsetup');
+      if(psnCss) psnCss();
+
+      function keep(){
+        var el = root.querySelector('#rps-name'); if(el) st.nm = String(el.value || '').slice(0, 64);
+        el = root.querySelector('#rps-id');       if(el) st.aid = String(el.value || '').slice(0, 64);
+        el = root.querySelector('#rps-redir');    if(el) st.redir = String(el.value || '').slice(0, 2048);
+      }
+      function draw(){
+        keep();
+        root.innerHTML = build();
+        if(ZS.wire) ZS.wire(root, ns);
+        wire();
+        var say = [st.m1, st.m2, st.m3, st.m4].filter(function(t){ return !!t; }).join('. ');
+        if(say && say !== st.said){ st.said = say; if(ZS.announce) ZS.announce(say); }
+        if(!say) st.said = '';
+      }
+      function pinPaint(){
+        var d = root.querySelector('#rps-disp'), c = root.querySelector('#rps-count');
+        if(d){ d.innerHTML = pinSlots(st.pin); d.setAttribute('aria-label', pinSays(st.pin)); }
+        if(c) c.textContent = pinSays(st.pin);
+      }
+      function pinPush(k){
+        if(k === 'del') st.pin = st.pin.slice(0, -1);
+        else if(k === 'clear') st.pin = '';
+        else if(/^[0-9]$/.test(k) && st.pin.length < 8) st.pin += k;
+        else return;
+        pinPaint();
+      }
+
+      function wire(){
+        var b, pad;
+        ['rps-name', 'rps-id', 'rps-redir'].forEach(function(id){
+          var el = root.querySelector('#'+id);
+          if(el) el.addEventListener('input', keep);
+        });
+
+        b = root.querySelector('#rps-open');
+        if(b) b.addEventListener('click', function(){
+          st.url = Z.loginUrl();
+          st.m1 = ''; st.m1bad = false;
+          /* window.open, never a navigation (leaving the page loses the
+             flow); only an https link is opened (m7, 2026-10-10) */
+          if(/^https:\/\//i.test(st.url)){
+            try{ window.open(st.url, '_blank', 'noopener'); }catch(e){}
+          }
+          draw();
+        });
+
+        b = root.querySelector('#rps-copy');
+        if(b) b.addEventListener('click', function(){
+          copyText(st.url, 'Sign-in link copied', 'Copy it by hand: long-press the box above');
+        });
+
+        b = root.querySelector('#rps-read');
+        if(b) b.addEventListener('click', function(){
+          keep();
+          var r = Z.parseRedirect(st.redir);
+          if(!r.ok){ st.m2 = r.error; st.m2bad = true; draw(); return; }
+          /* SPENT: the one-time code is a live credential until it runs out.
+             The Core cannot trade it yet, so it is dropped here, field and
+             all, and never stored. */
+          r = null;
+          st.redir = '';
+          var el = root.querySelector('#rps-redir'); if(el) el.value = '';
+          st.codeRead = true;
+          st.m2 = 'That is the right address, with a sign-in code in it. Trading that code with Sony '+
+                  'for your account ID is your '+dev+'’s job, and that arrives with the Remote Play '+
+                  'firmware update. The code runs out within minutes, so it has not been kept: you will '+
+                  'sign in again then (about a minute). If you know your account ID, step 3 saves it now.';
+          st.m2bad = true;
+          draw();
+        });
+
+        b = root.querySelector('#rps-save');
+        if(b) b.addEventListener('click', function(){
+          keep();
+          var n = Z.cleanName(st.nm);
+          if(!n.ok){ st.m3 = n.error; st.m3bad = true; draw(); return; }
+          var a = Z.normaliseAccountId(st.aid);
+          if(!a.ok){ st.m3 = a.error; st.m3bad = true; draw(); return; }
+          if(!saveAccount(n.name, a.id)){
+            st.m3 = 'This phone or PC would not let the app keep it (its storage is off or full), so '+
+                    'nothing was saved.';
+            st.m3bad = true; draw(); return;
+          }
+          /* out of memory and out of the fields the moment it is kept */
+          st.nm = ''; st.aid = '';
+          ['rps-name', 'rps-id'].forEach(function(id){ var el = root.querySelector('#'+id); if(el) el.value = ''; });
+          st.m3 = 'Saved '+n.name+' on this phone or PC, ready for the update.';
+          st.m3bad = false;
+          draw();
+        });
+
+        b = root.querySelector('#rps-forget');
+        if(b) b.addEventListener('click', function(){
+          forgetAccount();
+          st.m3 = 'Forgotten. Nothing about that account is kept here any more.';
+          st.m3bad = false;
+          draw();
+        });
+
+        pad = root.querySelector('#rps-pad');
+        if(pad){
+          pad.querySelectorAll('button').forEach(function(k){
+            k.addEventListener('click', function(){ pinPush(k.getAttribute('data-k')); });
+          });
+          pad.addEventListener('keydown', function(e){
+            if(/^[0-9]$/.test(e.key)){ pinPush(e.key); e.preventDefault(); }
+            else if(e.key === 'Backspace'){ pinPush('del'); e.preventDefault(); }
+          });
+        }
+
+        b = root.querySelector('#rps-link');
+        if(b) b.addEventListener('click', function(){
+          var r = Z.checkPin(st.pin);
+          if(!r.ok){ st.m4 = r.error; st.m4bad = true; draw(); return; }
+          /* the code is spent either way: it expires, and nothing can use
+             it today */
+          st.pin = '';
+          st.m4 = 'That is a whole code, but your '+dev+' cannot link to a PS5 yet: linking is part '+
+                  'of the Remote Play firmware update. The code on your TV runs out in a few minutes, '+
+                  'so it has not been kept. You will get a fresh one from the PS5 then.';
+          st.m4bad = true;
+          draw();
+        });
+      }
+
+      draw();
+    }};
+  };
+});

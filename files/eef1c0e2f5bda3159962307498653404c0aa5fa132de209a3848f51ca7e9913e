@@ -1,0 +1,97 @@
+{
+  "zerostickCv": 1,
+  "name": "NBA 2K26 — Shot Timing Assist",
+  "publisher": "ZeroStick",
+  "game": "NBA 2K26",
+  "version": "0.1.0",
+  "description": "Watches the shot meter, works out when the indicator will reach the green window the meter itself draws, and lets go of the shoot button for you. It only ever LETS GO — it never presses anything, and if you let go first, you win. The rectangle and BOTH colours below are PLACEHOLDERS: the board refuses to arm until you have taught it the meter on your own capture, because nothing about a 2K meter's position, size, shape or colour is the same for two people. You teach it twice, by tapping the picture: once on the METER BAR itself, which is how it finds the meter wherever your player is standing, and once on the GREEN, which is what it releases on. Teaching the bar's colour is what lets you draw a big box round the middle of your screen instead of a tight one round the meter. Intended for offline and vs-CPU play: 2K treats shot-timing assistance as a fair-play violation in competitive online modes and has banned for it. Turning the meter on so we can read it costs you roughly 9 points of make rate (the meter-off bonus) — the assist has to beat that to be worth using, and the card tells you honestly whether it is.",
+  "capabilities": ["screenRegions", "inputCorrection"],
+  "requires": "Shot meter ON, beside the head, largest size, a colour nothing else on court uses. Meter graphic must DRAW a green window — not Dial/Arrow/Ring. Button shooting, not Rhythm. Shot Timing not Real Player %. Shot Feedback = All Shots. Teach the meter and the feedback text before first use.",
+  "capture": { "width": 1280, "height": 720, "fps": 60 },
+
+  "enabled": true,
+  "target": { "preset": "" },
+  "reject": {},
+  "model": { "enabled": false },
+  "assist": { "strength": 0.0, "activation": "ads" },
+
+  "regions": [
+    {
+      "id": "shotfb",
+      "name": "Shot feedback",
+      "purpose": "custom",
+      "rect": [0.36, 0.62, 0.28, 0.07],
+      "kind": "match",
+      "priority": 4,
+      "everyN": 1,
+      "minHits": 2,
+      "cooldownMs": 250,
+      "match": {
+        "source": "luma",
+        "lumaMin": 150,
+        "erode": true,
+        "acceptTop": 0.80,
+        "acceptMargin": 0.04,
+        "templates": []
+      }
+    }
+  ],
+
+  "shotAssist": {
+    "enabled": false,
+    "button": "west",
+    "abortButton": "",
+    "feedbackRegion": "shotfb",
+
+    "meter": {
+      "rect": [0.40, 0.30, 0.22, 0.06],
+      "axis": "x",
+      "read": "marker",
+      "rowStep": 4,
+      "colStep": 1,
+      "barLumaMin": 60,
+      "barMinFrac": 0.20,
+      "barRowFrac": 0.5,
+      "indLumaMin": 200,
+      "indPeakFrac": 0.35,
+      "zone": {},
+      "zoneMinFrac": 0.03,
+      "zoneMaxFrac": 0.40,
+      "aimFrac": 0.5,
+      "bar": {},
+      "findStep": 4,
+      "findMinFrac": 0.02,
+      "findRivalFrac": 0.5,
+      "findPadFrac": 0.10
+    },
+
+    "latencyMs": 90,
+    "latencyMinMs": 0,
+    "latencyMaxMs": 400,
+    "aimOffsetMs": 0,
+
+    "trimStepMs": 30,
+    "trimDecay": 0.88,
+    "trimMinStepMs": 4,
+    "minVerdicts": 6,
+
+    "minSamples": 8,
+    "maxSamples": 20,
+    "fitWindowMs": 250,
+    "minBaselineMs": 120,
+    "commitMarginMs": 25,
+    "lateGraceMs": 25,
+
+    "fillMinMs": 150,
+    "fillMaxMs": 700,
+    "holdMinMs": 250,
+    "holdMaxMs": 1800,
+    "maxHoldMs": 2200,
+    "cooldownMs": 500,
+
+    "minSpeedPerS": 0.8,
+    "maxResidualFrac": 0.030,
+    "zoneDriftFrac": 0.06,
+    "maxGapFrames": 2
+  }
+}

@@ -1,0 +1,276 @@
+/* legacy-room.js - the config editor's "Legacy Devices" room (D215): the
+ * editor's `legacy` screen, window.ZSLEGACY.
+ *
+ * The owner, 2026-10-02: the GPC Scripts room and the XIM import move into
+ * one room of their own, with two doors in the same door/room style as the
+ * editor's own:
+ *
+ *   GPC script device            the GPC Scripts room (gpc-tab.js, the `gpc`
+ *                                screen), unchanged inside
+ *   Copy your XIM settings in    the XIM import (xim-import-screen.js, the
+ *                                `ximimport` screen), unchanged inside; it
+ *                                left the Aim page's Hip ••• fold. Shown for
+ *                                configs that use a mouse, as the fold did
+ *                                (D199); a controller-only config gets one
+ *                                line saying why it is not there.
+ *
+ * OLD PATHS STILL OPEN. Everything that opens `gpc` or `ximimport` (a test,
+ * theme-shots, ZSXIMSCREEN.open, anything later) still goes through the one
+ * door every screen passes, openDetail (shell/11-detail-swipe.js), which
+ * hands such a descriptor to route() below: it lands straight in the screen,
+ * as every other deep link in the app does, and its back key now reads
+ * "‹ Legacy Devices" and goes there (the room's own back key goes to the
+ * editor). A descriptor that already owns its back key is left alone, so a
+ * redraw of the same visit (redrawOpenScreen) keeps the visit: the XIM form
+ * keeps what was typed, exactly as before.
+ *
+ * THE GPC SCRIPT DEVICE SWITCH (owner, 2026-10-02: "EXO Studio and the GPC
+ * Scripts tab can't be on at the same time"). Under the GPC door, a switch
+ * "GPC script device", device-wide, OFF by default: GET/POST /gpc/device
+ * (the firmware contract being built), drawn by core-modes.js (ZSMODES),
+ * which shares its state with the EXO Studio room's switch, asks before
+ * turning one on while the other is on, and paints only from the Core's
+ * answer. While it is off, Preview on the phone still works; Live, Send to
+ * config and P1 / Reset on the Core say it is off (gpc-tab.js). A Core
+ * without /gpc/device gets one line instead of the switch; an EXO, nothing.
+ *
+ * The room wears bolt orange, the GPC room's hue (--tint-gpc), and its door
+ * a plain placeholder picture (brand/zs-legacy-devices.svg) until the owner
+ * supplies the artwork. No other company's logo or artwork (D76); the two
+ * screens keep their own words. D212's legal review is still owed for the
+ * share-code reader inside the XIM screen; its gate and notes are the
+ * screen's and are untouched here.
+ *
+ * ES5 ONLY, like every file phone.html loads; everything into innerHTML
+ * through esc(). Tests: tools/test-legacy-room.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var CSS_ID = 'zs-legacy-css';
+  var ORANGE = '#ff9457';           /* --tint-gpc in dark; zs-light.css has the light one */
+  var GOLD = '#e3b341';             /* Aim's gold, the XIM screen's tint */
+  var ROOM = { id: 'legacy', lab: 'Legacy Devices' };   /* D234: EXO Studio is in here (owner) */
+  var BACK = '‹ Legacy Devices';
+  var OLD_FW = 'This Core’s firmware doesn’t have the GPC script device switch yet.';
+  var ROOT = null, P = null;
+  function M() { return window.ZSMODES || null; }
+  /* the switch under the GPC door: the card, the older-firmware line, or
+     nothing (an EXO, offline, not asked yet) */
+  function switchHTML() {
+    if (!M() || (ZS.productId && ZS.productId() !== 'core')) { return ''; }
+    if (ZS.live && ZS.live.online === false) { return ''; }
+    var g = M().state().gpc;
+    if (g.known === false) { return '<p class="lg-none" id="lg-oldfw">' + esc(OLD_FW) + '</p>'; }
+    return M().html('gpc');
+  }
+  var lastSw = '';
+  function paintSwitch() {
+    var box = document.getElementById('lg-switch');
+    if (!box || !ROOT || document.getElementById('lgroom') !== ROOT) { return; }
+    var h = switchHTML();
+    /* D215: the GPC door's own line says when EXO Studio has it off */
+    var hn = ROOT.querySelector('[data-lgdoor="gpc"] .hint'), d = doorOf('gpc');
+    if (hn) { hn.textContent = d.hint(P); }
+    if (h === lastSw) { return; }
+    box.innerHTML = h;
+    lastSw = h;
+    if (M()) { M().wire(box, 'gpc'); }
+  }
+
+  /* the two doors, in the order drawn. `title` is the screen's own title
+     (the XIM screen has always been titled "Copy from XIM"). */
+  var DOORS = [
+    { id: 'gpc', ico: 'code', lab: 'GPC script device', title: 'GPC script device',
+      hint: function (p) {
+        if (window.ZSMODES && window.ZSMODES.studioMode()) { return 'Off while EXO Studio is on'; }
+        return window.ZSGPC ? window.ZSGPC.hint(p) : 'Paste a script, use its menu';
+      },
+      shows: function () { return !!(window.RENDERERS && window.RENDERERS.gpc); } },
+    /* EXO Studio left this room again (owner, 2026-10-10: "take EXO Studio
+       out of Legacy Devices"). Its one door is the editor menu's own
+       row under Advanced (D268). The "only one can be on" line below still
+       names it, because the GPC device and EXO Studio still exclude each
+       other. */
+    { id: 'ximimport', ico: 'copy', lab: 'Copy your XIM settings in', title: 'Copy from XIM',
+      hint: function () { return 'Type the numbers from your XIM app'; },
+      /* the Aim fold drew it for a config with a mouse, and only when the
+         screen is loaded (D199) */
+      shows: function (p) {
+        return !!(window.RENDERERS && window.RENDERERS.ximimport && window.ZSXIM) &&
+          !!(p && ZS.inputShows && ZS.inputShows(p.input, 'mouse'));
+      } }
+  ];
+  function doorOf(id) {
+    for (var i = 0; i < DOORS.length; i++) { if (DOORS[i].id === id) { return DOORS[i]; } }
+    return null;
+  }
+
+  /* ═══════════════════════════════════════════════════════ the CSS ══
+     The editor menu's door, restated for this room (phone.html scopes the
+     editor's to #edmenu, and its tests read those rules as written): one
+     card, 72 px, the room's rail on the left, the icon chip, one line of
+     hint. */
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.item .ico.ico-ximimport{color:var(--gold,' + GOLD + ');background:rgba(227,179,65,.12);border-color:rgba(227,179,65,.40)}',
+      '#lgroom .lg-lead{color:var(--muted);font-size:13.5px;line-height:1.5;margin:2px 2px 10px}',
+      '#lgroom .item{--room:var(--room-plain);box-sizing:border-box;height:72px;min-height:72px;max-height:72px;',
+      'margin:0 0 12px;padding:0 15px 0 13px;overflow:hidden;cursor:pointer;',
+      'border-left-style:solid;border-left-width:3px;border-left-color:var(--room);',
+      'background-color:var(--panel);background-image:linear-gradient(180deg,',
+      'var(--zs2-card-a,rgba(255,255,255,.075)),var(--zs2-card-b,rgba(255,255,255,.03)))}',
+      '#lgroom .item[data-room="gpc"]{--room:var(--tint-gpc,' + ORANGE + ')}',
+      '#lgroom .item[data-room="ximimport"]{--room:var(--gold,' + GOLD + ')}',
+      '#lgroom .item[data-room="studio"]{--room:var(--accent)}',
+      '#lgroom .lg-one{color:var(--text);font-size:13px;line-height:1.5;margin:0 2px 12px;padding:8px 11px;' +
+        'border-radius:10px;background:var(--panel2,rgba(255,255,255,.05))}',
+      '#lgroom .item .ico{width:40px;height:40px}',
+      '#lgroom .item .ico img.ico3d{width:26px;height:26px}',
+      '#lgroom .item .t{min-width:0}',
+      '#lgroom .item .lab,#lgroom .item .hint{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#lgroom .item .hint:empty{display:none}',
+      '#lgroom .item .chev{color:var(--muted);font-size:19px}',
+      '#lgroom .item:focus-visible{outline-offset:-3px}',
+      'body.a11y-big #lgroom .item{height:96px;min-height:96px;max-height:96px}',
+      'body.a11y-contrast #lgroom .item{background-image:none;box-shadow:none;border-color:var(--muted);border-left-color:var(--room)}',
+      '#lgroom .lg-none{color:var(--muted);font-size:13px;line-height:1.5;margin:0 2px 12px}',
+      '#lgroom #lg-switch .zm-card{margin:-4px 0 12px}'
+    ].join('')));
+    (document.head || document.body).appendChild(s);
+  }
+
+  /* ═════════════════════════════════════════ the old paths, routed ══
+     openDetail hands every descriptor here first; a GPC or XIM one that
+     does not own its back key yet gets ours. */
+  function route(s, p) {
+    /* D402 (owner, 2026-10-16: XIM only in "the legacy and XIM tab where you
+       can bring over configs, but that's a future update"): the XIM import is
+       COMING SOON like this whole room. Outside developer mode every path into
+       it lands on the room's COMING SOON banner, never on the screen. */
+    if (s && s.id === 'ximimport' && !(ZS.devMode && ZS.devMode())) {
+      return { id: ROOM.id, lab: ROOM.lab };
+    }
+    var d = s && !s.onBack ? doorOf(s.id) : null;
+    if (!d) { return s; }
+    return {
+      id: d.id,
+      lab: (s.lab && s.lab !== s.id) ? s.lab : d.title,
+      backLabel: BACK,
+      onBack: function () { open(p); },
+      legacy: true
+    };
+  }
+
+  /* the room itself, as its door in the editor opens it */
+  function open(p) {
+    ZS.openDetail({ id: ROOM.id, lab: ROOM.lab }, p);
+  }
+  /* straight into one of its doors, the back key leading to the room */
+  function openDoor(id, p) {
+    var d = doorOf(id);
+    if (!d) { return; }
+    ZS.openDetail({ id: d.id, lab: d.title }, p);
+  }
+
+  function doorHTML(d, p) {
+    var hint = typeof d.hint === 'function' ? d.hint(p) : (d.hint || '');
+    return '<div class="item" role="button" tabindex="0" data-room="' + esc(d.id) + '" data-lgdoor="' + esc(d.id) + '"' +
+      ' aria-label="' + esc(d.lab + (hint ? ' — ' + hint : '')) + '">' +
+      '<span class="ico ico-' + esc(d.id) + (d.pic ? ' ico-img' : '') + '">' +
+        (d.pic ? '<img class="ico-pic" src="' + esc(d.pic) + '" width="128" height="128" alt="">'
+               : (ZS.icoSVG ? ZS.icoSVG(d.ico, 26) : '')) + '</span>' +
+      '<span class="t"><div class="lab">' + esc(d.lab) + '</div><div class="hint">' + esc(hint) + '</div></span>' +
+      '<span class="chev">›</span></div>';
+  }
+
+  function render(p) {
+    injectCss();
+    P = p;
+    /* COMING SOON (owner, 2026-10-14: "when the Legacy Devices tab is opened
+       make it say COMING SOON in big text, dev use only, non functional").
+       A customer build shows only the banner; the owner's build shows the
+       banner and keeps the doors under it for development. */
+    var soon = '<div class="lg-soon" id="lg-soon" role="status" style="text-align:center;' +
+      'padding:34px 12px 26px;margin:0 0 14px;border:1px solid var(--purple);border-radius:16px;' +
+      'background:rgba(163,113,247,.10)">' +
+      '<div style="font-size:34px;font-weight:900;letter-spacing:.04em;line-height:1.1">COMING SOON</div>' +
+      '<div style="font-size:14px;margin-top:10px;color:var(--muted)">' +
+      ((ZS.devMode && ZS.devMode()) ? 'Developer mode is on: the tools below are for testing.'
+                                    : 'Developer use only. Not working yet.') + '</div></div>';
+    /* owner, 2026-10-14: "leave it in customer builds", and developer mode
+       (Debug box, 2200) opens the lock */
+    if (!(ZS.devMode && ZS.devMode())) {
+      return { html: '<div id="lgroom">' + soon + '</div>',
+               after: function (body) { body.setAttribute('data-tint', 'gpc'); } };
+    }
+    var h = '<div id="lgroom">' + soon + '<p class="lg-lead">Scripts and settings from devices you used before, ' +
+      'brought into this config.</p>' +
+      /* only where both exist: a Core with EXO Studio (an EXO has none) */
+      (!!(window.RENDERERS && window.RENDERERS.studio) && !(ZS.productId && ZS.productId() !== 'core')
+        ? '<p class="lg-one" id="lg-one">Only one can be on at a time: <b>GPC script device</b> or <b>EXO Studio</b> (its own row under Advanced).</p>'
+        : '');
+    var drawn = 0;
+    DOORS.forEach(function (d) {
+      if (!d.shows(p)) { return; }
+      h += doorHTML(d, p);
+      /* the GPC script device's switch rides under its door */
+      if (d.id === 'gpc') { h += '<div id="lg-switch"></div>'; }
+      drawn++;
+    });
+    if (!doorOf('ximimport').shows(p) && window.RENDERERS && window.RENDERERS.ximimport) {
+      h += '<p class="lg-none" id="lg-noxim">Copy your XIM settings in is for configs that use a mouse.</p>';
+    }
+    if (!drawn) {
+      h += '<p class="lg-none">Nothing here could load. Reload the app.</p>';
+    }
+    h += '</div>';
+    lastSw = '';
+    if (M()) { M().state().err.gpc = ''; M().state().confirm = ''; M().fromStatus(); }
+    return { html: h, after: function (body) {
+      body.setAttribute('data-tint', 'gpc');
+      ROOT = body.querySelector('#lgroom');
+      paintSwitch();
+      if (M() && ZS.productId && ZS.productId() === 'core' && !(ZS.live && ZS.live.online === false)) {
+        M().read('gpc');
+      }
+      var rows = body.querySelectorAll('[data-lgdoor]');
+      for (var i = 0; i < rows.length; i++) {
+        (function (row) {
+          var id = row.getAttribute('data-lgdoor');
+          function go() { openDoor(id, p); }
+          row.addEventListener('click', go);
+          row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+          });
+        })(rows[i]);
+      }
+    } };
+  }
+
+  /* the editor menu row's second line */
+  function hint(p) {
+    var n = window.ZSGPC && p ? window.ZSGPC.hint(p) : '';
+    return /script/.test(n) && !/^Paste/.test(n) ? 'GPC · ' + n : 'GPC scripts, settings from other devices';
+  }
+
+  if (M()) { M().onChange(paintSwitch); }
+  injectCss();
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.legacy = render;
+
+  window.ZSLEGACY = {
+    ROOM: ROOM,
+    DOORS: DOORS,
+    route: route,
+    open: open,
+    openDoor: openDoor,
+    hint: hint,
+    OLD_FW: OLD_FW
+  };
+}());

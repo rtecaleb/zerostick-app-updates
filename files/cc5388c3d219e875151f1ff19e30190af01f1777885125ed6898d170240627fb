@@ -1,0 +1,334 @@
+/* core-room.js - how much room a config takes on a Core, and the one place
+ * the app decides a config is getting close to a real limit (window.ZSROOM).
+ * D133.
+ *
+ * ES5 ONLY, the same discipline as zs-profile-encode.js: no arrow function,
+ * no template literal, no let/const, no class.
+ *
+ * -- Why this exists --------------------------------------------------------
+ *
+ * The owner met "Smart Actions 0 of 32" and "Taught 0 of 16" and asked why a
+ * config could only hold that many. D133's answer: it should not have a count
+ * a person can reach. Each kind now has one safety ceiling nobody meets, the
+ * Core sizes its tables when a config loads, and what the app shows is
+ * STORAGE: what this config takes on the Core, and what the Core holds. The
+ * app warns, in plain words, only when a config NEARS a real limit, before
+ * anything is refused; the refusal itself stays the encoder's sentence, which
+ * names the number.
+ *
+ * THE LIMITS ARE THE CONNECTED CORE'S, never a number typed here. ZS.coreCaps()
+ * is ZSPROFILE.capsFrom(/status profileFormat.caps), so a Core from before
+ * D133 is still warned and refused at its own 32 actions, 16 pictures and
+ * 16 KB, and a D133 Core at its ceilings.
+ *
+ * D136: A CORE ON TODAY'S FIRMWARE HAS NO COUNT AT ALL. It advertises null
+ * for Smart Actions, steps and taught pictures, capsFrom keeps null, and
+ * kind() below says nothing for a null, so for such a Core the app never
+ * shows or enforces a count: the only number it shows is storage. The
+ * sentences stay for the older Cores that really do stop at a count.
+ *
+ * D135: ONE POOL, AND ITS SPACE IS THE ONLY LIMIT. A Core on D135 firmware
+ * keeps every config in one 6 MB pool: no count of configs and no size for
+ * one config. The app shows what each config takes and what is left, warns
+ * only when a save would not fit (near, fits), and says how long a big save
+ * will take and how far it has got (savingSentence), so it never looks
+ * frozen.
+ *
+ * EVERY NUMBER A SCREEN SHOWS COMES FROM ONE ENCODE (ZSPROFILE.measure): the
+ * size, the refusal and the counts are what a save to this Core would write,
+ * counted by the writers that write it, so the line under a config can never
+ * disagree with what saving it does.
+ */
+(function () {
+  'use strict';
+
+  /* WHEN "CLOSE" STARTS. Named once so every screen warns at the same moment.
+     85% of the bytes one config may be: on a Core before D133 that is 13.9 of
+     its 16 KB, which is where D124 measured a sixteen-weapon Warzone config
+     (13,260 bytes), so the warning arrives while one more weapon still fits.
+     90% of a kind's ceiling: on such a Core, the 15th picture of 16 and the
+     29th Smart Action of 32. On a D133 Core both are far past anything a
+     config has needed, so in practice only the bytes ever warn there. */
+  var NEAR_BYTES = 0.85;
+  var NEAR_KIND = 0.90;
+
+  function E() { return window.ZSPROFILE || null; }
+  function Z() { return window.ZS || null; }
+
+  /* The caps of the Core that is connected, or the encoder's own default
+     (the D133 firmware's) when the app has not heard from one. */
+  function caps() {
+    var z = Z(), c = (z && typeof z.coreCaps === 'function') ? z.coreCaps() : null;
+    if (c) { return c; }
+    return E() ? E().capsFrom(undefined) : null;
+  }
+  function capsKey(c) {
+    return c ? [c.actions, c.steps, c.blobBytes, c.visionTemplates, c.visionRegions,
+      c.bindings, c.chords, c.curvePoints, c.keysPerStep].join(',') : '';
+  }
+  function readsPieces() {
+    var z = Z();
+    return !!(z && typeof z.coreReadsPieces === 'function' && z.coreReadsPieces());
+  }
+
+  /* A size a person reads: "812 bytes", "2.7 KB", "23 KB", "2 MB". One
+     decimal while it matters (under 10 KB, and in MB), whole KB otherwise,
+     so a line that updates as a config grows does not flicker digits. */
+  function words(n) {
+    if (typeof n !== 'number' || !isFinite(n) || n < 0) { return ''; }
+    if (n < 1024) { return Math.round(n) + ' bytes'; }
+    if (n < 10 * 1024) { return one(n / 1024) + ' KB'; }
+    if (n < 1024 * 1024) { return Math.round(n / 1024) + ' KB'; }
+    return one(n / (1024 * 1024)) + ' MB';
+  }
+  function one(v) { return (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
+
+  /* What a config takes on THIS Core, measured the way a save to it encodes
+     it (its caps; picture references in the copy only when it reads configs
+     back in pieces, D124):
+       bytes     the blob without the editable copy: the part that must fit
+       stored    the blob as it would be stored, copy included when it fits
+       source    the copy's share of that (0 when it had to be left out)
+       actions, steps, pictures   what is sent, counted by the encoder
+       refusal   the encoder's first refusal, '' when it would be taken
+       caps      the caps all of this was measured against
+     Memoised on the document object (the app replaces a config's document on
+     every write) and on the caps, so a repaint costs nothing. */
+  var memo = { doc: null, key: '', out: null };
+  function room(doc) {
+    var c = caps(), pieces = readsPieces();
+    var out = { caps: c, bytes: -1, stored: -1, source: 0, actions: 0, steps: 0,
+      pictures: 0, refusal: '' };
+    if (!E() || !E().measure || !doc || !c) { return out; }
+    var key = capsKey(c) + '|' + pieces;
+    if (memo.doc === doc && memo.key === key) { return memo.out; }
+    try {
+      var m = E().measure(doc, { sourceSidecar: false, caps: c });
+      out.refusal = m.refusals[0] || '';
+      out.bytes = m.bytes;
+      out.actions = m.actions; out.steps = m.steps; out.pictures = m.pictures;
+      if (m.bytes > 0) {
+        var w = E().measure(doc, { sourceRefs: pieces, caps: c });
+        out.stored = w.bytes > 0 ? w.bytes : m.bytes;
+        out.source = Math.max(0, out.stored - m.bytes);
+      }
+    } catch (e) { /* a config this app cannot encode says so on save */ }
+    memo = { doc: doc, key: key, out: out };
+    return out;
+  }
+
+  /* ── THE POOL (D135) ─────────────────────────────────────────────────
+     A Core on D135 firmware keeps every config in ONE 6 MB pool they all
+     share, and the pool is the only limit: no count, no size for one
+     config. It says so in /status.profiles (bytesFree beside bytesUsed and
+     bytesTotal), and that is how this file tells it from an older Core.
+
+     WHAT A CONFIG TAKES FROM THE POOL is whole 4 KB sectors: its blob and a
+     head of 44 bytes, its id and name, and two bytes a sector. The app does
+     not know the id and name lengths the Core will count, so it counts the
+     longest (a head of up to 208 bytes plus the map), which is what the
+     Core itself reserves for a big config arriving in pieces: never less
+     than the Core will take, at most one sector more. */
+  var SECTOR = 4096;
+  function occupies(bytes) {
+    if (!(bytes > 0)) { return 0; }
+    var n = Math.max(1, Math.ceil(bytes / SECTOR));
+    while (n * SECTOR - headBytes(n) < bytes) { n++; }
+    return n * SECTOR;
+  }
+  function headBytes(n) { return Math.ceil((40 + 64 + 96 + 2 * n) / 4) * 4 + 4; }
+  function isPool() {
+    var z = Z(), st = z && z.live && z.live.status;
+    var pr = st && st.profiles;
+    return !!(pr && typeof pr.bytesFree === 'number' && typeof pr.bytesTotal === 'number');
+  }
+
+  /* Would saving this config fit, right now? A save writes a complete new
+     copy before it lets go of the old one (a power cut then leaves one or
+     the other, never neither), so even a config already on the Core needs
+     its WHOLE new size free for a moment. null when it cannot be known (an
+     older Core, or no Core at all). */
+  function fits(bytes) {
+    var s = storage();
+    if (!s.pool || !(bytes > 0)) { return null; }
+    return occupies(bytes) <= s.free;
+  }
+
+  /* The sentences that say a config is CLOSE to a real limit, before any
+     refusal. On a D135 Core there is one limit, the pool's free space, and
+     the one sentence is that the next save would not fit. On an older Core,
+     the bytes one config may be and each kind's ceiling. `counts` may stand
+     in for the room's own (the Auto Actions tab counts a kind that is
+     switched off too, D125, so switching it back on always fits). Empty
+     when nothing is close, and when the config is already refused (the
+     refusal is the sentence then). */
+  function near(r, counts) {
+    var out = [], c = r && r.caps;
+    if (!c || r.refusal) { return out; }
+    var k = counts || r;
+    var size = r.stored > 0 ? r.stored : r.bytes;
+    if (isPool()) {
+      if (size > 0 && fits(size) === false) {
+        out.push('Saving this config needs about ' + words(occupies(size)) +
+          ' free on your Core and ' + words(storage().free) + ' is left. The Core ' +
+          'keeps the old copy until the new one is whole, so it needs that room for ' +
+          'a moment. Delete a config you do not need first.');
+      }
+    } else if (r.bytes > 0 && r.bytes >= NEAR_BYTES * c.blobBytes) {
+      out.push('This config takes ' + words(r.bytes) + ' of the ' + words(c.blobBytes) +
+        ' one config can hold on your Core, so it is nearly full.');
+    }
+    kind(out, k.pictures, c.visionTemplates, 'taught pictures');
+    kind(out, k.actions, c.actions, 'Scripts');
+    kind(out, k.steps, c.steps, 'Script steps');
+    return out;
+  }
+  /* One kind's sentence: "close to" while there is room, "all" at exactly
+     the ceiling (one more is the encoder's refusal, which names it). A null
+     cap is no ceiling (D136) and says nothing, and so does a 0. */
+  function kind(out, n, cap, what) {
+    if (!(cap > 0) || n < NEAR_KIND * cap) { return; }
+    out.push('This config has ' + n + ' ' + what + (n >= cap
+      ? ', all your Core holds in one config.'
+      : ', close to the ' + cap + ' your Core holds in one config.'));
+  }
+
+  /* What one config takes on the Core, in bytes: the stored blob's size from
+     the Core's own list row (or the last save), else what the encoder says a
+     save would store, else -1 (nothing to go on). */
+  var sized = [];
+  function configBytes(pid) {
+    var z = Z(), live = z && z.live;
+    if (!live) { return -1; }
+    /* D135: what the config really takes out of the pool, sectors and all,
+       as the Core's own list row says (storedBytes), so the rows add up to
+       the storage line under them */
+    var stored = live.rowStored || {};
+    if (typeof stored[pid] === 'number' && stored[pid] > 0) { return stored[pid]; }
+    var rows = live.rowBytes || {};
+    if (typeof rows[pid] === 'number' && rows[pid] > 0) { return rows[pid]; }
+    var doc = live.full && live.full[pid];
+    if (!doc) { return -1; }
+    for (var i = 0; i < sized.length; i++) {
+      if (sized[i].doc === doc) { return sized[i].bytes; }
+    }
+    var r = room(doc);
+    var b = r.stored > 0 ? r.stored : r.bytes;
+    sized.push({ doc: doc, bytes: b });
+    if (sized.length > 24) { sized.shift(); }
+    return b;
+  }
+
+  /* The Core's storage as a whole. A D135 Core says it in /status.profiles
+     as one pool (configs, bytesUsed, bytesFree, bytesTotal, and loadError
+     when it could not load a config), and `pool` is true. A D133 Core says
+     bytesUsed, configBytesMax, bytesTotal and slots; an older one nothing,
+     and then the numbers are its own advertised caps (profiles x blobBytes)
+     and the list rows' sizes added up. `reported` says whether the Core
+     said them. */
+  function storage() {
+    var z = Z(), c = caps();
+    var st = z && z.live && z.live.status;
+    var pr = (st && st.profiles && typeof st.profiles === 'object') ? st.profiles : {};
+    var rows = (z && z.live && z.live.rowBytes) || {};
+    var used = 0, n = 0, k;
+    for (k in rows) {
+      if (Object.prototype.hasOwnProperty.call(rows, k)) { used += rows[k]; n++; }
+    }
+    function pos(v) { return typeof v === 'number' && isFinite(v) && v > 0; }
+    var out = {
+      pool: isPool(),
+      reported: typeof pr.bytesUsed === 'number',
+      used: typeof pr.bytesUsed === 'number' ? pr.bytesUsed : used,
+      free: typeof pr.bytesFree === 'number' ? pr.bytesFree : -1,
+      count: typeof pr.configs === 'number' ? pr.configs
+        : (typeof pr.count === 'number' ? pr.count : n),
+      perConfig: pos(pr.configBytesMax) ? pr.configBytesMax : (c ? c.blobBytes : 0),
+      slots: pos(pr.slots) ? pr.slots : (c ? c.profiles : 0),
+      total: 0,
+      loadError: typeof pr.loadError === 'string' ? pr.loadError : ''
+    };
+    out.total = pos(pr.bytesTotal) ? pr.bytesTotal : out.slots * out.perConfig;
+    return out;
+  }
+
+  /* D135: "Core storage: 5.9 MB left of 6 MB. Your 7 configs use 52 KB."
+     The owner's words for what he wants to see: how much each config uses
+     (on its row) and how much is left in total, with no count to meet. An
+     older Core keeps its own sentence, "Core storage: 180 KB of 2 MB used,
+     8 configs of up to 256 KB each". '' when there is nothing honest to
+     say yet (no Core, or a list that carried no sizes). */
+  function storageSentence() {
+    var s = storage();
+    if (!s.total || (!s.reported && !s.used)) { return ''; }
+    if (s.pool) {
+      return 'Core storage: ' + words(s.free) + ' left of ' + words(s.total) + '. ' +
+        (s.count === 1 ? 'Your config uses ' : 'Your ' + s.count + ' configs use ') +
+        words(s.used) + '.';
+    }
+    return 'Core storage: ' + words(s.used) + ' of ' + words(s.total) + ' used, ' +
+      s.slots + ' config' + (s.slots === 1 ? '' : 's') + ' of up to ' +
+      words(s.perConfig) + ' each.';
+  }
+
+  /* ── HOW LONG A SAVE TAKES (D135) ─────────────────────────────────────
+     A config goes to the Core in 8 KB pieces, each one a request and an
+     answer, and a big config is written to flash as its pieces land. What
+     sets the time is the link, measured in bytes of CONFIG per second:
+
+       the USB cable   921,600 baud is about 92 KB/s of line; each 8 KB
+                       piece is base64 in JSON in a frame that the line
+                       base64s again, about 14.8 KB on the wire, plus its
+                       flash write (two sectors, about 70 ms at D129's
+                       36 ms a sector) and the round trip: about 0.3 s a
+                       piece, 27 KB/s of config.
+       Bluetooth       frames go binary, but a phone's radio moves about
+                       10 KB/s to the Core: about 1.3 s a piece, 6 KB/s.
+
+     Both are estimates until the chip measures them; the app starts from
+     them and then goes by what it measured on the pieces already sent. So
+     a 5 MB config is about 3 minutes over the cable and 15 over Bluetooth.
+     Reading one back takes about as long, in 4 KB pieces. */
+  var RATE = { usb: 27000, ble: 6000 };
+  var BIG_SAVE = 65536;           /* from here up, the app says how long */
+  function transport() {
+    var z = Z(), st = z && z.live && z.live.status;
+    return (st && st.transport === 'ble') ? 'ble' : 'usb';
+  }
+  function duration(sec) {
+    sec = Math.max(1, Math.round(sec));
+    if (sec < 60) { return sec + ' second' + (sec === 1 ? '' : 's'); }
+    var m = Math.floor(sec / 60), s = sec % 60;
+    if (m >= 10 || s === 0) { return Math.round(sec / 60) + ' minutes'; }
+    return m + ' min ' + s + ' s';
+  }
+  /* Seconds left to send `total` bytes when `sent` have gone in `elapsedMs`:
+     the link's own rate once two pieces have told us what it really is. */
+  function saveSeconds(total, sent, elapsedMs) {
+    var rate = RATE[transport()];
+    if (sent >= 2 * 8192 && elapsedMs > 0) { rate = sent / (elapsedMs / 1000); }
+    return Math.max(0, total - (sent || 0)) / rate;
+  }
+  /* What the app says while a big config is on its way, so a long save
+     never looks like a frozen one. '' for a config small enough that the
+     save is over before anyone could wonder. */
+  function savingSentence(total, sent, elapsedMs) {
+    if (!(total >= BIG_SAVE)) { return ''; }
+    var left = saveSeconds(total, sent, elapsedMs);
+    if (!sent) {
+      return 'Saving a large config (' + words(total) + '): about ' + duration(left) +
+        (transport() === 'ble' ? ' over Bluetooth.' : ' over the cable.') +
+        ' Keep the Core connected.';
+    }
+    var pct = Math.min(99, Math.floor(100 * sent / total));
+    return 'Saving a large config: ' + pct + ' percent, about ' + duration(left) + ' left.';
+  }
+
+  window.ZSROOM = {
+    NEAR_BYTES: NEAR_BYTES, NEAR_KIND: NEAR_KIND, BIG_SAVE: BIG_SAVE, RATE: RATE,
+    caps: caps, words: words, room: room, near: near,
+    configBytes: configBytes, storage: storage, storageSentence: storageSentence,
+    occupies: occupies, fits: fits, isPool: isPool,
+    saveSeconds: saveSeconds, savingSentence: savingSentence, duration: duration
+  };
+}());

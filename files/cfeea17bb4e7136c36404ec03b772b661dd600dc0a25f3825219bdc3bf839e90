@@ -1,0 +1,52 @@
+# Console pictures (Connection Method)
+
+The logos the Connection Method rows wear (`PLAY_FROM` in
+`sections/02-play-setup.js`, drawn by `consolePic`): the new-config wizard's
+console step, Overview's Connection Method box and its panel. A `{light, dark}`
+pair is a single-colour mark in two inks: `*-ink-dark.webp` (ink #15161a) is
+drawn on the light theme, `*-ink-light.webp` (ink #eff1f3) on the dark theme.
+Each file is 128 x 128, the mark contained in 120 x 120 and centred, lossless
+WebP. These pictures live in the app only; no image bytes go to the Core (D120).
+
+## The owner's pictures (2026-10-10, commit 7a7e14be)
+
+Chosen and supplied by the owner; no download record.
+
+| File | Row |
+|---|---|
+| xbox.webp | Xbox, Xbox 360 |
+| pc.webp | PC |
+| ps5-remote-play-ink-dark.webp, ps5-remote-play-ink-light.webp | PS5 Remote Play |
+
+(`p5general.webp`, the photo of the P5General dongle the PS5 row wore, was
+removed in D399: the owner asked for the PlayStation logo on that row.)
+
+## Official logos from Wikimedia Commons (D399, 2026-10-16)
+
+Fetched 2026-10-16 from Wikimedia Commons only (the Commons API's
+`imageinfo`, then the original SVG from upload.wikimedia.org). Each SVG was
+drawn in a headless Edge at 512 px with every shape filled in one ink, cropped
+to the mark, scaled to fit 120 x 120 (Lanczos) and saved as lossless WebP. Nothing
+else was changed: no redrawing, no shape edits.
+
+**Licence and trademark.** Commons files each of these as **public domain**
+(a logo of simple text and geometry, below the threshold of originality) and
+marks every one **trademarked**. Public domain covers copyright only. The marks
+stay the trademarks of their owners (Sony Interactive Entertainment, Nintendo),
+and the app uses them only to name the console a config plays on (nominative
+use). It never uses them as ZeroStick's own brand or to suggest endorsement.
+
+| File(s) | Row | Commons file | Original | Author / owner | Licence on Commons |
+|---|---|---|---|---|---|
+| playstation-ink-dark.webp, playstation-ink-light.webp | PlayStation 5 (P5General dongle) | [File:PlayStation logo.svg](https://commons.wikimedia.org/wiki/File:PlayStation_logo.svg) | https://upload.wikimedia.org/wikipedia/commons/0/00/PlayStation_logo.svg | Sony Interactive Entertainment | Public domain; trademarked |
+| ps3-ink-dark.webp, ps3-ink-light.webp | PS3 | [File:PlayStation 3 Logo.svg](https://commons.wikimedia.org/wiki/File:PlayStation_3_Logo.svg) (the "PS3" wordmark) | https://upload.wikimedia.org/wikipedia/commons/d/d9/PlayStation_3_Logo.svg | Sony Computer Entertainment | Public domain; trademarked |
+| switch-ink-dark.webp, switch-ink-light.webp | Nintendo Switch | [File:Nintendo Switch Logo (without text).svg](https://commons.wikimedia.org/wiki/File:Nintendo_Switch_Logo_(without_text).svg) | https://upload.wikimedia.org/wikipedia/commons/3/3f/Nintendo_Switch_Logo_%28without_text%29.svg | Nintendo | Public domain; trademarked |
+| switch2-ink-dark.webp, switch2-ink-light.webp | Nintendo Switch 2 | [File:Nintendo Switch 2 Logo (without text).svg](https://commons.wikimedia.org/wiki/File:Nintendo_Switch_2_Logo_(without_text).svg) | https://upload.wikimedia.org/wikipedia/commons/f/f2/Nintendo_Switch_2_Logo_%28without_text%29.svg | Nintendo | Public domain; trademarked |
+
+Why these files and not their neighbours on Commons. The PlayStation 3 row uses
+the bare "PS3" wordmark, not the 2009 logo with "PlayStation 3" set under it
+(that line would be unreadable at 26 px). The Switch rows use the "without text"
+marks, not the red square with "NINTENDO SWITCH" written on it, so that they
+read at row size and take the same two inks as the PlayStation marks.
+
+Mirror has no logo and keeps the plug.

@@ -1,0 +1,595 @@
+/* zs-aim-model.js - the game translator model, format "zs-aim-model/1" (D164).
+ *
+ * XIM's Smart Translator idea, written down as data: what a console GAME does
+ * with a stick (its dead zone, its response curve, its turn rate per axis,
+ * its turn ramp, its input dampening) and which in-game settings those
+ * numbers assume. The Core's mouse translator INVERTS this model, so a mouse
+ * moved at some speed turns the camera at that speed (degrees per count), not
+ * through a generic linear guess.
+ *
+ * The format is documented, field by field, in docs/AIM-MODEL.md, and it is
+ * VERSIONED: `format` is "zs-aim-model/1". A later calibration tool (the
+ * capture-card sweep) writes the same shape with `needsCalibration: false`
+ * and its own `sources` line, so nothing here has to change for it.
+ * "zs-aim-model/2" (D187) is /1 plus how the game combines the two stick
+ * axes, which Calibrate measures: a "mixed" dead zone (`deadzoneAxial`) and
+ * `axes` {combine, corner}. resolve() then adds an `axes` object per mode,
+ * which the encoder writes as the AIMAXES section (0x0028).
+ *
+ * Where a model lives: a game pack's `aimModel` (game-packs/<id>.json). What
+ * the device receives: resolve() turns one into the encoder's
+ * mouseTranslation.resolvedAimModel (zs-profile-encode.js reads it verbatim
+ * into the AIMMODEL and AIMTIME sections). No model = generic(): the
+ * profile's own game dead zone, a straight response, 300 deg/s both ways.
+ *
+ * Pure functions, no DOM: tools/test-aim-model.js runs this file in Node.
+ */
+(function (root) {
+  'use strict';
+
+  var FORMAT = 'zs-aim-model/1';
+  /* D187: /1 plus HOW THE GAME COMBINES THE TWO AXES, per mode: a "mixed"
+     dead zone (round + square, `deadzoneAxial` the square part) and
+     `axes` {combine: radial | perAxis, corner: clamp | square}, which
+     Calibrate measures from diagonal bursts. Packs keep writing /1. */
+  var FORMAT2 = 'zs-aim-model/2';
+  var FORMATS = [FORMAT, FORMAT2];
+  var GENERIC_TURN = 300;       /* game_model.GENERIC_MAX_TURN_SPEED */
+  var SHAPES = { radial: 'circle', axial: 'square' };
+  var COMBINES = ['radial', 'perAxis'];
+  var CORNERS = ['clamp', 'square'];
+  /* D394: `turnRateByConsole` {playstation, xbox} per mode (a game whose
+     turn speed differs by a few % between the two, as XIM's data lists it)
+     and `sights` [{name, adsScale}] at the top (each sight's aiming speed as
+     a share of the reference sight's, for the app to show; the Core cannot
+     know which sight is up, so it is never sent). Both optional, /1 and /2. */
+  var MODE_KEYS = ['inherit', 'deadzone', 'deadzoneShape', 'deadzoneAxial', 'axes', 'curve', 'turnRate',
+    'turnRateByConsole', 'ramp', 'dampingMs', 'accel'];
+  var TOP_KEYS = ['format', 'id', 'name', 'needsCalibration', 'sources', 'gameSettings',
+    'stickHz', 'hip', 'ads', 'sights'];
+  var CONSOLE_FAMILIES = ['playstation', 'xbox'];
+  /* the config's console (its `platform`) -> the turnRateByConsole key */
+  function consoleFamily(platform) {
+    var p = String(platform || '').toLowerCase();
+    if (p === 'ps5' || p === 'ps4' || p === 'playstation') { return 'playstation'; }
+    if (p === 'xbox' || p === 'xbox-series' || p === 'xboxone') { return 'xbox'; }
+    return '';
+  }
+
+  function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function inRange(v, lo, hi) { return isNum(v) && v >= lo && v <= hi; }
+
+  /* One mode with `inherit: "hip"` resolved against the hip mode. */
+  function merged(model, name) {
+    var m = isObj(model[name]) ? model[name] : {};
+    if (name === 'ads' && m.inherit === 'hip' && isObj(model.hip)) {
+      var out = {}, k;
+      for (k in model.hip) { if (Object.prototype.hasOwnProperty.call(model.hip, k)) { out[k] = model.hip[k]; } }
+      for (k in m) { if (k !== 'inherit' && Object.prototype.hasOwnProperty.call(m, k)) { out[k] = m[k]; } }
+      /* D394: an ads with its own turnRate never borrows hip's per-console
+         speeds (they are hip's, not aiming's) */
+      if (m.turnRate !== undefined && m.turnRateByConsole === undefined) { delete out.turnRateByConsole; }
+      return out;
+    }
+    return m;
+  }
+
+  /* Every problem with a model, one plain sentence each; [] = usable. */
+  function validate(model, where) {
+    var out = [];
+    var at = where || 'aimModel';
+    function say(t) { out.push(at + ': ' + t); }
+    if (!isObj(model)) { say('is not an object.'); return out; }
+    Object.keys(model).forEach(function (k) {
+      if (TOP_KEYS.indexOf(k) < 0) { say('has a field this app does not know, "' + k + '" (docs/AIM-MODEL.md).'); }
+    });
+    if (FORMATS.indexOf(model.format) < 0) { say('format must be "' + FORMAT + '" or "' + FORMAT2 + '".'); }
+    var v2 = model.format === FORMAT2;
+    if (typeof model.id !== 'string' || !model.id) { say('id must be a name like "cod-bo2".'); }
+    if (typeof model.name !== 'string' || !model.name) { say('name must say which game and version it describes.'); }
+    if (typeof model.needsCalibration !== 'boolean') { say('needsCalibration must be true or false.'); }
+    if (!Array.isArray(model.sources) || !model.sources.length ||
+        model.sources.some(function (s) { return !isObj(s) || typeof s.what !== 'string' || !s.what; })) {
+      say('sources must list where each number came from ({"what": ..., "url": ...}).');
+    }
+    if (model.gameSettings !== undefined && (!Array.isArray(model.gameSettings) ||
+        model.gameSettings.some(function (g) {
+          return !isObj(g) || typeof g.setting !== 'string' || typeof g.value !== 'string';
+        }))) {
+      say('gameSettings must be a list of {"setting": ..., "value": ...}.');
+    }
+    if (model.stickHz !== undefined && !inRange(model.stickHz, 20, 240)) {
+      say('stickHz must be the rate the game reads the stick, 20 to 240.');
+    }
+    if (model.sights !== undefined && (!Array.isArray(model.sights) || !model.sights.length ||
+        model.sights.length > 32 || model.sights.some(function (x) {
+          return !isObj(x) || typeof x.name !== 'string' || !x.name || !inRange(x.adsScale, 0.01, 10);
+        }))) {
+      say('sights must be a list of {"name": ..., "adsScale": 0.01 to 10}.');
+    }
+    ['hip', 'ads'].forEach(function (name) {
+      var raw = model[name];
+      if (!isObj(raw)) { say(name + ' is missing.'); return; }
+      Object.keys(raw).forEach(function (k) {
+        if (MODE_KEYS.indexOf(k) < 0) { say(name + ' has a field this app does not know, "' + k + '".'); }
+      });
+      if (raw.inherit !== undefined && !(name === 'ads' && raw.inherit === 'hip')) {
+        say(name + '.inherit may only be "hip", on ads.');
+      }
+      var m = merged(model, name);
+      if (!inRange(m.deadzone, 0, 0.5)) { say(name + '.deadzone must be 0 to 0.5 of the stick.'); }
+      if (m.deadzoneShape === 'mixed' && !v2) {
+        if (raw.deadzoneShape === 'mixed') {
+          say(name + '.deadzoneShape "mixed" needs format "' + FORMAT2 + '".');
+        }
+      } else if (m.deadzoneShape !== undefined && !SHAPES[m.deadzoneShape] && m.deadzoneShape !== 'mixed') {
+        say(name + '.deadzoneShape must be "radial" or "axial"' + (v2 ? ' or "mixed".' : '.'));
+      }
+      /* D187: the measured axis law, /2 only. Asked of the mode as WRITTEN,
+         so an ads that inherits hip is not told twice. */
+      if (!v2) {
+        ['deadzoneAxial', 'axes'].forEach(function (k) {
+          if (raw[k] !== undefined) { say(name + '.' + k + ' needs format "' + FORMAT2 + '".'); }
+        });
+      } else {
+        if (m.deadzoneShape === 'mixed' &&
+            !(inRange(m.deadzoneAxial, 0, 0.5) && isNum(m.deadzone) && m.deadzoneAxial < m.deadzone)) {
+          say(name + '.deadzoneAxial must be 0 to 0.5 and smaller than deadzone (a "mixed" zone needs it).');
+        }
+        if (m.axes !== undefined && (!isObj(m.axes) || COMBINES.indexOf(m.axes.combine) < 0 ||
+            CORNERS.indexOf(m.axes.corner) < 0)) {
+          say(name + '.axes must be {"combine": "radial" | "perAxis", "corner": "clamp" | "square"}.');
+        }
+      }
+      var c = m.curve;
+      if (!isObj(c) || ['linear', 'power', 'points'].indexOf(c.type) < 0) {
+        say(name + '.curve must be {"type": "linear" | "power" | "points"}.');
+      } else if (c.type === 'power' && !inRange(c.exp, 0.1, 5)) {
+        say(name + '.curve.exp must be 0.1 to 5.');
+      } else if (c.type === 'points') {
+        var pts = c.points, ok = Array.isArray(pts) && pts.length >= 1 && pts.length <= 16;
+        for (var i = 0; ok && i < pts.length; i++) {
+          ok = Array.isArray(pts[i]) && inRange(pts[i][0], 0, 1) && inRange(pts[i][1], 0, 1) &&
+            (i === 0 || (pts[i][0] > pts[i - 1][0] && pts[i][1] > pts[i - 1][1]));
+        }
+        if (!ok) { say(name + '.curve.points must be 1 to 16 [stick, turn] pairs, 0 to 1, both rising.'); }
+      }
+      var t = m.turnRate;
+      if (!isObj(t) || !inRange(t.yaw, 10, 4000) || !inRange(t.pitch, 10, 4000)) {
+        say(name + '.turnRate must be {"yaw": deg/s, "pitch": deg/s}, 10 to 4000 each.');
+      }
+      if (raw.turnRateByConsole !== undefined) {
+        var bc = raw.turnRateByConsole;
+        if (!isObj(bc) || !Object.keys(bc).length || Object.keys(bc).some(function (f) {
+          return CONSOLE_FAMILIES.indexOf(f) < 0 || !isObj(bc[f]) ||
+            !inRange(bc[f].yaw, 10, 4000) || !inRange(bc[f].pitch, 10, 4000);
+        })) {
+          say(name + '.turnRateByConsole must be {"playstation" and/or "xbox": {"yaw", "pitch"}}, 10 to 4000 deg/s each.');
+        }
+      }
+      if (m.ramp !== undefined && m.ramp !== null) {
+        var r = m.ramp;
+        if (!isObj(r) || !inRange(r.threshold, 0.5, 1) || !inRange(r.delayMs, 0, 1000) ||
+            !inRange(r.riseMs, 0, 2000) || !inRange(r.gain, 1, 4)) {
+          say(name + '.ramp must be null or {threshold 0.5-1, delayMs 0-1000, riseMs 0-2000, gain 1-4}.');
+        }
+      }
+      if (m.dampingMs !== undefined && !inRange(m.dampingMs, 0, 200)) {
+        say(name + '.dampingMs must be 0 to 200.');
+      }
+      /* D172: how fast the game lets the turn rate climb from rest, deg/s^2,
+         measured by calibration. Informational: no stick can make a game
+         climb faster, so the translator has nothing to invert. */
+      if (m.accel !== undefined && m.accel !== null && !inRange(m.accel, 100, 100000)) {
+        say(name + '.accel must be null or 100 to 100000 deg/s^2.');
+      }
+    });
+    return out;
+  }
+
+  /* One mode in the encoder's resolved shape (zs-profile-encode.js
+     carriedMode + timeMode + axesMode). */
+  function resolvedMode(m, v2, fam) {
+    var c = m.curve || { type: 'linear' };
+    /* D394: the config's console picks its own measured speeds */
+    var tr = (fam && isObj(m.turnRateByConsole) && isObj(m.turnRateByConsole[fam])) ? m.turnRateByConsole[fam] : m.turnRate;
+    var r = m.ramp;
+    var word = m.deadzoneShape || 'radial';
+    var out = {
+      deadzone: m.deadzone,
+      /* a mixed zone is round to a firmware from before D187 */
+      shape: SHAPES[word] || 'circle',
+      curve: c.type === 'points' ? 'lut' : c.type,
+      exp: c.type === 'power' ? c.exp : 1.0,
+      points: c.type === 'points' ? c.points.map(function (p) { return [p[0], p[1]]; }) : [],
+      vx: tr.yaw,
+      vy: tr.pitch,
+      ramp: r ? { threshold: r.threshold, delayMs: r.delayMs, riseMs: r.riseMs, gain: r.gain } : null,
+      dampMs: m.dampingMs || 0
+    };
+    /* D187 (the AIMAXES section): the measured axis law, only when a /2
+       model says something about it. `deadzone` stays the zone ALONG an
+       axis; split into the radial part and the per-axis part that follows
+       it, dzRadial + dzAxial (1 - dzRadial) = deadzone. */
+    if (v2 && (isObj(m.axes) || word === 'mixed')) {
+      var dz = m.deadzone, dzR = dz, dzA = 0;
+      if (word === 'axial') { dzR = 0; dzA = dz; }
+      else if (word === 'mixed') { dzA = m.deadzoneAxial; dzR = (dz - dzA) / (1 - dzA); }
+      out.axes = {
+        combine: isObj(m.axes) ? m.axes.combine : 'radial',
+        corner: isObj(m.axes) ? m.axes.corner : 'clamp',
+        dzRadial: dzR,
+        dzAxial: dzA
+      };
+    }
+    return out;
+  }
+
+  /* model + the config's mouseTranslation -> mouseTranslation.resolvedAimModel,
+     or null when the model is not usable (the generic map then stands). */
+  /* `platform` (optional, D394): the config's console, which picks a mode's
+     turnRateByConsole entry when the model has one. */
+  function resolve(model, mt, platform) {
+    if (validate(model).length) { return null; }
+    var cm = mt && isNum(mt.cm360) ? mt.cm360 : 0;
+    var v2 = model.format === FORMAT2;
+    var fam = consoleFamily(platform);
+    return {
+      format: model.format,
+      translator: model.id,
+      name: model.name,
+      needsCalibration: model.needsCalibration,
+      generic: false,
+      use_cm: cm > 0,
+      hip: resolvedMode(merged(model, 'hip'), v2, fam),
+      ads: resolvedMode(merged(model, 'ads'), v2, fam)
+    };
+  }
+
+  /* What a config gets with no game model: the profile's own game dead zone,
+     a straight response, 300 deg/s. Described, not resolved: the encoder
+     builds the generic map itself when resolvedAimModel is absent. */
+  function generic() {
+    return { id: 'generic', name: 'Any game', needsCalibration: true, turn: GENERIC_TURN };
+  }
+
+  /* Is this config running this model (by id and version of the numbers)? */
+  /* Is this config running this model? Compared on the NUMBERS that steer
+     the translator (dead zone, turn rates, curve points), with a small
+     tolerance, not on the whole stored object: a field added to the resolved
+     shape later (or a float re-printed) must not make the app offer "Use the
+     ... translator" for the one already running (owner's screenshot,
+     2026-10-01). */
+  function near(a, b) { return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= 1e-4 * Math.max(1, Math.abs(a), Math.abs(b)); }
+  function sameMode(a, b) {
+    if (!isObj(a) || !isObj(b)) { return false; }
+    if (!near(a.deadzone, b.deadzone) || !near(a.vx, b.vx) || !near(a.vy, b.vy)) { return false; }
+    var pa = Array.isArray(a.points) ? a.points : [], pb = Array.isArray(b.points) ? b.points : [];
+    if (pa.length !== pb.length) { return false; }
+    for (var i = 0; i < pa.length; i++) {
+      if (!near(pa[i][0], pb[i][0]) || !near(pa[i][1], pb[i][1])) { return false; }
+    }
+    /* D187: a model differing only in how the axes combine is another model */
+    var xa = isObj(a.axes) ? a.axes : null, xb = isObj(b.axes) ? b.axes : null;
+    if (!xa !== !xb) { return false; }
+    if (xa && (xa.combine !== xb.combine || xa.corner !== xb.corner ||
+        !near(xa.dzRadial, xb.dzRadial) || !near(xa.dzAxial, xb.dzAxial))) { return false; }
+    return true;
+  }
+  function isActive(model, mt, platform) {
+    var r = mt && mt.resolvedAimModel;
+    if (!isObj(r) || !model) { return false; }
+    var want = resolve(model, mt, platform);
+    return !!want && r.translator === want.translator &&
+      sameMode(r.hip, want.hip) && sameMode(r.ads, want.ads);
+  }
+  /* same game translator, older numbers: offer an update, not a switch */
+  function isOlder(model, mt, platform) {
+    var r = mt && mt.resolvedAimModel;
+    return isObj(r) && !!model && r.translator === model.id && !isActive(model, mt, platform);
+  }
+  /* D394: a pack's translator variants (aimVariants: one per in-game curve
+     option), the default (aimModel) first when it is not in the list. Each
+     entry {key, label, setting, aimModel}. */
+  function variantsOf(pack) {
+    if (!isObj(pack)) { return []; }
+    var vs = Array.isArray(pack.aimVariants) ? pack.aimVariants.filter(function (v) {
+      return isObj(v) && isObj(v.aimModel);
+    }) : [];
+    if (!vs.length && isObj(pack.aimModel)) {
+      return [{ key: 'default', label: 'Default', setting: null, aimModel: pack.aimModel }];
+    }
+    return vs;
+  }
+  /* the variant a config runs (by its numbers), or null */
+  function activeVariant(pack, mt, platform) {
+    var vs = variantsOf(pack);
+    for (var i = 0; i < vs.length; i++) {
+      if (isActive(vs[i].aimModel, mt, platform)) { return vs[i]; }
+    }
+    return null;
+  }
+
+  /* ── D189: the turn-rate view of a stick, for the app ─────────────────
+     The same law the Core inverts (zs_mouse.c zs_mouse_model_stick /
+     zs_mouse_model_frac), on a RESOLVED model (mouseTranslation.
+     resolvedAimModel): a stick magnitude s past the dead zone is u =
+     (s - dz) / (1 - dz) of the travel, the game's curve makes that a share
+     of full turn, and the turn rates (vx across, vy up) make it deg/s. The
+     app uses it to SHOW deg/s and to keep a deg/s Smart Action step's stick
+     fallback near the same turn; the Core does its own inverse every tick.
+     The dead zone is read as a circle here (a square one differs only on a
+     diagonal, and only for what the app displays). */
+  function usable(r) {
+    return isObj(r) && r.generic !== true && isObj(r.hip) && isObj(r.ads) &&
+      isNum(r.hip.vx) && isNum(r.hip.vy) && r.hip.vx > 0 && r.hip.vy > 0 &&
+      isNum(r.ads.vx) && isNum(r.ads.vy) && r.ads.vx > 0 && r.ads.vy > 0;
+  }
+  function lutAt(pts, x, fwd) {
+    var xs = [0], ys = [0], i;
+    for (i = 0; i < pts.length; i++) {
+      if (isNum(pts[i][0]) && isNum(pts[i][1])) { xs.push(pts[i][0]); ys.push(pts[i][1]); }
+    }
+    if (xs[xs.length - 1] < 1 || ys[ys.length - 1] < 1) { xs.push(1); ys.push(1); }
+    var a = fwd ? xs : ys, b = fwd ? ys : xs;
+    for (i = 1; i < a.length; i++) {
+      if (x <= a[i]) {
+        return a[i] <= a[i - 1] ? b[i] : b[i - 1] + (x - a[i - 1]) / (a[i] - a[i - 1]) * (b[i] - b[i - 1]);
+      }
+    }
+    return b[b.length - 1];
+  }
+  function curveOf(m, u, fwd) {
+    u = Math.max(0, Math.min(1, u));
+    if (m.curve === 'power' && isNum(m.exp) && m.exp > 0) { return Math.pow(u, fwd ? m.exp : 1 / m.exp); }
+    if (m.curve === 'lut' && Array.isArray(m.points) && m.points.length) { return lutAt(m.points, u, fwd); }
+    return u;
+  }
+  /* share of full turn (0..1) for stick magnitude s, and back */
+  function fracOfStick(m, s) {
+    var dz = isNum(m.deadzone) ? m.deadzone : 0;
+    if (!(s > dz)) { return 0; }
+    return curveOf(m, dz < 1 ? (Math.min(s, 1) - dz) / (1 - dz) : 1, true);
+  }
+  function stickOfFrac(m, w) {
+    var dz = isNum(m.deadzone) ? m.deadzone : 0;
+    if (!(w > 0)) { return 0; }
+    return Math.min(1, dz + (1 - dz) * curveOf(m, w, false));
+  }
+  function modeIn(r, ads) { return ads ? r.ads : r.hip; }
+  /* A push of `mag` (0..1) at compass `angle` -> { yaw, pitch, speed } deg/s */
+  function dpsOfStick(r, ads, angle, mag) {
+    if (!usable(r)) { return null; }
+    var m = modeIn(r, ads), a = (isNum(angle) ? angle : 0) * Math.PI / 180;
+    var f = fracOfStick(m, Math.max(0, Math.min(1, isNum(mag) ? mag : 0)));
+    var yaw = f * Math.cos(a) * m.vx, pitch = f * Math.sin(a) * m.vy;
+    return { yaw: yaw, pitch: pitch, speed: Math.sqrt(yaw * yaw + pitch * pitch) };
+  }
+  /* A turn of `dps` along compass `angle` -> the stick magnitude (0..1) that
+     makes it (pinned at full past the game's top speed), or null. */
+  function stickOfDps(r, ads, angle, dps) {
+    if (!usable(r) || !isNum(dps) || dps <= 0) { return null; }
+    var m = modeIn(r, ads), a = (isNum(angle) ? angle : 0) * Math.PI / 180;
+    var fx = dps * Math.cos(a) / m.vx, fy = dps * Math.sin(a) / m.vy;
+    return stickOfFrac(m, Math.min(1, Math.sqrt(fx * fx + fy * fy)));
+  }
+  /* The fastest a turn along `angle` can be, deg/s (full stick). */
+  function topDps(r, ads, angle) {
+    var t = dpsOfStick(r, ads, angle, 1);
+    return t ? t.speed : null;
+  }
+
+  /* ── THE D394 TRANSLATOR MIGRATION (owner, 2026-10-15) ─────────────────
+     "The translators you were given are supposed to be used on ALL those
+     configs as the new calibration profile, since they're already made."
+     Every config that already exists, whose game has an imported translator,
+     is moved onto it once, for its own console, with no button to press.
+     This is the plan for ONE config; the app's boot pass (shell/
+     06-core-configs.js migrateTranslatorsAll) writes it through putProfile.
+
+     ONCE. The config carries `mouseTranslation.translatorMigrated` (the
+     SOURCE sidecar keeps the whole document, D124) and the app also keeps a
+     per-device, per-Core list (zs-xt-seen), as the zs-ta-seen lesson asks: a
+     config is planned at most once on a device, and a config already
+     running the game's translator is never written at all.
+
+     NOT OVER A CHOICE THE PLAYER MADE (each is a `skip`, with its reason):
+       - `translatorChoice` is set: since this change every translator action
+         the player takes (Use the <game> translator, a curve button, Use the
+         standard translator, Restore, Curve / Velocity / manual calibration)
+         writes {what, at} there;
+       - it runs ANOTHER game's translator (a known pack id that is not its own);
+       - it ran its own calibration AFTER the import: what that calibration
+         replaced (previousAimModel) was one of the game's imported
+         translators, or it is velocity calibrated on an imported curve (the
+         curve's shape is a variant's, only the zone and the speeds moved).
+     A calibration on the OLD translator (BO2's measured one from before the
+     owner's 2026-10-15 call, any run before D394) is not a choice of this
+     translator and is moved; previousAimModel keeps it, one tap back
+     (Restore previous translator).
+
+     WHICH CURVE: the config's own in-game curve (`aimVariant`, written by the
+     curve buttons and by this migration), else the variant its present
+     numbers or curve shape match (on any console), else the game's default. */
+  var MIGRATION = 'd394-1';
+  var BO2_XIM_DAY = '2026-10-16';
+  /* D402: what the BO2 rule above recognises, by content and by the name a
+     config written before D402 still carries (internal; never drawn) */
+  var BO2_LEGACY_NAME = /\(XIM speeds\)/;
+  var BO2_XIM_HIP_PS = 1013;
+  function isBo2XimSpeeds(m) {
+    var t = isObj(m) && isObj(m.hip) && isObj(m.hip.turnRate) ? m.hip.turnRate.yaw : null;
+    return typeof t === 'number' && Math.abs(t - BO2_XIM_HIP_PS) < 0.5;
+  }
+  /* D402: a translator's name as a player reads it. A config written before
+     D402 keeps the name it was given (the Core stores it), and some of those
+     names carried another adapter's words; this is what every screen draws. */
+  var OLD_LABELS = [
+    [/\(Siege \(XIM "R6:S"\)\)/g, '(Main)'], [/\(Siege \(XIM "R6:S:U"\)\)/g, '(Alternate)'],
+    [/Siege \(XIM "R6:S"\)/g, 'Main'], [/Siege \(XIM "R6:S:U"\)/g, 'Alternate'],
+    [/XIM "RustA" \(newer\)/g, 'Newer'], [/XIM "RustD" \(older\)/g, 'Older'],
+    [/\s*\(XIM speeds\)/g, '']
+  ];
+  function displayName(s) {
+    var out = String(s == null ? '' : s);
+    for (var i = 0; i < OLD_LABELS.length; i++) { out = out.replace(OLD_LABELS[i][0], OLD_LABELS[i][1]); }
+    return out.replace(/\s*\bXIM\b\s*/g, ' ').replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  }
+  var MIG_PLATFORMS = ['ps5', 'xbox', 'pc'];
+  function shapeSame(a, b) {
+    if (!isObj(a) || !isObj(b) || a.curve !== b.curve) { return false; }
+    if (a.curve === 'power' && !near(a.exp, b.exp)) { return false; }
+    var pa = Array.isArray(a.points) ? a.points : [], pb = Array.isArray(b.points) ? b.points : [];
+    if (pa.length !== pb.length) { return false; }
+    for (var i = 0; i < pa.length; i++) {
+      if (!near(pa[i][0], pb[i][0]) || !near(pa[i][1], pb[i][1])) { return false; }
+    }
+    return true;
+  }
+  /* a resolved model whose curve SHAPE (both modes) is this variant's */
+  function sameShapeAs(r, v) {
+    var w = resolve(v.aimModel, {}, 'ps5');
+    return !!w && isObj(r) && shapeSame(r.hip, w.hip) && shapeSame(r.ads, w.ads);
+  }
+  /* is this resolved model one of the variant's (on any console)? */
+  function isVariantOn(r, v) {
+    for (var i = 0; i < MIG_PLATFORMS.length; i++) {
+      if (isActive(v.aimModel, { resolvedAimModel: r }, MIG_PLATFORMS[i])) { return true; }
+    }
+    return false;
+  }
+  function defaultVariant(pack, vs) {
+    for (var i = 0; i < vs.length; i++) {
+      if (JSON.stringify(vs[i].aimModel) === JSON.stringify(pack.aimModel)) { return vs[i]; }
+    }
+    return vs[0];
+  }
+  /* The plan for one config document: {act, why, variant, model}.
+       act 'none'    nothing to do (no game translator, or already moved)
+           'current' it already runs the game's translator: no write
+           'skip'    the player's own choice stands (why says which)
+           'apply'   write `model` (variant `variant`) with migrationApply
+     `opts.packIds`: every known pack id (another game's translator). */
+  function migrationPlan(pack, doc, opts) {
+    opts = opts || {};
+    var vs = variantsOf(pack).filter(function (v) { return v.aimModel.needsCalibration === false; });
+    if (!vs.length) { return { act: 'none', why: 'its game has no imported translator' }; }
+    var mt = (doc && isObj(doc.mouseTranslation)) ? doc.mouseTranslation : {};
+    var platform = doc ? (doc.console || doc.platform) : '';
+    /* owner 2026-10-16: every Black Ops II config moves onto XIM's own BO2
+       turn speeds (the pack's default translator since that day), once -
+       also a config already moved by the D394 migration. Judged by content,
+       not a marker field, so a field the Core's store drops cannot make it
+       re-apply on every open; a translator the player picked on or after
+       that day wins. D402: NOT by the visible name any more (the pack's
+       translator lost its "(XIM speeds)" words): a config is already there
+       when it runs the pack's default variant's numbers on any console
+       (isVariantOn), or when its stored name is the one that translator had
+       before D402 (BO2_LEGACY_NAME, the owner's two configs on his Core,
+       written before the rename and never rewritten). The rule only applies
+       while the pack's default carries BO2_XIM_HIP_PS, its hip turn speed. */
+    var r0 = isObj(mt.resolvedAimModel) ? mt.resolvedAimModel : null;
+    var tc = isObj(mt.translatorChoice) ? mt.translatorChoice : null;
+    var bv = (pack && pack.id === 'cod-bo2') ? defaultVariant(pack, vs) : null;
+    if (bv && isBo2XimSpeeds(bv.aimModel) &&
+        !(r0 && (BO2_LEGACY_NAME.test(String(r0.name || '')) || isActive(bv.aimModel, mt, platform) ||
+                 isVariantOn(r0, bv))) &&
+        !(tc && String(tc.at || '') >= BO2_XIM_DAY)) {
+      var bm = resolve(bv.aimModel, mt, platform);
+      if (bm) {
+        return { act: 'apply', why: (r0 ? 'replaces ' + String(r0.name || 'its translator') : 'replaces the standard translator') +
+          ' with ' + bv.aimModel.name + ' (owner, ' + BO2_XIM_DAY + ')', variant: bv, model: bm };
+      }
+    }
+    if (mt.translatorMigrated === MIGRATION) { return { act: 'none', why: 'already moved onto its game translator' }; }
+    var act = activeVariant(pack, mt, platform);
+    if (act) { return { act: 'current', why: 'already runs ' + act.aimModel.name, variant: act }; }
+    if (isObj(mt.translatorChoice)) {
+      return { act: 'skip', why: 'the player chose its translator (' + String(mt.translatorChoice.what || 'a choice') +
+        (mt.translatorChoice.at ? ', ' + mt.translatorChoice.at : '') + ')' };
+    }
+    var r = isObj(mt.resolvedAimModel) ? mt.resolvedAimModel : null;
+    var ids = Array.isArray(opts.packIds) ? opts.packIds : [];
+    if (r && typeof r.translator === 'string' && r.translator !== pack.id && ids.indexOf(r.translator) >= 0) {
+      return { act: 'skip', why: 'it runs another game\'s translator (' + r.translator + ')' };
+    }
+    var prev = isObj(mt.previousAimModel) ? mt.previousAimModel : null;
+    var i;
+    for (i = 0; prev && i < vs.length; i++) {
+      if (isVariantOn(prev, vs[i])) {
+        return { act: 'skip', why: 'its own calibration replaced the imported ' + vs[i].aimModel.name };
+      }
+    }
+    if (r && r.needsCalibration === false && /velocity calibrated/i.test(String(r.name || ''))) {
+      for (i = 0; i < vs.length; i++) {
+        if (sameShapeAs(r, vs[i])) {
+          return { act: 'skip', why: 'it is velocity calibrated on the imported ' + vs[i].aimModel.name };
+        }
+      }
+    }
+    var v = null;
+    if (typeof mt.aimVariant === 'string') {
+      v = vs.filter(function (x) { return x.key === mt.aimVariant; })[0] || null;
+    }
+    for (i = 0; !v && r && i < vs.length; i++) { if (isVariantOn(r, vs[i])) { v = vs[i]; } }
+    for (i = 0; !v && r && i < vs.length; i++) { if (sameShapeAs(r, vs[i])) { v = vs[i]; } }
+    if (!v) { v = defaultVariant(pack, vs); }
+    var model = resolve(v.aimModel, mt, platform);
+    if (!model) { return { act: 'none', why: 'its game translator does not resolve' }; }
+    return { act: 'apply', why: (r ? 'replaces ' + String(r.name || r.translator || 'its translator') : 'replaces the standard translator') +
+      ' with ' + v.aimModel.name, variant: v, model: model };
+  }
+  /* write an 'apply' plan into the document (putProfile's mutate) */
+  function migrationApply(doc, plan) {
+    if (!plan || plan.act !== 'apply') { return false; }
+    var mt = isObj(doc.mouseTranslation) ? doc.mouseTranslation : (doc.mouseTranslation = {});
+    var cur = mt.resolvedAimModel;
+    /* D178: what it replaces, one tap back (Restore previous translator) */
+    mt.previousAimModel = isObj(cur) ? cur : 'standard';
+    mt.resolvedAimModel = plan.model;
+    mt.aimVariant = plan.variant.key;
+    mt.translatorMigrated = MIGRATION;
+    return true;
+  }
+  /* the player's own translator choice, written by every screen that
+     changes the translator (it is what migrationPlan never overrides) */
+  function markChoice(mt, what, variantKey) {
+    if (!isObj(mt)) { return; }
+    mt.translatorChoice = { what: String(what), at: new Date().toISOString().slice(0, 10) };
+    if (variantKey) { mt.aimVariant = String(variantKey); }
+    else { delete mt.aimVariant; }
+  }
+
+  root.ZSAIMMODEL = {
+    FORMAT: FORMAT,
+    FORMAT2: FORMAT2,
+    FORMATS: FORMATS.slice(),
+    validate: validate,
+    resolve: resolve,
+    generic: generic,
+    isActive: isActive,
+    isOlder: isOlder,
+    /* D394 */
+    consoleFamily: consoleFamily,
+    variantsOf: variantsOf,
+    activeVariant: activeVariant,
+    /* D394 amendment: the one-time move onto the game's translator */
+    MIGRATION: MIGRATION,
+    /* what the app's "already looked at this config" memory is keyed on: a
+       new rule (BO2's XIM speeds) must look at every config again */
+    MIGRATION_SEEN: MIGRATION + '+bo2xim-' + BO2_XIM_DAY,
+    migrationPlan: migrationPlan,
+    /* D402 */
+    displayName: displayName,
+    migrationApply: migrationApply,
+    markChoice: markChoice,
+    /* D189 */
+    usable: usable,
+    fracOfStick: fracOfStick,
+    stickOfFrac: stickOfFrac,
+    dpsOfStick: dpsOfStick,
+    stickOfDps: stickOfDps,
+    topDps: topDps
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

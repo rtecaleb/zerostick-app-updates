@@ -1,0 +1,1002 @@
+/* smart-actions/20-in-place.js — THE SCRIPTS EDITOR, IN PLACE (D79).
+ *
+ * The editor drawn in the screen itself, a step's numbers one slider at a time,
+ * and the three doors in: render (Scripts), renderInputs (Mappings) and
+ * renderScoped (one weapon's AI Scripts, D122).
+ *
+ * Tests: test-smart-actions.js, test-auto-actions.js, test-auto-links.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('in-place', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var armConfirm = SEC.armConfirm, clamp = SEC.clamp, clone = SEC.clone,
+      configNumberTop = SEC.configNumberTop, defaultStep = SEC.defaultStep,
+      DPS_MAX = SEC.DPS_MAX, emitSource = SEC.emitSource, esc = SEC.esc,
+      hydrate = SEC.hydrate, intOf = SEC.intOf, newAction = SEC.newAction,
+      normAction = SEC.normAction, normStep = SEC.normStep, num = SEC.num,
+      saFor = SEC.saFor, saveAll = SEC.saveAll, STEP_MS_CAP = SEC.STEP_MS_CAP,
+      TAP_MS_MIN = SEC.TAP_MS_MIN, TARGET_OK = SEC.TARGET_OK, VIEW = SEC.VIEW, ZS = SEC.ZS,
+      stepLine = SEC.stepLine, MARK_AIM = SEC.MARK_AIM, MARK_CONFIG = SEC.MARK_CONFIG,
+      MARK_SENS = SEC.MARK_SENS, MARK_SWAP = SEC.MARK_SWAP, MARK_WAIT = SEC.MARK_WAIT,
+      sicon = SEC.sicon, stepTile = SEC.stepTile, stripHTML = SEC.stripHTML,
+      tileBody = SEC.tileBody, totalChip = SEC.totalChip,
+      isRecoilAction = SEC.isRecoilAction, openWorkshop = SEC.openWorkshop,
+      catAllowed = SEC.catAllowed, errorsHTML = SEC.errorsHTML, MK_TAG = SEC.MK_TAG,
+      repeatBadge = SEC.repeatBadge, openStepSheet = SEC.openStepSheet,
+      pickTrigger = SEC.pickTrigger, readShareCode = SEC.readShareCode,
+      shareCode = SEC.shareCode, rowFor = SEC.rowFor, rowName = SEC.rowName,
+      rowTarget = SEC.rowTarget, kbPageHTML = SEC.kbPageHTML, keyHTML = SEC.keyHTML,
+      MARK_HOLDSTEP = SEC.MARK_HOLDSTEP, MARK_RELEASE = SEC.MARK_RELEASE,
+      mousePageHTML = SEC.mousePageHTML, padTargetPageHTML = SEC.padTargetPageHTML,
+      stickPageHTML = SEC.stickPageHTML, deckHTML = SEC.deckHTML, wireDeck = SEC.wireDeck,
+      backToEditor = SEC.backToEditor, ctlSeg = SEC.ctlSeg,
+      openNameSheet = SEC.openNameSheet, openSeqListSheet = SEC.openSeqListSheet,
+      selIndex = SEC.selIndex, seqSwitchHTML = SEC.seqSwitchHTML,
+      sheetIsOpen = SEC.sheetIsOpen, swapOuter = SEC.swapOuter,
+      openHelpersSheet = SEC.openHelpersSheet, openTagSheet = SEC.openTagSheet,
+      openTimingSheet = SEC.openTimingSheet, openWhenSheet = SEC.openWhenSheet,
+      draw = SEC.draw, panelBody = SEC.panelBody, panelDismiss = SEC.panelDismiss,
+      panelIsOpen = SEC.panelIsOpen, wireInputCommon = SEC.wireInputCommon;
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE SMART ACTIONS EDITOR, IN PLACE (D79)
+     ══════════════════════════════════════════════════════════════════
+
+     Owner (2026-09-05, with XIM Matrix screenshots): "when you click that
+     smart actions button it takes the sub menu and keeps it in place but
+     transforms it with these added options, and you can scroll down in that
+     sub menu and see the other added options on the screen now; and as I
+     click the new options added for smart actions look how they populate
+     that little box up top and the box expands to fit the smart action, and
+     I can click an action in the box and move or delete it or edit it" —
+     "notice this is all in a sub menu in mappings."
+
+     So S.mode === 'smart' is the SAME screen (inputScreenHTML, the same
+     #dbody, the same head with the Behaves pill) and the body under the
+     head is, top to bottom: the sequence bar (on/off, the tag, timing, the
+     helpers), the sequence's name, the BOX — the steps as the tiles the
+     sheet's strip already draws, with the once/repeat badge at its left edge —
+     the selected step's − slider +, then ← ✕ → ⋯, the target deck (a tap
+     now APPENDS a press step), one option tile per step kind the board runs
+     (steps.py), and the foot. Every edit goes to the board through
+     smartSave → saveAll, the sheet's own Save path (putProfileDebounced),
+     and the screen is redrawn from the written draft, so the box is never
+     ahead of the board. There is no Save button because nothing is unsaved.
+
+     XIM's controls that are NOT drawn, each because no engine field exists
+     for it (D79): Enable / Disable Binding Group (no step switches a
+     layer), "aim 10°/s" (our aim step is a push of a distance for a time),
+     "Uncategorized" (our category is the Ready-made stamp, not a field
+     anyone edits), and the keyboard / mouse target pages (a Smart-Action
+     step cannot send a key — D72 — so the deck here is Pad · Sticks). */
+
+  /* the draft for a button that has no sequence yet: the button that
+     starts it, and an EMPTY box (owner, 2026-10-07: "in the script window
+     it should be empty by default"). It used to seed ONE press step of
+     what the button already sends, the way XIM seeds "RT 100%" — so a new
+     script opened with a step the player never chose, and the first thing
+     they had to do was delete it. Every step is now one they tapped. It is
+     a draft until the first edit: opening the editor and leaving writes
+     nothing (smartSave never writes a stepless draft — the board refuses
+     an action with no steps). */
+  function smartSeed(p, S, row) {
+    var a = newAction();
+    a.trigger.src = row.actSrc;      /* the literal control this row IS */
+    a.trigger.follow = null;
+    a.name = '';                     /* blank on purpose — see beginSequence */
+    a.steps = [];
+    S.draft = normAction(a);
+    S.editIdx = -1;
+    /* and the deck opens on the controller buttons, whatever page the last
+       script was left on (owner: the pad buttons are "99.9% where people
+       are clicking") */
+    S.gridPage = 0;
+  }
+  /* open the editor on this button: its first sequence, a named one, or a
+     fresh seed */
+  function enterSmart(p, S, row, actIdx) {
+    var i = (actIdx != null && actIdx >= 0 && S.actions[actIdx]) ? actIdx
+          : (row && row.acts && row.acts.length ? row.acts[0].i : -1);
+    if (i >= 0) { S.editIdx = i; S.draft = clone(S.actions[i]); }
+    else smartSeed(p, S, row);
+    S.mode = 'smart';
+    S.unsaved = false; S.sel = null; S.step = null; S.xf = null;
+    S.gridPage = 0;       /* every script opens on the controller buttons */
+    S.fresh = false;      /* only New Smart Action's own seed is fresh */
+  }
+  function leaveSmart(S) {
+    S.mode = 'simple'; S.draft = null; S.editIdx = -1;
+    S.unsaved = false; S.sel = null; S.step = null; S.xf = null;
+    S.fresh = false;
+  }
+
+  /* THE ONE WRITE — the sheet's Save without the button. The draft stays
+     the working object (the wiring's closures hold it); a COPY goes into
+     S.actions so syncBoard's post-write bookkeeping (raw / edited) lands on
+     the list's entry and never on the thing being typed into. A seed with no
+     steps is never written: an action with no steps does nothing, and the
+     board refuses it. */
+  function smartSave(p, S) {
+    var a = S.draft;
+    if (!a) return false;
+    if (S.editIdx < 0 && !a.steps.length) return false;
+    a.edited = true;
+    if (S.editIdx >= 0) S.actions[S.editIdx] = clone(a);
+    else { S.actions.push(clone(a)); S.editIdx = S.actions.length - 1; }
+    saveAll(p, S);
+    S.unsaved = false;
+    return true;
+  }
+  function smartCommit(root, p, S) {
+    smartSave(p, S);
+    draw(root, p);
+  }
+  /* back from a sub-sheet (When, Tag, Timing, Helpers, Name, a step's ⋯,
+     the sequence list). Closing the host runs smartGuard's callback, which
+     lands here again with the sheet shut — that second pass is the one that
+     writes. */
+  function smartReturn(root, p, S) {
+    if (sheetIsOpen()) { ZS.sheetClose(); return; }
+    if (S.unsaved) smartCommit(root, p, S);
+    else draw(root, p);
+  }
+  /* every sub-sheet opened from the in-place editor goes THROUGH this. The
+     host resets its close-callback stack on the first open and runs it on
+     ANY close (✕, scrim, Escape), so a guard pushed first is what makes a
+     sub-sheet's edit reach the board however the sheet is left. The
+     opener's own paint swaps the content and keeps the stack. */
+  function smartGuard(root, p, S, open) {
+    ZS.sheetOpen('', '', function () { smartReturn(root, p, S); });
+    open();
+  }
+
+  /* ── the numbers a step has, one slider at a time ──
+     f: the field name shared by the slider and the stepper; d: the − / +
+     step; top: the slider's ceiling (the stepper and typing reach `hi`,
+     the board's cap — a slider that spanned 0..10 s could not land on 80). */
+  function smartFields(s) {
+    var MS = { f: 'cms', n: 'For how long', u: 'ms', lo: 0, hi: STEP_MS_CAP, d: 10, top: 2000 };
+    if (!s) return [];
+    if (s.k === 'tap') return [{ f: 'cms', n: 'Tap for', u: 'ms', lo: TAP_MS_MIN, hi: STEP_MS_CAP, d: 10, top: 2000 }];
+    if (s.k === 'trig') return s.keep ? [] : [{ f: 'cms', n: 'Pull for', u: 'ms', lo: TAP_MS_MIN, hi: STEP_MS_CAP, d: 10, top: 2000 }];
+    if (s.k === 'wait') return [{ f: 'cms', n: 'Wait for', u: 'ms', lo: 0, hi: STEP_MS_CAP, d: 10, top: 2000 }];
+    if (s.k === 'stick' && num(s.dps, 0) > 0) return [
+      { f: 'cdps', n: 'Turn speed', u: '°/s', lo: 1, hi: DPS_MAX, d: 5, top: 600 },
+      { f: 'cangle', n: 'Which way', u: '°', lo: 0, hi: 359, d: 15, top: 359 },
+      MS];
+    if (s.k === 'stick') return [
+      { f: 'cdist', n: 'How far', u: '%', lo: 1, hi: 100, d: 5, top: 100 },
+      { f: 'cangle', n: 'Which way', u: '°', lo: 0, hi: 359, d: 15, top: 359 },
+      MS];
+    if (s.k === 'sens') return [
+      { f: 'cscale', n: 'Aim speed', u: '%', lo: 0, hi: 300, d: 5, top: 300 },
+      { f: 'cms', n: 'For how long', u: 'ms', lo: 0, hi: STEP_MS_CAP, d: 100, top: 2000 }];
+    if (s.k === 'swap') return [{ f: 'cms', n: 'Swap for', u: 'ms', lo: 0, hi: STEP_MS_CAP, d: 100, top: 2000 }];
+    if (s.k === 'move') return [{ f: 'cms', n: 'Pull over', u: 'ms', lo: 0, hi: STEP_MS_CAP, d: 1, top: 1000 }];
+    if (s.k === 'config') return (typeof s.to === 'number')
+      ? [{ f: 'cto', n: 'Config number', u: '', lo: 1, hi: configNumberTop(s.to), d: 1,
+           top: configNumberTop(s.to) }] : [];
+    return [];
+  }
+  function smartFieldOf(s, f) {
+    var fs = smartFields(s), i;
+    for (i = 0; i < fs.length; i++) if (fs[i].f === f) return fs[i];
+    return null;
+  }
+  function smartRead(s, f) {
+    if (f === 'cms') return intOf(s.ms, 0);
+    if (f === 'cdist') return Math.round(num(s.dist, 0) * 100);
+    if (f === 'cdps') return Math.round(num(s.dps, 0));
+    if (f === 'cangle') return ((intOf(s.angle, 0) % 360) + 360) % 360;
+    if (f === 'cscale') return Math.round(num(s.scale, 1) * 100);
+    if (f === 'cto') return intOf(s.to, 1);
+    return 0;
+  }
+  function smartWrite(s, fd, v) {
+    v = clamp(intOf(v, fd.lo), fd.lo, fd.hi);
+    if (fd.f === 'cms') s.ms = v;
+    else if (fd.f === 'cdist') s.dist = v / 100;
+    else if (fd.f === 'cdps') s.dps = v;
+    else if (fd.f === 'cangle') s.angle = v % 360;
+    else if (fd.f === 'cscale') s.scale = v / 100;
+    else if (fd.f === 'cto') s.to = v;
+    else return false;
+    return true;
+  }
+  /* a step with no number says why — a greyed slider that writes nothing is
+     the class of control this codebase refuses */
+  function smartNoNum(s) {
+    if (!s) return '';
+    if (s.k === 'hold') return 'Held down until a later step lets go — no time to set';
+    if (s.k === 'trig') return 'Kept pulled until a later step lets go — no time to set';
+    if (s.k === 'release') return 'Lets go — nothing to set';
+    if (s.k === 'config') return 'Switches config — nothing to set';
+    return 'Nothing to set for this step';
+  }
+
+  /* the selected step's − slider + (owner: "− slider +"). Two kits in one
+     row: the .stp stepper (hold-to-repeat, tap-to-type — phone.html's
+     wire()) with the .rng slider between its two keys, both writing the
+     same field. A kind with two or three numbers gets a switch above it;
+     Tap/Hold, Pull/Keep pulled and Next/Before/Number ride there too. */
+  function smartCtlHTML(a, sel, S) {
+    var s = a.steps[sel];
+    if (!s) return '';
+    var h = '', segs = '', fs = smartFields(s), fi = 0, i;
+    if (s.k === 'tap' || s.k === 'hold') segs += ctlSeg(['Tap', 'Hold'], s.k === 'hold' ? 1 : 0, 'sx-ctlmode');
+    else if (s.k === 'trig') segs += ctlSeg(['Pull', 'Keep pulled'], s.keep ? 1 : 0, 'sx-ctlkeep');
+    else if (s.k === 'config') segs += ctlSeg(['Next', 'Before', 'Number'],
+      s.to === 'next' ? 0 : s.to === 'prev' ? 1 : 2, 'sx-ctlto');
+    if (fs.length > 1) {
+      for (i = 0; i < fs.length; i++) if (fs[i].f === S.xf) fi = i;
+      segs += ctlSeg(fs.map(function (x) { return x.n; }), fi, 'sx-ctlf');
+    }
+    if (segs) h += '<div class="sxseg">' + segs + '</div>';
+    if (!fs.length) {
+      if (s.k === 'unknown') return h + '<div class="sxctl off"><i class="sxlab">' + esc(stepLine(s, sel, a.steps, null)) + '</i></div>';
+      return h + '<div class="sxctl off"><i class="sxlab">' + esc(smartNoNum(s)) + '</i></div>';
+    }
+    var fd = fs[fi], v = smartRead(s, fd.f);
+    var unit = fd.u === 'ms' ? 'milliseconds' : fd.u === '%' ? 'percent' : fd.u === '°' ? 'degrees' : '';
+    return h + '<div class="sxctl"><i class="sxlab">' + esc(fd.n) + '</i>' +
+      '<span class="stp sxstp"><button type="button" data-d="-' + fd.d + '" aria-label="decrease">−</button>' +
+      '<input class="rng sxrng" type="range" min="' + fd.lo + '" max="' + Math.max(fd.top, v) +
+      '" step="1" value="' + v + '" data-nosave="1" data-f="' + fd.f + '" aria-label="' +
+      esc(fd.n + (unit ? ', in ' + unit : '')) + '">' +
+      '<b class="sv" data-nosave="1" data-f="' + fd.f + '" data-min="' + fd.lo + '" data-max="' + fd.hi + '"' +
+      (fd.u ? ' data-suffix="' + esc(fd.u) + '"' : '') + '>' + v + '</b>' +
+      '<button type="button" data-d="' + fd.d + '" aria-label="increase">+</button></span></div>';
+  }
+
+  /* ← ✕ → in XIM's order, then ⋯ (everything a step can be — combo
+     targets, the direction dial, which stick). 44×44 each; every label
+     names the position so the count is not sighted-only. */
+  var NAVSVG = (function () {
+    /* the class names stay the set's (sicon si-<name>), so every check that
+       finds a key by its mark still finds it */
+    function svg(name, d) {
+      return '<svg class="sicon si-' + name + '" data-flat="1" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor"' +
+        ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+    }
+    return {
+      left: svg('left', '<path d="M15 5l-7 7 7 7"/>'),
+      right: svg('right', '<path d="M9 5l7 7-7 7"/>'),
+      remove: svg('remove', '<path d="M6 6l12 12M18 6L6 18"/>'),
+      more: svg('more', '<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>' +
+        '<circle cx="18" cy="12" r="1.2" fill="currentColor"/>')
+    };
+  })();
+  function smartNavHTML(a, sel) {
+    var n = a.steps.length, has = !!(n && a.steps[sel]);
+    var pos = n ? ' (step ' + (sel + 1) + ' of ' + n + ')' : '';
+    function b(id, cls, glyph, say, off) {
+      return '<button type="button" id="' + id + '"' + (cls ? ' class="' + cls + '"' : '') +
+        (off ? ' aria-disabled="true"' : '') + ' aria-label="' + esc(say) + '">' + glyph + '</button>';
+    }
+    /* every key is icon-only to the eye and a whole sentence to a screen
+       reader. D259 (owner: "make sure it doesn't look AI"): plain line
+       glyphs in the ink of the key, not the 3D chrome pictures (D82) - a
+       picture of an arrow on a flat key read as clip art */
+    return '<div class="saednav sxnav">' +
+      b('sx-mvearl', 'mv', NAVSVG.left, 'move this step earlier' + pos, !(has && sel > 0)) +
+      b('sx-delstep', 'rm', NAVSVG.remove, 'delete this step' + pos, !has) +
+      b('sx-mvlate', 'mv', NAVSVG.right, 'move this step later' + pos, !(has && sel < n - 1)) +
+      (has ? b('sx-stepmore', 'more', NAVSVG.more, 'all settings for this step' + pos, false) : '') +
+      (n ? '<span class="saedpos" aria-hidden="true">' + (sel + 1) + '/' + n + '</span>' : '') +
+      '</div>';
+  }
+
+  /* the target deck in editor mode: Pad · Sticks, and on a Core in a config
+     with a mouse, Mouse · Keys too. The engine grew its key step in D128 (a
+     Core step may press a key or a click, zs_actions.c), so the pages that
+     were held back here "until the engine grows a key step" are back, each
+     headed by the one sentence that says whether a key can arrive through
+     the identity the adapter is (sa-mnk.js keysNoteHTML). The A7S still has
+     no such path, so an EXO keeps Pad · Sticks. Pad stays FIRST: a pad
+     button is what reaches a console, and the default a console config
+     keeps. */
+  /* ── THE STICKS PAGE (D232, owner 2026-10-07) ─────────────────────────
+     "If you have a sticks tab, that is where you have stick direction, left
+     and right, and where they select any angle of the stick - which way,
+     how far and how long - and they choose the stick, left or right; change
+     the logo to an actual stick, animated, pushed whatever direction they
+     set." One stick push is built here and added as ONE aim step
+     ({k:'stick'}): the stick (Left / Right), the direction (any degree, set
+     by dragging on the picture or the slider), how far (%) and how long
+     (ms). The picture is the stick pushed that way, on a loop. */
+  var DIR_WORDS = ['right', 'up-right', 'up', 'up-left', 'left', 'down-left', 'down', 'down-right'];
+  function dirWord(deg) { return DIR_WORDS[Math.round(((deg % 360) + 360) % 360 / 45) % 8]; }
+  function stkState(S) {
+    if (!S.stk) S.stk = { stick: 'right', angle: 90, dist: 50, ms: 100 };
+    return S.stk;
+  }
+  function stickBuilderHTML(p, S) {
+    var k = stkState(S);
+    function side(v, lab) {
+      return '<button type="button" data-stkside="' + v + '"' + (k.stick === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + lab + '</button>';
+    }
+    function rng(id, lab, val, min, max, step, unit) {
+      return '<div class="sxstkrow"><span class="sxstklab">' + esc(lab) + '</span>' +
+        '<input class="rng" type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" data-nosave="1" aria-label="' + esc(lab) + '">' +
+        '<b class="sxstkv" id="' + id + '-v">' + val + unit + '</b></div>';
+    }
+    return '<div class="sxstk" id="sx-stk">' +
+      '<div class="seg2 sxstkside" role="group" aria-label="which stick">' + side('left', 'Left stick') + side('right', 'Right stick') + '</div>' +
+      '<div class="sxstkpad" id="sx-stkpad" role="img" aria-label="' + esc('the ' + k.stick + ' stick pushed ' + dirWord(k.angle) + ', ' + k.dist + '%') + '">' +
+        SEC.stickSvg(k.angle, k.dist / 100, true) + '</div>' +
+      '<div class="sxstkhint" id="sx-stkhint">Drag on the stick, or use the sliders · <b id="sx-stkword">' + esc(dirWord(k.angle)) + '</b></div>' +
+      rng('sx-stka', 'Direction', k.angle, 0, 359, 1, '°') +
+      rng('sx-stkd', 'How far', k.dist, 5, 100, 5, '%') +
+      rng('sx-stkm', 'How long', k.ms, 20, 2000, 10, 'ms') +
+      '<button type="button" class="btn primary sxstkadd" id="sx-stkadd">' + sicon('plus', '+') + '<span>Add this stick push</span></button>' +
+      '</div>';
+  }
+
+  function smartGridHTML(p, S) {
+    var pages = [
+      { n: 'Pad', say: 'controller buttons', h: padTargetPageHTML(p) },
+      { n: 'Sticks', say: 'push a stick: which stick, which way, how far and how long', h: stickBuilderHTML(p, S) }
+    ];
+    if (window.ZS_SA_MNK && ZS_SA_MNK.keysOffered(p)) {
+      var kn = ZS_SA_MNK.keysNoteHTML(p);
+      pages.push({ n: 'Mouse', say: 'mouse clicks the computer receives', h: kn + mousePageHTML('data-gt') },
+                 { n: 'Keys', say: 'keyboard keys the computer receives', h: kn + kbPageHTML('data-gt') });
+    }
+    return '<div class="sasgrid" data-noswipe="1">' +
+      deckHTML('sa-sgrid', pages, clamp(intOf(S.gridPage, 0), 0, pages.length - 1)) +
+      '</div>';
+  }
+
+  /* XIM's option list, on OUR step vocabulary — one tile per kind steps.py
+     runs, and nothing else: Wait · Hold · Let go (only while something is
+     held) · Aim nudge (XIM's Aim Magnitude and Aim Angle are the two
+     numbers of this ONE step) · Aim speed · Swap sticks · Switch config
+     (only with more than one config). Seven fit; no "•••" is needed. */
+  function smartOptsHTML(a) {
+    var h = '<div class="sxopts" role="group" aria-label="other kinds of step">';
+    h += keyHTML('data-cat', 'wait', MARK_WAIT, 'Wait next', 'add a pause with a length');   /* owner, 2026-10-10: 'Wait next' */
+    h += keyHTML('data-cat', 'hold', MARK_HOLDSTEP, 'Hold', 'hold a button down until a later step lets go');
+    if (catAllowed({ k: 'release' }, a)) {
+      h += keyHTML('data-cat', 'release', MARK_RELEASE, 'Let go', 'let go of the button held earlier');
+    }
+    /* owner, 2026-10-10: "the bottom should only be Wait, Hold and Switch
+       config - stick stuff is in Stick". Aim nudge is added from the deck's
+       Sticks page; Let go stays (only while something is held) because a
+       held button needs it to be released. */
+    /* owner, 2026-10-10: "why do you have the Swap sticks and Aim speed
+       options in Scripts too? remove them - why change aim speed when Aim
+       nudge exists". No tile adds them any more; a step that already has
+       one (an old script, or a ready-made built on it) still shows, edits
+       and runs - the model and the engine keep both kinds. */
+    if (catAllowed({ k: 'config' }, a)) {
+      h += keyHTML('data-cat', 'config', MARK_CONFIG, 'Switch config', 'switch to another config');
+    }
+    return h + '</div>';
+  }
+
+  /* D283: the On and Tag chips, drawn at the right end of the Activation
+     row (inputHeadHTML); the clicks are still this editor's (wireSmart's
+     delegate on .saxed, which holds the head) */
+  function sxChipsHTML(a) {
+    var on = a.enabled !== false;
+    return '<button type="button" class="sxchip' + (on ? ' on' : '') + '" id="sx-on" role="switch" aria-checked="' +
+        (on ? 'true' : 'false') + '" aria-label="' +
+        esc('this Script is ' + (on ? 'on' : 'off') + ' — tap to switch it ' + (on ? 'off' : 'on')) + '">' +
+        (on ? sicon('on') + '<span>On</span>' : sicon('off') + '<span>Off</span>') + '</button>' +
+      '<button type="button" class="sxchip" id="sx-tag" aria-label="' +
+        esc((a.group ? 'tagged ' + a.group : 'no tag') + ' — change the tag') + '">' +
+        MK_TAG + '<span>' + esc(a.group || 'No tag') + '</span></button>' +
+      (isRecoilAction(a) && window.ZS_RECOIL
+        ? '<button type="button" class="sxico" id="sx-recoil" aria-label="open this recoil model in the Anti-Recoil Lab">' + sicon('tools', '🔧') + '</button>'
+        : '');
+  }
+
+  /* D283: the timing banner's words, from the Script's own fields
+     (varianceMs, maxDurationMs, cooldownMs, maxRepeats, uninterruptible) -
+     what openTimingSheet edits, said the way that sheet says it */
+  function shortMs(ms) {
+    ms = Math.round(Number(ms) || 0);
+    if (ms < 1000) return ms + ' ms';
+    return (Math.round(ms / 100) / 10) + ' s';
+  }
+  function timingSummary(a) {
+    var v = Number(a.varianceMs) || 0, parts = [];
+    parts.push(v > 0 ? 'Human · ±' + v + ' ms' : 'Exact');
+    parts.push(a.maxDurationMs === 0 ? 'never gives up' : 'gives up after ' + shortMs(a.maxDurationMs));
+    if ((Number(a.cooldownMs) || 0) > 0) parts.push(shortMs(a.cooldownMs) + ' cooldown');
+    if (a.holdMode === 'once' && (Number(a.maxRepeats) || 1) > 1) parts.push('plays ' + a.maxRepeats + ' times');
+    if (a.uninterruptible) parts.push('always finishes');
+    return parts.join(' · ');
+  }
+  function timingBannerHTML(a) {
+    var say = timingSummary(a);
+    return '<button type="button" class="sxtime" id="sx-timing" aria-label="' +
+      esc('Timing and safety: ' + say) + '">' + sicon('timing', 'time') +
+      '<span class="sxtimetxt">' + esc('Timing: ' + say) + '</span>' +
+      '<span class="sxtimechev" aria-hidden="true">›</span></button>';
+  }
+  /* the sheet calls this on every change, so the banner under it is true
+     while the sheet is still open */
+  function timingSync(a) {
+    var host = panelBody && panelBody();
+    var b = host && host.querySelector('#sx-timing');
+    if (!b || !a) return;
+    var say = timingSummary(a);
+    b.setAttribute('aria-label', 'Timing and safety: ' + say);
+    var t = b.querySelector('.sxtimetxt');
+    if (t) t.textContent = 'Timing: ' + say;
+  }
+  SEC.sxChipsHTML = sxChipsHTML;
+  SEC.timingSummary = timingSummary;
+  SEC.timingSync = timingSync;
+
+  function smartBodyHTML(p, S, row) {
+    var a = S.draft, sel = selIndex(S, a);
+    var run = S.running[a.id];
+    var running = (run && run.step_index != null && !SEC.overlapsIn(S.draft.steps)) ? run.step_index : -1;
+    var rb = repeatBadge(a), on = a.enabled !== false, nm = (a.name || '').trim();
+    /* D134: a scoped room's word on a SAVED action before anything else
+       ("Changes apply to all 14 linked guns"), and its linking card above
+       the foot. A seed that was never written has nothing to link yet. */
+    var saved = S.editIdx >= 0 && !!S.scope;
+    var top = (saved && S.scope.editorTop) ? S.scope.editorTop(a.id) : '';
+    var linkCard = (saved && S.scope.editorFoot) ? S.scope.editorFoot(a.id) : '';
+    /* THE SEQUENCE BAR — XIM's "Active" / "Ungrouped" chips and its two
+       icons, each on a real field: enabled; group (the tag: a label the
+       board validates and never reads — openTagSheet says so); timing and
+       safety (varianceMs, maxDurationMs, cooldownMs, maxRepeats); the
+       helpers that build steps (the fire-rate tool). */
+    /* D283: the bar's On / Tag chips (and the recoil wrench) moved up into
+       the Activation row (sxChipsHTML, drawn by inputHeadHTML); XIM's
+       stopwatch became the full-width timing banner under the tiles */
+    var h = top +
+      /* D232: the name moved to the head's top middle (inputHeadHTML) */
+      seqSwitchHTML(S, row) +
+      /* THE BOX — the sequence, as the strip's own tiles (the same art the
+         Mappings rows use for a target), wrapping, so it grows to fit. The
+         once/repeat badge at its left edge is the sequence's When (gesture + holdMode —
+         once, turbo, while held, latched): repeatBadge, and the When sheet
+         behind it. */
+      '<div class="sxbox" id="sx-box">' +
+      '<button type="button" class="sxrep" id="sx-when" aria-label="' +
+        esc(rb.say + ' — change when this happens') + '">' + rb.mark + '</button>' +
+      (a.steps.length
+        ? stripHTML(a, p, { tap: true, sel: sel, now: running, pass: SEC.passTileHTML(a, p, rowTarget(row || {})) })
+        : '<span class="sastrip" role="group" aria-label="the sequence, step by step">' +
+          SEC.passTileHTML(a, p, rowTarget(row || {})) + '<span class="saedempty">Tap a button below to add the first step.</span></span>') +
+      '</div>' +
+      errorsHTML(a, p, S, true) +
+      smartCtlHTML(a, sel, S) +
+      smartNavHTML(a, sel) +
+      smartGridHTML(p, S) +
+      smartOptsHTML(a) + timingBannerHTML(a) + linkCard;
+    /* the foot: Delete Smart Action (the sequence; nothing to delete on a
+       seed that was never written), ✕ Delete Binding (the mapping, as in
+       plain mode), Copy (the share code — paste it onto any button from
+       Smart Actions ▸ Build; that is the duplicate mechanism this app has),
+       and Done, the way back to the plain mapping. */
+    var foot = (S.editIdx >= 0
+      ? '<button class="btn danger" id="sx-del" aria-label="delete this Script">' + sicon('delete') + '<span>Delete Script</span></button>' : '') +
+      (row.plainBind
+        ? '<button class="btn danger" id="sa-reset" aria-label="' +
+          esc('delete this binding — ' + rowName(row) + ' goes back to normal') + '">' + sicon('delete') + '<span>Delete Binding</span></button>' : '');
+    if (foot) h += '<div class="safoot sxfoot">' + foot + '</div>';
+    h += '<div class="sxbar2">' +
+      '<button type="button" class="btn" id="sx-copy" aria-label="copy this Script as a code, to paste onto another button">' + sicon('copy') + '<span>Copy</span></button>' +
+      '<button type="button" class="btn primary" id="sx-done" aria-label="' +
+        ((S.fresh && S.editIdx < 0) ? (a.steps.length ? 'done: add this Script'
+          : 'done — close; nothing is added until it has a step')
+          : (row.acts.length || S.scope) ? 'done — close this' : 'done — back to the plain mapping') +
+        '">' + sicon('ok') + '<span>Done</span></button>' +
+      '</div>';
+    return h;
+  }
+
+  /* the surgical half: what a slider drag or a stepper tick may touch
+     without a repaint (a repaint would replace the key under the finger and
+     end a hold-to-repeat after one tick). The selected tile, its sentence,
+     the total, the errors, the number. */
+  function smartLive(wrap, a, p, S) {
+    var i = selIndex(S, a), s = a.steps[i];
+    var tile = wrap.querySelector('.satile[data-tile="' + i + '"]');
+    if (tile && s) {
+      tile.innerHTML = tileBody(stepTile(s, p));
+      var say = 'Step ' + (i + 1) + ': ' + stepLine(s, i, a.steps, p);
+      tile.setAttribute('title', say);
+      tile.setAttribute('aria-label', say + ' — go to this step');
+    }
+    var tot = wrap.querySelector('#sx-box .satot');
+    if (tot) swapOuter(tot, totalChip(a));
+    var er = wrap.querySelector('#sa-errors');
+    if (er) swapOuter(er, errorsHTML(a, p, S, true));
+  }
+
+  function wireSmart(root, p, S, row) {
+    var a = S.draft;
+    var host = panelBody() || root;        /* the editor is in the panel (D81) */
+    var wrap = host.querySelector('.saxed');
+    if (!a || !wrap) return;
+    function touch() { a.edited = true; S.unsaved = true; }
+    function commit() { smartCommit(root, p, S); }
+    function sel() { return selIndex(S, a); }
+    function sub(open) { smartGuard(root, p, S, open); }
+    function select(i) {
+      S.sel = clamp(i, 0, Math.max(0, a.steps.length - 1));
+      draw(root, p);
+      var tl = (panelBody() || root).querySelector('.satile[data-tile="' + S.sel + '"]');
+      if (tl && tl.focus) { try { tl.focus(); } catch (e) {} }
+    }
+    wireInputCommon(root, p, S, row);
+    wireDeck(host, 'sa-sgrid', intOf(S.gridPage, 0), function (i) { S.gridPage = i; });
+
+    function addStep(st) {
+      var norm = normStep(st);
+      if (!norm) return;
+      a.steps.push(norm);
+      touch();
+      S.sel = a.steps.length - 1;
+      commit();
+      ZS.toast('Added: ' + stepLine(norm, a.steps.length - 1, a.steps, p));
+    }
+    function addTarget(code) {
+      /* D128: a key or a click from the Mouse / Keys pages, which exist
+         only where sa-mnk.js offers them (a Core, a config with a mouse) */
+      var key = window.ZS_SA_MNK && ZS_SA_MNK.keysOffered(p) && ZS_SA_MNK.isKeyOutput(code);
+      if (!TARGET_OK[code] && !key) return;
+      addStep((code === 'lt+' || code === 'rt+')
+        ? { k: 'trig', t: [code], ms: 120, keep: false }
+        : { k: 'tap', t: [code], ms: 80 });
+    }
+    /* D232: the Sticks page - every change paints the picture in place (a
+       repaint would end a drag under the finger); Add appends one aim step */
+    (function wireStick() {
+      var box = wrap.querySelector('#sx-stk');
+      if (!box) return;
+      var k = stkState(S);
+      function paint() {
+        var pad = box.querySelector('#sx-stkpad');
+        if (pad) {
+          pad.innerHTML = SEC.stickSvg(k.angle, k.dist / 100, true);
+          pad.setAttribute('aria-label', 'the ' + k.stick + ' stick pushed ' + dirWord(k.angle) + ', ' + k.dist + '%');
+        }
+        var w = box.querySelector('#sx-stkword'); if (w) w.textContent = dirWord(k.angle);
+        [['sx-stka', k.angle, '°'], ['sx-stkd', k.dist, '%'], ['sx-stkm', k.ms, 'ms']].forEach(function (r) {
+          var inp = box.querySelector('#' + r[0]), v = box.querySelector('#' + r[0] + '-v');
+          if (inp && +inp.value !== r[1]) inp.value = r[1];
+          if (v) v.textContent = r[1] + r[2];
+        });
+      }
+      box.addEventListener('click', function (e) {
+        var b = e.target && e.target.closest && e.target.closest('[data-stkside]');
+        if (b) {
+          k.stick = b.dataset.stkside;
+          box.querySelectorAll('[data-stkside]').forEach(function (x) {
+            var on = x.dataset.stkside === k.stick;
+            x.classList.toggle('on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          paint();
+          e.stopPropagation();
+          return;
+        }
+        if (e.target.closest && e.target.closest('#sx-stkadd')) {
+          e.stopPropagation();
+          addStep({ k: 'stick', stick: k.stick, angle: k.angle, dist: k.dist / 100, ms: k.ms });
+        }
+      });
+      box.addEventListener('input', function (e) {
+        var id = e.target && e.target.id, v = +e.target.value;
+        if (id === 'sx-stka') k.angle = clamp(Math.round(v), 0, 359);
+        else if (id === 'sx-stkd') k.dist = clamp(Math.round(v), 5, 100);
+        else if (id === 'sx-stkm') k.ms = clamp(Math.round(v), 20, 2000);
+        else return;
+        paint();
+      });
+      /* drag on the picture: the angle and the distance from its centre */
+      var pad = box.querySelector('#sx-stkpad'), down = false;
+      function at(e) {
+        var r = pad.getBoundingClientRect();
+        var x = e.clientX - (r.left + r.width / 2), y = (r.top + r.height / 2) - e.clientY;
+        var rad = Math.min(r.width, r.height) * 0.38;
+        if (!(rad > 0)) return;
+        var d = Math.min(1, Math.sqrt(x * x + y * y) / rad);
+        k.angle = ((Math.round(Math.atan2(y, x) * 180 / Math.PI) % 360) + 360) % 360;
+        k.dist = clamp(Math.round(d * 20) * 5, 5, 100);
+        paint();
+      }
+      if (pad) {
+        pad.addEventListener('pointerdown', function (e) {
+          down = true; try { pad.setPointerCapture(e.pointerId); } catch (x) {} at(e); e.preventDefault();
+        });
+        pad.addEventListener('pointermove', function (e) { if (down) at(e); });
+        pad.addEventListener('pointerup', function () { down = false; });
+        pad.addEventListener('pointercancel', function () { down = false; });
+      }
+    })();
+
+    /* "Let go" frees what the most recent Hold in the sequence holds — the
+       sheet's default (the row's own target) is right for a Hold and wrong
+       for a release, which is about a button already down */
+    function heldTargets() {
+      for (var i = a.steps.length - 1; i >= 0; i--) {
+        var s = a.steps[i];
+        if ((s.k === 'hold' || (s.k === 'trig' && s.keep)) && s.t && s.t.length) return s.t.slice();
+      }
+      return null;
+    }
+
+    /* ONE delegated listener on the editor's own wrapper, which every
+       repaint replaces — so nothing is ever wired twice */
+    wrap.addEventListener('click', function (e) {
+      var t = e.target, el, i, jj;
+      if (!t || !t.closest) return;
+      el = t.closest('[data-tile]');
+      if (el) { select(+el.dataset.tile); return; }
+      el = t.closest('[data-gt]');
+      if (el) { addTarget(el.dataset.gt); return; }
+      el = t.closest('[data-cat]');
+      if (el) {
+        var k = el.dataset.cat;
+        if (k === 'release') {
+          var ht = heldTargets();
+          if (!ht) return;
+          addStep({ k: 'release', t: ht });
+          return;
+        }
+        addStep(defaultStep(k, rowTarget(row)));
+        return;
+      }
+      el = t.closest('#sx-mvearl') || t.closest('#sx-mvlate');
+      if (el) {
+        /* the selection RIDES with the moved step (the sheet's rule) */
+        i = sel();
+        jj = i + (el.id === 'sx-mvlate' ? 1 : -1);
+        if (i < 0 || !a.steps[i] || jj < 0 || jj >= a.steps.length) return;
+        var tmpStep = a.steps[jj]; a.steps[jj] = a.steps[i]; a.steps[i] = tmpStep;
+        touch();
+        S.sel = jj;
+        commit();
+        return;
+      }
+      if (t.closest('#sx-delstep')) {
+        i = sel();
+        if (i < 0 || !a.steps[i]) return;
+        var removed = a.steps.splice(i, 1)[0], aid = a.id;
+        touch();
+        S.sel = Math.max(0, i - 1);
+        commit();
+        ZS.toast('Step removed', { action: 'Undo', onAction: function () {
+          var d = S.draft;
+          /* only into the Script it came out of (audit m23): the toast
+             outlives a switch to another Script */
+          if (!d || S.mode !== 'smart' || d.id !== aid) return;
+          d.steps.splice(Math.min(i, d.steps.length), 0, removed);
+          d.edited = true; S.unsaved = true; S.sel = i;
+          smartCommit(root, p, S);
+        } });
+        return;
+      }
+      if (t.closest('#sx-stepmore')) {
+        i = sel();
+        if (i < 0 || !a.steps[i]) return;
+        S.step = { i: i, kind: a.steps[i].k, draft: clone(a.steps[i]) };
+        sub(function () { openStepSheet(p, S, true, root); });
+        return;
+      }
+      if (t.closest('#sx-when')) { sub(function () { openWhenSheet(root, p, S, true); }); return; }
+      if (t.closest('#sx-on')) {
+        /* D280 (audit): a Script on no key cannot run, so switching it on
+           asks for the key; picking one switches it on */
+        if (a.enabled === false && a.trigger && a.trigger.unbound) { retrigger(root, p, S); return; }
+        a.enabled = a.enabled === false; touch(); commit(); return;
+      }
+      if (t.closest('#sx-tag')) { sub(function () { openTagSheet(root, p, S); }); return; }
+      if (t.closest('#sx-timing')) { sub(function () { openTimingSheet(root, p, S, true); }); return; }
+      if (t.closest('#sx-help')) { sub(function () { openHelpersSheet(root, p, S); }); return; }
+      if (t.closest('#sx-recoil')) {
+        /* D170: save what is in the editor first, so the workshop opens on
+           the action as it is now */
+        if (S.unsaved) smartSave(p, S);
+        openWorkshop(root, p, S, S.editIdx);
+        return;
+      }
+      if (t.closest('#sx-name')) { sub(function () { openNameSheet(root, p, S); }); return; }
+      if (t.closest('#sa-seqlist')) { sub(function () { openSeqListSheet(root, p, S, row); }); return; }
+      el = t.closest('#sa-seqprev') || t.closest('#sa-seqnext');
+      if (el) {
+        var d = el.id === 'sa-seqnext' ? 1 : -1, pos = 0, j;
+        for (j = 0; j < row.acts.length; j++) if (row.acts[j].i === S.editIdx) pos = j;
+        var nxt = row.acts[pos + d];
+        if (!nxt) return;
+        S.editIdx = nxt.i; S.draft = clone(S.actions[nxt.i]);
+        S.unsaved = false; S.sel = null; S.xf = null;
+        draw(root, p);
+        return;
+      }
+      if (t.closest('#sx-copy')) {
+        copyShare(a, 'Copied — paste it onto any button from Scripts ▸ Build.');
+        return;
+      }
+      if (t.closest('#sx-done')) {
+        /* XIM's rule (D81): a button that HAS a Smart Action has no plain
+           mode — this editor is its sub-menu — so Done shuts the panel. On
+           a seed that was never written it goes back to the plain mapping,
+           which is what that button still is.
+           D127: New Smart Action's own seed is WRITTEN by Done (the player
+           asked for a new one and said Done to what the box showed), and
+           lands on the list; a weapon's room has no plain mapping to go
+           back to, so there Done always shuts the panel. */
+        if (S.fresh && S.editIdx < 0) { smartSave(p, S); S.fresh = false; panelDismiss(); return; }
+        if (row.acts.length || S.scope) { panelDismiss(); return; }
+        leaveSmart(S); draw(root, p); return;
+      }
+    });
+
+    /* ── the selected step's number: the stepper and the slider write the
+       same field; neither repaints (see smartLive) ── */
+    wrap.addEventListener('zsstep', function (e) {
+      var sv = e.target, f = sv && sv.dataset && sv.dataset.f;
+      if (!f) return;
+      var s = a.steps[sel()], fd = s ? smartFieldOf(s, f) : null;
+      if (!s || !fd) return;
+      smartWrite(s, fd, num(sv.textContent, 0));
+      var v = smartRead(s, f);
+      if (String(v) !== sv.textContent) sv.textContent = String(v);
+      var rng = wrap.querySelector('.sxrng[data-f="' + f + '"]');
+      if (rng) { if (num(rng.max, 0) < v) rng.max = String(v); rng.value = String(v); }
+      touch();
+      smartLive(wrap, a, p, S);
+      smartSave(p, S);
+    });
+    var rng = wrap.querySelector('.sxrng');
+    if (rng) {
+      rng.addEventListener('input', function () {
+        var s = a.steps[sel()], fd = s ? smartFieldOf(s, rng.dataset.f) : null;
+        if (!s || !fd) return;
+        smartWrite(s, fd, num(rng.value, 0));
+        var sv = wrap.querySelector('.sxstp .sv');
+        if (sv) sv.textContent = String(smartRead(s, fd.f));
+        touch();
+        smartLive(wrap, a, p, S);
+      });
+      rng.addEventListener('change', function () { if (S.unsaved) smartSave(p, S); });
+    }
+
+    function segButtons(id, fn) {
+      var g = wrap.querySelector('#' + id);
+      if (!g) return;
+      var bs = g.querySelectorAll('button');
+      for (var i = 0; i < bs.length; i++) {
+        (function (idx) { bs[idx].addEventListener('click', function () { fn(idx); }); })(i);
+      }
+    }
+    segButtons('sx-ctlmode', function (i) {
+      var s = a.steps[sel()];
+      if (!s) return;
+      if (i === 1 && s.k === 'tap') a.steps[sel()] = normStep({ k: 'hold', t: s.t.slice() });
+      else if (i === 0 && s.k === 'hold') a.steps[sel()] = normStep({ k: 'tap', t: s.t.slice(), ms: 80 });
+      else return;
+      touch(); commit();
+    });
+    segButtons('sx-ctlkeep', function (i) {
+      var s = a.steps[sel()];
+      if (!s || s.k !== 'trig' || s.keep === (i === 1)) return;
+      s.keep = i === 1;
+      touch(); commit();
+    });
+    segButtons('sx-ctlto', function (i) {
+      var s = a.steps[sel()];
+      if (!s || s.k !== 'config') return;
+      var to = i === 0 ? 'next' : i === 1 ? 'prev' : (typeof s.to === 'number' ? s.to : 2);
+      if (to === s.to) return;
+      s.to = to;
+      touch(); commit();
+    });
+    /* which of the step's numbers the slider is about — a view choice, so
+       no write */
+    segButtons('sx-ctlf', function (i) {
+      var fs = smartFields(a.steps[sel()]);
+      if (!fs[i] || fs[i].f === S.xf) return;
+      S.xf = fs[i].f;
+      draw(root, p);
+    });
+
+    /* ← / → inside the box move the selection, so the sequence is
+       navigable without a pointer */
+    var box = wrap.querySelector('#sx-box');
+    if (box) box.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft' && sel() > 0) { e.preventDefault(); select(sel() - 1); }
+      else if (e.key === 'ArrowRight' && sel() < a.steps.length - 1) { e.preventDefault(); select(sel() + 1); }
+    });
+
+    var del = wrap.querySelector('#sx-del');
+    /* D134: a linked action goes from every gun it is linked to, and the
+       second tap's words say how many before it does */
+    var delSay = (S.scope && S.scope.deleteSay && S.editIdx >= 0) ? S.scope.deleteSay(a.id) : '';
+    if (del) armConfirm(del, function () {
+      if (S.editIdx < 0) { leaveSmart(S); draw(root, p); return; }
+      var i = S.editIdx, removed = S.actions.splice(i, 1)[0];
+      saveAll(p, S);
+      leaveSmart(S);
+      draw(root, p);
+      ZS.toast('"' + ((removed && removed.name) || 'Script') + '" deleted', {
+        action: 'Undo', onAction: function () {
+          S.actions.splice(i, 0, removed); saveAll(p, S); draw(root, p);
+        }
+      });
+    }, delSay);
+    /* D134: the scoped room's linking card (Link, Copy, Unlink, a rarity) */
+    if (S.scope && S.scope.wireEditor && S.editIdx >= 0) S.scope.wireEditor(wrap, a.id);
+  }
+
+  /* wireSequence is GONE with the screen it wired. Every listener it held
+     moved to wireEditor(), which uses ONE delegated listener on #sa-edit
+     instead of per-element handlers: the sheet re-renders on nearly every
+     interaction, so per-element listeners would have to be re-attached each
+     time and a surgical repaint would silently drop them. */
+
+  function copyShare(a, msg) {
+    var code = shareCode(a);
+    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(
+      function () { ZS.toast(msg); },
+      function () { window.prompt('Copy this share code:', code); });
+  }
+
+  /* Paste lands ON a button. `row` null means "the list screen asked", and
+     then the code's own trigger decides which input it belongs to — the same
+     resolution every other action goes through. */
+  function pasteFlow(root, p, S, row) {
+    function apply(txt) {
+      var a = readShareCode(txt, p);
+      if (!a) { ZS.toast('That does not look like a ZeroStick button code'); return; }
+      var target = row;
+      if (target) { a.trigger.src = target.actSrc; a.trigger.follow = null; }
+      else target = rowFor(p, S, emitSource(p, a.trigger) || '');
+      if (!target) { ZS.toast('That code does not name a button your board can use'); return; }
+      S.inputSrc = target.source;
+      S.screen = 'input'; S.mode = 'sequence';
+      S.editIdx = -1; S.draft = a; S.unsaved = true;
+      S.sel = null; S.page = 0;
+      draw(root, p);
+      ZS.toast('Pasted onto ' + rowName(target) + ' — check it over, then Save');
+    }
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(apply, function () { apply(window.prompt('Paste the code:') || ''); });
+    } else apply(window.prompt('Paste the code:') || '');
+  }
+
+  /* Change the open draft's trigger. Shared by the "will not fire" line's
+     one-tap fix, so a dead sequence is one tap from a button that works.
+     Changing it MOVES the sequence to another input, so the screen follows
+     it there rather than sitting on a button it no longer belongs to. */
+  function retrigger(root, p, S) {
+    var a = S.draft;
+    if (!a) return;
+    var inSheet = !!S.sheetEditor;
+    /* ZS.pickButton (the capture route) hard-closes the sheet host, which
+       would run the editor's dismissal callback and throw the draft away.
+       The flag tells that callback this is a trip, not a dismissal. */
+    if (inSheet) S.keepEditor = true;
+    pickTrigger(p, { keepOpen: inSheet }).then(function (v) {
+      if (v) {
+        a.trigger.src = v.src || null;
+        a.trigger.follow = v.follow || null;
+        /* D280: a Script that waited for a key has one now, and runs */
+        if (a.trigger.unbound) { a.trigger.unbound = false; a.trigger.home = null; a.enabled = true; }
+        a.edited = true;
+        S.unsaved = true;
+        var row = rowFor(p, S, emitSource(p, a.trigger) || '');
+        if (row) S.inputSrc = row.source;
+        /* D280: the in-place editor writes each change as it is made (its
+           Done only shuts the panel), so a new key is written now too */
+        if (!inSheet && S.mode === 'smart') { smartCommit(root, p, S); return; }
+      }
+      /* back to the editor either way — cancelling a picker must not also
+         throw away the sequence you were editing */
+      if (inSheet) { backToEditor(root, p, S); return; }
+      draw(root, p);
+    });
+  }
+
+  /* D280 (2026-10-13 audit): one Script, opened in the editor and straight
+     on its "What starts this action?" picker. Used where the honest answer
+     to a tap is "choose its key first": switching on a Script that waits on
+     no key (it cannot run until it has one), and Featured's Turn assist when
+     the config already has one or X is taken. Picking a key clears the wait
+     and switches it on (retrigger); cancelling leaves it as it was. */
+  function openOnKeyPicker(root, p, S, i) {
+    var a = S.actions[i];
+    if (!a) return false;
+    var row = rowFor(p, S, SEC.emitSource(p, a.trigger) || '');
+    if (!row) return false;
+    S.inputSrc = row.source; S.screen = 'input'; S.page = 0;
+    enterSmart(p, S, row, i);
+    draw(root || VIEW.lastRoot, p);
+    retrigger(root || VIEW.lastRoot, p, S);
+    return true;
+  }
+
+  /* phone-sections.js's R.bindings and R.smart hand over to these at call
+     time when ZS_SMART exists, which is why this file must load AFTER it.
+     Same contract as every other renderer: {html, after(root, p)}.
+
+     TWO DOORS, ONE ROOM. renderInputs is "I know which button I want to
+     change"; render is "I want bunny hop, show me the options". Both land on
+     the same input screen, and neither of them ever asks anyone to create a
+     standalone action and then go hunting for a trigger. */
+  function enter(p, screen, home) {
+    var S = saFor(p);
+    /* THE PANEL SURVIVES A REDRAW (D81). redrawOpenScreen() and the polls
+       re-enter this section with the same descriptor; with the sub-menu up
+       that is a repaint of the screen UNDER it, not a navigation, so its
+       state — which input, which mode, the draft being edited — is kept
+       and draw() paints both from the fresh profile. A real navigation
+       (the menu door) can only happen with the panel shut: it is modal. */
+    var keep = panelIsOpen() && VIEW.panelPid === p.id && S.screen === 'input' && S.home === home;
+    if (!keep) {
+      S.screen = screen; S.home = home;
+      S.draft = null; S.editIdx = -1; S.step = null;
+      S.mode = 'simple'; S.unsaved = false;
+      S.pendingRow = null;
+    }
+    hydrate(p, S);
+    return { html: '', after: function (root) { draw(root, p); } };
+  }
+  /* WHICH TAB THE SCREEN OPENS ON (screen-map §5.7). It used to be Ready-made
+     always: a 31-card catalogue as the first screenful of the screen you
+     opened to look at the sequences you already have. The library is the
+     right first answer only when there is nothing to list — with sequences on
+     the config, "Everything you have" is the thing you came for, and it is
+     the door onto each one (a row tap opens that button's screen).
+
+     hydrate() FIRST, or the question is asked before the board's own actions
+     have been read in and a config full of sequences still lands on the
+     catalogue. It is a no-op after the first call and on an offline boot, so
+     the answer then comes from whatever this phone had stored — the same list
+     the screen is about to draw either way.
+
+     This is a DEFAULT, never an override: the moment a tab is landed on,
+     draw() writes it into S.smartTab and that choice wins for the rest of the
+     session. */
+  function render(p) {
+    VIEW.SCOPE = null;
+    var S = saFor(p);
+    hydrate(p, S);
+    /* Smart mappings is the landing tab (D85): with sequences it is the
+       list of them, without it is the one-line empty state, Record and the
+       Mappings fold — the library is one tab to the right either way */
+    if (S.smartTab == null) S.smartTab = 'index';
+    var tab = S.smartTab;
+    return enter(p, tab, tab);
+  }
+  function renderInputs(p) { VIEW.SCOPE = null; return enter(p, 'inputs', 'inputs'); }
+  /* THE THIRD DOOR (D122): the same room, about one weapon's actions. The
+     scope object is described beside SCOPE above; auto-actions.js makes it. */
+  function renderScoped(p, scope) {
+    VIEW.SCOPE = scope || null;
+    var S = saFor(p);
+    hydrate(p, S);
+    if (S.smartTab == null) S.smartTab = 'index';
+    return enter(p, S.smartTab, S.smartTab);
+  }
+
+  /* what the other parts use from this one */
+  SEC.copyShare = copyShare;
+  SEC.enterSmart = enterSmart;
+  SEC.leaveSmart = leaveSmart;
+  SEC.openOnKeyPicker = openOnKeyPicker;
+  SEC.pasteFlow = pasteFlow;
+  SEC.render = render;
+  SEC.renderInputs = renderInputs;
+  SEC.renderScoped = renderScoped;
+  SEC.retrigger = retrigger;
+  SEC.smartBodyHTML = smartBodyHTML;
+  SEC.smartCommit = smartCommit;
+  SEC.smartReturn = smartReturn;
+  SEC.smartSeed = smartSeed;
+  SEC.wireSmart = wireSmart;
+});

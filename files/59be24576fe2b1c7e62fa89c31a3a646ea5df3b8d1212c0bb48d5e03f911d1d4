@@ -1,0 +1,15 @@
+{
+  "zerostickReferenceFrame": 1,
+  "game": "cod-bo7",
+  "image": "reference-frame.webp",
+  "width": 960,
+  "height": 540,
+  "box": [
+    0.69,
+    0.85,
+    0.145,
+    0.035
+  ],
+  "shows": "M15 MOD 0",
+  "source": "A real Black Ops 7 firing-range frame from the Core's own capture (docs/reference/cod-hud-names-2026-10-20/f19.jpg), scaled to 960x540. The box is recognition.json's box.suggested, the one the reader was trained and verified with (D411)."
+}

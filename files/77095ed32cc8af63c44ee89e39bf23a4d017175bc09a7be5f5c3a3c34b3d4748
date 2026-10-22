@@ -1,0 +1,363 @@
+/* gpc-device.js - the virtual script device's own firmware, in the phone:
+ * window.ZSGPCDEV. No DOM: what the device does and what its own screens
+ * look like, as 1024-byte framebuffers. The GPC Scripts room (gpc-tab.js)
+ * draws them and feeds it the controller.
+ *
+ * ES5 ONLY, like every file phone.html loads (docs/DESIGN.md).
+ *
+ * -- What the owner asked for (2026-10-02) ----------------------------------
+ *
+ * "that menu should show exactly what it would show on the Zen, and the
+ * buttons onscreen should only be the buttons on a Zen as options, nothing
+ * extra. However a Zen does it, we do it, so the device is in Zen mode
+ * basically." Our own drawing and our own words, no other company's name or
+ * art (D76); the BEHAVIOUR is the public one:
+ *
+ *   - 8 memory slots. "Press P1 to load the next memory slot, and press and
+ *     hold P2 to enable Bluetooth searching mode" (the Cronus Zen manual, as
+ *     published at manualslib.tech/guide/16649, and czenscripts.com, "What do
+ *     Cronus Zen buttons do"). The Reset button restarts the device.
+ *   - The device's own menu: "hold down LT/L2 on your controller, and while
+ *     still holding it, press the Menu/Options button" (guide.cronus.support;
+ *     expertbeacon.com, "How do I use Cronus Zen menu?"). In it the D-pad
+ *     moves and changes values, Cross/A selects, Circle/B goes back.
+ *   - A loaded script's own screen is shown exactly as the script drew it.
+ *     The device's slot screen shows only while the script draws nothing.
+ *
+ * THE FONT CELLS are the documented ones: SMALL 7 x 10, MEDIUM 11 x 18, LARGE
+ * 16 x 26. Our glyphs are our own 5 x 7 drawing, scaled 1, 2 and 3 times and
+ * set in those cells.
+ *
+ * The screen layout is GPC's (gpc-sim.js): 128 x 64, 16 bytes a row, bit 7 of
+ * each byte the leftmost pixel, 1 = lit.
+ */
+(function () {
+  'use strict';
+
+  var W = 128, H = 64;
+
+  /* ═══════════════════════════════════════════════════ the raster ══
+     Each glyph: its character, then seven rows as two hex digits
+     (bit 4 = the left column). Upper case, digits and a few signs; a
+     character it has not got is drawn as a small box. */
+  var FONT_SRC = 'A0e11111f111111B1e11111e11111eC0e11101010110eD1e11111111111eE1f10101e10101f' +
+    'F1f10101e101010G0e11101711110fH1111111f111111I0e04040404040eJ0702020202120cK11121418141211' +
+    'L1010101010101fM111b1515111111N11111915131111O0e11111111110eP1e11111e101010Q0e11111115120d' +
+    'R1e11111e141211S0f10100e01011eT1f040404040404U1111111111110eV11111111110a04W1111111515150a' +
+    'X11110a040a1111Y11110a04040404Z1f01020408101f00e11131519110e1040c040404040e20e11010204081f' +
+    '31f02040201110e402060a121f020251f101e0101110e60608101e11110e71f010204080808' +
+    '80e11110e11110e90e11110f01020c>08040201020408<02040810080402+0004041f040400' +
+    '-0000001f000000/00010204081000:000c0c000c0c00.00000000000c0c!04040404040004' +
+    '?0e110102040004(02040808080402)08040202020408=00001f001f0000%18190204081303' +
+    '*0004150e150400\'04040800000000,000000000c0408_0000000000001f';
+  var FONT = {};
+  (function () {
+    for (var i = 0; i + 15 <= FONT_SRC.length; i += 15) {
+      var rows = [];
+      for (var r = 0; r < 7; r++) { rows.push(parseInt(FONT_SRC.substr(i + 1 + r * 2, 2), 16)); }
+      FONT[FONT_SRC.charAt(i)] = rows;
+    }
+  }());
+  /* the documented cells, and the glyph's scale inside each */
+  var SIZE = { small: { k: 1, w: 7, h: 10 }, medium: { k: 2, w: 11, h: 18 }, large: { k: 3, w: 16, h: 26 } };
+
+  function blank() { return new Uint8Array(1024); }
+  function pixel(fb, x, y) {
+    if (!fb || x < 0 || y < 0 || x >= W || y >= H) { return false; }
+    return ((fb[y * 16 + (x >> 3)] >> (7 - (x & 7))) & 1) === 1;
+  }
+  function px(fb, x, y, on) {
+    if (x < 0 || y < 0 || x >= W || y >= H) { return; }
+    var b = y * 16 + (x >> 3), bit = 0x80 >> (x & 7);
+    if (on) { fb[b] |= bit; } else { fb[b] &= ~bit; }
+  }
+  function fill(fb, x, y, w, h, on) {
+    for (var yy = y; yy < y + h; yy++) { for (var xx = x; xx < x + w; xx++) { px(fb, xx, yy, on); } }
+  }
+  /* text in a cell size; (x, y) is the top left of the first cell */
+  function text(fb, s, x, y, on, size) {
+    var z = SIZE[size] || SIZE.small, k = z.k;
+    s = String(s).toUpperCase();
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i), g = FONT[ch], cx = x + i * z.w + Math.floor(k / 2), cy = y + k;
+      if (ch === ' ') { continue; }
+      if (!g) { fill(fb, cx + k, cy + 2 * k, 3 * k, 3 * k, on); continue; }
+      for (var r = 0; r < 7; r++) {
+        for (var c = 0; c < 5; c++) {
+          if (g[r] & (0x10 >> c)) { fill(fb, cx + c * k, cy + r * k, k, k, on); }
+        }
+      }
+    }
+  }
+  function width(s, size) { return String(s).length * (SIZE[size] || SIZE.small).w; }
+  function centre(fb, s, y, on, size) { text(fb, s, Math.floor((W - width(s, size)) / 2), y, on, size); }
+  function lit(fb) {
+    if (!fb) { return false; }
+    for (var i = 0; i < fb.length; i++) { if (fb[i]) { return true; } }
+    return false;
+  }
+  /* a string the font can draw, cut to `n` cells */
+  function fit(s, n) {
+    s = String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9 >\-+\/:.!?()=%*',_<]/g, ' ')
+      .replace(/\s+/g, ' ').replace(/^ | $/g, '');
+    return s.length > n ? s.slice(0, n - 1) + '.' : s;
+  }
+
+  /* ═════════════════════════════════════════════════════ P1 ══
+     The next slot that holds a script, 1 -> 8, then off (0); from off, the
+     first one that holds a script. `has[i]` says whether slot i + 1 has one. */
+  function nextSlot(cur, has) {
+    for (var n = (cur | 0) + 1; n <= 8; n++) { if (has && has[n - 1]) { return n; } }
+    return 0;
+  }
+
+  /* ═══════════════════════════════════════════════════ the device ══ */
+  var BRIGHT = ['HIGH', 'MID', 'LOW', 'OFF'];
+  var MAIN = ['SLOTS', 'RESET VALUES', 'SCREEN', 'EXIT'];
+  var ROWS = 5;                    /* menu rows under the title, 10 px each */
+  var PAIR_MS = 60000;
+  var FLASH_MS = 1600;
+
+  function down(inp, prev, k) { return inp[k] >= 50 && !(prev[k] >= 50); }
+  function copy(o) { var r = {}, k; for (k in o) { if (o.hasOwnProperty(k)) { r[k] = o[k]; } } return r; }
+  function zero(o) { var r = {}, k; for (k in o) { if (o.hasOwnProperty(k)) { r[k] = 0; } } return r; }
+
+  /* opts.family: 'ps' or 'xbox', for the words on the confirm screen */
+  function Device(opts) {
+    if (!(this instanceof Device)) { return new Device(opts); }
+    opts = opts || {};
+    this.family = opts.family === 'xbox' ? 'xbox' : 'ps';
+    this.slots = [];               /* 8 x { name, state: empty | ok | error | cannot | stopped } */
+    for (var i = 0; i < 8; i++) { this.slots.push({ name: '', state: 'empty' }); }
+    this.slot = 0;                 /* 0 = off: no script, the controller passes through */
+    this.pad = false;              /* a controller is connected */
+    this.bright = 0;               /* BRIGHT index */
+    this.menu = null;              /* { page: main | slots | confirm, cur } */
+    this.pairing = null;           /* { since } */
+    this.flash = null;             /* { text, until, n } */
+    this.ver = 1;
+    this.prev = {};
+    this.swallow = {};
+    this.where = opts.where === 'core' ? 'core' : 'phone';   /* where P2 pairs a controller */
+  }
+  Device.BRIGHT = BRIGHT;
+  Device.MAIN = MAIN;
+  var D = Device.prototype;
+
+  D.touch = function () { this.ver++; };
+  D.setSlots = function (list) {
+    for (var i = 0; i < 8; i++) {
+      var s = list && list[i];
+      this.slots[i] = { name: s && s.name ? String(s.name) : '', state: s && s.state ? s.state : 'empty' };
+    }
+    this.touch();
+  };
+  D.setSlot = function (n) { this.slot = Math.max(0, Math.min(8, n | 0)); this.touch(); };
+  D.setPad = function (on) { if (!!on !== this.pad) { this.pad = !!on; this.touch(); } };
+  /* 'phone' (Preview: a controller paired with this phone) or 'core' (Live:
+     the Core's controllers plug in with a cable) */
+  D.setWhere = function (w) { w = w === 'core' ? 'core' : 'phone'; if (w !== this.where) { this.where = w; this.touch(); } };
+  D.setBright = function (i) { this.bright = Math.max(0, Math.min(3, i | 0)); this.touch(); };
+  D.has = function () { var h = []; for (var i = 0; i < 8; i++) { h.push(this.slots[i].state !== 'empty'); } return h; };
+  D.say = function (t, now) { this.flash = { text: t, until: now + FLASH_MS, n: this.ver + 1 }; this.touch(); };
+  /* Reset: the device's own screens close */
+  D.closeAll = function () { this.menu = null; this.pairing = null; this.flash = null; this.touch(); };
+  D.pair = function (now) { this.menu = null; this.pairing = { since: now }; this.touch(); };
+  D.unpair = function () { this.pairing = null; this.touch(); };
+  /* a controller answered while pairing */
+  D.paired = function (now) { if (this.pairing) { this.pairing = null; this.say('CONTROLLER READY', now); } };
+  /* anything held down when a device screen closes stays away from the
+     script until it is let go, so the press that closed the menu never
+     reaches the game */
+  D.swallowAll = function (inp) { for (var k in inp) { if (inp.hasOwnProperty(k) && inp[k]) { this.swallow[k] = 1; } } };
+
+  /* One controller reading. Returns { script: what the script is given,
+     act: null or { type: 'load', slot } | { type: 'resetValues' } |
+     { type: 'bright', level } }. */
+  D.input = function (inp, now) {
+    var prev = this.prev, act = null, out = copy(inp), k, was = !!this.menu;
+    for (k in this.swallow) {
+      if (this.swallow.hasOwnProperty(k)) { if (inp[k]) { out[k] = 0; } else { delete this.swallow[k]; } }
+    }
+    if (this.pairing && now - this.pairing.since > PAIR_MS) { this.pairing = null; this.say('NO CONTROLLER FOUND', now); }
+    if (this.flash && now >= this.flash.until) { this.flash = null; this.touch(); }
+    if (inp.L2 >= 50 && down(inp, prev, 'OPTIONS')) {
+      if (this.menu) { this.menu = null; } else { this.menu = { page: 'main', cur: 0 }; this.flash = null; }
+      this.touch();
+    } else if (this.menu) {
+      act = this.menuInput(inp, prev, now);
+    }
+    if (was || this.menu) { out = zero(inp); }
+    if (was && !this.menu) { this.swallowAll(inp); }
+    this.prev = inp;
+    return { script: out, act: act };
+  };
+  D.menuInput = function (inp, prev, now) {
+    var m = this.menu, act = null, n;
+    var dn = function (k) { return down(inp, prev, k); };
+    if (m.page === 'main') {
+      if (dn('UP')) { m.cur = (m.cur + MAIN.length - 1) % MAIN.length; this.touch(); }
+      if (dn('DOWN')) { m.cur = (m.cur + 1) % MAIN.length; this.touch(); }
+      if (MAIN[m.cur] === 'SCREEN' && (dn('LEFT') || dn('RIGHT'))) {
+        this.setBright(this.bright + (dn('RIGHT') ? 1 : -1));
+        return { type: 'bright', level: this.bright };
+      }
+      if (dn('CROSS')) {
+        var it = MAIN[m.cur];
+        if (it === 'SLOTS') { this.menu = { page: 'slots', cur: this.slot }; }
+        else if (it === 'RESET VALUES') {
+          if (this.slot > 0 && this.slots[this.slot - 1].state !== 'empty') { this.menu = { page: 'confirm', cur: 0 }; }
+          else { this.say('NO SCRIPT LOADED', now); this.menu = null; }
+        } else if (it === 'SCREEN') { this.setBright((this.bright + 1) % BRIGHT.length); act = { type: 'bright', level: this.bright }; }
+        else { this.menu = null; }
+        this.touch();
+        return act;
+      }
+      if (dn('CIRCLE')) { this.menu = null; this.touch(); }
+      return null;
+    }
+    if (m.page === 'slots') {
+      if (dn('UP')) { m.cur = (m.cur + 8) % 9; this.touch(); }
+      if (dn('DOWN')) { m.cur = (m.cur + 1) % 9; this.touch(); }
+      if (dn('CROSS')) {
+        n = m.cur;
+        if (n > 0 && this.slots[n - 1].state === 'empty') { this.say('SLOT ' + n + ' IS EMPTY', now); this.menu = null; return null; }
+        this.menu = null; this.touch();
+        return { type: 'load', slot: n };
+      }
+      if (dn('CIRCLE')) { this.menu = { page: 'main', cur: 0 }; this.touch(); }
+      return null;
+    }
+    /* confirm: reset this slot's saved values */
+    if (dn('CROSS')) { this.menu = null; this.say('VALUES RESET', now); return { type: 'resetValues' }; }
+    if (dn('CIRCLE')) { this.menu = { page: 'main', cur: 1 }; this.touch(); }
+    return null;
+  };
+
+  /* ═════════════════════════════════════════ what the screen shows ══
+     compose(scriptLit, scriptVersion, now) -> { key, build(scriptFb), dark, what }
+     `key` changes exactly when the picture does, so the room redraws only
+     then. A lit script screen is handed back AS IT IS: nothing is drawn on
+     it. `dark` is the screen switched off (SCREEN: OFF) with no device
+     screen open. */
+  D.compose = function (scriptLit, scriptVer, now) {
+    var self = this;
+    if (this.flash && now >= this.flash.until) { this.flash = null; this.touch(); }
+    if (this.flash) { return { key: 'f' + this.ver, what: 'flash', dark: false, build: function () { return self.flashFb(); } }; }
+    if (this.menu) { return { key: 'm' + this.ver, what: 'menu', dark: false, build: function () { return self.menuFb(); } }; }
+    if (this.pairing) { return { key: 'p' + this.ver, what: 'pairing', dark: false, build: function () { return self.pairFb(); } }; }
+    var dark = this.bright === 3;
+    if (this.slot > 0 && scriptLit) {
+      return { key: 's' + scriptVer, what: 'script', dark: dark, build: function (fb) { return fb; } };
+    }
+    return { key: 'h' + this.ver, what: 'home', dark: dark, build: function () { return self.homeFb(); } };
+  };
+
+  var STATE_WORD = { ok: 'RUNNING', error: 'NEEDS A FIX', cannot: 'CAN\'T RUN', stopped: 'STOPPED', empty: 'EMPTY' };
+  /* the slot screen: SLOT and the controller across the top, the slot's
+     number large, a rule, then the script's name and how it is */
+  D.homeFb = function () {
+    var fb = blank(), s = this.slot;
+    text(fb, 'SLOT', 1, 0, 1, 'small');
+    var padw = this.pad ? 'PAD OK' : 'NO PAD';
+    text(fb, padw, W - width(padw) - 1, 0, 1, 'small');
+    centre(fb, s ? String(s) : 'OFF', 11, 1, 'large');
+    fill(fb, 0, 40, W, 1, 1);
+    if (!s) {
+      centre(fb, 'NO SCRIPT', 43, 1, 'small');
+      centre(fb, 'PASS-THROUGH', 53, 1, 'small');
+    } else {
+      var info = this.slots[s - 1] || { name: '', state: 'empty' };
+      centre(fb, fit(info.name || ('SCRIPT ' + s), 18), 43, 1, 'small');
+      centre(fb, STATE_WORD[info.state] || '', 53, 1, 'small');
+    }
+    return fb;
+  };
+  function titled(title) {
+    var fb = blank();
+    fill(fb, 0, 0, W, 11, 1);
+    text(fb, fit(title, 18), 1, 0, 0, 'small');
+    return fb;
+  }
+  /* rows under a title, the chosen one lit as a bar */
+  function rows(fb, list, cur) {
+    var first = Math.max(0, Math.min(cur - 2, list.length - ROWS));
+    for (var r = 0; r < ROWS && first + r < list.length; r++) {
+      var i = first + r, y = 12 + r * 10, sel = i === cur, L = list[i];
+      if (sel) { fill(fb, 0, y, W, 10, 1); }
+      text(fb, (sel ? '>' : ' ') + fit(L[0], L[1] ? 17 - L[1].length : 17), 0, y, !sel, 'small');
+      if (L[1]) { text(fb, L[1], W - width(L[1]) - 1, y, !sel, 'small'); }
+    }
+  }
+  D.menuFb = function () {
+    var m = this.menu, fb, list = [], i;
+    if (m.page === 'main') {
+      fb = titled('DEVICE MENU');
+      for (i = 0; i < MAIN.length; i++) { list.push([MAIN[i], MAIN[i] === 'SCREEN' ? BRIGHT[this.bright] : '']); }
+      rows(fb, list, m.cur);
+      return fb;
+    }
+    if (m.page === 'slots') {
+      fb = titled('SLOTS');
+      list.push(['0 OFF', this.slot === 0 ? '*' : '']);
+      for (i = 0; i < 8; i++) {
+        var sl = this.slots[i];
+        list.push([(i + 1) + ' ' + (sl.state === 'empty' ? '-EMPTY-' : (sl.name || 'SCRIPT ' + (i + 1))), this.slot === i + 1 ? '*' : '']);
+      }
+      rows(fb, list, m.cur);
+      return fb;
+    }
+    fb = titled('RESET VALUES?');
+    centre(fb, 'SLOT ' + this.slot, 15, 1, 'small');
+    centre(fb, this.family === 'xbox' ? 'A: YES' : 'CROSS: YES', 33, 1, 'small');
+    centre(fb, this.family === 'xbox' ? 'B: NO' : 'CIRCLE: NO', 45, 1, 'small');
+    return fb;
+  };
+  D.pairFb = function () {
+    var fb = titled('PAIRING');
+    var core = this.where === 'core';
+    centre(fb, core ? 'PLUG A CONTROLLER' : 'PAIR A CONTROLLER', 14, 1, 'small');
+    centre(fb, core ? 'INTO YOUR CORE,' : 'WITH THIS PHONE,', 25, 1, 'small');
+    centre(fb, 'THEN PRESS A', 39, 1, 'small');
+    centre(fb, 'BUTTON ON IT', 50, 1, 'small');
+    return fb;
+  };
+  D.flashFb = function () {
+    var fb = blank(), t = this.flash ? this.flash.text : '', words = t.split(' '), lines = [], cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (cur && (cur + ' ' + w).length > 10) { lines.push(cur); cur = w; } else { cur = cur ? cur + ' ' + w : w; }
+    }
+    if (cur) { lines.push(cur); }
+    lines = lines.slice(0, 3);
+    var y0 = Math.floor((H - lines.length * 18) / 2);
+    for (var j = 0; j < lines.length; j++) { centre(fb, lines[j], y0 + j * 18, 1, 'medium'); }
+    return fb;
+  };
+  /* in words, for a screen reader: the canvas's label */
+  D.describe = function (what) {
+    if (what === 'flash' && this.flash) { return 'Device screen: ' + this.flash.text.toLowerCase(); }
+    if (what === 'menu' && this.menu) {
+      if (this.menu.page === 'main') { return 'Device menu: ' + MAIN[this.menu.cur].toLowerCase() + ' chosen'; }
+      if (this.menu.page === 'slots') { return 'Device menu, slots: ' + (this.menu.cur ? 'slot ' + this.menu.cur : 'off') + ' chosen'; }
+      return 'Device menu: reset the saved values of slot ' + this.slot + '?';
+    }
+    if (what === 'pairing') {
+      return this.where === 'core' ? 'Device screen: pairing. Plug a controller into your Core, then press a button on it.'
+        : 'Device screen: pairing. Pair a controller with this phone, then press a button on it.';
+    }
+    if (what === 'script') { return 'The script’s screen'; }
+    if (!this.slot) { return 'Device screen: off, no script, the controller passes through'; }
+    var info = this.slots[this.slot - 1];
+    return 'Device screen: slot ' + this.slot + (info && info.name ? ', ' + info.name : '') +
+      (info ? ', ' + (STATE_WORD[info.state] || '').toLowerCase() : '');
+  };
+
+  window.ZSGPCDEV = {
+    W: W, H: H,
+    oled: { blank: blank, pixel: pixel, px: px, fill: fill, text: text, width: width, centre: centre, lit: lit, fit: fit,
+            SIZE: SIZE },
+    nextSlot: nextSlot,
+    Device: Device
+  };
+}());

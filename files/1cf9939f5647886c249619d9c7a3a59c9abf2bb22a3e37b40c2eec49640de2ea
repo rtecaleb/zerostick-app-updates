@@ -1,0 +1,1040 @@
+/* xim-import.js - "Copy your XIM settings in": the PURE half, window.ZSXIM.
+ *
+ * A player who owns an XIM (MATRIX, APEX or NEXUS) types the numbers from
+ * their XIM app into a screen laid out like XIM's Aim Settings
+ * (xim-import-screen.js, the `ximimport` screen). This file holds everything
+ * that screen decides, with no DOM, so dashboard/tools/test-xim-import.js
+ * runs it in Node:
+ *
+ *   defaults(mt)          the form, filled in from this config's own numbers
+ *                         (so a field left alone changes nothing) and XIM's
+ *                         published starting values where it has them
+ *   validate(form)        every visible number checked against its range,
+ *                         one plain sentence per bad field
+ *   preview(form, ctx)    every XIM field -> what it becomes here, with an
+ *                         honest label (Same / Close / Not available) and the
+ *                         exact config writes it makes; nothing else is ever
+ *                         written
+ *   applyWrites(doc, w)   makes those writes on a config document and returns
+ *                         what they replaced, so undo(doc, list) puts it back
+ *   looksLikeShareCode(t) true when pasted text is an XIM share code
+ *   fromShareCode(t, mt)  a pasted code's numbers in the form, with a report
+ *                         of what was filled, not copied and not read
+ *   applyPreset(form, id) a typical starting point into the form
+ *
+ * The mapping is docs/GPC-XIM-IMPORT-ASSESSMENT.md section 2.4, ROUTE A ONLY
+ * (the player types their own numbers). See docs/XIM-IMPORT.md.
+ *
+ * Since D189 and D191 the Core has real homes for three XIM fields that
+ * used to land nowhere, and they are written there now:
+ *   - Smoothing STANDARD | CLASSIC (D191): Standard's Precision / Response /
+ *     Easing on the 0-100% scale the Aim page shows (Precision = smoothing /
+ *     0.95), Classic's Smooth / Decay / Synch as classicSmooth / Decay /
+ *     Synch (and the ads* twins), with smoothingStyle naming which;
+ *   - QUANTIZATION, Magnitude and Angle, per stance (D189, section 0x0026):
+ *     quantMagnitude / quantAngle (and adsQuant*), 0..1 for XIM's 0..100;
+ *   - the CURVE (D189): our editor is XIM's kind now (2 to 16 handles), so
+ *     the handles copy across as they are, stored the way the editor stores
+ *     them (seven numbers or { v: 2, h, s }).
+ * An adapter without them (an EXO: PRODUCTS.exo.lacks 'classicSmoothing',
+ * 'aimXim') keeps the old answer, "Not available", and writes nothing:
+ * preview(form, { hides }) is told which.
+ *
+ * SHARE CODES (route B, docs/XIM-SHARE-CODE.md): fromShareCode() hands a
+ * pasted code to xim-share-code.js (ZSXIMCODE), which reads the few mouse-aim
+ * fields the public samples confirm, and puts them INTO THE FORM. Nothing is
+ * applied from a code: the player sees the form and the preview, with its
+ * labels, and taps Apply. A number this app cannot hold is reported and left
+ * alone, never guessed; the code's text is not kept. Nothing here talks to
+ * XIM's servers or Config Cloud.
+ *
+ * TYPICAL STARTING POINTS (PRESETS, applyPreset) and the screenshot guide
+ * (SCREENSHOT_HELP) come from docs/XIM-PUBLIC-CONFIGS.md: typical community
+ * values, said to be exactly that, never XIM's official data.
+ *
+ * Wording (D76): "copy your XIM settings in", never "XIM compatible", and no
+ * XIM logos anywhere.
+ *
+ * ES5 ONLY, like every file phone.html loads (docs/DESIGN.md).
+ */
+(function (root) {
+  'use strict';
+
+  /* ── XIM's ranges ─────────────────────────────────────────────────────
+     XIM's own guide (https://guide.xim.tech/Aim-Settings/, read 2026-10-02)
+     names every field below and gives units, but publishes NO numeric range
+     for any of them. The only numbers it states are Synch's ("8=Default,
+     16=Common, 32=Slow, 0=Off") and the Quantization starting point ("set
+     Magnitude to 25 and Angle to 25"). So:
+       - where a field lands on one of OUR fields, the range is what that
+         field can hold (the app's own range, else profiles/schema.py), so
+         every number accepted here can be applied;
+       - Classic smoothing and Quantization have homes since D191 / D189,
+         so their ranges are those homes' ranges: Smooth 0-100, Decay 0-20,
+         Synch 0-64 ms (the Aim page's Classic steppers), Magnitude and
+         Angle 0-100% (the Aim page's Quantization).
+     Precision, Response and Easing are 0-100% with one decimal, the way the
+     Aim page's Custom smoothing shows them since D191 (XIM's own example is
+     67.5 / 55.0 / 42.5). Stability stays 0-100, unconfirmed against XIM's
+     app. */
+  var R = {
+    cm360:     { min: 5,   max: 200, step: 1,    dp: 2, unit: 'cm/360',
+                 why: '5 is the fastest this app can set (Speed 100).' },
+    yScale:    { min: 0.1, max: 5,   step: 0.05, dp: 2, unit: '',
+                 why: '1.00 means up and down match left and right.' },
+    precision: { min: 0, max: 100, step: 0.5, dp: 1, unit: '%' },
+    response:  { min: 0, max: 100, step: 0.5, dp: 1, unit: '%' },
+    easing:    { min: 0, max: 100, step: 0.5, dp: 1, unit: '%' },
+    stability: { min: 0, max: 100, step: 5, dp: 1, unit: '' },
+    /* XIM stores Smooth and Synch as whole numbers and Decay in tenths
+       (docs/XIM-SHARE-CODE.md); public configs use Smooth 0-50, Decay 0-9.0
+       and Synch 0-50 (docs/XIM-PUBLIC-CONFIGS.md), so the steps are 1 / 0.5
+       / 1 and every value seen is reachable with the keys */
+    smooth:    { min: 0, max: 100, step: 1, dp: 1, unit: '' },
+    decay:     { min: 0, max: 20,  step: 0.5, dp: 1, unit: '',
+                 why: 'XIM APEX uses 9.0.' },
+    synch:     { min: 0, max: 64,  step: 1, dp: 0, unit: 'ms',
+                 why: 'XIM: 8 = default, 16 = common, 32 = slow, 0 = off.' },
+    innerDz:   { min: 0, max: 90,  step: 1, dp: 1, unit: '%' },
+    outerDz:   { min: 10, max: 100, step: 1, dp: 1, unit: '%' },
+    axialDz:   { min: 0, max: 90,  step: 1, dp: 1, unit: '%' },
+    quantMag:  { min: 0, max: 100, step: 5, dp: 1, unit: '%' },
+    quantAngle:{ min: 0, max: 100, step: 5, dp: 1, unit: '%' }
+  };
+  /* D191: Precision % = smoothing / 0.95, so 1% of Precision was 0.0095.
+     D392: smoothing / 0.90 (1% = 0.009), the Aim page's new scale: the 1 euro
+     filter has done all it can by 0.90 (docs/MOUSE-AUDIT.md), so the whole
+     slider now does something */
+  var PRECISION_UNIT = 0.009;
+  /* D191's Classic starting point on the Aim page (CLASSIC_SEED in
+     phone-sections.js): a light Smooth on XIM APEX's own Decay 9.0 and its
+     Default Synch 8 */
+  var CLASSIC_SEED = { smooth: 20, decay: 9, synch: 8 };
+  /* what the Core runs for a Classic number that is not stored (zs_profile
+     defaults; smClassicFromValues in phone-sections.js reads them the same) */
+  var CLASSIC_CORE = { smooth: 0, decay: 9, synch: 0 };
+
+  var DEVICES = [
+    { id: 'matrix', name: 'XIM MATRIX' },
+    { id: 'apex', name: 'XIM APEX' },
+    { id: 'nexus', name: 'XIM NEXUS' }
+  ];
+  /* XIM's own three choices, in XIM's own words (guide, "Aim Settings
+     Inheritance"): Inherit All is XIM's default */
+  var INHERIT = [
+    { id: 'all', name: 'Inherit All', line: 'Aim down sight uses everything from Hip.' },
+    { id: 'sens', name: 'Sensitivity Only', line: 'Aim down sight has its own sensitivity. Everything else comes from Hip.' },
+    { id: 'none', name: 'Inherit Nothing', line: 'Aim down sight has its own sensitivity, smoothing and curve.' }
+  ];
+  var LABELS = { same: 'Same', close: 'Close', none: 'Not available' };
+  /* said when a code is pasted but this build has no reader (ZSXIMCODE) */
+  var SHARE_CODE_MESSAGE = 'That looks like an XIM share code, but this app can’t read share codes. ' +
+    'Please type the numbers from your XIM app into this screen instead. Nothing from the code was kept.';
+  var APPROX = 'Feel is approximate for this game.';
+
+  /* ── small helpers ─────────────────────────────────────────────────── */
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function isObj(v) { return !!v && typeof v === 'object' && Object.prototype.toString.call(v) !== '[object Array]'; }
+  function isArr(v) { return Object.prototype.toString.call(v) === '[object Array]'; }
+  function rnd(v, dp) { var f = Math.pow(10, dp); return Math.round(v * f) / f; }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function curveLib() { return root.ZSCURVE || null; }
+  function trimNum(v, dp) {
+    var s = String(rnd(v, dp === undefined ? 2 : dp));
+    return s;
+  }
+
+  /* A typed number: "34", "34.5", "34,5" (a decimal comma), with spaces.
+     Returns the number, or null when it is not one. */
+  function parseNum(v) {
+    if (isNum(v)) { return v; }
+    if (typeof v !== 'string') { return null; }
+    var s = v.replace(/\s+/g, '').replace(/%$/, '');
+    if (/^-?\d+,\d+$/.test(s)) { s = s.replace(',', '.'); }
+    if (!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) { return null; }
+    var n = parseFloat(s);
+    return isFinite(n) ? n : null;
+  }
+  /* Y Scale may be typed as a multiplier (1.00) or, if someone reads it as a
+     percent, as 100. Over 10 is read as a percent and said so; between 5 and
+     10 is neither and is refused. */
+  function readYScale(v) {
+    var n = parseNum(v);
+    if (n === null) { return { value: null }; }
+    if (n > 10 && n <= 500) { return { value: rnd(n / 100, 4), percent: true }; }
+    return { value: n };
+  }
+
+  function rangeError(key) {
+    var r = R[key];
+    return 'Type a number from ' + trimNum(r.min) + ' to ' + trimNum(r.max) + '.' + (r.why ? ' ' + r.why : '');
+  }
+
+  /* Classic's MEAN LAG in ms: the closed form of docs/SMOOTHING.md, the same
+     one the Aim page shows under Classic (phone-sections.js classicLagMs) and
+     the Core computes (zs_classic_mean_lag_s). */
+  function classicLagMs(sm, dc, sy) {
+    var t = 2 * clamp(+sm || 0, 0, 100);
+    var d = clamp(isNum(dc) ? dc : 9, 0, 20);
+    var y = clamp(+sy || 0, 0, 64);
+    var lag = d < 1e-3 ? t / 2 : t * (1 / d - Math.exp(-d) / (1 - Math.exp(-d)));
+    return lag + y / 2;
+  }
+
+  /* ── the form ──────────────────────────────────────────────────────── */
+  /* A config with no Speed starts on 35 cm/360: what an untouched XIM MATRIX
+     config holds (7 of the 38 readable public codes carry it with XIM's
+     untouched smoothing, docs/XIM-PUBLIC-CONFIGS.md). */
+  var FRESH_CM360 = 35;
+  function stanceDefaults() {
+    return { cm360: FRESH_CM360, smoothing: 'standard', precision: 0, response: 10, easing: 30, stability: 0,
+             smooth: CLASSIC_SEED.smooth, decay: CLASSIC_SEED.decay, synch: CLASSIC_SEED.synch,
+             curve: 'linear', grid: null, curveFromConfig: false,
+             quant: { on: false, magnitude: 25, angle: 25 } };
+  }
+  function said(v) { return v !== undefined && v !== null; }
+  /* a stored quantization pair (0..1 each) as the form's { on, magnitude, angle } */
+  function quantOf(mag, ang) {
+    var m = isNum(mag) ? mag : 0, a = isNum(ang) ? ang : 0;
+    if (m <= 0 && a <= 0) { return { on: false, magnitude: 25, angle: 25 }; }
+    return { on: true, magnitude: rnd(clamp(m * 100, 0, 100), 1), angle: rnd(clamp(a * 100, 0, 100), 1) };
+  }
+
+  /* This config's curve as the form shows it: 'linear', or a drawn grid. */
+  function curveOf(kind, strength, points, grid) {
+    var C = curveLib();
+    if (kind === 'linear' || !C) { return { curve: 'linear', grid: null }; }
+    var g = (kind === 'piecewise' && C.gridOf(grid)) || C.fromCurve(kind, strength, points);
+    if (C.presetOf(g) === 'linear') { return { curve: 'linear', grid: null }; }
+    return { curve: 'custom', grid: g };
+  }
+
+  /* THE PREFILL. Every field that has an exact way back from this config
+     starts on this config's own number, so a field the player leaves alone
+     changes nothing. Where there is no way back, XIM's own published
+     starting values: Inherit All, Synch 8, Quantization off at 25 / 25.
+     Sensitivity with none set here starts on 35 cm/360, the number an
+     untouched XIM MATRIX config carries (FRESH_CM360). */
+  function defaults(mt) {
+    mt = isObj(mt) ? mt : {};
+    var hip = stanceDefaults(), ads = stanceDefaults();
+    if (isNum(mt.cm360) && mt.cm360 > 0) { hip.cm360 = rnd(clamp(mt.cm360, R.cm360.min, R.cm360.max), 2); }
+    ads.cm360 = (isNum(mt.adsCm360) && mt.adsCm360 > 0) ? rnd(clamp(mt.adsCm360, R.cm360.min, R.cm360.max), 2) : hip.cm360;
+    /* D191's scale: Precision % = smoothing / 0.95 */
+    if (isNum(mt.smoothing)) { hip.precision = rnd(clamp(mt.smoothing / PRECISION_UNIT, 0, 100), 1); }
+    if (isNum(mt.oneEuroBeta)) { hip.response = rnd(clamp(mt.oneEuroBeta * 10, 0, 100), 1); }
+    if (isNum(mt.smoothingEasing)) { hip.easing = rnd(clamp(mt.smoothingEasing * 100, 0, 100), 1); }
+    if (isNum(mt.steadyAim)) { hip.stability = rnd(clamp(mt.steadyAim * 1000, 0, 100), 1); }
+    ads.precision = said(mt.adsSmoothing) ? rnd(clamp(mt.adsSmoothing / PRECISION_UNIT, 0, 100), 1) : hip.precision;
+    ads.response = said(mt.adsOneEuroBeta) ? rnd(clamp(mt.adsOneEuroBeta * 10, 0, 100), 1) : hip.response;
+    ads.easing = said(mt.adsSmoothingEasing) ? rnd(clamp(mt.adsSmoothingEasing * 100, 0, 100), 1) : hip.easing;
+    ads.stability = hip.stability;
+    /* D191: the style each stance runs (ADS's own, else hip's, as the Core
+       resolves it) and Classic's three numbers, else the Aim page's seed */
+    hip.smoothing = mt.smoothingStyle === 'classic' ? 'classic' : 'standard';
+    ads.smoothing = said(mt.adsSmoothingStyle) ? (mt.adsSmoothingStyle === 'classic' ? 'classic' : 'standard') : hip.smoothing;
+    /* A stance that RUNS Classic reads a missing number as the Core's
+       default (Smooth 0, Decay 9, Synch 0), because that is what it runs; a
+       Standard stance shows the seed, ready for a switch to Classic. */
+    ['Smooth', 'Decay', 'Synch'].forEach(function (n) {
+      var k = n.toLowerCase(), r = R[k];
+      var hipNow = isNum(mt['classic' + n]) ? mt['classic' + n] : null;
+      if (hipNow !== null) { hip[k] = rnd(clamp(hipNow, r.min, r.max), r.dp); }
+      else if (hip.smoothing === 'classic') { hip[k] = CLASSIC_CORE[k]; }
+      var adsNow = isNum(mt['adsClassic' + n]) ? mt['adsClassic' + n] : hipNow;
+      if (adsNow !== null) { ads[k] = rnd(clamp(adsNow, r.min, r.max), r.dp); }
+      else { ads[k] = ads.smoothing === 'classic' ? CLASSIC_CORE[k] : CLASSIC_SEED[k]; }
+    });
+    /* D392: frame sync lives in Sync to game now; with no Classic Synch of
+       its own, a stance reads Sync to game's back as XIM's ms (120 = 8,
+       60 = 16), so a form left alone writes nothing */
+    if (isNum(mt.syncHz) && mt.syncHz > 0) {
+      var syMs = mt.syncHz >= 100 ? 8 : 16;
+      if (!(isNum(mt.classicSynch) && mt.classicSynch > 0)) { hip.synch = syMs; }
+      if (!(isNum(mt.adsClassicSynch) && mt.adsClassicSynch > 0) &&
+          !(isNum(mt.classicSynch) && mt.classicSynch > 0)) { ads.synch = syMs; }
+    }
+    /* D189: Quantization, per stance; an ADS pair that is null is hip's */
+    hip.quant = quantOf(mt.quantMagnitude, mt.quantAngle);
+    ads.quant = (said(mt.adsQuantMagnitude) || said(mt.adsQuantAngle))
+      ? quantOf(said(mt.adsQuantMagnitude) ? mt.adsQuantMagnitude : mt.quantMagnitude,
+                said(mt.adsQuantAngle) ? mt.adsQuantAngle : mt.quantAngle)
+      : clone(hip.quant);
+    var hc = curveOf(mt.curve || 'linear', mt.curveStrength, mt.curvePoints, mt.curveGrid);
+    hip.curve = hc.curve; hip.grid = hc.grid; hip.curveFromConfig = true;
+    if (said(mt.adsCurve)) {
+      var ac = curveOf(mt.adsCurve, said(mt.adsCurveStrength) ? mt.adsCurveStrength : 1, mt.adsCurvePoints, null);
+      ads.curve = ac.curve; ads.grid = ac.grid; ads.curveFromConfig = true;
+    } else {
+      /* ADS rides hip's curve (null). Untouched, it stays that way: the
+         curve row says "kept as it is" and writes nothing */
+      ads.curve = hip.curve; ads.grid = hip.grid ? clone(hip.grid) : null; ads.curveFromConfig = true;
+    }
+    var ownSmooth = ADS_OWN_KEYS.some(function (k) { return said(mt[k]); });
+    var inherit = ownSmooth ? 'none' : ((isNum(mt.adsCm360) && mt.adsCm360 > 0) ? 'sens' : 'all');
+    var inner = isNum(mt.innerDeadzone) ? rnd(clamp(mt.innerDeadzone * 100, 0, 90), 1) : 0;
+    return {
+      device: 'matrix',
+      inherit: inherit,
+      hip: hip,
+      ads: ads,
+      yScale: isNum(mt.yxRatio) ? rnd(clamp(mt.yxRatio, R.yScale.min, R.yScale.max), 2) : 1,
+      innerDz: inner,
+      outerDz: isNum(mt.outerDeadzone) ? rnd(clamp(mt.outerDeadzone * 100, 10, 100), 1) : 100,
+      /* there is no axial SIZE here, only the shape; an axial config reads
+         back as its inner size along the axes */
+      axialDz: mt.deadzoneMode === 'axial' ? inner : 0
+    };
+  }
+  /* The ADS fields that say "Aim down sight has something of its own"
+     besides its speed: the smoothing (D191's seven), the curve and the
+     quantization (D189). All null = XIM's Inherit All / Sensitivity Only. */
+  var ADS_SMOOTH_KEYS = ['adsSmoothing', 'adsOneEuroBeta', 'adsSmoothingEasing',
+    'adsSmoothingStyle', 'adsClassicSmooth', 'adsClassicDecay', 'adsClassicSynch'];
+  var ADS_OWN_KEYS = ADS_SMOOTH_KEYS.concat(['adsCurve', 'adsQuantMagnitude', 'adsQuantAngle']);
+
+  /* XIM APEX's smoothing IS Classic (XIM's guide: Classic's "values match
+     XIM APEX behavior"); MATRIX and NEXUS start on Standard. */
+  function setDevice(form, id) {
+    var ok = false, i;
+    for (i = 0; i < DEVICES.length; i++) { if (DEVICES[i].id === id) { ok = true; } }
+    if (!ok) { return form; }
+    form.device = id;
+    var mode = id === 'apex' ? 'classic' : 'standard';
+    form.hip.smoothing = mode;
+    form.ads.smoothing = mode;
+    return form;
+  }
+
+  /* ── validation ────────────────────────────────────────────────────── */
+  /* The fields a form shows, as [errorKey, value, rangeKey]. A field the
+     form hides (ADS under Inherit All, Classic's three under Standard) is
+     not checked: it is not shown and will not be copied. */
+  function visible(form) {
+    var out = [];
+    function stance(s, name, own) {
+      if (own.sens) { out.push([name + '.cm360', s.cm360, 'cm360']); }
+      if (!own.smooth) { return; }
+      if (s.smoothing === 'classic') {
+        out.push([name + '.smooth', s.smooth, 'smooth'], [name + '.decay', s.decay, 'decay'],
+                 [name + '.synch', s.synch, 'synch']);
+      } else {
+        out.push([name + '.precision', s.precision, 'precision'], [name + '.response', s.response, 'response'],
+                 [name + '.easing', s.easing, 'easing'], [name + '.stability', s.stability, 'stability']);
+      }
+      if (s.quant && s.quant.on) {
+        out.push([name + '.quant.magnitude', s.quant.magnitude, 'quantMag'], [name + '.quant.angle', s.quant.angle, 'quantAngle']);
+      }
+    }
+    stance(form.hip, 'hip', { sens: true, smooth: true });
+    stance(form.ads, 'ads', { sens: form.inherit !== 'all', smooth: form.inherit === 'none' });
+    out.push(['yScale', form.yScale, 'yScale'], ['innerDz', form.innerDz, 'innerDz'],
+             ['outerDz', form.outerDz, 'outerDz'], ['axialDz', form.axialDz, 'axialDz']);
+    return out;
+  }
+  function validate(form) {
+    var errors = {}, n = 0;
+    visible(form).forEach(function (f) {
+      var key = f[0], r = R[f[2]], v;
+      if (f[2] === 'yScale') {
+        var y = readYScale(f[1]);
+        v = y.value;
+      } else {
+        v = parseNum(f[1]);
+      }
+      if (v === null) { errors[key] = 'Type a number here. ' + rangeError(f[2]); n++; return; }
+      if (v < r.min || v > r.max) { errors[key] = rangeError(f[2]); n++; }
+    });
+    var inner = parseNum(form.innerDz), outer = parseNum(form.outerDz);
+    if (!errors.outerDz && !errors.innerDz && inner !== null && outer !== null && outer <= inner) {
+      errors.outerDz = 'The outer dead zone has to be bigger than the inner one.';
+      n++;
+    }
+    return { ok: n === 0, count: n, errors: errors };
+  }
+
+  /* ── describing a value of OURS, for the preview ───────────────────── */
+  function speedOf(cm) { return rnd(500 / cm, 1); }   /* the Aim page's Speed (phone-sections.js) */
+  function pct(v, dp) { return trimNum(v * 100, dp === undefined ? 0 : dp) + '%'; }
+  function describe(path, v) {
+    var key = path.replace(/^mouseTranslation\./, '');
+    if (v === undefined) { return 'not set yet'; }
+    if (v === null) { return 'same as hip'; }
+    switch (key) {
+      case 'cm360':
+      case 'adsCm360':
+        if (!isNum(v) || v <= 0) { return key === 'adsCm360' ? 'same as hip' : 'standard speed'; }
+        return 'Speed ' + speedOf(v) + ' (' + trimNum(v, 2) + ' cm per full turn)';
+      case 'yxRatio': return pct(v);
+      case 'smoothing': case 'adsSmoothing': return 'Precision ' + trimNum(v / PRECISION_UNIT, 1) + '%';
+      case 'smoothingStyle': case 'adsSmoothingStyle':
+        return v === 'classic' ? 'Classic smoothing' : 'Standard smoothing';
+      case 'classicSmooth': case 'adsClassicSmooth': return 'Smooth ' + trimNum(v, 1);
+      case 'classicDecay': case 'adsClassicDecay': return 'Decay ' + trimNum(v, 1);
+      case 'classicSynch': case 'adsClassicSynch': return 'Synch ' + trimNum(v, 0) + ' ms';
+      case 'syncHz': return isNum(v) && v > 0 ? 'Sync to game ' + trimNum(v, 0) : 'Sync to game Off';
+      case 'quantMagnitude': case 'adsQuantMagnitude': return 'Magnitude ' + pct(v, 1);
+      case 'quantAngle': case 'adsQuantAngle': return 'Angle ' + pct(v, 1);
+      case 'oneEuroBeta': case 'adsOneEuroBeta': return 'Response ' + trimNum(v * 10, 1) + '%';
+      case 'smoothingEasing': case 'adsSmoothingEasing': return 'Easing ' + pct(v);
+      case 'smoothingMode': return v === 'ema' ? 'the old steady filter' : 'the steadying filter (1€)';
+      case 'steadyAim': return v > 0 ? 'Steady Aim ' + pct(v, 1) + ' of full speed' : 'Steady Aim off';
+      case 'innerDeadzone': return pct(v, 1);
+      case 'outerDeadzone': return pct(v, 1);
+      case 'deadzoneMode': return v === 'axial' ? 'along the axes' : 'round';
+      case 'curve': case 'adsCurve':
+        return v === 'linear' ? 'straight' : v === 'piecewise' ? 'your own curve' : v;
+      default: return isNum(v) ? trimNum(v, 3) : String(v);
+    }
+  }
+
+  function same(a, b) {
+    if (isNum(a) && isNum(b)) { return Math.abs(a - b) <= 1e-6; }
+    /* null and absent both mean "inherit hip" (schema v6) / "not set" */
+    if (a === undefined || a === null || b === undefined || b === null) {
+      return (a === undefined || a === null) && (b === undefined || b === null);
+    }
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  function getPath(doc, path) {
+    var parts = path.split('.'), o = doc, i;
+    for (i = 0; i < parts.length; i++) {
+      if (!isObj(o) || !Object.prototype.hasOwnProperty.call(o, parts[i])) { return undefined; }
+      o = o[parts[i]];
+    }
+    return o;
+  }
+
+  /* ── THE MAPPING (assessment section 2.4) ──────────────────────────── */
+  /* A config runs a MEASURED game translator: one Calibrate (or a pack's
+     measured model) wrote, so a cm/360 here turns the game the distance it
+     says. Anything else is the standard map or a model from published
+     settings, and the feel is approximate. */
+  function isMeasured(mt) {
+    var r = isObj(mt) ? mt.resolvedAimModel : null;
+    return !!(isObj(r) && r.generic !== true && r.needsCalibration === false && isObj(r.hip));
+  }
+
+  var MT = 'mouseTranslation.';
+  /* AIM-section floats whose absent value is 0 on the wire AND whose 0 is
+     their own default ("off" / "inherit"): cm360, adsCm360, steadyAim,
+     smoothing, innerDeadzone; and D189's quantization pair (absent = off) */
+  var ZERO_WHEN_ABSENT = { cm360: 1, adsCm360: 1, steadyAim: 1, smoothing: 1, innerDeadzone: 1,
+                           quantMagnitude: 1, quantAngle: 1 };
+  /* D191: a hip style never named is Standard (the filter every config ran
+     before), so naming it 'standard' would be a change for nothing */
+  var DEFAULT_WHEN_ABSENT = { smoothingStyle: 'standard',
+    /* and Classic's three, as the Core runs them when they are not stored */
+    classicSmooth: CLASSIC_CORE.smooth, classicDecay: CLASSIC_CORE.decay, classicSynch: CLASSIC_CORE.synch };
+  function W(field, value) { return { path: MT + field, value: value }; }
+
+  function curveWrites(s, ads, mt) {
+    var C = curveLib();
+    /* the editor hands back its STORED shape: seven numbers, or since D189
+       { v: 2, h: [[x, y]...], s: [...] } once a handle was added, removed,
+       moved across or a segment straightened. gridOf() takes both. */
+    var g = (C && s.grid) ? C.gridOf(s.grid) : null;
+    var straight = s.curve !== 'custom' || !C || !g || C.presetOf(g) === 'linear';
+    if (ads) {
+      return straight
+        ? [W('adsCurve', 'linear'), W('adsCurveStrength', 1), W('adsCurvePoints', [])]
+        : [W('adsCurve', 'piecewise'), W('adsCurveStrength', 1), W('adsCurvePoints', C.sample(g))];
+    }
+    /* the hip curve is written exactly as the Translation tab's Speed curve
+       writes it: piecewise + the sampled points + the editor's own stored
+       shape in curveGrid, or linear with both removed */
+    if (!straight) {
+      return [W('curve', 'piecewise'), W('curvePoints', C.sample(g)), W('curveGrid', g)];
+    }
+    /* straight: a linear curve ignores its points, so they are only
+       cleared when there are some (an empty list and none are the same
+       curve, and rewriting one as the other would be a change for nothing) */
+    var out = [W('curve', 'linear')];
+    if (isArr(mt.curvePoints) && mt.curvePoints.length) { out.push(W('curvePoints', undefined)); }
+    if (mt.curveGrid !== undefined) { out.push(W('curveGrid', undefined)); }
+    return out;
+  }
+  /* how many handles a drawn curve has, ends included (for the row's words) */
+  function handleCount(grid) {
+    var C = curveLib(), m = (C && grid && C.handlesOf) ? C.handlesOf(C.gridOf(grid)) : null;
+    return m ? m.h.length : 0;
+  }
+
+  function preview(form, ctx) {
+    ctx = ctx || {};
+    var v = validate(form);
+    if (!v.ok) { return { ok: false, errors: v.errors, count: v.count }; }
+    var mt = isObj(ctx.mt) ? ctx.mt : {};
+    var cur = { mouseTranslation: mt };
+    /* What this adapter can run. The Core runs everything; an EXO (the A7S
+       agent) lacks D191's Classic filter and D189's quantization
+       (PRODUCTS.exo.lacks), and is told so instead of being written to. */
+    function hides(name) { return typeof ctx.hides === 'function' ? !!ctx.hides(name) : false; }
+    var classicOK = !hides('classicSmoothing');
+    var quantOK = !hides('aimXim');
+    /* what a field holds now. An absent number the encoders send as 0
+       (zs-profile-encode.js writeAim) IS 0, so writing 0 there is no change */
+    function nowOf(path) {
+      var key = path.replace(/^mouseTranslation\./, '');
+      var v = getPath(cur, path);
+      if (v === undefined && ZERO_WHEN_ABSENT[key]) { return 0; }
+      if (v === undefined && DEFAULT_WHEN_ABSENT[key] !== undefined) { return DEFAULT_WHEN_ABSENT[key]; }
+      return v;
+    }
+    /* An ADS field whose null means "hip's" (D189 / D191): when the config
+       has none of its own and the value IS what hip is being given, it is
+       left absent rather than written as a copy of hip's. */
+    function adsW(field, value, hipValue) {
+      var had = getPath(cur, MT + field);
+      if ((had === undefined || had === null) && same(value, hipValue)) { return W(field, undefined); }
+      return W(field, value);
+    }
+    var measured = isMeasured(mt);
+    var rows = [];
+    var num = parseNum;
+    var feelLabel = measured ? 'same' : 'close';
+    var feelNote = measured ? '' : ' ' + APPROX;
+
+    /* One XIM field. `writes` are what it becomes here; a write that would
+       leave the config as it is is dropped, so Apply sends exactly the
+       changes this row shows, and a row with none says "no change".
+       `ours` / `nowText` override the words drawn from the first write. */
+    function row(group, xim, given, label, note, writes, ours, nowText) {
+      writes = writes || [];
+      var head = writes[0];
+      var changes = writes.filter(function (w) { return !same(nowOf(w.path), w.value); });
+      var r = {
+        group: group, xim: xim, given: given, label: label, labelText: LABELS[label],
+        note: note || '', writes: changes, changed: changes.length > 0,
+        ours: ours || (head ? describe(head.path, head.value) : ''),
+        now: nowText || (head ? describe(head.path, nowOf(head.path)) : '')
+      };
+      rows.push(r);
+      return r;
+    }
+
+    /* Sensitivity */
+    var hipCm = rnd(num(form.hip.cm360), 2);
+    row('Hip Aim', 'Sensitivity', trimNum(hipCm, 2) + ' cm/360', feelLabel,
+      'Same unit: centimetres of mouse travel for one full turn. Shown here as Speed.' + feelNote,
+      [W('cm360', hipCm)]);
+
+    /* the smoothing of one stance (D191: Standard | Classic) */
+    var hipStyle = (form.hip.smoothing === 'classic' && classicOK) ? 'classic' : 'standard';
+    /* hip's Classic number after Apply: the form's when hip is Classic (it
+       is written), else what hip holds now */
+    /* Standard's three: XIM's % to our field (D191), keeping the stored
+       value when it already reads as the typed number */
+    var STD = { smoothing: [PRECISION_UNIT, 5], oneEuroBeta: [0.1, 4], smoothingEasing: [0.01, 4] };
+    function stdOf(field, typed, stored) {
+      if (isNum(stored) && Math.abs(stored / STD[field][0] - typed) < 0.05) { return stored; }
+      return rnd(typed * STD[field][0], STD[field][1]);
+    }
+    /* hip's Standard number after Apply: the form's when hip is Standard
+       (it is written), else what hip holds now */
+    function hipStd(field) {
+      var typed = { smoothing: form.hip.precision, oneEuroBeta: form.hip.response, smoothingEasing: form.hip.easing }[field];
+      if (hipStyle === 'standard') { return stdOf(field, num(typed), nowOf(MT + field)); }
+      return nowOf(MT + field);
+    }
+    function hipClassic(n) {
+      if (hipStyle === 'classic') {
+        var v = num(form.hip[n.toLowerCase()]);
+        return n === 'Synch' ? Math.round(v) : rnd(v, 2);
+      }
+      return nowOf(MT + 'classic' + n);
+    }
+    /* D392: XIM's Synch (ms) as Sync to game's choices: 0 is Off, up to
+       12 ms is 120 a second (XIM's Default 8), longer is 60 (its 16 and 32;
+       the Translation page offers no slower one) */
+    function syncHzOf(ms) { return !(ms > 0) ? 0 : (ms <= 12 ? 120 : 60); }
+    function nowSyncHz() { var v = nowOf(MT + 'syncHz'); return isNum(v) && v > 0 ? v : 0; }
+    function smoothingRows(s, ads) {
+      var g = ads ? 'Aim Down Sight' : 'Hip Aim';
+      var pre = ads ? 'ads' : '';
+      function f(name) { return pre ? pre + name.charAt(0).toUpperCase() + name.slice(1) : name; }
+      if (s.smoothing === 'classic' && !classicOK) {
+        ['Smooth', 'Decay', 'Synch'].forEach(function (n) {
+          row(g, 'Classic smoothing: ' + n, trimNum(num(s[n.toLowerCase()]), 2), 'none',
+            'This adapter has no Classic smoothing (the ZeroStick Core has it). ' +
+            (ads ? 'Aim down sight smoothing' : 'Your smoothing') + ' here stays as it is.', [], 'nothing copied');
+        });
+        return;
+      }
+      var style = s.smoothing === 'classic' ? 'classic' : 'standard';
+      /* One of Standard's three, typed as XIM's 0-100%. The form shows one
+         decimal, so a number that still READS as what is stored (15.8 for a
+         stored 0.15) keeps the stored value: a field left alone changes
+         nothing. An ADS number left absent follows hip's (the Core overlays
+         ADS on hip), so it is only written when it differs from hip's. */
+      function sw(field, typed) {
+        var path = ads ? f(field) : field;
+        var stored = nowOf(MT + path);
+        if (ads && !isNum(stored)) { stored = hipStd(field); }   /* what ADS runs now: hip's */
+        var v = stdOf(field, typed, stored);
+        if (!ads) { return W(field, v); }
+        return adsW(path, v, hipStd(field));
+      }
+      var styleW = ads ? adsW('adsSmoothingStyle', style, hipStyle) : W('smoothingStyle', style);
+      /* the style this stance runs now: ADS's own, else hip's (as the Core resolves it) */
+      var nowStyle = describe(MT + 'smoothingStyle', (ads && said(mt.adsSmoothingStyle)) ? mt.adsSmoothingStyle : nowOf(MT + 'smoothingStyle'));
+      if (style === 'classic') {
+        var sm = num(s.smooth), dc = num(s.decay), sy = num(s.synch);
+        var lag = rnd(classicLagMs(sm, dc, sy), 1);
+        row(g, 'Smoothing: Classic', 'Classic', 'close',
+          'Our Classic smoothing (D191): a static weighted average and then a frame sync, the structure XIM describes for APEX. ' +
+          'XIM has not published its formula, so it is close, not the same.',
+          [styleW], 'Classic smoothing, adds about ' + trimNum(lag, 1) + ' ms of delay', nowStyle);
+        /* an ADS number left absent follows hip's (the Core overlays ADS
+           on hip), so it is only written when it differs from hip's */
+        function cw(n, value) {
+          return ads ? adsW('adsClassic' + n, value, hipClassic(n)) : W('classic' + n, value);
+        }
+        row(g, 'Classic smoothing: Smooth', trimNum(sm, 1), 'close',
+          'The size of the window. Our scale is 2 ms of window a point, which XIM has not published: ' +
+          'start from your APEX number and adjust by feel.',
+          [cw('Smooth', rnd(sm, 2))], 'Smooth ' + trimNum(sm, 1));
+        row(g, 'Classic smoothing: Decay', trimNum(dc, 1), 'close',
+          'XIM’s meaning: higher, and older movement counts less. XIM APEX’s 9.0 is 9.0 here.',
+          [cw('Decay', rnd(dc, 2))], 'Decay ' + trimNum(dc, 1));
+        /* D392: frame sync is ONE setting here, for both stances: Sync to
+           game (mouseTranslation.syncHz, Off / 60 / 120 a second). Hip's
+           Synch becomes it, and a Classic Synch the config still holds is
+           turned off so the two never stack. ADS cannot have its own. */
+        var hz = syncHzOf(sy);
+        if (!ads) {
+          var oldSy = nowOf(MT + 'classicSynch');
+          /* the number the form opened on (an older config's own Synch, or
+             Sync to game's read back): left alone, nothing is written */
+          var opened = (isNum(oldSy) && oldSy > 0) ? Math.round(oldSy)
+            : (nowSyncHz() ? (nowSyncHz() >= 100 ? 8 : 16) : null);
+          var untouched = opened !== null && Math.round(sy) === opened;
+          row(g, 'Classic smoothing: Synch', trimNum(sy, 0) + ' ms', 'close',
+            'Here frame sync is one setting for both stances, Sync to game on the Translation page. ' +
+            'XIM’s 8 / 16 / 32 / 0 become 120 / 60 / 60 / Off.',
+            untouched ? [] : [W('syncHz', hz)].concat(isNum(oldSy) && oldSy !== 0 ? [W('classicSynch', 0)] : []),
+            hz ? 'Sync to game ' + hz : 'Sync to game Off',
+            untouched ? (hz ? 'Sync to game ' + hz : 'Sync to game Off') : undefined);
+        } else {
+          var hipHz = hipStyle === 'classic' ? syncHzOf(num(form.hip.synch)) : nowSyncHz();
+          if (hz === hipHz) {
+            row(g, 'Classic smoothing: Synch', trimNum(sy, 0) + ' ms', 'same',
+              'Frame sync is one setting for both stances here (Sync to game), and this is the same as Hip’s.',
+              [], hz ? 'Sync to game ' + hz : 'Sync to game Off', hz ? 'Sync to game ' + hz : 'Sync to game Off');
+          } else {
+            row(g, 'Classic smoothing: Synch', trimNum(sy, 0) + ' ms', 'none',
+              'Frame sync is one setting for both stances here (Sync to game), so Aim down sight uses Hip’s.',
+              [], 'nothing copied');
+          }
+        }
+        return;
+      }
+      row(g, 'Smoothing: Standard', 'Standard', 'close',
+        'Our steadying filter, with XIM’s names and XIM’s 0 to 100% (D191). The same idea, not the same maths.',
+        (ads ? [styleW] : [styleW, W('smoothingMode', 'oneEuro')]), 'Standard smoothing', nowStyle);
+      var p = num(s.precision);
+      row(g, 'Precision', trimNum(p, 1) + '%', 'close',
+        'Steadies slow aim. The same 0 to 100% as our Custom smoothing; the filter underneath is ours.',
+        [sw('smoothing', p)], 'Precision ' + trimNum(p, 1) + '%');
+      row(g, 'Response', trimNum(num(s.response), 1) + '%', 'close',
+        'Lets fast moves cut through the steadying. The same idea, not the same maths.',
+        [sw('oneEuroBeta', num(s.response))], 'Response ' + trimNum(num(s.response), 1) + '%');
+      row(g, 'Easing', trimNum(num(s.easing), 1) + '%', 'close',
+        'How gently aim starts from rest. The same idea, not the same maths.',
+        [sw('smoothingEasing', num(s.easing))], 'Easing ' + trimNum(num(s.easing), 1) + '%');
+      if (!ads) {
+        var st = num(s.stability);
+        /* Steady Aim: one field for both stances, 0..0.5 of full speed in
+           the schema. XIM's Stability is for motion (gyro) aim only, and the
+           maths differ, so the scale is deliberately gentle: 100 = 10% of
+           full speed. A guess, said in docs/XIM-IMPORT.md. */
+        row(g, 'Stability', trimNum(st, 1), 'close',
+          'Similar idea, different maths. XIM uses Stability for motion aim. Here it ignores very slow hand movement, ' +
+          'so above 0 the smallest moves do nothing.',
+          [W('steadyAim', rnd(Math.min(st, 100) / 1000, 4))]);
+      } else {
+        row(g, 'Stability', trimNum(num(s.stability), 1), 'none',
+          'Steady Aim is one setting for both stances here, so Hip Aim’s is used.', [], 'uses Hip Aim’s');
+      }
+    }
+
+    function curveRow(s, ads) {
+      var g = ads ? 'Aim Down Sight' : 'Hip Aim';
+      var drawn = s.curve === 'custom';
+      if (s.curveFromConfig) {
+        row(g, 'Aim curve', s.curve === 'custom' ? 'custom' : 'linear', 'close',
+          'You did not change the curve, so this config’s curve stays as it is.', [], 'kept as it is');
+        return;
+      }
+      var w = curveWrites(s, ads, mt);
+      var label = (!drawn && measured) ? 'same' : 'close';
+      var n = drawn ? handleCount(s.grid) : 0;
+      row(g, 'Aim curve', drawn ? 'custom' + (n ? ', ' + n + ' handles' : '') : 'linear', label,
+        (drawn
+          ? 'Our curve editor is XIM’s kind (D189): the handles copy across where you put them, 0 to 100% in and out. ' +
+            'Between the handles our line is drawn its own smooth way, so the shape is close, not exact. '
+          : 'XIM’s straight curve is our straight curve. ') +
+        'It only feels the same once this game is measured.' + (measured ? '' : ' ' + APPROX), w);
+    }
+
+    /* Quantization (D189): Magnitude and Angle per stance, 0..100% in XIM
+       and 0..1 here; off is 0 and 0. Our "Ignore tiny movement" control
+       (noiseThreshold, once labelled "Quantization") is a noise gate and is
+       NEVER written from XIM's. */
+    function quantRow(s, ads) {
+      var g = ads ? 'Aim Down Sight' : 'Hip Aim';
+      var q = s.quant || { on: false, magnitude: 25, angle: 25 };
+      var given = q.on ? 'on (Magnitude ' + trimNum(num(q.magnitude), 1) + ', Angle ' + trimNum(num(q.angle), 1) + ')' : 'off';
+      if (!quantOK) {
+        row(g, 'Quantization', given, 'none',
+          'This adapter has no Quantization (the ZeroStick Core has it). “Ignore tiny movement” is something else, so it is not changed.',
+          [], 'nothing copied');
+        return;
+      }
+      var m = q.on ? rnd(num(q.magnitude) / 100, 4) : 0, a = q.on ? rnd(num(q.angle) / 100, 4) : 0;
+      var hq = form.hip.quant || {};
+      var hm = hq.on ? rnd(num(hq.magnitude) / 100, 4) : 0, ha = hq.on ? rnd(num(hq.angle) / 100, 4) : 0;
+      var ws = ads ? [adsW('adsQuantMagnitude', m, hm), adsW('adsQuantAngle', a, ha)]
+                   : [W('quantMagnitude', m), W('quantAngle', a)];
+      function words(mm, aa) { return (mm > 0 || aa > 0) ? 'Magnitude ' + pct(mm, 1) + ', Angle ' + pct(aa, 1) : 'off'; }
+      var nm = ads ? (said(mt.adsQuantMagnitude) ? mt.adsQuantMagnitude : nowOf(MT + 'quantMagnitude')) : nowOf(MT + 'quantMagnitude');
+      var na = ads ? (said(mt.adsQuantAngle) ? mt.adsQuantAngle : nowOf(MT + 'quantAngle')) : nowOf(MT + 'quantAngle');
+      row(g, 'Quantization', given, 'close',
+        'Our Quantization (D189): Magnitude snaps aim speed to steps, Angle snaps direction to even angles, the same two ' +
+        'controls with XIM’s 0 to 100%. XIM has not published its maths, so it is close, not the same. ' +
+        '“Ignore tiny movement” is a different control and is not changed.',
+        ws, words(m, a), words(+nm || 0, +na || 0));
+    }
+
+    smoothingRows(form.hip, false);
+    curveRow(form.hip, false);
+    quantRow(form.hip, false);
+
+    /* Aim down sight: XIM's inheritance, mapped onto ours exactly */
+    var inh = form.inherit;
+    var inhName = '';
+    INHERIT.forEach(function (x) { if (x.id === inh) { inhName = x.name; } });
+    /* everything ADS can have of its own besides its speed, back to hip's */
+    function inheritWrites() {
+      return ADS_SMOOTH_KEYS.concat(['adsCurve', 'adsCurveStrength', 'adsCurvePoints', 'adsQuantMagnitude', 'adsQuantAngle'])
+        .map(function (k) { return W(k, null); });
+    }
+    if (inh === 'all') {
+      row('Aim Down Sight', 'Settings inheritance', inhName, 'same',
+        'Aim down sight follows Hip Aim’s sensitivity, smoothing, curve and quantization.',
+        [W('adsCm360', 0)].concat(inheritWrites()),
+        'same as hip, for everything');
+    } else {
+      var adsCm = rnd(num(form.ads.cm360), 2);
+      /* adsCm360 0 is "hip's speed": a config that follows hip and an ADS
+         speed typed equal to hip's stay that way */
+      var adsCmW = (nowOf(MT + 'adsCm360') === 0 && adsCm === hipCm) ? W('adsCm360', 0) : W('adsCm360', adsCm);
+      row('Aim Down Sight', 'Sensitivity', trimNum(adsCm, 2) + ' cm/360', feelLabel,
+        'Same unit: centimetres of mouse travel for one full turn.' + feelNote, [adsCmW],
+        describe(MT + 'adsCm360', adsCm));
+      if (inh === 'sens') {
+        row('Aim Down Sight', 'Settings inheritance', inhName, 'same',
+          'Smoothing, curve and quantization follow Hip Aim’s.',
+          inheritWrites(),
+          'smoothing, curve and quantization same as hip');
+      } else {
+        smoothingRows(form.ads, true);
+        curveRow(form.ads, true);
+        quantRow(form.ads, true);
+      }
+    }
+
+    /* Both stances */
+    var y = readYScale(form.yScale);
+    row('Both', 'Y Scale', trimNum(y.value, 2) + (y.percent ? ' (read as ' + trimNum(num(form.yScale), 1) + '%)' : ''), 'same',
+      'Up-and-down speed compared with left-and-right, the same meaning as XIM’s.',
+      [W('yxRatio', rnd(y.value, 4))]);
+    /* D392: the dead zones are NOT copied. Here they would act on the stick
+       AFTER the game's own curve is inverted, so every one of them only
+       breaks cm/360 (an inner zone of 5 % made a slow move 82 % short; an
+       outer zone of 50 % doubled the speed: docs/MOUSE-AUDIT.md). The game's
+       own dead zone is already handled by the game translator. A config
+       that has them keeps them; this screen just stops writing them. */
+    var inner = num(form.innerDz), outer = num(form.outerDz), axial = num(form.axialDz);
+    var DZ_NOTE = 'Not copied. Here the game’s own dead zone is already handled for you, and a ' +
+      'dead zone added on top only makes slow moves short and breaks Speed (cm/360).';
+    row('Both', 'Inner dead zone', trimNum(inner, 1) + '%', 'none', DZ_NOTE, [], 'nothing copied');
+    row('Both', 'Outer dead zone', trimNum(outer, 1) + '%', 'none', DZ_NOTE, [], 'nothing copied');
+    row('Both', 'Axial dead zone', trimNum(axial, 1) + '%', 'none', DZ_NOTE, [], 'nothing copied');
+
+    var writes = [];
+    rows.forEach(function (r) { r.writes.forEach(function (w) { writes.push(w); }); });
+    var changed = rows.filter(function (r) { return r.changed; }).length;
+    return { ok: true, rows: rows, writes: writes, changed: changed, measured: measured,
+             approx: !measured, approxText: APPROX };
+  }
+
+  /* ── applying, and undoing ─────────────────────────────────────────── */
+  /* Make `writes` on `doc` (a whole config document). A value of undefined
+     removes the key. Returns what each path held before, for undo(). */
+  function applyWrites(doc, writes) {
+    var undoList = [];
+    (writes || []).forEach(function (w) {
+      var parts = w.path.split('.'), o = doc, i;
+      for (i = 0; i < parts.length - 1; i++) {
+        if (!isObj(o[parts[i]])) { o[parts[i]] = {}; }
+        o = o[parts[i]];
+      }
+      var k = parts[parts.length - 1];
+      var had = Object.prototype.hasOwnProperty.call(o, k);
+      undoList.push({ path: w.path, had: had, value: had ? clone(o[k]) : undefined });
+      if (w.value === undefined) { delete o[k]; } else { o[k] = clone(w.value); }
+    });
+    return undoList;
+  }
+  function undo(doc, list) {
+    var i;
+    for (i = (list || []).length - 1; i >= 0; i--) {
+      var u = list[i], parts = u.path.split('.'), o = doc, j, gone = false;
+      for (j = 0; j < parts.length - 1; j++) {
+        if (!isObj(o[parts[j]])) { if (!u.had) { gone = true; break; } o[parts[j]] = {}; }
+        o = o[parts[j]];
+      }
+      if (gone) { continue; }
+      var k = parts[parts.length - 1];
+      if (u.had) { o[k] = clone(u.value); } else { delete o[k]; }
+    }
+    return doc;
+  }
+
+  /* ── share codes ───────────────────────────────────────────────────── */
+  /* XIM MATRIX's Copy button wraps a config in public markers (XIM's guide,
+     "Identity"): ">>> XIM MATRIX [Game] START COPY >>>", then "XMC:" + a
+     string + ":XMC", then "<<< XIM MATRIX END COPY <<<". This only asks
+     whether a marker is present; reading the code is fromShareCode()'s. */
+  function looksLikeShareCode(text) {
+    if (typeof text !== 'string' || !text) { return false; }
+    return /(^|[^A-Za-z0-9])XMC:/.test(text) || /:XMC([^A-Za-z0-9]|$)/.test(text) ||
+      /(>>>|<<<)\s*XIM\s+MATRIX/i.test(text);
+  }
+
+  /* A pasted share code INTO THE FORM (docs/XIM-SHARE-CODE.md). The code is
+     read by xim-share-code.js (ZSXIMCODE.read: the few mouse-aim fields the
+     public samples confirm) and its numbers are put into the same form the
+     player types into, on top of this config's own numbers. Nothing is
+     applied: the screen shows the form, then the preview with its labels,
+     and the player taps Apply.
+
+     NEVER GUESSED: a number this app cannot hold is left as the config has
+     it and listed in `notCopied` with why; what the code does not carry (or
+     we do not read) is listed in `notRead`. The text itself is not kept.
+
+     Returns { ok: true, form, report: { name, gameId, game, check,
+     inheritFrom, filled: [words], notCopied: [{ what, given, why }],
+     notRead: [words] } } or { ok: false, kind, message }. */
+  var LINEAR_EPS = 0.002;
+  function codeCurve(pts) {
+    /* the code's handles as the editor's v2 shape, or the reason it cannot be */
+    var C = curveLib();
+    if (!pts) { return { why: 'the curve in the code could not be read' }; }
+    var straight = pts.every(function (q) { return Math.abs(q[0] - q[1]) <= LINEAR_EPS; });
+    if (straight) { return { linear: true }; }
+    if (!C) { return { why: 'this app has no curve editor here' }; }
+    var last = pts[pts.length - 1];
+    if (Math.abs(last[1] - 1) > LINEAR_EPS) { return { why: 'your XIM curve ends below the top, which this editor cannot draw' }; }
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      if (pts[i][1] < pts[i - 1][1] - 1e-6) { return { why: 'your XIM curve turns down somewhere, and this editor only draws rising curves' }; }
+    }
+    var h = [[0, 0]].concat(pts.map(function (q) { return [q[0], Math.min(1, Math.max(0, q[1]))]; }));
+    h[h.length - 1] = [1, 1];
+    if (h.length > C.MAX_HANDLES) { return { why: 'it has more handles (' + h.length + ') than this editor holds (' + C.MAX_HANDLES + ')' }; }
+    var g = C.gridOf({ v: 2, h: h, s: h.slice(1).map(function () { return 0; }) });
+    var back = g && C.handlesOf(g);
+    if (!back || back.h.length !== h.length) {
+      return { why: 'some of its handles sit closer together than this editor allows, so it would not be the same curve' };
+    }
+    return { grid: g, handles: h.length };
+  }
+  function sameStance(a, b) {
+    var k;
+    for (k in a) {
+      if (Object.prototype.hasOwnProperty.call(a, k) && k !== 'cm360' && JSON.stringify(a[k]) !== JSON.stringify(b[k])) { return false; }
+    }
+    return true;
+  }
+  function fromShareCode(text, mt) {
+    var Z = root.ZSXIMCODE;
+    if (!Z || typeof Z.read !== 'function') {
+      return { ok: false, kind: 'missing', message: SHARE_CODE_MESSAGE };
+    }
+    var r = Z.read(text);
+    if (!r || !r.ok) {
+      return { ok: false, kind: (r && r.kind) || 'unknown', message: (r && r.message) || SHARE_CODE_MESSAGE };
+    }
+    var form = defaults(mt);
+    form.device = 'matrix';
+    var filled = [], notCopied = [];
+    function inRange(key, v) { var g = R[key]; return isNum(v) && v >= g.min - 1e-9 && v <= g.max + 1e-9; }
+
+    function fillStance(dst, src, label, withSmoothing, withCurve) {
+      if (inRange('cm360', src.cm360)) {
+        dst.cm360 = rnd(src.cm360, 2);
+        filled.push(label + ' Sensitivity');
+      } else {
+        notCopied.push({ what: label + ' Sensitivity', given: trimNum(src.cm360, 1) + ' cm/360',
+          why: src.cm360 < R.cm360.min
+            ? 'below 5 cm/360, the fastest this app can set. (A number this low usually means the XIM config’s DPI is not the mouse’s.)'
+            : 'above 200 cm/360, the slowest this app can set. (Numbers this high go with XIM “special curve” setups.)' });
+      }
+      if (withSmoothing) {
+        var std = inRange('precision', src.precision) && inRange('response', src.response) && inRange('easing', src.easing);
+        var cls = inRange('smooth', src.smooth) && inRange('decay', src.decay) && inRange('synch', src.synch);
+        var activeOK = src.mode === 'classic' ? cls : std;
+        if (activeOK) {
+          dst.smoothing = src.mode;
+          if (std) { dst.precision = src.precision; dst.response = src.response; dst.easing = src.easing; }
+          if (cls) { dst.smooth = src.smooth; dst.decay = src.decay; dst.synch = src.synch; }
+          filled.push(label + ' smoothing (' + (src.mode === 'classic' ? 'Classic' : 'Standard') + ')');
+        } else {
+          notCopied.push({ what: label + ' smoothing', given: src.mode === 'classic'
+              ? 'Classic ' + src.smooth + ' / ' + trimNum(src.decay, 1) + ' / ' + src.synch
+              : 'Standard ' + trimNum(src.precision, 1) + ' / ' + trimNum(src.response, 1) + ' / ' + trimNum(src.easing, 1),
+            why: 'a number is outside what this screen accepts' });
+        }
+      }
+      if (withCurve) {
+        var c = codeCurve(src.curve);
+        if (c.linear) { dst.curve = 'linear'; dst.grid = null; dst.curveFromConfig = false; filled.push(label + ' curve (Linear)'); }
+        else if (c.grid) {
+          dst.curve = 'custom'; dst.grid = c.grid; dst.curveFromConfig = false;
+          filled.push(label + ' curve (' + c.handles + ' handles)');
+        } else {
+          notCopied.push({ what: label + ' curve', given: src.curve ? (src.curve.length + 1) + ' handles' : 'unreadable', why: c.why +
+            '. This config’s curve is kept; you can draw yours on the form.' });
+        }
+      }
+    }
+
+    fillStance(form.hip, r.hip, 'Hip', true, true);
+    if (inRange('yScale', r.hip.yScale)) { form.yScale = rnd(r.hip.yScale, 2); filled.push('Y Scale'); }
+    else { notCopied.push({ what: 'Y Scale', given: r.hip.yScale.toFixed(2), why: 'outside 0.10 to 5.00, what this app can hold' }); }
+
+    /* Aim Down Sight: XIM's own choice where its byte was found; else worked
+       out from the numbers (both blocks the same = Inherit All; only the
+       sensitivity differs = Sensitivity Only; else Inherit Nothing) */
+    var inherit = r.inherit;
+    if (!inherit) {
+      inherit = sameStance(r.hip, r.ads) ? (r.hip.cm360 === r.ads.cm360 ? 'all' : 'sens') : 'none';
+    }
+    form.inherit = inherit;
+    filled.push('Settings inheritance');
+    if (inherit !== 'all') {
+      fillStance(form.ads, r.ads, 'Aim Down Sight', inherit === 'none', inherit === 'none');
+      /* the code keeps an ADS Y Scale of its own; under Sensitivity Only it
+         is not known whether XIM uses it, so it is reported either way */
+      if (Math.abs(r.ads.yScale - r.hip.yScale) > 1e-6) {
+        notCopied.push({ what: 'Aim Down Sight Y Scale', given: r.ads.yScale.toFixed(2),
+          why: 'this app has one Y Scale for both, so Hip Aim’s (' + r.hip.yScale.toFixed(2) + ') is used' });
+      }
+    }
+    return {
+      ok: true,
+      form: form,
+      report: {
+        name: r.name || r.marker || '',
+        gameId: r.gameId,
+        game: r.game,
+        check: !!r.check,
+        inheritFrom: r.inherit ? 'code' : 'numbers',
+        filled: filled,
+        notCopied: notCopied,
+        notRead: (r.notRead || []).slice()
+      }
+    };
+  }
+
+  /* ── typical starting points (docs/XIM-PUBLIC-CONFIGS.md) ─────────── */
+  /* Built from the public XIM configs we could read, and said to be exactly
+     that: TYPICAL COMMUNITY VALUES, not XIM's official data. A preset fills
+     the form only (the preview and Apply still follow); it sets the
+     sensitivity, ADS inheritance, smoothing and Y Scale and leaves the
+     curve, dead zones and Quantization as this config has them. */
+  var PRESETS = [
+    { id: 'fresh', name: 'A fresh XIM config',
+      games: 'Any game',
+      basis: 'What an untouched XIM MATRIX config holds: 7 of the 38 public codes we read carry exactly these numbers.',
+      hip: { cm360: 35, smoothing: 'standard', precision: 67.5, response: 55, easing: 42.5 },
+      inherit: 'all', ads: null, yScale: 1 },
+    { id: 'r6', name: 'Typical Rainbow Six Siege',
+      games: 'Rainbow Six Siege',
+      basis: 'The middle of 12 tuned public Rainbow Six Siege configs: Hip 33 cm/360, Aim Down Sight about 1.5 times slower ' +
+        '(the middle of the 9 with their own Aim Down Sight speed), and the Standard 67.5 / 55.0 / 42.5 smoothing most of them keep.',
+      hip: { cm360: 33, smoothing: 'standard', precision: 67.5, response: 55, easing: 42.5 },
+      inherit: 'sens', ads: { cm360: 50 }, yScale: 1 },
+    { id: 'aa', name: 'Typical aim-assist shooter',
+      games: 'Call of Duty (Black Ops II, Black Ops 6, Warzone, MW3), Apex Legends, Fortnite',
+      basis: 'Hip 28.5 cm/360 (the middle of 21 tuned public configs across games), Aim Down Sight about 1.4 times slower ' +
+        '(the middle of the 16 with their own), and the Classic 0 / 0 / 16 smoothing XIM players post for stronger aim assist ' +
+        '(they use 0 / 0 / 8 up to 0 / 0 / 32). We found public XIM codes for Call of Duty, none for Apex or Fortnite.',
+      hip: { cm360: 28.5, smoothing: 'classic', smooth: 0, decay: 0, synch: 16 },
+      inherit: 'sens', ads: { cm360: 40 }, yScale: 1 }
+  ];
+  var PRESET_NOTE = 'Typical values from XIM configs people posted in public. They are not XIM’s official settings ' +
+    'and not your own: start here, then change any number to match your XIM app.';
+  function applyPreset(form, id) {
+    var p = null, i;
+    for (i = 0; i < PRESETS.length; i++) { if (PRESETS[i].id === id) { p = PRESETS[i]; } }
+    if (!p || !form) { return form; }
+    var k;
+    for (k in p.hip) { if (Object.prototype.hasOwnProperty.call(p.hip, k)) { form.hip[k] = p.hip[k]; } }
+    form.inherit = p.inherit;
+    if (p.ads) { form.ads.cm360 = p.ads.cm360; }
+    /* Sensitivity Only: ADS's smoothing follows hip's, so the form shows hip's */
+    form.ads.smoothing = form.hip.smoothing;
+    form.yScale = p.yScale;
+    return form;
+  }
+
+  /* "I have a screenshot": which XIM screens hold the numbers this form
+     asks for. The app reads no pictures; the player types what they see.
+     Screen names are the ones XIM's public guide uses (guide.xim.tech,
+     "Aim Settings", read 2026-10-02). */
+  var SCREENSHOT_HELP = [
+    { where: 'Aim, Hip, Mouse Aim', read: 'Sensitivity (cm/360) and Smoothing. If Smoothing is Custom, tap STANDARD / CLASSIC to see which: ' +
+      'Standard has Precision, Response and Easing; Classic has Smooth, Decay and Synch.' },
+    { where: 'Mouse Aim, the “...” button', read: 'Aiming Curve (where each handle sits: across, then up), Y Scale, and Quantization ' +
+      '(Magnitude and Angle, or off).' },
+    { where: 'Aim, Aim Down Sight', read: 'Aim Settings Inheritance (Inherit All, Sensitivity Only or Inherit Nothing). With ' +
+      'Sensitivity Only, read its Sensitivity; with Inherit Nothing, read everything above again for Aim Down Sight.' },
+    { where: 'Mappings, Gamepad Customization, Adjusting Deadzone (or Game Settings, when the config uses custom game settings)',
+      read: 'Inner, Outer and Axial dead zone.' },
+    { where: 'Not needed here', read: 'Mouse DPI (set it on this app’s Mouse page), bindings and Scripts (they have their own screens).' }
+  ];
+  var SCREENSHOT_NOTE = 'This app does not read pictures. Open your screenshots and type each number into the matching field below.';
+
+  root.ZSXIM = {
+    RANGES: R,
+    DEVICES: DEVICES,
+    INHERIT: INHERIT,
+    LABELS: LABELS,
+    SHARE_CODE_MESSAGE: SHARE_CODE_MESSAGE,
+    APPROX: APPROX,
+    parseNum: parseNum,
+    readYScale: readYScale,
+    defaults: defaults,
+    setDevice: setDevice,
+    validate: validate,
+    isMeasured: isMeasured,
+    describe: describe,
+    speedOf: speedOf,
+    classicLagMs: classicLagMs,
+    preview: preview,
+    applyWrites: applyWrites,
+    undo: undo,
+    looksLikeShareCode: looksLikeShareCode,
+    fromShareCode: fromShareCode,
+    PRESETS: PRESETS,
+    PRESET_NOTE: PRESET_NOTE,
+    applyPreset: applyPreset,
+    SCREENSHOT_HELP: SCREENSHOT_HELP,
+    SCREENSHOT_NOTE: SCREENSHOT_NOTE,
+    FRESH_CM360: FRESH_CM360
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

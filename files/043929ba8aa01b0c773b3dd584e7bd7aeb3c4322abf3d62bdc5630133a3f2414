@@ -1,0 +1,456 @@
+/* zs-legal.js — the first-run agreement and the legal documents, in the app
+ * (D272). window.ZSLEGAL.
+ *
+ * The documents are legal/app/*.md, rendered by tools/gen-legal.js into
+ * zs-legal-docs.js (window.ZSLEGALDOCS), which MUST load before this file.
+ * Nothing here touches the network: the pages are in that one script.
+ *
+ *   ZSLEGAL.gate()             the agreement, when this person has not agreed
+ *                              to the current Terms and Privacy Policy (run by
+ *                              itself when the page loads; see skipReason)
+ *   ZSLEGAL.show()             the agreement, now (the shots use it)
+ *   ZSLEGAL.needsAcceptance()  true on a first run and whenever the Terms or
+ *                              the Privacy Policy version changes
+ *   ZSLEGAL.accept()           remembers what was agreed to, and when
+ *   ZSLEGAL.openList()         Settings > Legal: every document, and the line
+ *                              "You agreed on <date>"
+ *   ZSLEGAL.openDoc(key)       one document ('terms', 'privacy', ...)
+ *   ZSLEGAL.agreedLine()       that line, as text
+ *   ZSLEGAL.showWait()         inside a host: the wait below, now (shots)
+ *
+ * FOR A HOST (D335 A-6, EXO Studio's MY-EXO-APP-HOOKS.md): window.zsLegal
+ *   zsLegal.versions()         { terms, privacy }: what this app expects
+ *   zsLegal.acceptFromHost(r)  r = { terms, privacy, at, host: 'studio' }:
+ *                              stores it (the same record, with host) and
+ *                              returns true; false for versions older than
+ *                              this app's, another host, or no host here
+ *
+ * INSIDE EXO STUDIO (ZSHOST.hides('legalScreen')) THIS APP SHOWS NO TERMS
+ * SCREEN OF ITS OWN: Studio's agreement covers both (owner, A-6). The app
+ * counts as agreed only by a host record (host: 'studio') at this app's
+ * versions or newer, handed over now or stored from an earlier start.
+ * Without one it shows a plain "Waiting for EXO Studio..." layer and asks
+ * the host once (window.zsHost.legalNeeded(versions), when Studio offers
+ * it); acceptFromHost lifts that layer and the app carries on where it was,
+ * no reload. Outside Studio a host record never counts: the person agrees
+ * in the app itself, exactly as before (D335 A-6 says why).
+ *
+ * THE AGREEMENT (legal/app/WIRING.md section 2.1, after EXO Studio's
+ * legal_ui.py): three short points, the two documents one tap away, an
+ * UNTICKED box, Continue only once it is ticked, and a way out. Nothing is
+ * pre-ticked or hidden. It gates the app's SCREENS only: the EXO itself
+ * keeps working without the app ("nothing may stop a controller from
+ * working").
+ *
+ * WHERE IT IS KEPT: localStorage 'zs-legal' (the EXO app's own namespace,
+ * zs-*), { terms, privacy, at, app, history } (+ host: 'studio' when EXO
+ * Studio's agreement was handed over, A-6). Factory reset keeps it
+ * (22-global.js): erasing settings is not withdrawing an agreement.
+ *
+ * WHEN IT IS NOT SHOWN: only when the page was told so BEFORE this file ran,
+ * by a harness that has no person in front of it (app-harness.js, the
+ * screenshot run theme-shots.js): window.ZS_LEGAL_SKIP = '<who>'. A person
+ * opening the app has no way to set that, so the real flow is unchanged.
+ *
+ * ES5, like every file the app loads (docs/DESIGN.md). One global. */
+(function () {
+  'use strict';
+
+  var KEY = 'zs-legal';
+  var DATA = window.ZSLEGALDOCS || { terms: '', privacy: '', docs: [] };
+  /* A-6: hosted by EXO Studio, whose own agreement covers this app */
+  var HZ = window.ZSHOST;
+  var HOSTED = !!(HZ && typeof HZ.hides === 'function' && HZ.hides('legalScreen'));
+  var HOST_ID = HOSTED ? String(HZ.id || 'studio') : '';
+  var HOST_NAME = HOSTED ? String(HZ.name || 'EXO Studio') : '';
+
+  var POINTS = [
+    'Your configs and game video stay on your EXO and in this app. We don’t collect your data.',
+    'Using an adapter like the EXO online can break a game’s or console’s rules: a game can ban an account for it, and a console may block the device. Where you use it is your choice and your risk.',
+    'You can read these any time in Settings › Legal.'
+  ];
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function doc(key) {
+    for (var i = 0; i < DATA.docs.length; i++) { if (DATA.docs[i].key === key) { return DATA.docs[i]; } }
+    return null;
+  }
+
+  /* ── the record ─────────────────────────────────────────────────── */
+  function accepted() {
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      var r = raw ? JSON.parse(raw) : null;
+      return (r && typeof r === 'object') ? r : {};
+    } catch (e) { return {}; }
+  }
+  /* A document version is its date, YYYY-MM-DD, and maybe a suffix
+     ("2026-10-10-draft"). Newer = a later date; on the same date the plain
+     version outranks a suffixed one (the final after its draft). Anything
+     else is only "at least" when it is the same string. */
+  function verAtLeast(have, want) {
+    have = String(have == null ? '' : have); want = String(want == null ? '' : want);
+    if (have === want) { return true; }
+    var a = /^(\d{4}-\d{2}-\d{2})(.*)$/.exec(have), b = /^(\d{4}-\d{2}-\d{2})(.*)$/.exec(want);
+    if (!a || !b) { return false; }
+    if (a[1] !== b[1]) { return a[1] > b[1]; }
+    return a[2] === '' && b[2] !== '';
+  }
+  /* the record that counts HERE: inside Studio a host record only (the one
+     handed over in this page wins, in case the store refused it); outside,
+     the person's own only: a host's record is not them agreeing in the app */
+  var hostMem = null;
+  function record() {
+    var a = accepted();
+    if (HOSTED) { return hostMem || (a.host === HOST_ID ? a : {}); }
+    return a.host ? {} : a;
+  }
+  function covers(r) {
+    if (HOSTED) { return !!r.host && verAtLeast(r.terms, DATA.terms) && verAtLeast(r.privacy, DATA.privacy); }
+    return r.terms === DATA.terms && r.privacy === DATA.privacy;
+  }
+  function needsAcceptance() { return !covers(record()); }
+  /* agreed to an EARLIER version: the screen says "we updated" */
+  function isUpdate() {
+    var a = record();
+    return !!(a.terms || a.privacy) && needsAcceptance();
+  }
+  function appVersion() {
+    var b = window.ZS_BUILD || {};
+    return (b.flavor || '') + (b.dev ? '-dev' : '');
+  }
+  function accept() {
+    var old = accepted();
+    var rec = { terms: DATA.terms, privacy: DATA.privacy, at: new Date().toISOString(), app: appVersion() };
+    var hist = (old.history && old.history.slice) ? old.history.slice(-19) : [];
+    if (old.terms) { hist.push(histOf(old)); }
+    rec.history = hist;
+    try { window.localStorage.setItem(KEY, JSON.stringify(rec)); } catch (e) { /* the screen still lets them in */ }
+    return rec;
+  }
+  function histOf(old) {
+    var h = { terms: old.terms, privacy: old.privacy || '', at: old.at || '', app: old.app || '' };
+    if (old.host) { h.host = old.host; }
+    return h;
+  }
+  /* A-6: EXO Studio hands over what was agreed in its own screen. Stored
+     like the app's own agreement, plus host; Studio hands it on every
+     start, so the same agreement again changes nothing. */
+  function acceptFromHost(r) {
+    if (!HOSTED || !r || typeof r !== 'object' || r.host !== HOST_ID) { return false; }
+    if (typeof r.terms !== 'string' || typeof r.privacy !== 'string') { return false; }
+    if (!verAtLeast(r.terms, DATA.terms) || !verAtLeast(r.privacy, DATA.privacy)) { return false; }
+    var at = String(r.at || '');
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(at)) { at = new Date().toISOString(); }
+    var old = accepted();
+    var rec;
+    if (old.host === HOST_ID && old.terms === r.terms && old.privacy === r.privacy) {
+      rec = old;
+    } else {
+      rec = { terms: r.terms, privacy: r.privacy, at: at, app: appVersion(), host: HOST_ID };
+      var hist = (old.history && old.history.slice) ? old.history.slice(-19) : [];
+      if (old.terms) { hist.push(histOf(old)); }
+      rec.history = hist;
+      try { window.localStorage.setItem(KEY, JSON.stringify(rec)); } catch (e) { /* hostMem still lets them in */ }
+    }
+    hostMem = rec;
+    if (waiting) { var w = waiting; waiting = null; close(w); }
+    return true;
+  }
+  function skipReason() {
+    var s = window.ZS_LEGAL_SKIP;
+    return s ? String(s) : '';
+  }
+  function agreedLine() {
+    var a = record();
+    if (!a.at) {
+      return HOSTED ? 'You have not agreed to the Terms of Use and the Privacy Policy in ' + HOST_NAME + ' yet.'
+        : 'You have not agreed to the Terms of Use and the Privacy Policy on this device yet.';
+    }
+    var d = String(a.at).slice(0, 10);
+    return 'You agreed ' + (HOSTED ? 'in ' + HOST_NAME + ' ' : '') + 'on ' + d +
+      ' (Terms ' + a.terms + ', Privacy ' + a.privacy + ').' +
+      (needsAcceptance() ? ' They have changed since.' : '');
+  }
+
+  /* ── the look: the 8K flat tokens (zs-flat.css, --zk-*); on the device
+     list, which does not load it, that page's own copy of the same palette
+     (--bg, --panel, ..., light and dark, devices.html); the dark values
+     last, for a page with neither ── */
+  var CSS =
+    '.zslg{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;' +
+      'background:var(--zk-ground,var(--bg,#1b1d20));color:var(--zk-text,var(--text,#eef1f4));' +
+      'font-family:inherit;font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}' +
+    '.zslg *{box-sizing:border-box}' +
+    '.zslg-bar{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;' +
+      'border-bottom:1px solid var(--zk-line,var(--line,#3a3e45));background:var(--zk-ground,var(--bg,#1b1d20))}' +
+    '.zslg-bar h2{flex:1;margin:0;font-size:17px;font-weight:600;color:var(--zk-text,var(--text,#eef1f4))}' +
+    '.zslg-back{min-width:44px;min-height:44px;border:1px solid var(--zk-line,var(--line,#3a3e45));border-radius:10px;' +
+      'background:var(--zk-card2,var(--panel2,#1b1e22));color:var(--zk-text,var(--text,#eef1f4));font:inherit;font-size:15px;padding:0 12px;cursor:pointer}' +
+    '.zslg-body{flex:1;overflow:auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}' +
+    '.zslg-card{background:var(--zk-card,var(--panel,#26282d));border:1px solid var(--zk-line,var(--line,#3a3e45));border-radius:10px;padding:16px;margin:0 0 12px}' +
+    '.zslg h1{font-size:22px;line-height:1.25;margin:4px 0 8px;font-weight:700;color:var(--zk-text,var(--text,#eef1f4))}' +
+    '.zslg p{margin:0 0 10px}' +
+    '.zslg-dim{color:var(--zk-dim,var(--muted,#9aa3ad));font-size:13px}' +
+    '.zslg-pts{margin:0 0 12px;padding:0;list-style:none}' +
+    '.zslg-pts li{padding:10px 0;border-top:1px solid var(--zk-line,var(--line,#3a3e45))}' +
+    '.zslg-pts li:first-child{border-top:0}' +
+    '.zslg-links{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}' +
+    '.zslg-row{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;padding:10px 14px;' +
+      'border:1px solid var(--zk-line,var(--line,#3a3e45));border-radius:10px;background:var(--zk-card2,var(--panel2,#1b1e22));' +
+      'color:var(--zk-text,var(--text,#eef1f4));font:inherit;font-size:15px;text-align:left;cursor:pointer}' +
+    '.zslg-row .zslg-go{color:var(--zk-dim,var(--muted,#9aa3ad));font-size:13px}' +
+    '.zslg-check{display:flex;gap:12px;align-items:flex-start;padding:12px 0;cursor:pointer}' +
+    '.zslg-check input{width:22px;height:22px;margin:2px 0 0;flex:none;accent-color:var(--zk-accent,var(--accent,#58a6ff))}' +
+    '.zslg-acts{display:flex;gap:10px;margin-top:6px}' +
+    '.zslg-btn{flex:1;min-height:48px;border-radius:10px;font:inherit;font-size:16px;font-weight:600;cursor:pointer;' +
+      'border:1px solid var(--zk-line,var(--line,#3a3e45));background:var(--zk-card2,var(--panel2,#1b1e22));color:var(--zk-text,var(--text,#eef1f4))}' +
+    '.zslg-btn.pri{background:var(--zk-accent,var(--accent,#58a6ff));border-color:var(--zk-accent,var(--accent,#58a6ff));color:var(--zk-ink,var(--accent-ink,#06172e))}' +
+    '.zslg-btn[disabled]{background:var(--zk-card2,var(--panel2,#1b1e22));border-color:var(--zk-line,var(--line,#3a3e45));color:var(--zk-dim,var(--muted,#9aa3ad));cursor:not-allowed}' +
+    '.zslg-doc{max-width:720px;margin:0 auto;overflow-wrap:anywhere}' +
+    '.zslg-doc h2{font-size:21px;line-height:1.25;margin:4px 0 12px}' +
+    '.zslg-doc h3{font-size:17px;margin:22px 0 8px}' +
+    '.zslg-doc h4,.zslg-doc h5{font-size:15px;margin:18px 0 6px}' +
+    '.zslg-doc ul,.zslg-doc ol{margin:0 0 10px;padding-left:22px}' +
+    '.zslg-doc li{margin:4px 0}' +
+    '.zslg-doc blockquote{margin:0 0 14px;padding:10px 14px;border:1px solid var(--zk-line,var(--line,#3a3e45));border-radius:10px;' +
+      'background:var(--zk-card,var(--panel,#26282d))}' +
+    '.zslg-doc blockquote p:last-child{margin-bottom:0}' +
+    '.zslg-doc code{font-family:ui-monospace,Consolas,monospace;font-size:13px}' +
+    '.zslg-doc pre{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.45;' +
+      'background:var(--zk-card,var(--panel,#26282d));border:1px solid var(--zk-line,var(--line,#3a3e45));border-radius:10px;padding:12px;margin:0 0 14px}' +
+    '.zslg-doc .lg-tw{overflow-x:auto;margin:0 0 14px}' +
+    '.zslg-doc table{border-collapse:collapse;width:100%;font-size:13px}' +
+    '.zslg-doc th,.zslg-doc td{border:1px solid var(--zk-line,var(--line,#3a3e45));padding:6px 8px;text-align:left;vertical-align:top}' +
+    '.zslg-doc th{background:var(--zk-card,var(--panel,#26282d))}' +
+    '.zslg a{color:var(--zk-accent,var(--accent,#58a6ff));text-decoration:underline}' +
+    '.zslg :focus-visible{outline:2px solid var(--zk-accent,var(--accent,#58a6ff));outline-offset:2px}' +
+    /* A-6: the host's agreement is on its way. Flat, neutral, no motion */
+    '.zslg-wait{align-items:center;justify-content:center;text-align:center;' +
+      'padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px))}' +
+    '.zslg-wait h1{font-size:17px;font-weight:600;margin:0 0 6px}' +
+    '.zslg-wait p{max-width:320px;margin:0}';
+
+  function injectCSS() {
+    if (document.getElementById('zslg-css')) { return; }
+    var st = document.createElement('style');
+    st.id = 'zslg-css';
+    st.textContent = CSS;
+    (document.head || document.body).appendChild(st);
+  }
+
+  /* ── layers: the agreement, the list, a document; each on top of the
+     one before, each with its own way back ─────────────────────────── */
+  var layers = [];
+  function layer(id, title, bodyHTML, backLabel, onBack) {
+    injectCSS();
+    var el = document.createElement('div');
+    el.className = 'zslg';
+    el.id = id;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', id + '-t');
+    el.innerHTML = '<div class="zslg-bar">' +
+      (backLabel ? '<button type="button" class="zslg-back" data-zslg-back>' + esc(backLabel) + '</button>' : '') +
+      '<h2 id="' + id + '-t">' + esc(title) + '</h2></div>' +
+      '<div class="zslg-body">' + bodyHTML + '</div>';
+    document.body.appendChild(el);
+    var rec = { el: el, prev: document.activeElement, onBack: onBack };
+    layers.push(rec);
+    var b = el.querySelector('[data-zslg-back]');
+    if (b) { b.addEventListener('click', function () { close(rec); }); }
+    wireDocLinks(el);
+    setTimeout(function () {
+      var f = el.querySelector('[data-zslg-first]') || b || el.querySelector('button');
+      try { if (f && f.focus) { f.focus(); } } catch (e) {}
+    }, 0);
+    return rec;
+  }
+  function close(rec) {
+    var i = layers.indexOf(rec);
+    if (i < 0) { return; }
+    layers.splice(i, 1);
+    if (rec.el.parentNode) { rec.el.parentNode.removeChild(rec.el); }
+    try { if (rec.prev && rec.prev.focus) { rec.prev.focus(); } } catch (e) {}
+    if (rec.onBack) { rec.onBack(); }
+  }
+  function top() { return layers.length ? layers[layers.length - 1] : null; }
+  function wireDocLinks(el) {
+    var as = el.querySelectorAll('[data-legal-doc]');
+    for (var i = 0; i < as.length; i++) {
+      (function (a) {
+        a.addEventListener('click', function (e) {
+          if (e && e.preventDefault) { e.preventDefault(); }
+          openDoc(a.getAttribute('data-legal-doc'));
+        });
+      })(as[i]);
+    }
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('keydown', function (e) {
+      var t = top();
+      if (!t) { return; }
+      /* Escape leaves a document or the list; the agreement has no Escape */
+      if (e.key === 'Escape' && t.el.querySelector('[data-zslg-back]')) { close(t); return; }
+      /* Tab stays inside the top layer */
+      if (e.key === 'Tab') {
+        var all = t.el.querySelectorAll('button, input, a[href]'), f = [];
+        for (var i = 0; i < all.length; i++) { if (!all[i].disabled) { f.push(all[i]); } }
+        if (!f.length) { return; }
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }, true);
+  }
+
+  /* ── one document ─────────────────────────────────────────────────── */
+  function openDoc(key) {
+    var d = doc(key);
+    if (!d) { return null; }
+    var extra = '';
+    /* the artwork credits the app already shows (ZSART) belong with the
+       open-source list */
+    if (key === 'notices' && window.ZSART && typeof window.ZSART.creditsHTML === 'function') {
+      try { extra = '<h3>Artwork credits shown in the app</h3>' + window.ZSART.creditsHTML(); } catch (e) { extra = ''; }
+    }
+    return layer('zslg-doc-' + key, d.title,
+      '<article class="zslg-doc" data-zslg-doc="' + esc(key) + '">' + d.html + extra + '</article>', 'Back');
+  }
+
+  /* ── Settings > Legal ─────────────────────────────────────────────── */
+  function openList() {
+    var rows = DATA.docs.map(function (d) {
+      return '<button type="button" class="zslg-row" data-legal-doc="' + esc(d.key) + '">' +
+        '<span>' + esc(d.title) + '</span><span class="zslg-go">' + (d.draft ? 'Draft ›' : '›') + '</span></button>';
+    }).join('');
+    return layer('zslg-list', 'Legal',
+      '<div class="zslg-links" data-zslg-first>' + rows + '</div>' +
+      '<p class="zslg-dim" id="zslg-agreed">' + esc(agreedLine()) + '</p>', 'Back');
+  }
+
+  /* ── the agreement ────────────────────────────────────────────────── */
+  var showing = null;
+  function show() {
+    if (showing) { return showing; }
+    var upd = isUpdate();
+    var body =
+      '<div class="zslg-card">' +
+        '<h1>' + (upd ? 'We updated our terms' : 'Welcome to ZeroStick EXO') + '</h1>' +
+        '<p class="zslg-dim">' + (upd
+          ? 'The Terms of Use or the Privacy Policy changed since you last agreed. Please read them and agree to keep using the app.'
+          : 'Before you start, please read and agree to the Terms of Use and the Privacy Policy.') + '</p>' +
+        '<ul class="zslg-pts">' + POINTS.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' +
+        '<div class="zslg-links">' +
+          '<button type="button" class="zslg-row" data-legal-doc="terms"><span>Terms of Use</span><span class="zslg-go">Read ›</span></button>' +
+          '<button type="button" class="zslg-row" data-legal-doc="privacy"><span>Privacy Policy</span><span class="zslg-go">Read ›</span></button>' +
+        '</div>' +
+        '<label class="zslg-check"><input type="checkbox" id="zslg-agree" data-zslg-first>' +
+          '<span>I agree to the Terms of Use and the Privacy Policy</span></label>' +
+        '<div class="zslg-acts">' +
+          '<button type="button" class="zslg-btn" id="zslg-no">Not now</button>' +
+          '<button type="button" class="zslg-btn pri" id="zslg-go" disabled>Continue</button>' +
+        '</div>' +
+        '<p class="zslg-dim" id="zslg-said" role="status" aria-live="polite"></p>' +
+      '</div>';
+    var rec = layer('zslg-gate', 'ZeroStick EXO', body, null);
+    var el = rec.el;
+    var box = el.querySelector('#zslg-agree');
+    var go = el.querySelector('#zslg-go');
+    var said = el.querySelector('#zslg-said');
+    function sync() { go.disabled = !box.checked; }
+    box.addEventListener('change', sync);
+    box.addEventListener('click', function () { setTimeout(sync, 0); });
+    go.addEventListener('click', function () {
+      if (!box.checked) { return; }
+      accept();
+      showing = null;
+      close(rec);
+    });
+    el.querySelector('#zslg-no').addEventListener('click', function () {
+      /* the way out: the app stays closed. The exe's window can usually be
+         closed by the page; a phone (Android) leaves through Capacitor's
+         App plugin; where neither works, say what to do. */
+      said.textContent = 'ZeroStick EXO stays closed until you agree. Your EXO keeps working without the app. You can close this window, or read the documents and agree when you are ready.';
+      var cap = window.Capacitor;
+      try {
+        if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.App && cap.Plugins.App.exitApp) {
+          cap.Plugins.App.exitApp();
+          return;
+        }
+      } catch (e) {}
+      try { if (window.close) { window.close(); } } catch (e) {}
+    });
+    showing = rec;
+    return rec;
+  }
+
+  /* ── A-6: inside EXO Studio, waiting for its agreement ──────────────── */
+  var waiting = null;
+  function waitForHost() {
+    if (waiting) { return waiting; }
+    injectCSS();
+    var el = document.createElement('div');
+    el.className = 'zslg zslg-wait';
+    el.id = 'zslg-wait';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<h1>Waiting for ' + esc(HOST_NAME) + '…</h1>' +
+      '<p class="zslg-dim">Agree to the Terms of Use and the Privacy Policy in ' + esc(HOST_NAME) +
+      ' and this opens by itself.</p>';
+    document.body.appendChild(el);
+    var rec = { el: el, prev: document.activeElement, onBack: null };
+    layers.push(rec);
+    waiting = rec;
+    /* ask the host once; Studio may hand the agreement over right here */
+    var H = window.zsHost;
+    try { if (H && typeof H.legalNeeded === 'function') { H.legalNeeded(api.versions()); } } catch (e) { /* stays waiting */ }
+    return waiting;
+  }
+
+  function gate() {
+    if (skipReason() || !needsAcceptance()) { return false; }
+    if (HOSTED) { waitForHost(); return true; }
+    show();
+    return true;
+  }
+
+  var api = {
+    versions: function () { return { terms: DATA.terms, privacy: DATA.privacy }; },
+    acceptFromHost: acceptFromHost
+  };
+
+  window.ZSLEGAL = {
+    KEY: KEY,
+    hosted: HOSTED,
+    versions: api.versions,
+    acceptFromHost: acceptFromHost,
+    isWaiting: function () { return !!waiting; },
+    /* the wait, now (the shots use it; only where a host gives the agreement) */
+    showWait: function () { return HOSTED ? waitForHost() : null; },
+    docs: function () { return DATA.docs.map(function (d) { return { key: d.key, title: d.title, version: d.version, draft: d.draft }; }); },
+    accepted: accepted,
+    needsAcceptance: needsAcceptance,
+    isUpdate: isUpdate,
+    accept: accept,
+    skipReason: skipReason,
+    agreedLine: agreedLine,
+    gate: gate,
+    show: show,
+    openList: openList,
+    openDoc: openDoc,
+    closeAll: function () { while (layers.length) { close(layers[layers.length - 1]); } showing = null; waiting = null; },
+    isOpen: function () { return layers.length > 0; }
+  };
+  /* LAST, after everything above exists: EXO Studio's injected script
+     watches this assignment and hands its agreement over at once */
+  window.zsLegal = api;
+
+  /* the agreement comes up by itself on every page that loads this file
+     (the device list and the EXO app), once the body exists */
+  if (document.body) { gate(); }
+  else if (document.addEventListener) { document.addEventListener('DOMContentLoaded', gate); }
+}());

@@ -1,0 +1,235 @@
+/* zs-mobile.css - the dualshock-tools site laid out for a phone (D414).
+ *
+ * The owner, 2026-10-20: "Use this type of calibration GUI for the
+ * calibration tab and the way it explains and options, but optimise it for
+ * mobile obviously, but same workflow, graphics etc." and "even the numbers
+ * the GUI shows are better ... everything is better".
+ *
+ * PRESENTATION ONLY. Nothing here hides a number, a graphic, an option or a
+ * sentence of the site's, and nothing touches its flow or its timings (the
+ * owner reverted three attempts that did). It only re-lays the same things
+ * out at phone width (the app's frame is ~360 CSS px inside a 393 px
+ * window):
+ *   - the calibration actions and the Joystick Info card come first, the
+ *     Controller Info card after them (same cards, same contents);
+ *   - every button is a full-width touch target (>= 48 px), the stick
+ *     drawing and its LX/LY/RX/RY readouts scale to the width;
+ *   - every calibration modal is a full-screen sheet whose footer (Next /
+ *     Done / Cancel) stays on screen; the OK-only popups are bottom sheets;
+ *   - the fixed footer and the "about drift" note sit in the page, so they
+ *     never cover a button.
+ * Colours: inside the EXO app, zs-mobile.js copies the app's palette into
+ * --zs-* and the block at the end maps Bootstrap's variables onto it, so the
+ * site wears the app's theme (dark or light). The canvases and the
+ * controller picture are the site's own drawings, untouched.
+ */
+
+@media (max-width: 575.98px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { padding-bottom: 0; font-size: 15px; overflow-x: hidden; }
+  .container, .container-fluid { padding-left: 10px; padding-right: 10px; }
+  #mainmenu.container { padding-left: 0; padding-right: 0; }
+
+  /* ── the bar: logo + menu on one line ───────────────────────────── */
+  .navbar { padding-top: 6px; padding-bottom: 6px; }
+  .navbar > .container-fluid { flex-wrap: nowrap; gap: 8px; }
+  .navbar-brand { min-width: 0; flex: 1 1 auto; margin-right: 0; }
+  .zs-nav-logo { height: 22px; }
+  .navbar-brand > span { font-size: .66rem !important; letter-spacing: .1em !important; white-space: nowrap; }
+  .navbar-toggler { min-width: 44px; min-height: 44px; padding: 4px 8px; flex: none; order: 3; }
+  .navbar-collapse { order: 4; flex-basis: 100%; }
+  .navbar > .container-fluid { flex-wrap: wrap; }
+  .navbar-collapse .nav-link { min-height: 44px; display: flex; align-items: center; }
+  .navbar #availLangs .dropdown-item { min-height: 40px; display: flex; align-items: center; }
+
+  /* ── connect / connected ────────────────────────────────────────── */
+  #offlinebar, #onlinebar { padding: 6px 2px !important; }
+  #btnconnect { min-height: 52px; font-size: 1.05rem; font-weight: 600; }
+  #onlinebar .row { margin: 0; align-items: baseline; flex-wrap: nowrap; }
+  #onlinebar .row > [class*="col-"] { width: auto; padding: 0; }
+  #onlinebar .row > .col-sm-9 { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+  #onlinebar .row > .col-sm-3 { flex: none; padding-left: 8px; }
+  #onlinebar p { margin-bottom: 6px; }
+  #devname { overflow-wrap: anywhere; }
+  #onlinebar > .btn { min-height: 44px; }
+  #onlinebar > br, #offlinebar > br { display: none; }
+
+  /* ── the tabs: one row, equal ───────────────────────────────────── */
+  #mainTabs { flex-wrap: nowrap; }
+  #mainTabs .nav-item { flex: 1 1 0; min-width: 0; }
+  #mainTabs .nav-link { width: 100%; min-height: 46px; padding: 6px 2px; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center; gap: 0; font-size: .9rem; }
+
+  /* ── the Calibration tab: actions + sticks first ────────────────── */
+  #controller-content > .row { margin: 0; }
+  #controller-content > .row > [class*="col-"] { padding: 0; min-width: 0 !important; }
+  #controller-content > .row > .col-md-6:last-child { order: -1; }
+  #controller-content .vstack.gap-2.p-2 { padding: 0 0 12px !important; gap: 10px !important; }
+  .ds-btn.btn, #controller-content .vstack > .btn { min-height: 50px; font-size: 1rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; text-align: center; }
+  #controller-content .btn-group > .btn { min-height: 50px; font-size: 1rem; font-weight: 600; }
+  #controller-content .btn-group > .btn.flex-grow-1 { display: flex; align-items: center; justify-content: center; }
+  /* the six-space spacer that balances the split arrow stays; the arrow is a thumb wide */
+  #controller-content .btn-group > .dropdown-toggle-split { flex: 0 0 52px !important; }
+  #controller-content .dropdown-menu .dropdown-item { min-height: 44px; display: flex; align-items: center; }
+  #zs-hotkeys-hint { line-height: 1.6; font-size: .82rem; }
+  #zs-autosave-row { min-height: 44px; display: flex; align-items: center; gap: 10px; padding-left: 0 !important; margin: 0 !important; }
+  #zs-autosave-row .form-check-input { float: none; margin: 0 0 0 2px; width: 2.6em; height: 1.4em; flex: none; }
+  #zs-autosave-row .form-check-label { line-height: 1.3; }
+  #controller-content hr { margin: 4px 0; }
+
+  /* the Joystick Info card: the drawing as wide as the card, readouts in
+     four even columns, the three display modes as one full-width switch */
+  #stickCanvas { width: 100%; max-width: 420px; height: auto; display: block; }
+  #controller-content .card center > div:has(#stickCanvas) { display: block !important; position: relative; }
+  #circularityCheckIcon { right: 4px !important; top: 6px !important; }
+  #controller-content .card .hstack:has(#lx-lbl) { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  #controller-content .card .hstack:has(#lx-lbl) > .vstack { min-width: 0; }
+  #lx-lbl, #ly-lbl, #rx-lbl, #ry-lbl { min-width: 0 !important; font-size: .9rem; margin-bottom: 6px; overflow: visible; }
+  #controller-content .btn-group[aria-label="Display mode options"] { display: flex; width: 100%; }
+  #controller-content .btn-group[aria-label="Display mode options"] > label { flex: 1 1 0; min-height: 44px; font-size: .85rem;
+    display: flex; align-items: center; justify-content: center; padding: 4px 6px; white-space: normal; line-height: 1.15; }
+
+  /* Controller Info, Quick Test and the controller picture, after */
+  #controller-content .card-body { padding: 10px; }
+  #fwinfo { padding: 4px 6px !important; margin: 0; }
+  #fwinfo dt, #fwinfo dd { width: 50%; }
+  #fwinfo dd { overflow-wrap: anywhere; }
+  #infoshowall { padding: 4px 6px 8px !important; margin: 0; }
+  #infoshowall .btn { min-height: 44px; }
+  #quick-tests-div { justify-content: stretch !important; }
+  #quick-test-btn { width: 100%; margin-top: 4px; }
+  #controller-svg-container { margin-left: 0 !important; margin-right: 0 !important; }
+  #controller-svg-container svg { max-width: 100%; height: auto; }
+
+  /* Info and Debug tabs */
+  #info-content .container-fluid, #debug-content .container-fluid { padding: 8px 0 !important; }
+  #debug-content .hstack { flex-wrap: wrap; }
+  #debug-content .hstack > .btn { flex: 1 1 100%; min-height: 48px; }
+  dl.row > dt, dl.row > dd { overflow-wrap: anywhere; }
+
+  /* ── messages: in the page, never over a button ─────────────────── */
+  #aboutdrift { position: static !important; padding: 0 0 12px; }
+  #aboutdrift > .container { padding: 0 10px; }
+  #missinghid { position: static !important; padding: 8px 0 !important; }
+  .fixed-bottom:has(#alert-container) { bottom: 8px !important; }
+  #alert-container .alert { font-size: .92rem; }
+  footer.fixed-bottom { position: static; margin-top: 16px; }
+  footer #footbody { padding: 10px 0 !important; gap: 8px; font-size: .85rem; }
+  footer #footbody ul li { margin-left: 0 !important; margin-right: 18px; }
+  footer #footbody ul a { display: inline-flex; min-width: 32px; min-height: 32px; align-items: center; }
+  #zs-credit { display: block; margin-top: 4px; }
+
+  /* ── every modal a sheet ────────────────────────────────────────── */
+  .modal-dialog { margin: 0; max-width: none; width: 100%; height: 100%; min-height: 100%; }
+  .modal-dialog .modal-content { height: 100%; min-height: 100%; border: 0; border-radius: 0; }
+  .modal-dialog .modal-header { padding: 12px 14px; flex: none; }
+  .modal-dialog .modal-header .btn-close { width: 44px; height: 44px; padding: 0; margin: -10px -8px -10px auto; background-size: 14px; }
+  .modal-dialog .modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; flex: 1 1 auto; }
+  .modal-dialog .modal-footer { position: sticky; bottom: 0; z-index: 5; background: var(--bs-modal-bg, var(--bs-body-bg));
+    flex: none; flex-wrap: wrap; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--bs-border-color); }
+  .modal-dialog .modal-footer > * { margin: 0 !important; }
+  .modal-dialog .modal-footer > .btn { flex: 1 1 0; min-height: 50px; font-size: 1rem; font-weight: 600; }
+  .modal-dialog .modal-footer:not(:has(*)) { display: none; }
+  /* a short OK / support note: a bottom sheet, not the whole screen */
+  #popupModal .modal-dialog, #donateModal .modal-dialog { height: auto; min-height: 0; position: absolute; left: 0; right: 0; bottom: 0; }
+  #popupModal .modal-content, #donateModal .modal-content { height: auto; min-height: 0; border-radius: 16px 16px 0 0; }
+  .modal.fade .modal-dialog { transform: translateY(24px); }
+  .modal.show .modal-dialog { transform: none; }
+
+  /* the four-step centre wizard: its six steps as a 3 x 2 strip on top */
+  #calibCenterModal .modal-body > .row { margin: 0; }
+  #calibCenterModal .modal-body > .row > .col-4,
+  #calibCenterModal .modal-body > .row > .col-8 { width: 100%; padding: 0; }
+  #calibCenterModal #list-tab { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+  #calibCenterModal #list-tab .list-group-item { border-radius: 8px !important; border-width: 1px !important; margin: 0 !important;
+    text-align: center; padding: 8px 4px; font-size: .85rem; min-height: 40px; display: flex; align-items: center; justify-content: center; }
+  #calibCenterModal .col-8 > .container { padding: 0; }
+  #calibCenterModal h4 { font-size: 1.15rem; }
+
+  /* range: both sticks side by side and as big as fits, readouts under them */
+  #rangeModal .modal-body > div:has(#range-left-stick-canvas) { flex-wrap: wrap; justify-content: space-around !important; row-gap: 4px; }
+  #rangeModal .modal-body > div:has(#range-left-stick-canvas) > div:has(canvas) { flex: 0 0 48%; order: 0; }
+  #rangeModal .modal-body > div:has(#range-left-stick-canvas) > div:not(:has(canvas)) { flex: 0 0 48%; order: 1; min-width: 0 !important;
+    text-align: center !important; font-size: 1.05em; }
+  #range-left-stick-canvas, #range-right-stick-canvas { width: 100%; max-width: 170px; height: auto; }
+  #rangeModal .progress { height: 12px; }
+
+  /* finetune: Center / Circularity a full-width switch, each stick a card
+     with its drawing, its numbers round it, and its LX/LY readouts */
+  #finetuneModal .modal-body > .modal-header { padding: 0 0 10px; border: 0; }
+  #finetuneModal .modal-body > .modal-header .btn { min-height: 46px; display: flex; align-items: center; justify-content: center; }
+  #finetuneModal .alert { padding: 10px 12px; font-size: .9rem; margin-bottom: 10px; }
+  #finetuneModal .container-fluid { padding: 0; }
+  #finetuneModal .row { margin: 0; row-gap: 10px; }
+  #finetuneModal .row > .col { padding: 0; }
+  #left-stick-card, #right-stick-card { height: auto !important; }
+  #finetuneModal .card-body { padding: 8px; }
+  #finetuneModal input[id^=finetune] { width: 72px !important; min-width: 0 !important; padding: 4px 2px; text-align: center; font-size: .9rem; }
+  #finetuneStickCanvasL, #finetuneStickCanvasR { width: 150px; height: 150px; }
+  #finetuneStickCanvasL_large, #finetuneStickCanvasR_large { width: min(210px, 62vw); height: auto; margin: 0 auto; }
+  #finetuneModal .left-stick-values pre, #finetuneModal .right-stick-values pre { min-width: 0 !important; font-size: .95rem; }
+  #finetuneModal .spacer { height: 8px !important; }
+  #finetuneModal .card-body > .btn.position-absolute { min-width: 44px; min-height: 44px; }
+  #finetuneModal .modal-footer { position: sticky; bottom: -14px; margin: 12px -14px -14px; }
+  #finetuneModal .modal-footer > .form-check { flex: 1 1 auto; min-height: 40px; display: flex; align-items: center; gap: 8px; padding-left: 0; }
+  #finetuneModal .modal-footer > .form-check .form-check-input { float: none; margin: 0; width: 1.3em; height: 1.3em; }
+  #finetuneModal .modal-footer > .dropdown { flex: none; }
+  #finetuneModal .modal-footer > .dropdown:has(#stepSizeDropdown) > .btn { min-height: 44px; padding: 0 4px; display: flex; align-items: center; }
+  #finetuneModal .modal-footer > .dropdown:has(#quickCalibrateDropdown) { flex: 1 1 100%; order: 2; }
+  #finetuneModal .modal-footer > .btn { order: 3; }
+  #finetuneModal .modal-footer > .dropdown > .btn { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center; }
+  #finetuneModal .modal-footer > .dropdown .dropdown-menu { max-height: 50vh; overflow-y: auto; }
+  #finetuneModal .modal-footer .dropdown-item { min-height: 40px; display: flex; align-items: center; }
+
+  /* quick test, history, edge note, FAQ: wide things wrap */
+  #quickTestModal .accordion-button { min-height: 48px; }
+  #quickTestModal .skip-btn { opacity: 1; }
+  #faqModal .modal-body img, #edgeModal .modal-body img { max-width: 100%; height: auto; }
+  .modal-body table { display: block; max-width: 100%; overflow-x: auto; }
+  .modal-body pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+
+/* ── the EXO app's palette (zs-mobile.js fills --zs-*) ─────────────── */
+html.zs-app[data-bs-theme] {
+  --bs-body-bg: var(--zs-bg);
+  --bs-body-color: var(--zs-text);
+  --bs-emphasis-color: var(--zs-text);
+  --bs-secondary-color: var(--zs-muted);
+  --bs-tertiary-color: var(--zs-muted);
+  --bs-tertiary-bg: var(--zs-panel);
+  --bs-secondary-bg: var(--zs-panel2);
+  --bs-border-color: var(--zs-line);
+  --bs-link-color: var(--zs-accent);
+  --bs-link-hover-color: var(--zs-accent);
+  --bs-link-color-rgb: var(--zs-accent-rgb);
+  --bs-link-hover-color-rgb: var(--zs-accent-rgb);
+}
+html.zs-app body { background: var(--zs-bg); }
+html.zs-app .card { --bs-card-bg: var(--zs-panel); --bs-card-cap-bg: var(--zs-panel2); --bs-card-border-color: var(--zs-line); }
+html.zs-app .modal { --bs-modal-bg: var(--zs-panel); --bs-modal-border-color: var(--zs-line); --bs-modal-header-border-color: var(--zs-line);
+  --bs-modal-footer-border-color: var(--zs-line); }
+html.zs-app .list-group { --bs-list-group-bg: var(--zs-panel); --bs-list-group-border-color: var(--zs-line);
+  --bs-list-group-active-bg: var(--zs-accent); --bs-list-group-active-border-color: var(--zs-accent); --bs-list-group-active-color: var(--zs-accent-ink); }
+html.zs-app .dropdown-menu { --bs-dropdown-bg: var(--zs-panel2); --bs-dropdown-border-color: var(--zs-line); }
+html.zs-app .form-control { background-color: var(--zs-panel2); border-color: var(--zs-line); color: var(--zs-text); }
+html.zs-app .nav-tabs { --bs-nav-tabs-border-color: var(--zs-line); --bs-nav-tabs-link-active-bg: var(--zs-panel);
+  --bs-nav-tabs-link-active-border-color: var(--zs-line) var(--zs-line) var(--zs-panel); --bs-nav-tabs-link-active-color: var(--zs-text); }
+html.zs-app .btn-primary {
+  --bs-btn-bg: var(--zs-accent); --bs-btn-border-color: var(--zs-accent); --bs-btn-color: var(--zs-accent-ink);
+  --bs-btn-hover-bg: var(--zs-accent); --bs-btn-hover-border-color: var(--zs-accent); --bs-btn-hover-color: var(--zs-accent-ink);
+  --bs-btn-active-bg: var(--zs-accent); --bs-btn-active-border-color: var(--zs-accent); --bs-btn-active-color: var(--zs-accent-ink);
+  --bs-btn-disabled-bg: var(--zs-accent); --bs-btn-disabled-border-color: var(--zs-accent); --bs-btn-disabled-color: var(--zs-accent-ink);
+}
+html.zs-app .btn-outline-primary {
+  --bs-btn-color: var(--zs-accent); --bs-btn-border-color: var(--zs-accent);
+  --bs-btn-hover-bg: var(--zs-accent); --bs-btn-hover-border-color: var(--zs-accent); --bs-btn-hover-color: var(--zs-accent-ink);
+  --bs-btn-active-bg: var(--zs-accent); --bs-btn-active-border-color: var(--zs-accent); --bs-btn-active-color: var(--zs-accent-ink);
+}
+html.zs-app .btn-outline-primary { --bs-btn-disabled-color: var(--zs-muted); --bs-btn-disabled-border-color: var(--zs-line); }
+html.zs-app .btn-check:checked + .btn-outline-primary { color: var(--zs-accent-ink); }
+html.zs-app .progress-bar { background-color: var(--zs-accent); color: var(--zs-accent-ink); }
+html.zs-app .form-check-input:checked { background-color: var(--zs-accent); border-color: var(--zs-accent); }
+/* the app chooses the theme; the site's own sun / moon switch would fight it */
+html.zs-app .navbar li.nav-item:has(#colorModeSwitch) { display: none !important; }

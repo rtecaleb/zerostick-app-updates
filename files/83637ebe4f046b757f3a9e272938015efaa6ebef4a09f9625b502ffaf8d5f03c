@@ -1,0 +1,351 @@
+/* shell/11-detail-swipe.js — opening a screen, and the swipe gestures.
+ *
+ * openDetail: a renderer from window.RENDERERS (sections/, smart-actions/)
+ * drawn into #dbody and wired; the tint; redrawOpenScreen; and swiping right
+ * to go back or across to change tab.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── DETAIL ────────────────────────────────────────────────────── */
+  var detailOverride = null;   /* {title, back, onBack} set by sub-screens (Smart Actions) */
+  function setDetail(o){
+    detailOverride = o||null;
+    if(o){ document.getElementById('dtitle').textContent=o.title;
+           setBack(document.getElementById('dtback'), o.back);
+           /* D340: a sub-screen keeps its room's picture unless it brings
+              its own (o.pic, a src) */
+           if(o.pic) setDetailPic(o.pic); }
+  }
+
+  /* ── THE TITLE'S PICTURE (D340) ─────────────────────────────────────
+     Owner, 2026-10-14: "every time I open a tab, at the top ... it just
+     says 'Device'. Add the device image. Also in Aim ... add the aim image
+     too ... so it looks more polished." The header (#dtitle) wears the
+     room's own door picture, small, to the left of its name: the SAME
+     picture its editor-menu row draws (SECTIONS img; the still, imgStill,
+     where the door is an animated loop, so the header never moves).
+     A descriptor passed in part (ZS.openDetail({id:'overview', lab:'Device'}))
+     is looked up by its id. Screens outside SECTIONS use their own picture
+     where the app already has one (Global Settings: the More menu's), and
+     a screen opened FROM a room (Match Your Game from Device, a weapon from
+     AI Scripts) keeps that room's picture. The picture is decoration: its
+     element is aria-hidden with an empty alt, and the name stays the h2's
+     only text, so every test and screen reader that reads #dtitle reads
+     what it always did. */
+  var DETAIL_PIC_OWN = { global: 'brand/zs-global-settings.webp' };
+  /* screens about every config or the box, never inside a room: their own
+     picture or none, never the previous screen's */
+  var DETAIL_PIC_NONE = { 'new':1, profiles:1 };
+  var detailPicNow = '';
+  function detailPicFor(s, p){
+    if(!s || !s.id) return null;
+    if(DETAIL_PIC_OWN[s.id]) return DETAIL_PIC_OWN[s.id];
+    if(DETAIL_PIC_NONE[s.id]) return '';
+    var sec = null;
+    for(var i=0;i<SECTIONS.length;i++) if(SECTIONS[i].id===s.id){ sec = SECTIONS[i]; break; }
+    if(!sec) return null;                       /* not a room: inherit */
+    if(sec.imgStill) return sec.imgStill;
+    var img = typeof sec.img==='function' ? sec.img(p) : sec.img;
+    return img || '';                           /* a room with no picture: none */
+  }
+  function setDetailPic(src){
+    var el = document.getElementById('dtpic');
+    if(!el) return;
+    detailPicNow = src || '';
+    var wrap = el.parentNode;
+    if(detailPicNow){
+      if(el.getAttribute('src')!==detailPicNow) el.setAttribute('src', detailPicNow);
+      el.removeAttribute('hidden');
+      if(wrap) wrap.classList.add('has-pic');
+    } else {
+      el.setAttribute('hidden', '');
+      el.removeAttribute('src');
+      if(wrap) wrap.classList.remove('has-pic');
+    }
+  }
+  function openDetail(s, p){
+    /* the product gate, at the one door every route into a screen passes
+       through (the menu row, a deep link from another screen, a redraw): a
+       screen the Core lacks cannot be reached by a path the menu forgot */
+    if(s && productHides(s.id)){
+      toast(productName()+' does not have '+(s.lab || s.id));
+      return;
+    }
+    p = p || prof(editId || activeId);
+    /* D215: the GPC script device and "Copy your XIM settings in" live in
+       the Legacy Devices room now. Every old path into `gpc` / `ximimport`
+       still lands straight in the screen, and its back key leads to that
+       room (legacy-room.js route(); a descriptor that already owns its back
+       key, a redraw of the same visit, passes through untouched). */
+    if(window.ZSLEGACY && typeof window.ZSLEGACY.route === 'function') s = window.ZSLEGACY.route(s, p) || s;
+    /* D340: the title's picture - its own, else (a screen opened from a
+       room, or a redraw of the same one) the one the header already wears */
+    var picOwn = detailPicFor(s, p);
+    var dtOpen = document.getElementById('detail').classList.contains('open');
+    setDetailPic(picOwn !== null ? picOwn : (dtOpen ? detailPicNow : ''));
+    lastDetail = { s:s, p:p };        /* so redrawOpenScreen() can repeat it */
+    /* A SCREEN MAY OWN ITS BACK BUTTON — and it has to own it on the section
+       descriptor, not through a setDetail() call made afterwards.
+       redrawOpenScreen() re-enters this function with the SAME descriptor
+       whenever the connected pad's family changes (devbar.js, on the 2.5 s
+       pad poll). An override installed after the fact was wiped by that
+       redraw while s.backLabel was faithfully restored — so ＋ New config's
+       back button went on reading "‹ Configs" and closed to HOME instead.
+       Plugging in the pad you are making the config FOR is the most ordinary
+       thing to do on that screen, so this was not a corner case. Carried on
+       the descriptor, the override is part of what the screen IS, and every
+       redraw rebuilds it. setDetail() still exists for sub-screens that
+       switch back button mid-screen (Smart Actions). */
+    detailOverride = s.onBack
+      ? { title:s.lab, back:(s.backLabel||'‹ Back'), onBack:s.onBack }
+      : null;
+    document.getElementById('dtitle').textContent = s.lab;
+    var edOpen = document.getElementById('editor').classList.contains('open');
+    /* the editor's config may be gone from the list by now (deleted, or the
+       Core's list re-read without it): its back key then says Home rather
+       than the screen not opening at all (prof() is undefined; the stress
+       run, 2026-10-02, found every row of such an editor dead) */
+    var edP = edOpen && editId ? prof(editId) : null;
+    setBack(document.getElementById('dtback'), s.backLabel ? s.backLabel : (edP ? '‹ ' + edP.name : '‹ Home'));
+    var body = document.getElementById('dbody');
+    /* 'profiles' joins the global side: the Configs screen is ABOUT every
+       config, so any control it ever grows must not be keyed to whichever one
+       happened to be playing when it was opened. */
+    var ns = ((s.id==='global'||s.id==='new'||s.id==='profiles') ? 'global' : p.id) + '/' + s.id;
+    body.dataset.ns = ns;
+    /* THE SECTION'S COLOUR RIDES THE CONTAINER (owner, 2026-08-17: "more
+       colour separation" — the menu rows were tinted, their screens were
+       not). zs-kit.css §17 keys every tint hook off [data-tint], so setting
+       it here carries each editor section's menu hue into its own content —
+       headers, accordion icons, ON states — with no renderer change and no
+       per-control markup. The five values ARE the five SECTIONS ids, so a
+       screen can never wear another screen's colour.
+
+       GLOBAL SETTINGS JOINED THE TABLE ON 2026-08-18, and NOT because it is
+       a sixth room. It is the opposite: it is the screen about the BOX
+       rather than about a config, and it was wearing Overview's ion on its
+       tab strip, its group ticks and its switches — so "device settings"
+       and "this config's status" were the same colour and the same shape.
+       Measured, its Performance tab came back the least colourful screen in
+       the product. It takes the neutral steel Keybinds vacated (zs-kit.css
+       §17 [data-tint="global"]): a real separation, no sixth hue, and a hue
+       that says "hardware" rather than "one of your five sections".
+
+       Configs and the wizard stay neutral — they are lists of configs, and
+       tinting a list whose ROWS already carry per-config colour would put
+       two colour systems on one screen. */
+    if(s.id==='overview'||s.id==='aim'||s.id==='bindings'||s.id==='smart'||s.id==='vision'){
+      body.setAttribute('data-tint', s.id);
+    } else if(s.id==='behavior' || s.id==='translation'){
+      /* D163/D164: Aim's gold, the way Auto Actions wears Smart Actions' rose */
+      body.setAttribute('data-tint', 'aim');
+    } else if(s.id==='global'){
+      body.setAttribute('data-tint', 'global');
+    } else {
+      body.removeAttribute('data-tint');
+    }
+    /* D250 (owner, 2026-10-09: "apply it to every other tab ... we will keep
+       the same art style, fonts and everything across all tabs, but maybe
+       change the accent colours in the future"): EVERY screen wears the ZS8K
+       look. The accent is one token set (--zk-accent / --zk-ink in
+       phone.html), so a future accent change is one line. */
+    body.classList.add('zkaim');
+    var R = window.RENDERERS || {};
+    var res = R[s.id] ? R[s.id](p, s) : null;
+    if (res) {
+      body.innerHTML = (typeof res === 'string') ? res : res.html;
+      wire(body, ns);
+      if (typeof res !== 'string' && res.after) res.after(body, p);
+    } else {
+      var hint = typeof s.hint === 'function' ? s.hint(p) : (s.hint || '');
+      var gatedNote = s.gate ? '<div style="margin-top:10px"><span class="pill">shown because ' + gateText(s.gate) + '</span></div>' : '';
+      body.innerHTML = '<div class="ph">This is the <b>' + esc(s.lab) + '</b> screen — ' + esc(hint) + '.</div>' + gatedNote;
+    }
+    body.scrollTop = 0;
+    var scr=document.querySelector('.screen'); scr.scrollLeft=0; scr.scrollTop=0;  /* focus-reveal guard */
+    document.getElementById('detail').classList.add('open');
+    syncInert();
+  }
+  document.getElementById('dtback').addEventListener('click', function(){
+    if(detailOverride && detailOverride.onBack){ detailOverride.onBack(); return; }
+    document.getElementById('detail').classList.remove('open');
+    syncInert();
+  });
+
+  /* ── SWIPE (phones): drag right to go back, left/right to change tab ──
+     Routed through the same buttons a tap uses, so behaviour can never
+     drift from the tap path. Ignored on controls you drag (sliders, segs,
+     the curve editor, the CV stage — drawing a wide box must never read
+     as a tab swipe) and on anything scrolling sideways. */
+  (function swipeNav(){
+    /* [data-noswipe] is the screen-map P2 allowlist: sections stamp it on any
+       control a finger DRAGS sideways that this list cannot name from here —
+       the smoothing carousels, the release-timing ms ruler — so a drag on one
+       can never read as a tab swipe. The one other swiper is the panels'
+       own edge drag (zs-motion attachPanel), and a gesture it claims is
+       left to it entirely (M45, claimed() below). */
+    var CTRL = '.rng,.seg2,.subtabs,#edtabs,svg,input,select,textarea,.sw,.pk,.stepper,#cv-stage,[data-noswipe]';
+    var startX=0, startY=0, startT=0, tracking=false, dragEl=null;
+    var live=document.getElementById('swipehint');
+    var panelEl=null, dragging=false;   /* live drag-to-go-back state */
+
+    function topPanel(){
+      var d=document.getElementById('detail'), e=document.getElementById('editor');
+      if(d.classList.contains('open')) return 'detail';
+      if(e.classList.contains('open')) return 'editor';
+      return 'home';
+    }
+    function topPanelEl(){
+      var t=topPanel();
+      return t==='home' ? null : document.getElementById(t);
+    }
+    function goBack(){
+      var t=topPanel();
+      if(t==='detail'){ document.getElementById('dtback').click(); return true; }
+      if(t==='editor'){ document.getElementById('edback').click(); return true; }
+      return false;
+    }
+    /* ONE OWNER PER GESTURE (M45). zs-motion's attachPanel springs the
+       editor and the detail screen and takes a drag that starts at the
+       panel's left edge itself. This swiper used to take the same drag
+       too, so one swipe ran both back handlers and went back two levels,
+       and its CSS transitions fought the spring. Now: an edge drag the
+       panel claimed is ignored here, and a drag this swiper does own moves
+       the panel's spring (when it has one) instead of its style. */
+    function springOf(el){ return (el && el._zsPanel && el._zsPanel.spring) || null; }
+    function claimed(){
+      var el=topPanelEl();
+      return !!(el && el._zsPanel && el._zsPanel.dragging);
+    }
+    function setDrag(el, px){
+      var sp=springOf(el);
+      if(sp){
+        var w=Math.max(1, el.offsetWidth||320);
+        if(sp.stop) sp.stop();
+        sp.value=Math.max(0, px)/w;
+        if(sp._render) sp._render();
+        return;
+      }
+      el.style.transform='translateX('+Math.max(0, px)+'px)';
+    }
+    /* back to open, from wherever the finger left it */
+    function settleOpen(el){
+      var sp=springOf(el);
+      if(sp){ sp.to(0, { damping: 1.0, response: 0.32 }); return; }
+      el.style.transition='transform .18s ease';
+      el.style.transform='translateX(0)';
+      setTimeout(function(){ if(el){ el.style.transition=''; el.style.transform=''; } }, 200);
+    }
+    /* release the panel back to CSS control */
+    function resetPanel(){
+      if(panelEl){
+        if(springOf(panelEl)) settleOpen(panelEl);
+        else { panelEl.style.transition=''; panelEl.style.transform=''; }
+        panelEl=null;
+      }
+      dragging=false;
+    }
+    /* the tab strip that owns the screen you're looking at */
+    function tabStrip(){
+      var d=document.getElementById('detail');
+      if(d.classList.contains('open')){
+        var sub=d.querySelector('.subtabs');       /* e.g. Smart Actions */
+        if(sub) return sub;
+        return null;
+      }
+      if(document.getElementById('editor').classList.contains('open'))
+        return document.getElementById('edtabs');  /* Essentials / Advanced */
+      return null;
+    }
+    function stepTab(dir){
+      var strip=tabStrip(); if(!strip) return false;
+      var btns=[].slice.call(strip.querySelectorAll('button')); if(btns.length<2) return false;
+      var cur=btns.findIndex(function(b){ return b.classList.contains('on'); });
+      if(cur<0) cur=0;
+      var next=cur+dir;
+      if(next<0 || next>=btns.length) return false;
+      btns[next].click();
+      return true;
+    }
+    function hint(text){
+      if(!live) return;
+      live.textContent=text;                        /* announced to screen readers */
+    }
+
+    document.addEventListener('pointerdown', function(e){
+      if(e.pointerType==='mouse' && e.buttons!==1) return;
+      if(document.getElementById('sheetwrap').classList.contains('open')) return;
+      dragEl = e.target.closest ? e.target.closest(CTRL) : null;
+      startX=e.clientX; startY=e.clientY; startT=performance.now();
+      /* the panel's own edge swipe already has this one (M45); the panel's
+         pointerdown runs first, so `dragging` is already set */
+      tracking=!claimed();
+    }, {passive:true});
+
+    /* follow the finger: only a rightward back-drag on a panel with no tab
+       to its left, so tab-swiping and scrolling are untouched */
+    document.addEventListener('pointermove', function(e){
+      if(!tracking || dragEl) return;
+      if(document.body.classList.contains('a11y-motion')) return;
+      var dx=e.clientX-startX, dy=e.clientY-startY;
+      if(!dragging){
+        if(dx<24 || Math.abs(dy)>Math.abs(dx)*0.7) return;   /* not a back-drag (yet) */
+        var strip=tabStrip();
+        if(strip){
+          var btns=[].slice.call(strip.querySelectorAll('button'));
+          var cur=btns.findIndex(function(b){ return b.classList.contains('on'); });
+          if(cur>0) return;                       /* a tab swipe owns this gesture */
+        }
+        panelEl=topPanelEl(); if(!panelEl) return;
+        if(!springOf(panelEl)) panelEl.style.transition='none';
+        dragging=true;
+      }
+      setDrag(panelEl, dx);
+    }, {passive:true});
+
+    document.addEventListener('pointerup', function(e){
+      if(!tracking) return; tracking=false;
+      var wasDragging=dragging;
+      var dx=e.clientX-startX, dy=e.clientY-startY, dt=performance.now()-startT;
+
+      if(wasDragging){
+        var w=(panelEl&&panelEl.offsetWidth)||320;
+        var far = dx > w*0.32;
+        var flick = dx > 60 && dt < 320;           /* a quick flick counts too */
+        var el=panelEl;
+        panelEl=null; dragging=false;
+        if(far || flick){
+          /* let the class take over from where the finger left it: the
+             spring animates from there (watchClass), or CSS does */
+          if(!springOf(el)){ el.style.transition=''; el.style.transform=''; }
+          if(goBack()) hint('went back');
+          /* the back key may have asked instead of leaving (D257 unsaved
+             changes): the panel is still open, so it goes back to open */
+          if(el.classList.contains('open')) settleOpen(el);
+        } else {
+          settleOpen(el);
+        }
+        return;
+      }
+
+      if(dragEl) return;                            /* started on a draggable control */
+      if(dt>700) return;                            /* a slow drag isn't a swipe */
+      if(Math.abs(dx)<64) return;                   /* too short */
+      if(Math.abs(dy)>Math.abs(dx)*0.7) return;     /* that was a scroll */
+      if(dx>0){
+        /* right = back, but only after trying the tab to the left */
+        if(!stepTab(-1)){ if(goBack()) hint('went back'); }
+        else hint('previous tab');
+      } else {
+        if(stepTab(1)) hint('next tab');
+      }
+    }, {passive:true});
+
+    document.addEventListener('pointercancel', function(){ tracking=false; resetPanel(); }, {passive:true});
+  })();
+

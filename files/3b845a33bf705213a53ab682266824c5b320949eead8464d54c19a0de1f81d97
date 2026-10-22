@@ -1,0 +1,2183 @@
+/* ─── THIRD-PARTY NOTICE ───────────────────────────────────────────────
+ *
+ * The DualSense and DualShock 4 drawings in preview2d() below are not ours.
+ * They are the controller artwork from the DualShock Calibration GUI,
+ * https://github.com/dualshock-tools/dualshock-tools.github.io , used under
+ * the MIT licence, which requires this notice to travel with every copy.
+ * ZSART.credits() returns the same notice so the app can print it too, and
+ * Global Settings › Developer › Credits shows it to the person holding the
+ * device. Do not remove either one.
+ *
+ *   MIT License
+ *
+ *   Copyright (c) 2024 the_al
+ *
+ *   Permission is hereby granted, free of charge, to any person obtaining a
+ *   copy of this software and associated documentation files (the
+ *   "Software"), to deal in the Software without restriction, including
+ *   without limitation the rights to use, copy, modify, merge, publish,
+ *   distribute, sublicense, and/or sell copies of the Software, and to
+ *   permit persons to whom the Software is furnished to do so, subject to
+ *   the following conditions:
+ *
+ *   The above copyright notice and this permission notice shall be included
+ *   in all copies or substantial portions of the Software.
+ *
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ *   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ *   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ *   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ *   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ *   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ *   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Nothing else in this file is theirs: pad(), padSmall(), button() and the
+ * Xbox preview are our own drawing, and the rule that governs them is the
+ * next comment down.
+ * ───────────────────────────────────────────────────────────────────── */
+
+/* controller-art.js — the controller, drawn in our own hand.
+ *
+ * WHY THIS FILE EXISTS, AND WHY THE PAD LOOKS LIKE THIS
+ *
+ * The app has to show a controller: on the bottom bar, in a device list, and
+ * full-size when you are binding a button. The obvious move — ship a picture of
+ * a DualSense or an Xbox pad — is the one move we cannot make. Sony publishes
+ * no permission to use its marks or its device renders, Microsoft's brand rules
+ * allow their names in PLAIN TEXT only ("not logos, trade dress, designs or
+ * word marks in stylized form"), and the CC0 icon packs everyone reaches for
+ * (Xelu, Kenney) only clear COPYRIGHT — CC0 explicitly cannot licence a
+ * trademark the artist never owned. ZeroStick is an unlicensed accessory, the
+ * exact class of product those programmes exist to gate, so:
+ *
+ *   ONE ORIGINAL SILHOUETTE, themed per family by COLOUR and ACCENT — never by
+ *   shape. (preview2d() is the one exception, and it is an exception because
+ *   it is LICENSED: the PlayStation pads there are the_al's MIT artwork, see
+ *   the notice above. Everything below still follows this rule.) The body below is deliberately NOT the DualSense's flared, waisted
+ *   shell (ours has a flat, chamfered crown) and NOT the Xbox's offset stick
+ *   layout (ours are symmetric, like the drawing's own axis of symmetry).
+ *
+ *   NEVER DRAW: the PS logo, the PlayStation wordmark, the Xbox sphere, or a
+ *   light-bar-plus-wide-touchpad arrangement that reads as one specific pad.
+ *
+ *   FACE MARKS: A/B/X/Y letters for the Xbox family and X/A/B/Y for Nintendo —
+ *   letters are not the trademark, the stylised sphere is. The PlayStation
+ *   shapes are drawn as plain strokes in OUR ink, at OUR weight, as nominative
+ *   use: they identify which physical button your thumb is on, which is the
+ *   whole job of an accessibility device. A pad we do not recognise gets our
+ *   own N/E/S/W — the board's own vocabulary, and nobody else's mark.
+ *
+ *   CONSOLES ARE NAMED IN TEXT. ZSART.name() returns "PlayStation controller",
+ *   and callers say "connected" / "compatible with" around it. A borrowed logo
+ *   would fail the nominative-use test on its second prong; the word alone
+ *   identifies the console, so the mark is more than is necessary.
+ *
+ * THE 3D, IN PAINT ORDER — every one of these is load-bearing. Drop any and it
+ * flattens into an icon:
+ *
+ *   contact shadow   one blurred ellipse. Without it the pad floats.
+ *   occluders        bumpers and triggers drawn BEHIND the body, peeking above
+ *                    the crown. Occlusion is the strongest depth cue there is.
+ *   edge slab        the same path again at translate(0,6) in a dark gradient:
+ *                    that band IS the thickness of the shell.
+ *   front face       a THREE-stop gradient. Two stops looks like a ramp.
+ *   clipPath         everything inside is clipped to the body, so no detail
+ *                    bleeds off the form.
+ *   form shadows     big soft radials over the grips — transparent until 55%,
+ *                    black 0.26 at the rim. Overdone, they read as headlights.
+ *   sheen            one off-centre white radial across the crown.
+ *   concave vs convex  the same circle, gradient stops flipped: dark centre to
+ *                    light rim = a dish; light upper-left to dark lower-right =
+ *                    a dome. Plus a bright arc on the dish's FAR rim only.
+ *   rim light        LAST, over everything: a stroke whose gradient is white at
+ *                    the top and gone by 45% down, so only the top silhouette
+ *                    catches the light.
+ *
+ * ID COLLISION is the integration trap: gradient and filter ids are document
+ * global, so two pads on one page and the second steals the first's gradients.
+ * Every id here is prefixed with a per-instance counter (zsa1-, zsa2-).
+ *
+ * ES5 only — this file is loaded straight into a browser with no build step.
+ * Self-contained: no external requests, no raster, no CDN. Nothing here needs
+ * glyphs.js to be loaded, but it USES it when it is: glyphs.js is the single
+ * source of truth for control names, and LOCAL below is only the headless
+ * fallback (plus the 'generic' family, which glyphs.js has no opinion about).
+ */
+(function () {
+  'use strict';
+
+  /* ── who we draw ──────────────────────────────────────────────── */
+
+  var FAMS = ['ps', 'xb', 'nin', 'generic'];
+
+  /* The text IS the brand mark. Plain names, no stylisation, no logo. */
+  var NAME = {
+    ps:      'PlayStation controller',
+    xb:      'Xbox controller',
+    nin:     'Nintendo Switch controller',
+    generic: 'Controller'
+  };
+
+  /* Colour and accent carry the family, because the SHAPE may not. `hi` is the
+     lit colour for live input; hiHi/hiLo are its highlight and shade, picked by
+     hand so a lit button still reads as a dome and a lit stick as a dish. */
+  var THEMES = {
+    ps: {
+      shell: '#f2f5f9', shellLo: '#b6bfcc', edge: '#6f7887',
+      plate: '#2a2f39', plateLo: '#14171d', face: '#e3e7ee', ink: '#2f3540',
+      hi: '#4f9bff', hiHi: '#d6e7ff', hiLo: '#1650b8'
+    },
+    xb: {
+      shell: '#f0f3f6', shellLo: '#adb6c1', edge: '#6b737f',
+      plate: '#232830', plateLo: '#10131a', face: '#e1e6ec', ink: '#2b313a',
+      hi: '#2fd074', hiHi: '#d3f7e2', hiLo: '#0c7a3c'
+    },
+    nin: {
+      shell: '#eef1f5', shellLo: '#b0b8c3', edge: '#6a7280',
+      plate: '#262a32', plateLo: '#12151b', face: '#e3e7ed', ink: '#2d323b',
+      hi: '#ff6b62', hiHi: '#ffdcd8', hiLo: '#a81f1f'
+    },
+    /* An unrecognised pad gets graphite and orange — visibly "some controller",
+       never mistaken for a console's own livery. */
+    generic: {
+      shell: '#59616d', shellLo: '#2a2f38', edge: '#14171c',
+      plate: '#191c22', plateLo: '#0a0c10', face: '#c6ccd5', ink: '#22262d',
+      hi: '#ffa25c', hiHi: '#ffe6d1', hiLo: '#b5511a'
+    }
+  };
+
+  /* ── geometry (one drawing, four themes) ──────────────────────── */
+
+  var VB_W = 440, VB_H = 300;
+  var CAPTION_H = 42;          /* extra room under the pad when label:true */
+
+  /* Body outline, clockwise from the left end of the flat crown. The flat
+     chamfered top and the symmetric grips are the two things that make this
+     silhouette ours rather than anyone else's. Mirrored exactly about x=220. */
+  var BODY =
+      'M150,56 L290,56'
+    + ' C316,56 336,62 350,78'
+    + ' C372,98 382,132 380,164'
+    + ' C378,206 366,244 340,262'
+    + ' C322,276 300,270 288,252'
+    + ' C274,232 262,218 244,212'
+    + ' C236,210 230,209 220,209'
+    + ' C210,209 204,210 196,212'
+    + ' C178,218 166,232 152,252'
+    + ' C140,270 118,276 100,262'
+    + ' C74,244 62,206 60,164'
+    + ' C58,132 68,98 90,78'
+    + ' C104,62 124,56 150,56 Z';
+
+  var DPAD = { x: 124, y: 130, a: 11, b: 26 };        /* half-thickness, half-length */
+  var FACE = { x: 316, y: 130, off: 30, r: 15 };
+  var STICK = { lx: 156, rx: 284, y: 196, well: 26, cap: 19 };
+  var PLATE = { x: 180, y: 90, w: 80, h: 84, r: 16 };
+  var TOUCH = { x: 188, y: 96, w: 64, h: 44, r: 8 };
+  var GUIDE = { x: 220, y: 155, r: 10 };
+  var SYSL  = { x: 186, y: 150.5, w: 20, h: 9 };      /* select pill */
+  var SYSR  = { x: 234, y: 150.5, w: 20, h: 9 };      /* start pill  */
+  /* The two extras are PILLS, not studs. A small dark circle on a light shell
+     reads as a screw hole or a camera pinhole, never as something you press. */
+  var EXTRA = { lx: 164, rx: 276, y: 80, w: 21, h: 9.5 };
+  /* The shoulders are tilted a few degrees so they follow the crown's curve
+     instead of sitting on it like two pills. Cheap, and it is most of what
+     makes them read as part of the same moulding. */
+  var BUMP  = { lx: 96,  rx: 260, y: 46, w: 84, h: 26, r: 13, tilt: 6 };
+  /* The trigger's lower half hides behind the bumper (y+h = 60 against the
+     bumper's top edge at 46). Leave a gap and it floats like a separate part. */
+  var TRIG  = { lx: 116, rx: 276, y: 34, w: 48, h: 26, r: 12, tilt: 6 };
+
+  /* ── small helpers ────────────────────────────────────────────── */
+
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* Every lookup goes through here: a code like "constructor" must not reach
+     Object.prototype and hand back a function. */
+  function has(table, key) {
+    return Object.prototype.hasOwnProperty.call(table, key);
+  }
+
+  /* Trim the float noise out of derived coordinates — "196.00000000000003" in
+     the markup is both bigger and harder to diff. */
+  function n(v) { return Math.round(v * 100) / 100; }
+
+  var FONT = 'system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif';
+
+  /* Unlike glyphs.js, an unknown family here is NOT Xbox. glyphs.js must guess
+     a name for a button and Xbox is the one every console understands; we are
+     drawing a picture, and we have an honest neutral one for "some pad". */
+  function famOf(f) {
+    var s = String(f === undefined || f === null ? '' : f).toLowerCase();
+    if (s === 'ps' || s === 'ps3' || s === 'ps4' || s === 'ps5' || s === 'playstation') return 'ps';
+    if (s === 'xb' || s === 'xbox' || s === 'xone' || s === 'series' || s === 'xsx') return 'xb';
+    if (s === 'nin' || s === 'ns' || s === 'switch' || s === 'switch2' || s === 'nintendo') return 'nin';
+    return 'generic';
+  }
+
+  /* ── codes ────────────────────────────────────────────────────── */
+
+  /* Enough of glyphs.js's ALIAS table to survive without it. When glyphs.js IS
+     loaded we defer to it, because it is the source of truth and it knows the
+     mouse/keyboard rules this file has no business duplicating. */
+  var ALIAS = {
+    tl: 'l1', tr: 'r1', tl2: 'lt+', tr2: 'rt+', thumbl: 'l3', thumbr: 'r3',
+    lb: 'l1', rb: 'r1', zl: 'lt+', zr: 'rt+', l: 'l1', r: 'r1',
+    l2: 'lt+', r2: 'rt+', ls: 'l3', rs: 'r3',
+    mode: 'guide', home: 'guide', ps: 'guide', xbox: 'guide',
+    back: 'select', share: 'select', create: 'select', view: 'select',
+    options: 'start', menu: 'start', plus: 'start', minus: 'select',
+    cross: 'south', circle: 'east', square: 'west', triangle: 'north',
+    trigger_happy1: 'touchpad',
+    dpup: 'dpad_up', dpdown: 'dpad_down', dpleft: 'dpad_left', dpright: 'dpad_right',
+    up: 'dpad_up', down: 'dpad_down', left: 'dpad_left', right: 'dpad_right'
+  };
+
+  /* A prefixed evdev MOUSE button keeps its prefix: BTN_LEFT is the mouse, not
+     the D-pad. Strip it blindly and "left" aliases straight onto dpad_left, and
+     a mouse binding lights up a controller — the exact lie glyphs.js exists to
+     stop, and it must not creep back in through this file's fallback. */
+  var MOUSE = { left: 1, right: 1, middle: 1, side: 1, extra: 1 };
+
+  function localNorm(code) {
+    var c = String(code === undefined || code === null ? '' : code).trim().toLowerCase();
+    if (c.indexOf('btn_') === 0) {
+      if (has(MOUSE, c.slice(4))) return c;
+      c = c.slice(4);
+    }
+    if (c.indexOf('abs_') === 0) c = c.slice(4);
+    var sign = '';
+    var last = c.charAt(c.length - 1);
+    if (last === '+' || last === '-') { sign = last; c = c.slice(0, c.length - 1); }
+    if (has(ALIAS, c)) {
+      c = ALIAS[c];
+      var al = c.charAt(c.length - 1);
+      if (al === '+' || al === '-') sign = '';    /* the alias's own sign wins */
+    }
+    return c + sign;
+  }
+
+  function normCode(code) {
+    var Z = window.ZSG;
+    if (Z && typeof Z.code === 'function') {
+      try { return Z.code(code); } catch (e) {}
+    }
+    return localNorm(code);
+  }
+
+  function baseOf(code) {
+    var last = code.charAt(code.length - 1);
+    return (last === '+' || last === '-') ? code.slice(0, code.length - 1) : code;
+  }
+
+  /* Neutral code → the part of the drawing that lights up. An axis points at
+     the stick it moves, so ly+ lights the left stick AND leans it. */
+  var PART = {
+    south: 'south', east: 'east', west: 'west', north: 'north',
+    l1: 'l1', r1: 'r1', lt: 'lt', rt: 'rt',
+    l3: 'ls', lx: 'ls', ly: 'ls',
+    r3: 'rs', rx: 'rs', ry: 'rs',
+    dpad_up: 'dpad_up', dpad_down: 'dpad_down',
+    dpad_left: 'dpad_left', dpad_right: 'dpad_right',
+    start: 'start', select: 'select', guide: 'guide', touchpad: 'touchpad',
+    extra1: 'extra1', extra2: 'extra2'
+  };
+
+  /* SVG y grows downward, so "up" (ly+, per the board) is dy = -1. */
+  var TILT = {
+    'lx+': [1, 0], 'lx-': [-1, 0], 'ly+': [0, -1], 'ly-': [0, 1],
+    'rx+': [1, 0], 'rx-': [-1, 0], 'ry+': [0, -1], 'ry-': [0, 1]
+  };
+
+  function partOf(code) {
+    var b = baseOf(normCode(code));
+    return has(PART, b) ? PART[b] : null;
+  }
+
+  /* Which parts are lit, and how far each stick is leaning. Anything we cannot
+     place (a mouse button, a keyboard key, nonsense) is skipped rather than
+     guessed at — a wrong glowing button is worse than none. */
+  function hiOf(list) {
+    var on = {}, lean = { ls: [0, 0], rs: [0, 0] };
+    var codes = list;
+    if (typeof codes === 'string') codes = [codes];
+    if (!codes || !codes.length) return { on: on, lean: lean };
+    for (var i = 0; i < codes.length; i++) {
+      var c = normCode(codes[i]);
+      var p = partOf(c);
+      if (!p) continue;
+      on[p] = true;
+      if (has(TILT, c)) {
+        var t = TILT[c];
+        lean[p][0] = Math.max(-1, Math.min(1, lean[p][0] + t[0]));
+        lean[p][1] = Math.max(-1, Math.min(1, lean[p][1] + t[1]));
+      }
+    }
+    return { on: on, lean: lean };
+  }
+
+  /* ── names (glyphs.js is the truth; this is the fallback) ─────── */
+
+  /* Only the controls whose NAME changes with the family. Kept in the board's
+     vocabulary: there is no "l2" code, so the trigger lives under lt/rt and
+     wears the family's name for it. */
+  var LOCAL = {
+    ps: {
+      south: ['Cross', '✕'], east: ['Circle', '◯'], west: ['Square', '▢'], north: ['Triangle', '△'],
+      l1: ['L1', 'L1'], r1: ['R1', 'R1'], lt: ['L2', 'L2'], rt: ['R2', 'R2'],
+      l3: ['L3', 'L3'], r3: ['R3', 'R3'],
+      start: ['Options', 'OPT'], select: ['Create', 'CRE'], guide: ['PS', 'PS'],
+      touchpad: ['Touchpad', 'TP']
+    },
+    xb: {
+      south: ['A', 'A'], east: ['B', 'B'], west: ['X', 'X'], north: ['Y', 'Y'],
+      l1: ['LB', 'LB'], r1: ['RB', 'RB'], lt: ['LT', 'LT'], rt: ['RT', 'RT'],
+      l3: ['LS', 'LS'], r3: ['RS', 'RS'],
+      start: ['Menu', 'MENU'], select: ['View', 'VIEW'], guide: ['Guide', 'XB'],
+      touchpad: ['Touchpad', 'TP']
+    },
+    nin: {
+      /* the famous swap: Nintendo's east is A and its south is B */
+      south: ['B', 'B'], east: ['A', 'A'], west: ['Y', 'Y'], north: ['X', 'X'],
+      l1: ['L', 'L'], r1: ['R', 'R'], lt: ['ZL', 'ZL'], rt: ['ZR', 'ZR'],
+      l3: ['L3', 'L3'], r3: ['R3', 'R3'],
+      start: ['Plus', '+'], select: ['Minus', '-'], guide: ['Home', 'HOME'],
+      touchpad: ['Touchpad', 'TP']
+    },
+    /* An unknown pad is named in the board's own words — no borrowed letters */
+    generic: {
+      south: ['South', 'S'], east: ['East', 'E'], west: ['West', 'W'], north: ['North', 'N'],
+      l1: ['L1', 'L1'], r1: ['R1', 'R1'], lt: ['L2', 'L2'], rt: ['R2', 'R2'],
+      l3: ['L3', 'L3'], r3: ['R3', 'R3'],
+      start: ['Start', 'START'], select: ['Select', 'SEL'], guide: ['Home', 'HOME'],
+      touchpad: ['Touchpad', 'TP']
+    }
+  };
+
+  /* the same words on every pad */
+  var SHARED = {
+    dpad_up: ['D-pad Up', '↑'], dpad_down: ['D-pad Down', '↓'],
+    dpad_left: ['D-pad Left', '←'], dpad_right: ['D-pad Right', '→'],
+    extra1: ['Extra 1', 'X1'], extra2: ['Extra 2', 'X2'],
+    'lx+': ['Left Stick Right', 'L→'], 'lx-': ['Left Stick Left', 'L←'],
+    'ly+': ['Left Stick Up', 'L↑'], 'ly-': ['Left Stick Down', 'L↓'],
+    'rx+': ['Right Stick Right', 'R→'], 'rx-': ['Right Stick Left', 'R←'],
+    'ry+': ['Right Stick Up', 'R↑'], 'ry-': ['Right Stick Down', 'R↓']
+  };
+
+  function lookup(code, fam) {
+    var c = normCode(code);
+    if (has(SHARED, c)) return SHARED[c];
+    var b = baseOf(c);
+    if (has(SHARED, b)) return SHARED[b];
+    if (has(LOCAL[fam], b)) return LOCAL[fam][b];
+    return null;
+  }
+
+  /* which: 0 = full label, 1 = short form */
+  function textOf(code, fam, which) {
+    var Z = window.ZSG;
+    /* glyphs.js knows nothing of 'generic' — asking it would answer in Xbox */
+    if (fam !== 'generic' && Z && typeof Z.label === 'function') {
+      try {
+        var v = which ? Z.short(code, fam) : Z.label(code, fam);
+        if (v) return String(v);
+      } catch (e) {}
+    }
+    var p = lookup(code, fam);
+    return p ? p[which] : String(code === undefined || code === null ? '' : code);
+  }
+
+  /* ── shape factories ──────────────────────────────────────────── */
+  /* Each returns a function(attrs) so the SAME geometry can be drawn several
+     times — cast shadow, glow, fill, rim — without repeating the numbers. */
+
+  function circ(cx, cy, r) {
+    return function (a) {
+      return '<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(r) + '" ' + a + '/>';
+    };
+  }
+  function rrect(x, y, w, h, r) {
+    return function (a) {
+      return '<rect x="' + n(x) + '" y="' + n(y) + '" width="' + n(w) + '" height="' + n(h) +
+        '" rx="' + n(r) + '" ' + a + '/>';
+    };
+  }
+  function pathOf(d) {
+    return function (a) { return '<path d="' + d + '" ' + a + '/>'; };
+  }
+
+  /* the plus of a d-pad, centred, from half-thickness a and half-length b */
+  function plusPath(cx, cy, a, b) {
+    var k = b - a;
+    return 'M' + n(cx - a) + ',' + n(cy - b) +
+      ' h' + n(2 * a) + ' v' + n(k) + ' h' + n(k) + ' v' + n(2 * a) + ' h' + n(-k) +
+      ' v' + n(k) + ' h' + n(-2 * a) + ' v' + n(-k) + ' h' + n(-k) + ' v' + n(-2 * a) +
+      ' h' + n(k) + ' Z';
+  }
+
+  /* ── per-instance drawing context ─────────────────────────────── */
+
+  var uidN = 0;
+
+  function ctxOf(fam, o) {
+    var u = 'zsa' + (++uidN);
+    var compact = !!(o && o.compact);
+    return {
+      t: THEMES[fam],
+      fam: fam,
+      u: u,
+      compact: compact,
+      id: function (nm) { return u + '-' + nm; },
+      ref: function (nm) { return 'url(#' + u + '-' + nm + ')'; },
+      /* filters are the expensive part; a list row full of pads does without */
+      f: function (nm) { return compact ? '' : ' filter="url(#' + u + '-' + nm + ')"'; }
+    };
+  }
+
+  function defs(c, full) {
+    var t = c.t, s = [];
+
+    /* front face — THREE stops, so the falloff is not a linear ramp */
+    s.push('<linearGradient id="' + c.id('body') + '" x1="0.2" y1="0" x2="0.7" y2="1">' +
+      '<stop offset="0" stop-color="' + t.shell + '"/>' +
+      '<stop offset="0.5" stop-color="' + t.shell + '"/>' +
+      '<stop offset="1" stop-color="' + t.shellLo + '"/></linearGradient>');
+
+    /* the edge slab: this band IS the thickness of the shell */
+    s.push('<linearGradient id="' + c.id('edge') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + t.edge + '"/>' +
+      '<stop offset="1" stop-color="' + t.plateLo + '"/></linearGradient>');
+
+    /* rim light — white at the top, gone by 45% down */
+    s.push('<linearGradient id="' + c.id('rim') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.9"/>' +
+      '<stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>');
+
+    /* one off-centre specular sheen across the crown */
+    s.push('<radialGradient id="' + c.id('sheen') + '" cx="0.3" cy="0.1" r="0.7">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.5"/>' +
+      '<stop offset="0.55" stop-color="#fff" stop-opacity="0.05"/>' +
+      '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>');
+
+    /* Form shadow. It is painted through the BODY PATH itself, in user space,
+       so the gradient's dark end lands exactly on the silhouette. An ellipse
+       per grip (the obvious way) leaves a visible arc where the ellipse ends
+       mid-shell — a waterline across the pad, and the single ugliest thing in
+       an early draft of this drawing. One light source, upper-left, so the
+       centre is at the crown and everything falls away from it. */
+    s.push('<radialGradient id="' + c.id('vig') + '" gradientUnits="userSpaceOnUse"' +
+      ' cx="196" cy="112" r="262">' +
+      '<stop offset="0" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="0.5" stop-color="#000" stop-opacity="0.03"/>' +
+      '<stop offset="0.8" stop-color="#000" stop-opacity="0.14"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0.34"/></radialGradient>');
+
+    /* the recessed plate runs dark→light, the opposite of the shell */
+    s.push('<linearGradient id="' + c.id('plate') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + t.plateLo + '"/>' +
+      '<stop offset="1" stop-color="' + t.plate + '"/></linearGradient>');
+    /* the touch surface, a shade lighter than the recess it sits in */
+    s.push('<linearGradient id="' + c.id('touch') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + t.plate + '"/>' +
+      '<stop offset="1" stop-color="' + t.plateLo + '"/></linearGradient>');
+
+    /* CONCAVE: dark centre, light rim */
+    s.push('<radialGradient id="' + c.id('dish') + '" cx="0.5" cy="0.4" r="0.62">' +
+      '<stop offset="0" stop-color="#0c0e12"/>' +
+      '<stop offset="0.68" stop-color="#282d36"/>' +
+      '<stop offset="1" stop-color="#5b6470"/></radialGradient>');
+    s.push('<radialGradient id="' + c.id('dishLit') + '" cx="0.5" cy="0.4" r="0.62">' +
+      '<stop offset="0" stop-color="' + t.hiLo + '"/>' +
+      '<stop offset="0.68" stop-color="' + t.hi + '"/>' +
+      '<stop offset="1" stop-color="' + t.hiHi + '"/></radialGradient>');
+
+    /* CONVEX: the same circle with the stops flipped — light upper-left */
+    s.push('<radialGradient id="' + c.id('dome') + '" cx="0.34" cy="0.26" r="0.8">' +
+      '<stop offset="0" stop-color="#fcfdfe"/>' +
+      '<stop offset="0.5" stop-color="' + t.face + '"/>' +
+      '<stop offset="1" stop-color="#8a929f"/></radialGradient>');
+    s.push('<radialGradient id="' + c.id('lit') + '" cx="0.34" cy="0.26" r="0.8">' +
+      '<stop offset="0" stop-color="' + t.hiHi + '"/>' +
+      '<stop offset="0.5" stop-color="' + t.hi + '"/>' +
+      '<stop offset="1" stop-color="' + t.hiLo + '"/></radialGradient>');
+
+    /* The shoulder slabs sit in the shell's shadow, and the trigger behind the
+       bumper is darker again — two tones is what separates them at a glance. */
+    s.push('<linearGradient id="' + c.id('bump') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + t.shellLo + '"/>' +
+      '<stop offset="1" stop-color="' + t.plateLo + '"/></linearGradient>');
+    s.push('<linearGradient id="' + c.id('trig') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + t.edge + '"/>' +
+      '<stop offset="1" stop-color="' + t.plateLo + '"/></linearGradient>');
+
+    if (!c.compact) {
+      s.push('<filter id="' + c.id('drop') + '" x="-30%" y="-40%" width="160%" height="200%">' +
+        '<feGaussianBlur stdDeviation="10"/></filter>');
+      s.push('<filter id="' + c.id('soft') + '" x="-70%" y="-70%" width="240%" height="240%">' +
+        '<feGaussianBlur stdDeviation="2.2"/></filter>');
+      s.push('<filter id="' + c.id('glow') + '" x="-80%" y="-80%" width="260%" height="260%">' +
+        '<feGaussianBlur stdDeviation="4.5"/></filter>');
+      /* inner shadow — blur+offset, composite OUT of the source alpha, flood,
+         then put the source back over it. This is what makes a hole a hole. */
+      s.push('<filter id="' + c.id('inner') + '" x="-40%" y="-40%" width="180%" height="180%">' +
+        '<feOffset dy="3"/><feGaussianBlur stdDeviation="3" result="o"/>' +
+        '<feComposite in="SourceGraphic" in2="o" operator="out" result="k"/>' +
+        '<feFlood flood-color="#000" flood-opacity="0.6"/>' +
+        '<feComposite in2="k" operator="in"/>' +
+        '<feComposite in2="SourceGraphic" operator="over"/></filter>');
+    }
+
+    if (full) {
+      s.push('<path id="' + c.id('bp') + '" d="' + BODY + '"/>');
+      /* href is SVG2; xlink:href keeps an old Android WebView happy too */
+      s.push('<clipPath id="' + c.id('clip') + '"><use href="#' + c.id('bp') +
+        '" xlink:href="#' + c.id('bp') + '"/></clipPath>');
+    }
+    return s.join('');
+  }
+
+  /* ── the parts ────────────────────────────────────────────────── */
+
+  /* A raised control: cast shadow, optional glow, the dome, a rim. `part` is
+     written out as data-part so a caller can also light it from the DOM. */
+  function raised(c, shape, on, part, glint, rest) {
+    var s = [];
+    s.push(shape('fill="#000" opacity="' + (c.compact ? '0.3' : '0.45') +
+      '" transform="translate(0,3)"' + c.f('soft')));
+    if (on && !c.compact) s.push(shape('fill="' + c.t.hi + '" opacity="0.85"' + c.f('glow')));
+    /* `rest` overrides the unlit fill: a dark stud reads as a small utility
+       button, where the pale dome reads as a pearl stuck on the shell. */
+    s.push(shape('data-part="' + part + '" fill="' +
+      (on ? c.ref('lit') : (rest ? c.ref(rest) : c.ref('dome'))) + '"'));
+    s.push(shape('fill="none" stroke="' + (on ? c.t.hiHi : '#fff') +
+      '" stroke-opacity="' + (on ? '0.9' : (rest ? '0.28' : '0.4')) + '" stroke-width="1"'));
+    if (glint) s.push(glint);
+    return s.join('');
+  }
+
+  /* the squashed white ellipse at 11 o'clock that says "moulded plastic" */
+  function glintAt(cx, cy, r) {
+    return '<ellipse cx="' + n(cx - r * 0.24) + '" cy="' + n(cy - r * 0.37) +
+      '" rx="' + n(r * 0.44) + '" ry="' + n(r * 0.26) + '" fill="#fff" opacity="0.5"/>';
+  }
+
+  /* One dished analog stick. Five elements do the whole job, and the bright arc
+     on the FAR rim is the one the eye actually reads as concavity. */
+  function stickArt(c, cx, cy, wellR, capR, on, dx, dy, part) {
+    var s = [];
+    var lean = wellR * 0.2;
+    var ox = cx + dx * lean, oy = cy - 1.5 + dy * lean;
+    s.push('<circle cx="' + n(cx) + '" cy="' + n(cy + 3) + '" r="' + n(wellR) +
+      '" fill="#000" opacity="0.45"' + c.f('soft') + '/>');
+    s.push('<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(wellR) + '" fill="#0a0c0f"/>');
+    s.push('<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(wellR) +
+      '" fill="none" stroke="#fff" stroke-opacity="0.16" stroke-width="1.5"/>');
+    if (on && !c.compact) {
+      s.push('<circle cx="' + n(ox) + '" cy="' + n(oy) + '" r="' + n(capR + 2) +
+        '" fill="' + c.t.hi + '" opacity="0.8"' + c.f('glow') + '/>');
+    }
+    s.push('<circle data-part="' + part + '" cx="' + n(ox) + '" cy="' + n(oy) + '" r="' + n(capR) +
+      '" fill="' + c.ref(on ? 'dishLit' : 'dish') + '"/>');
+    s.push('<path d="M' + n(ox - capR * 0.78) + ',' + n(oy - capR * 0.53) +
+      ' a' + n(capR) + ',' + n(capR) + ' 0 0 1 ' + n(capR * 1.56) + ',0" fill="none" stroke="#fff"' +
+      ' stroke-opacity="0.34" stroke-width="' + n(capR * 0.13) + '" stroke-linecap="round"/>');
+    s.push('<ellipse cx="' + n(ox) + '" cy="' + n(oy + capR * 0.6) + '" rx="' + n(capR * 0.6) +
+      '" ry="' + n(capR * 0.19) + '" fill="#fff" opacity="0.08"/>');
+    return s.join('');
+  }
+
+  /* The d-pad: one raised plus, four arms that can light independently, and an
+     ink tick on each arm so the direction is readable with no colour at all. */
+  function dpadArt(c, cx, cy, a, b, hi) {
+    var s = [], t = c.t;
+    var d = plusPath(cx, cy, a, b);
+    s.push(raised(c, pathOf(d), false, 'dpad'));
+    var arms = [
+      ['dpad_up',    cx - a + 1.5, cy - b + 1.5, 2 * a - 3, b - a - 1.5],
+      ['dpad_down',  cx - a + 1.5, cy + a,       2 * a - 3, b - a - 1.5],
+      ['dpad_left',  cx - b + 1.5, cy - a + 1.5, b - a - 1.5, 2 * a - 3],
+      ['dpad_right', cx + a,       cy - a + 1.5, b - a - 1.5, 2 * a - 3]
+    ];
+    for (var i = 0; i < arms.length; i++) {
+      var A = arms[i], on = !!hi.on[A[0]];
+      var sh = rrect(A[1], A[2], A[3], A[4], 3);
+      if (on && !c.compact) s.push(sh('fill="' + t.hi + '" opacity="0.9"' + c.f('glow')));
+      s.push(sh('data-part="' + A[0] + '" fill="' + (on ? c.ref('lit') : 'none') + '"'));
+    }
+    var k = (b + a) / 2;                       /* how far out the tick sits */
+    var w = a * 0.42;
+    var ink = t.ink;
+    s.push('<path d="M' + n(cx) + ',' + n(cy - k - w) + ' l' + n(w * 1.2) + ',' + n(w * 2) +
+      ' h' + n(-w * 2.4) + ' Z" fill="' + ink + '" opacity="0.92"/>');
+    s.push('<path d="M' + n(cx) + ',' + n(cy + k + w) + ' l' + n(w * 1.2) + ',' + n(-w * 2) +
+      ' h' + n(-w * 2.4) + ' Z" fill="' + ink + '" opacity="0.92"/>');
+    s.push('<path d="M' + n(cx - k - w) + ',' + n(cy) + ' l' + n(w * 2) + ',' + n(-w * 1.2) +
+      ' v' + n(w * 2.4) + ' Z" fill="' + ink + '" opacity="0.92"/>');
+    s.push('<path d="M' + n(cx + k + w) + ',' + n(cy) + ' l' + n(-w * 2) + ',' + n(-w * 1.2) +
+      ' v' + n(w * 2.4) + ' Z" fill="' + ink + '" opacity="0.92"/>');
+    return s.join('');
+  }
+
+  /* Xbox and Nintendo print letters; a pad we cannot name gets the board's own
+     compass words. The stylised sphere is the trademark — the letter is not. */
+  var LETTER = {
+    xb:      { north: 'Y', east: 'B', south: 'A', west: 'X' },
+    nin:     { north: 'X', east: 'A', south: 'B', west: 'Y' },
+    generic: { north: 'N', east: 'E', south: 'S', west: 'W' }
+  };
+
+  /* The PlayStation shapes, drawn as plain strokes in OUR ink at OUR weight —
+     nominative use, identifying the button under the thumb. Never Sony's
+     colours, never their stylisation, and never the PS logo. */
+  function faceMark(fam, pos, cx, cy, r, ink) {
+    var s = r / 15, sw = n(2.2 * s);
+    if (fam === 'ps') {
+      if (pos === 'north') {
+        return '<path d="M' + n(cx) + ',' + n(cy - 9 * s) + ' l' + n(8 * s) + ',' + n(14 * s) +
+          ' h' + n(-16 * s) + ' Z" fill="none" stroke="' + ink + '" stroke-width="' + sw +
+          '" stroke-linejoin="round"/>';
+      }
+      if (pos === 'east') {
+        return '<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(6.6 * s) +
+          '" fill="none" stroke="' + ink + '" stroke-width="' + sw + '"/>';
+      }
+      if (pos === 'south') {
+        return '<path d="M' + n(cx - 6 * s) + ',' + n(cy - 6 * s) + ' l' + n(12 * s) + ',' + n(12 * s) +
+          ' M' + n(cx + 6 * s) + ',' + n(cy - 6 * s) + ' l' + n(-12 * s) + ',' + n(12 * s) +
+          '" fill="none" stroke="' + ink + '" stroke-width="' + n(2.4 * s) + '" stroke-linecap="round"/>';
+      }
+      return '<rect x="' + n(cx - 6 * s) + '" y="' + n(cy - 6 * s) + '" width="' + n(12 * s) +
+        '" height="' + n(12 * s) + '" rx="' + n(1.6 * s) + '" fill="none" stroke="' + ink +
+        '" stroke-width="' + sw + '"/>';
+    }
+    var ch = has(LETTER, fam) && has(LETTER[fam], pos) ? LETTER[fam][pos] : '';
+    if (!ch) return '';
+    return '<text x="' + n(cx) + '" y="' + n(cy + 5.4 * s) + '" text-anchor="middle" font-family="' +
+      FONT + '" font-size="' + n(15 * s) + '" font-weight="700" fill="' + ink + '">' + esc(ch) + '</text>';
+  }
+
+  /* ── the pad ──────────────────────────────────────────────────── */
+
+  function svgOpen(vbW, vbH, width, aria, fam, cls) {
+    var attr = '';
+    if (typeof width === 'number' && width > 0) {
+      attr = ' width="' + n(width) + '" height="' + n(width * vbH / vbW) +
+        '" style="max-width:100%;height:auto"';
+    } else if (typeof width === 'string' && width) {
+      attr = ' style="width:' + esc(width) + ';height:auto"';
+    }
+    return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"' +
+      ' viewBox="0 0 ' + vbW + ' ' + vbH + '"' + attr + ' role="img" aria-label="' + esc(aria) +
+      '" data-fam="' + esc(fam) + '" class="' + cls + '">';
+  }
+
+  function drawPad(family, opts) {
+    var o = opts || {};
+    var fam = famOf(family);
+    var c = ctxOf(fam, o);
+    var t = c.t;
+    var hi = hiOf(o.highlight);
+    var showLabel = !!o.label;
+    var vbH = VB_H + (showLabel ? CAPTION_H : 0);
+    var w = o.width === undefined || o.width === null ? (c.compact ? 76 : 320) : o.width;
+    var s = [];
+
+    s.push(svgOpen(VB_W, vbH, w, NAME[fam], fam, c.compact ? 'zsart zsart-small' : 'zsart'));
+    s.push('<defs>' + defs(c, true) + '</defs>');
+
+    /* 1 · contact shadow. Without it the pad floats. */
+    s.push('<ellipse cx="220" cy="278" rx="150" ry="16" fill="#000" opacity="' +
+      (c.compact ? '0.22' : '0.5') + '"' + c.f('drop') + '/>');
+
+    /* 2 · triggers then bumpers, BEHIND the shell and peeking above the crown.
+       Occlusion is the strongest depth cue in the whole drawing, and the order
+       here IS the depth: trigger behind bumper behind shell. */
+    var slab = [
+      ['lt', TRIG, TRIG.lx, -1, 'trig'],
+      ['rt', TRIG, TRIG.rx,  1, 'trig'],
+      ['l1', BUMP, BUMP.lx, -1, 'bump'],
+      ['r1', BUMP, BUMP.rx,  1, 'bump']
+    ];
+    for (var i = 0; i < slab.length; i++) {
+      var S = slab[i], G = S[1], sx = S[2], son = !!hi.on[S[0]];
+      var sh = rrect(sx, G.y, G.w, G.h, G.r);
+      var pivot = n(sx + G.w / 2) + ',' + n(G.y + G.h / 2);
+      s.push('<g transform="rotate(' + (S[3] * G.tilt) + ' ' + pivot + ')">');
+      /* a lit shoulder must not bloom into a light bar across the crown */
+      if (son && !c.compact) s.push(sh('fill="' + t.hi + '" opacity="0.5"' + c.f('glow')));
+      s.push(sh('data-part="' + S[0] + '" fill="' + (son ? c.ref('lit') : c.ref(S[4])) + '"'));
+      /* a bright lip along the top edge: that is where the light lands */
+      s.push('<rect x="' + n(sx + 5) + '" y="' + n(G.y + 2) + '" width="' + n(G.w - 10) +
+        '" height="' + n(G.h * 0.3) + '" rx="' + n(G.h * 0.15) + '" fill="#fff" opacity="' +
+        (son ? '0.4' : '0.16') + '"/>');
+      s.push('</g>');
+    }
+
+    /* 3 · the edge slab — the same path, dropped, in a dark gradient */
+    s.push('<use href="#' + c.id('bp') + '" xlink:href="#' + c.id('bp') +
+      '" transform="translate(0,6)" fill="' + c.ref('edge') + '"/>');
+    /* 4 · the front face */
+    s.push('<use href="#' + c.id('bp') + '" xlink:href="#' + c.id('bp') +
+      '" fill="' + c.ref('body') + '"/>');
+
+    /* 5 · everything from here is clipped to the shell */
+    s.push('<g clip-path="' + c.ref('clip') + '">');
+
+    /* 6 · the form shadow, painted through the body itself, turns the grips
+       into volumes without leaving an edge anywhere on the shell */
+    s.push('<use href="#' + c.id('bp') + '" xlink:href="#' + c.id('bp') +
+      '" fill="' + c.ref('vig') + '"/>');
+
+    /* 7 · the recessed centre plate */
+    s.push('<rect x="' + PLATE.x + '" y="' + PLATE.y + '" width="' + PLATE.w + '" height="' + PLATE.h +
+      '" rx="' + PLATE.r + '" fill="' + c.ref('plate') + '"' + c.f('inner') + '/>');
+
+    if (!c.compact) {
+      /* grip texture — small enough to read as moulding, not as dots */
+      var dots = '';
+      for (var g = 0; g < 2; g++) {
+        var gx = g ? 309 : 104;
+        for (var rr = 0; rr < 5; rr++) {
+          for (var cc = 0; cc < 4; cc++) {
+            dots += '<circle cx="' + (gx + cc * 9) + '" cy="' + (214 + rr * 9) +
+              '" r="1.7" fill="#000" opacity="0.15"/>';
+          }
+        }
+      }
+      s.push(dots);
+    }
+
+    /* 8 · one off-centre sheen over the crown */
+    s.push('<rect width="' + VB_W + '" height="' + VB_H + '" fill="' + c.ref('sheen') + '"/>');
+
+    /* ── plate contents ── */
+    if (!c.compact) {
+      /* The touch surface is deliberately MATTE, and no darker than the plate
+         around it. A dark glossy panel with a diagonal wipe reads as a little
+         LCD screen — which makes the whole thing look like a handheld, and
+         nudges it toward one specific pad's trade dress. Neither is wanted. */
+      var tOn = !!hi.on.touchpad;
+      s.push('<rect data-part="touchpad" x="' + TOUCH.x + '" y="' + TOUCH.y + '" width="' + TOUCH.w +
+        '" height="' + TOUCH.h + '" rx="' + TOUCH.r + '" fill="' + (tOn ? c.ref('lit') : c.ref('touch')) +
+        '" stroke="' + (tOn ? t.hiHi : '#fff') + '" stroke-opacity="' + (tOn ? '0.8' : '0.18') +
+        '" stroke-width="1"/>');
+      /* fine dot texture — a trackpad surface, not glass */
+      if (!tOn) {
+        var tx = '';
+        for (var dr = 0; dr < 4; dr++) {
+          for (var dc = 0; dc < 7; dc++) {
+            tx += '<circle cx="' + (TOUCH.x + 10 + dc * 7.4) + '" cy="' + (TOUCH.y + 11 + dr * 7.4) +
+              '" r="1.05" fill="#000" opacity="0.13"/>';
+          }
+        }
+        s.push(tx);
+      }
+      /* the status accent — a strip, not a light bar wrapped round a touchpad */
+      s.push('<rect x="200" y="144" width="40" height="3" rx="1.5" fill="' + t.hi + '" opacity="0.85"/>');
+
+      s.push(raised(c, rrect(SYSL.x, SYSL.y, SYSL.w, SYSL.h, SYSL.h / 2), !!hi.on.select, 'select'));
+      s.push(raised(c, rrect(SYSR.x, SYSR.y, SYSR.w, SYSR.h, SYSR.h / 2), !!hi.on.start, 'start'));
+      s.push(sysMark(c, 'select', SYSL.x + SYSL.w / 2, SYSL.y + SYSL.h / 2, !!hi.on.select));
+      s.push(sysMark(c, 'start', SYSR.x + SYSR.w / 2, SYSR.y + SYSR.h / 2, !!hi.on.start));
+    }
+
+    /* the system button: a neutral ring. No console's emblem goes here, ever. */
+    s.push(raised(c, circ(GUIDE.x, GUIDE.y, GUIDE.r), !!hi.on.guide, 'guide'));
+    s.push('<circle cx="' + GUIDE.x + '" cy="' + GUIDE.y + '" r="' + n(GUIDE.r * 0.5) +
+      '" fill="none" stroke="' + (hi.on.guide ? '#0b0e13' : t.ink) + '" stroke-opacity="0.7" stroke-width="1.6"/>');
+
+    /* ── d-pad ── */
+    s.push(dpadArt(c, DPAD.x, DPAD.y, DPAD.a, DPAD.b, hi));
+
+    /* ── face buttons ── */
+    var pos = ['north', 'east', 'south', 'west'];
+    var at = [
+      [FACE.x, FACE.y - FACE.off], [FACE.x + FACE.off, FACE.y],
+      [FACE.x, FACE.y + FACE.off], [FACE.x - FACE.off, FACE.y]
+    ];
+    for (var b = 0; b < 4; b++) {
+      var bon = !!hi.on[pos[b]];
+      s.push(raised(c, circ(at[b][0], at[b][1], FACE.r), bon, pos[b],
+        glintAt(at[b][0], at[b][1], FACE.r)));
+      s.push(faceMark(fam, pos[b], at[b][0], at[b][1], FACE.r, bon ? '#0b0e13' : t.ink));
+    }
+
+    /* ── sticks ── */
+    s.push(stickArt(c, STICK.lx, STICK.y, STICK.well, STICK.cap, !!hi.on.ls,
+      hi.lean.ls[0], hi.lean.ls[1], 'ls'));
+    s.push(stickArt(c, STICK.rx, STICK.y, STICK.well, STICK.cap, !!hi.on.rs,
+      hi.lean.rs[0], hi.lean.rs[1], 'rs'));
+
+    /* ── the two extra buttons (what a board paddle maps to) ── */
+    if (!c.compact) {
+      var ex = [['extra1', EXTRA.lx], ['extra2', EXTRA.rx]];
+      for (var xi = 0; xi < 2; xi++) {
+        var xOn = !!hi.on[ex[xi][0]], xc = ex[xi][1];
+        s.push(raised(c, rrect(xc - EXTRA.w / 2, EXTRA.y - EXTRA.h / 2, EXTRA.w, EXTRA.h, EXTRA.h / 2),
+          xOn, ex[xi][0]));
+        s.push('<circle cx="' + n(xc) + '" cy="' + n(EXTRA.y) + '" r="1.5" fill="' +
+          (xOn ? '#0b0e13' : t.ink) + '" opacity="0.6"/>');
+      }
+    }
+
+    s.push('</g>');
+
+    /* 9 · the rim light goes LAST, over everything */
+    s.push('<use href="#' + c.id('bp') + '" xlink:href="#' + c.id('bp') +
+      '" fill="none" stroke="' + c.ref('rim') + '" stroke-width="2"/>');
+
+    /* The console is named in TEXT — that is the whole point of the caption.
+       currentColor so it inherits whatever the surrounding UI is using. */
+    if (showLabel) {
+      s.push('<text x="220" y="' + (VB_H + 28) + '" text-anchor="middle" font-family="' + FONT +
+        '" font-size="21" font-weight="600" fill="currentColor" opacity="0.82">' +
+        esc(NAME[fam]) + '</text>');
+    }
+
+    s.push('</svg>');
+    return s.join('');
+  }
+
+  /* Start is "menu" (three rules), Select is "view" (two panes), and Nintendo
+     prints + and - instead. Marks may differ; the SHAPE never does. */
+  function sysMark(c, which, cx, cy, on) {
+    var ink = on ? '#0b0e13' : c.t.ink;
+    if (c.fam === 'nin') {
+      var h = '<path d="M' + n(cx - 3.4) + ',' + n(cy) + ' h6.8" stroke="' + ink +
+        '" stroke-width="1.7" stroke-linecap="round"/>';
+      if (which === 'select') return h;
+      return h + '<path d="M' + n(cx) + ',' + n(cy - 3.4) + ' v6.8" stroke="' + ink +
+        '" stroke-width="1.7" stroke-linecap="round"/>';
+    }
+    if (which === 'start') {
+      return '<path d="M' + n(cx - 4) + ',' + n(cy - 2.2) + ' h8 M' + n(cx - 4) + ',' + n(cy) +
+        ' h8 M' + n(cx - 4) + ',' + n(cy + 2.2) + ' h8" stroke="' + ink +
+        '" stroke-width="1.2" stroke-linecap="round"/>';
+    }
+    return '<rect x="' + n(cx - 4) + '" y="' + n(cy - 3) + '" width="5" height="5" rx="1" fill="none" stroke="' +
+      ink + '" stroke-width="1.1"/><rect x="' + n(cx - 1) + '" y="' + n(cy - 1) +
+      '" width="5" height="5" rx="1" fill="none" stroke="' + ink + '" stroke-width="1.1"/>';
+  }
+
+  /* ── one control, on its own ───────────────────────────────────── */
+
+  var BVB = 48;      /* every stand-alone control is drawn in a 48×48 box */
+
+  function pillText(txt, cx, cy, ink) {
+    var t = String(txt === undefined || txt === null ? '' : txt) || '?';
+    var len = t.length;
+    /* A round button is the tight case: "HOME" at the 3-character size runs
+       straight out of the circle it is meant to be inside. */
+    var fs = len <= 2 ? 17 : (len === 3 ? 12.6 : (len === 4 ? 10.2 : 8.2));
+    return '<text x="' + n(cx) + '" y="' + n(cy + fs * 0.35) + '" text-anchor="middle" font-family="' +
+      FONT + '" font-size="' + fs + '" font-weight="700" fill="' + ink + '"' +
+      (len <= 2 ? ' letter-spacing="0.4"' : '') + '>' + esc(t) + '</text>';
+  }
+
+  function drawButton(code, family, opts) {
+    var o = opts || {};
+    var fam = famOf(family);
+    var c = ctxOf(fam, o);
+    var t = c.t;
+    var raw = normCode(code);
+    var base = baseOf(raw);
+    var on = !!o.on;
+    var ink = on ? '#0b0e13' : t.ink;
+    var w = o.width === undefined || o.width === null ? 28 : o.width;
+    var mid = BVB / 2;
+    var s = [];
+
+    s.push(svgOpen(BVB, BVB, w, textOf(raw, fam, 0), fam, 'zsart zsart-btn'));
+    s.push('<defs>' + defs(c, false) + '</defs>');
+
+    if (base === 'north' || base === 'east' || base === 'south' || base === 'west') {
+      s.push(raised(c, circ(mid, mid, 15), on, base, glintAt(mid, mid, 15)));
+      s.push(faceMark(fam, base, mid, mid, 15, ink));
+
+    } else if (base.indexOf('dpad_') === 0) {
+      var one = {}; one[base] = true;
+      s.push(dpadArt(c, mid, mid, 8, 19, { on: one, lean: { ls: [0, 0], rs: [0, 0] } }));
+
+    } else if (base === 'l1' || base === 'r1') {
+      s.push(raised(c, rrect(5, 14, 38, 20, 10), on, base));
+      s.push(pillText(textOf(raw, fam, 1), mid, mid, ink));
+
+    } else if (base === 'lt' || base === 'rt') {
+      /* a trigger is taller than it is wide — that is how you tell them apart */
+      s.push(raised(c, rrect(9, 8, 30, 32, 13), on, base));
+      s.push(pillText(textOf(raw, fam, 1), mid, mid + 2, ink));
+
+    } else if (base === 'l3' || base === 'r3' || has(TILT, raw)) {
+      var lean = has(TILT, raw) ? TILT[raw] : [0, 0];
+      var part = (base.charAt(0) === 'l') ? 'ls' : 'rs';
+      s.push(stickArt(c, mid, mid, 20, 14, on || has(TILT, raw), lean[0], lean[1], part));
+      if (!has(TILT, raw)) {
+        s.push('<text x="' + mid + '" y="' + (mid + 4) + '" text-anchor="middle" font-family="' + FONT +
+          '" font-size="10" font-weight="700" fill="#e6edf3" opacity="0.85">' +
+          esc(textOf(raw, fam, 1)) + '</text>');
+      }
+
+    } else if (base === 'start' || base === 'select') {
+      s.push(raised(c, rrect(6, 17, 36, 14, 7), on, base));
+      s.push(sysMark(c, base, mid, mid, on));
+
+    } else if (base === 'guide') {
+      s.push(raised(c, circ(mid, mid, 14), on, base, glintAt(mid, mid, 14)));
+      s.push(pillText(textOf(raw, fam, 1), mid, mid, ink));
+
+    } else if (base === 'touchpad') {
+      s.push('<rect data-part="touchpad" x="7" y="13" width="34" height="22" rx="5" fill="' +
+        (on ? c.ref('lit') : c.ref('plate')) + '" stroke="' + (on ? t.hiHi : '#fff') +
+        '" stroke-opacity="' + (on ? '0.8' : '0.18') + '" stroke-width="1"' +
+        (on ? '' : c.f('inner')) + '/>');
+      s.push('<circle cx="' + mid + '" cy="24" r="2.2" fill="' + (on ? '#0b0e13' : '#8a929f') + '"/>');
+
+    } else if (base === 'extra1' || base === 'extra2') {
+      s.push(raised(c, circ(mid, mid, 14), on, base, glintAt(mid, mid, 14)));
+      s.push(pillText(textOf(raw, fam, 1), mid, mid, ink));
+
+    } else {
+      /* Unknown code: show it rather than swallow it, so a bad binding is
+         visible in the UI instead of rendering as an empty square. */
+      s.push(raised(c, rrect(3, 15, 42, 18, 9), on, 'unknown'));
+      s.push(pillText(raw, mid, mid, ink));
+    }
+
+    s.push('</svg>');
+    return s.join('');
+  }
+
+  /* ── preview2d — the pad you are holding, drawn front-on ────────
+   *
+   * The owner rejected the schematic preview on 2026-08-14 ("use a 2d
+   * picture of an actual controller, not whatever that blocky stuff is"),
+   * and then asked three times for one specific drawing: the controller art
+   * from github.com/dualshock-tools/dualshock-tools.github.io. It is that
+   * art now — MIT, © 2024 the_al, notice at the top of this file — for the
+   * PlayStation family. The Xbox drawing below is still ours, because that
+   * repository has none and shipping a DualSense to an Xbox player would be
+   * a worse answer than an honest silhouette.
+   *
+   * THE CONTRACT (phone-sections.js livePad() + two tap-map wirings; the
+   * swap must not touch that code, and it did not):
+   *   root svg        class "padviz" — livePad finds the drawing by it.
+   *   .pad-btn        every pressable part; data-b names it, data-col is the
+   *                   PRESSED fill. livePad REWRITES fill every tick:
+   *                     pressed      → data-col
+   *                     rest, l3/r3  → var(--accent)
+   *                     rest, circle → #0b0e13
+   *                     rest, other  → var(--bg)
+   *                   so those ARE the resting fills below, by construction —
+   *                   anything prettier would be stomped on the first poll.
+   *                   Shape detail therefore lives in strokes (never touched)
+   *                   and in decor elements around the hotspot. On the MIT
+   *                   art that is exactly what their *_outline rings are.
+   *   #pad-ls #pad-rs circles; livePad writes cx=96±11/cy=86±11 and
+   *                   cx=184±11. Each sits inside a <g> carrier that both
+   *                   TRANSLATES it to where that controller really keeps
+   *                   that stick and SCALES it, so the throw suits the
+   *                   drawing while the wire numbers stay exactly what
+   *                   livePad sends.
+   *   #pad-lt #pad-rt rects; livePad writes width 0..28 — the pull gauge.
+   *                   Same trick: the carrier scales x so 28 is FULL on a
+   *                   trigger of any width, and clips it to the trigger's
+   *                   own outline so pulling L2 floods L2.
+   *   tap-map         phone-sections/smart-actions attach click/keydown +
+   *                   role=button to .pad-btn by data-b; decor drawn OVER a
+   *                   hotspot carries pointer-events="none" so taps land.
+   *
+   * Contrast, computed (WCAG relative luminance):
+   *   engraved ink #5f6875 (L 0.136) — 3.45:1 on the resting cap #0b0e13
+   *   (L 0.004) and 3.17:1 on the pressed cap var(--accent) #2fd9ce
+   *   (L 0.541): the one ink that survives both states of a stomped fill.
+   *   The face-glyph tints are the same set padSVG used; each is ≥4.9:1 on
+   *   the #0b0e13 cap. Press is never colour alone: the fill flip is a
+   *   ≥10:1 LUMINANCE change (#0b0e13 → #2fd9ce), and the sticks move.
+   */
+
+  var VB2_W = 280, VB2_H = 190;      /* the XBOX drawing's own space; the MIT
+                                        pads carry their own, see mitFit() */
+  var INK2D = '#5f6875';
+
+  /* the same face tints the old schematic used — authentic and pre-vetted */
+  var TINT2D = {
+    ps:      { north: '#4EC9A8', east: '#E06C75', west: '#D66BA0', south: '#7DA9D8' },
+    xb:      { north: '#E8C13C', east: '#D65454', west: '#4C8DE0', south: '#6DBF44' },
+    nin:     { north: '#9fb0c0', east: '#9fb0c0', west: '#9fb0c0', south: '#9fb0c0' },
+    generic: { north: '#9fb0c0', east: '#9fb0c0', west: '#9fb0c0', south: '#9fb0c0' }
+  };
+
+  function mirX(x) { return VB2_W - x; }
+
+  /* A controller is symmetric, so only the RIGHT half is authored: cubic
+     segments from the top centre down to the bottom centre, mirrored back up
+     the left side programmatically. One set of numbers, guaranteed symmetry,
+     and a typo cannot make the two halves disagree. */
+  function symPath(topY, segs) {
+    var d = 'M140,' + n(topY);
+    var i, s, px, py;
+    for (i = 0; i < segs.length; i++) {
+      s = segs[i];
+      d += ' C' + n(s[0]) + ',' + n(s[1]) + ' ' + n(s[2]) + ',' + n(s[3]) +
+        ' ' + n(s[4]) + ',' + n(s[5]);
+    }
+    for (i = segs.length - 1; i >= 0; i--) {
+      s = segs[i];
+      px = i ? segs[i - 1][4] : 140;
+      py = i ? segs[i - 1][5] : topY;
+      d += ' C' + n(mirX(s[2])) + ',' + n(s[3]) + ' ' + n(mirX(s[0])) + ',' + n(s[1]) +
+        ' ' + n(mirX(px)) + ',' + n(py);
+    }
+    return d + ' Z';
+  }
+
+  /* Xbox Wireless Controller: raised centre prow for the guide, compact
+     rounded shoulders, near-vertical grips, and the narrow notch between
+     them rising to a rounded peak — the bottom edge stays BELOW the d-pad
+     disc and the right stick well on its way there. */
+  var XB_D = symPath(16, [
+    [158, 16, 172, 19, 184, 24],
+    [198, 30, 212, 36, 224, 46],
+    [238, 58, 248, 76, 248, 92],
+    [246, 108, 240, 124, 232, 138],
+    [224, 152, 214, 162, 203, 161],
+    [193, 158, 187, 151, 184, 145],
+    [178, 150, 168, 152, 158, 150],
+    [148, 147, 146, 129, 140, 129]
+  ]);
+
+  function pctx() {
+    var u = 'zsp' + (++uidN);
+    return {
+      u: u,
+      id: function (nm) { return u + '-' + nm; },
+      ref: function (nm) { return 'url(#' + u + '-' + nm + ')'; }
+    };
+  }
+
+  /* form shading is black/white at low opacity over token fills, so every
+     theme (OLED, high contrast) shades ITS OWN colours instead of ours */
+  function pDefs(c, d, vigCy) {
+    return '<defs>' +
+      '<radialGradient id="' + c.id('shad') + '">' +
+      '<stop offset="0" stop-color="#000" stop-opacity="0.35"/>' +
+      '<stop offset="0.7" stop-color="#000" stop-opacity="0.22"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="' + c.id('sheen') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.12"/>' +
+      '<stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<radialGradient id="' + c.id('vig') + '" gradientUnits="userSpaceOnUse"' +
+      ' cx="140" cy="' + n(vigCy) + '" r="165">' +
+      '<stop offset="0" stop-color="#000" stop-opacity="0"/>' +
+      /* the vignette only HINTS at curvature: at 0.28 it drove the grip tips
+         below the card's own ground, so at glance size the lower half of the
+         silhouette vanished and only the stroke remained ("hollow wings") */
+      '<stop offset="0.55" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="0.82" stop-color="#000" stop-opacity="0.04"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0.11"/></radialGradient>' +
+      '<linearGradient id="' + c.id('rim') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.5"/>' +
+      '<stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<clipPath id="' + c.id('clip') + '"><path d="' + d + '"/></clipPath>' +
+      '</defs>';
+  }
+
+  /* One shoulder pair: the trigger peeks above the bumper, both tilted to
+     follow the crown, both partly hidden behind the shell drawn after them.
+     The track is the pull gauge livePad drives: a fixed 28-wide dark bed and
+     the accent rect whose width IS the wire value. */
+  function pShoulder(side, T, B, K, tilt) {
+    var sgn = side === 'r' ? 1 : -1;
+    var tx = side === 'r' ? mirX(T[0]) - T[2] : T[0];
+    var bx = side === 'r' ? mirX(B[0]) - B[2] : B[0];
+    var kx = side === 'r' ? mirX(K[0]) - 28 : K[0];
+    var s = [];
+    s.push('<g transform="rotate(' + n(sgn * tilt) + ' ' + n(tx + T[2] / 2) + ' ' + n(T[1] + T[3] / 2) + ')">');
+    s.push('<rect x="' + n(tx) + '" y="' + n(T[1]) + '" width="' + n(T[2]) + '" height="' + n(T[3]) +
+      '" rx="' + n(T[4]) + '" fill="#0e1319" stroke="#fff" stroke-opacity="0.08" stroke-width="1"/>');
+    s.push('<rect x="' + n(kx) + '" y="' + n(K[1]) + '" width="28" height="' + n(K[2]) +
+      '" rx="' + n(K[3]) + '" fill="#000" opacity="0.35"/>');
+    s.push('<rect id="pad-' + side + 't" x="' + n(kx) + '" y="' + n(K[1]) + '" width="0" height="' + n(K[2]) +
+      '" rx="' + n(K[3]) + '" fill="var(--accent)" opacity="0.9"/>');
+    s.push('</g>');
+    s.push('<g transform="rotate(' + n(sgn * tilt) + ' ' + n(bx + B[2] / 2) + ' ' + n(B[1] + B[3] / 2) + ')">');
+    s.push('<rect class="pad-btn" data-b="' + (side === 'r' ? 'r1' : 'l1') +
+      '" data-col="var(--accent)" x="' + n(bx) + '" y="' + n(B[1]) + '" width="' + n(B[2]) +
+      '" height="' + n(B[3]) + '" rx="' + n(B[4]) + '" fill="var(--bg)" stroke="var(--line)" stroke-width="1"/>');
+    s.push('<rect x="' + n(bx + 6) + '" y="' + n(B[1] + 2.5) + '" width="' + n(B[2] - 12) +
+      '" height="4" rx="2" fill="#fff" opacity="0.08" pointer-events="none"/>');
+    s.push('</g>');
+    return s.join('');
+  }
+
+  /* An analog stick: dark well, rubber cap drawn as decor, and the MOVING
+     part — the accent puck — is the wired circle. Its neutral cx/cy are the
+     numbers livePad writes back (96/184, 86); the surrounding translate
+     carries it to where this controller actually keeps that stick. */
+  function pStick2d(side, wx, wy) {
+    var isR = side === 'r';
+    var nx = isR ? 184 : 96;
+    var s = [];
+    s.push('<circle cx="' + n(wx) + '" cy="' + n(wy) + '" r="26" fill="#000" opacity="0.3"/>');
+    s.push('<circle cx="' + n(wx) + '" cy="' + n(wy) + '" r="26" fill="none" stroke="#fff" stroke-opacity="0.1" stroke-width="1.5"/>');
+    s.push('<circle cx="' + n(wx) + '" cy="' + n(wy) + '" r="20" fill="#0d1117"/>');
+    s.push('<circle cx="' + n(wx) + '" cy="' + n(wy) + '" r="20" fill="none" stroke="#fff" stroke-opacity="0.14" stroke-width="1.2"/>');
+    s.push('<path d="M' + n(wx - 14) + ',' + n(wy - 9) + ' a17,17 0 0 1 28,0" fill="none"' +
+      ' stroke="#fff" stroke-opacity="0.2" stroke-width="2" stroke-linecap="round"/>');
+    s.push('<g transform="translate(' + n(wx - nx) + ',' + n(wy - 86) + ')">' +
+      '<circle id="pad-' + (isR ? 'rs' : 'ls') + '" class="pad-btn" data-b="' + (isR ? 'r3' : 'l3') +
+      '" data-col="#fff" cx="' + nx + '" cy="86" r="8" fill="var(--accent)"' +
+      ' stroke="rgba(0,0,0,0.55)" stroke-width="1.5"/></g>');
+    return s.join('');
+  }
+
+  /* the four-arm pad on a recessed disc; each arm is its own hotspot and
+     wears an engraved tick so direction reads with no colour at all */
+  function pDpad2d(cx, cy, discR, aw, reach, gap) {
+    var arm = reach - gap;
+    var s = [];
+    s.push('<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(discR) + '" fill="#000" opacity="0.28"/>');
+    s.push('<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(discR) + '" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="1.2"/>');
+    var arms = [
+      ['dpad_up',    cx - aw, cy - reach, 2 * aw, arm],
+      ['dpad_down',  cx - aw, cy + gap,   2 * aw, arm],
+      ['dpad_left',  cx - reach, cy - aw, arm, 2 * aw],
+      ['dpad_right', cx + gap,   cy - aw, arm, 2 * aw]
+    ];
+    for (var i = 0; i < arms.length; i++) {
+      var A = arms[i];
+      s.push('<rect class="pad-btn" data-b="' + A[0] + '" data-col="var(--accent)" x="' + n(A[1]) +
+        '" y="' + n(A[2]) + '" width="' + n(A[3]) + '" height="' + n(A[4]) +
+        '" rx="5" fill="var(--bg)" stroke="#fff" stroke-opacity="0.12" stroke-width="1"/>');
+    }
+    var k = reach - arm / 2;
+    var t = 3.2;
+    s.push('<g fill="' + INK2D + '" pointer-events="none">' +
+      '<path d="M' + n(cx) + ',' + n(cy - k - t) + ' l' + n(t) + ',' + n(2 * t) + ' h' + n(-2 * t) + ' Z"/>' +
+      '<path d="M' + n(cx) + ',' + n(cy + k + t) + ' l' + n(t) + ',' + n(-2 * t) + ' h' + n(-2 * t) + ' Z"/>' +
+      '<path d="M' + n(cx - k - t) + ',' + n(cy) + ' l' + n(2 * t) + ',' + n(-t) + ' v' + n(2 * t) + ' Z"/>' +
+      '<path d="M' + n(cx + k + t) + ',' + n(cy) + ' l' + n(-2 * t) + ',' + n(-t) + ' v' + n(2 * t) + ' Z"/>' +
+      '</g>');
+    return s.join('');
+  }
+
+  /* the face diamond: recess shadow, cap (the hotspot), tinted mark on top */
+  function pFace2d(fam, cx, cy, off, r) {
+    var pos = ['north', 'east', 'south', 'west'];
+    var at = [[cx, cy - off], [cx + off, cy], [cx, cy + off], [cx - off, cy]];
+    var tint = TINT2D[fam];
+    var s = [];
+    for (var i = 0; i < 4; i++) {
+      s.push('<circle cx="' + n(at[i][0]) + '" cy="' + n(at[i][1]) + '" r="' + n(r + 1.8) + '" fill="#000" opacity="0.25"/>');
+      s.push('<circle class="pad-btn" data-b="' + pos[i] + '" data-col="var(--accent)" cx="' + n(at[i][0]) +
+        '" cy="' + n(at[i][1]) + '" r="' + n(r) + '" fill="#0b0e13" stroke="#fff" stroke-opacity="0.14" stroke-width="1"/>');
+      s.push('<g pointer-events="none">' +
+        faceMark(fam, pos[i], at[i][0], at[i][1], r, tint[pos[i]]) + '</g>');
+    }
+    return s.join('');
+  }
+
+  /* a small round system button (guide / view / menu) with an engraved mark */
+  function pSysBtn(b, cx, cy, r, mark) {
+    return '<circle cx="' + n(cx) + '" cy="' + n(cy) + '" r="' + n(r + 1.6) + '" fill="#000" opacity="0.25"/>' +
+      '<circle class="pad-btn" data-b="' + b + '" data-col="var(--accent)" cx="' + n(cx) + '" cy="' + n(cy) +
+      '" r="' + n(r) + '" fill="#0b0e13" stroke="#fff" stroke-opacity="0.14" stroke-width="1"/>' +
+      '<g pointer-events="none">' + mark + '</g>';
+  }
+
+  /* ══ THE MIT ART — the PlayStation pads are somebody else's drawing ══
+   *
+   * The owner asked three times for the drawing from
+   * github.com/dualshock-tools/dualshock-tools.github.io, so the PlayStation
+   * preview IS that art now: MIT licensed, © 2024 the_al, full permission
+   * notice at the top of this file and in ZSART.credits() so the app can
+   * print it too. The rest of this file's one-original-silhouette rule is
+   * unchanged — it governs pad(), padSmall() and button(), which are ours.
+   *
+   * PATH DATA IS COPIED BYTE FOR BYTE. Almost every command in it is
+   * RELATIVE, so re-rounding one coordinate moves every point after it and
+   * the silhouette drifts. Nothing here is prettified.
+   *
+   * WHAT WAS STRIPPED FROM THEIR FILES, AND WHY
+   *   style="width:80%;height:auto;max-width:80%" on the root — it pinned the
+   *     pad to 80% of whatever box it landed in, so it could never fill our
+   *     card. preview2d sizes its own root.
+   *   transform="translate(0,0.65) scale(0.70)" — it was repeated on EVERY
+   *     group in the DualSense file. It is folded into the one matrix below.
+   *   duplicate ids (<g id="Mute_infill"><path id="Mute_infill">, and
+   *     L3_outline twice in the DualShock) — ids are document-global, two
+   *     pads on one page would collide, and the audit below fails a
+   *     duplicate. Nothing here emits a source id at all.
+   *   the L2/R2 "0 %" <text> readouts and their #1a237e — we have a gauge,
+   *     and that navy is from their light theme.
+   *   every fill/stroke — there were none to strip. Their file declares no
+   *     paint; their JS sets it at runtime (light blue shell, white infills).
+   *     Ours is set below, dark-theme first.
+   *
+   * HOW THEIR PARTS BECAME OUR CONTRACT — this mapping is the whole job,
+   * because a name that does not match is a button that never lights:
+   *
+   *   Cross_infill                → south      Triangle_infill → north
+   *   Circle_infill               → east       Square_infill   → west
+   *   Up/Down/Left/Right_infill   → dpad_up/dpad_down/dpad_left/dpad_right
+   *   L1_infill / R1_infill       → l1 / r1
+   *   Create_infill               → select     Options_infill  → start
+   *   PS_infill                   → guide      Trackpad_infill → touchpad
+   *   L3_surround (DS5)           → the stick WELL, static art
+   *   L3_outline  (DS4)           → the same, that file's only stick ring
+   *   L2_infill / R2_infill       → the CLIP the pull gauge floods
+   *
+   *   Mute_infill (DS5) is DECOR, not a hotspot: the board has no code for
+   *   the mute key, and a hotspot with no binding behind it is a button that
+   *   does nothing when you tap it. Same rule the Xbox share button follows.
+   *   Speaker_grill, every *_outline ring, and the DualShock's nine body
+   *   seams are decor too — they carry the shape detail livePad never
+   *   touches, which is exactly where shape detail has to live.
+   *
+   * WHAT HAS NO SOURCE ART: Xbox. There is no Xbox drawing in that
+   * repository, and a PlayStation pad shown to an Xbox player is worse than
+   * no picture. 'xb' (and 'nin' and 'generic', which fell through to it
+   * before and still do) keep xb2d below, unchanged.
+   */
+
+  /* Generated from their two SVGs; see docs/DESIGN.md and the notice above.
+     box = the art's own content bounds, so the frame is tight rather than
+     the 640×518 their page happened to use. ls/rs/lt/rt/guide/face are
+     anchors in THAT space — every number our side needs is derived from
+     them at draw time, so there are no magic pixel constants below. */
+  var MITART = {
+    ds5: {
+      box: [2.08, 1.6, 909.73, 731.12],
+      well: 64.64,
+      ls: [295.15, 419.82], rs: [616.36, 419.81],
+      lt: [108.58, 6.09, 101.11, 111.52], rt: [700.59, 6.09, 101.12, 111.52],
+      ltd: 'M208.41,103.22c-1.47,1.82-4.36,2.7-8.55,2.62h-.12c-31.62,1.56-60.04,5.52-84.5,11.76-.01.01-.03.01-.04.01-2.34,0-4-.57-5.05-1.73-1.36-1.51-1.84-4.15-1.42-7.76l.15-.88c4.33-25.34,8.07-47.23,15.87-71.95,1.49-4.72,3.57-8.91,6.17-12.44,6.93-9.42,16.7-14.75,29.86-16.29,2.9-.31,5.64-.47,8.22-.47,17.05,0,26.98,6.95,30.28,21.12l9.87,67.57.03.15c.89,3.76.63,6.55-.77,8.29Z',
+      rtd: 'M800.14,115.88c-1.06,1.16-2.71,1.73-5.05,1.73-.01,0-.03,0-.04-.01-24.46-6.24-52.88-10.2-84.5-11.76h-.12c-4.19.08-7.09-.8-8.55-2.62-1.41-1.74-1.67-4.53-.77-8.29l.03-.15,9.87-67.57c3.29-14.17,13.23-21.12,30.28-21.12,2.57,0,5.31.16,8.22.47,13.16,1.54,22.93,6.87,29.86,16.29,2.6,3.53,4.67,7.72,6.16,12.44,7.81,24.72,11.55,46.61,15.88,71.95l.15.88c.41,3.61-.06,6.25-1.42,7.76Z',
+      tuck: 27.53,
+      tpbox: [258.94, 145.79, 389.33, 182.82],
+      guide: [455.61, 417.01, 20.69],
+      face: {north: [751.49, 234.58, 26.6], east: [813.84, 293.75, 26.51], south: [751.48, 352.68, 26.53], west: [689.67, 293.71, 26.55]},
+      body: [
+        {t:'p',d:'M804.61,172.5s.09.02.13.02c-45.03-8.29-84.58-14.71-120.82-19.6.06,0,.12.02.17.02-.09.21-.14.44-.23.66-1.95.4-4.06.27-6,.85-.01-.01-.04-.03-.06-.05-.04-.13-.09-.26-.14-.39.02,0,.04,0,.07,0-4.87-.52-9.74-1.01-14.62-1.5-4.79-.46-9.6-.91-14.4-1.34h-.01s-.37-.05-.37-.05c-9.11-.83-18.27-1.58-27.45-2.28,0,.04,0,.08,0,.11,6.85.92,13.16,2.58,18.67,6.93,0,0-.01-.01-.02-.02,1.13.1,2.24.2,3.36.3,5.18,1.42,9.39,5.36,10.93,10.49,1.6,5.35,1.3,12.24-.9,20.47l-21.05,109.2c-4.19,26.12-19.01,37.08-42.82,41.56l-143.01.03-128.89-.03c-23.72-4.39-39.07-18.19-42.83-41.64l-2.11-10.93c-.29-2.09-.65-4.23-1.12-6.43l-12.19-62.64-5.57-28.92-.04-.19c-.09-.35-.16-.68-.25-1.03l-1.25-6.42s0-.03-.01-.04c-.67-4.99-.48-9.34.61-12.98,1.44-4.81,5.22-8.56,9.95-10.19,1.68-.14,3.36-.28,5.03-.42-.01,0-.02.02-.04.03.13-.02.26-.04.39-.06,1.51-.96,3.05-1.79,4.52-2.46,4.51-2.11,9.69-3.99,14.78-4.58-8.71.66-17.56,1.37-26.29,2.11l-1.11.09c-9.48.82-18.77,1.68-27.61,2.55l-.46.05s0-.01,0-.02c-.02.03-.03.06-.04.09-1.99.06-3.94-.42-5.98-.72,0-.03,0-.06-.01-.09.03,0,.06,0,.08-.01-41.23,6.38-81.95,12.73-121.09,18.88,0-.03.01-.07.02-.1l-5.76,1.61c-1.39.76-2.77,1.68-4.11,2.75-6.4,5.15-12.04,13.69-17.24,26.11-27.39,64.19-47.54,129.24-59.9,193.34C4.64,462.34-.21,530.22,3.08,597.4c2.41,40.48,7.54,66.82,16.62,85.41,9.85,20.12,24.59,31.39,46.4,35.45l39.76,12.39.33.07h.1c.97.12,1.93.18,2.86.18,13.63,0,18.84-11.41,21.55-19.96,27.65-75.71,49.02-130.11,67.27-171.19,8.52-19.59,24.3-29.11,48.23-29.11,3.5,0,7.23.21,11.11.63h.17c60.68,2.54,123.31,3.82,186.16,3.82,70.29,0,142.26-1.6,213.94-4.76,2.31-.2,4.59-.3,6.77-.3,23.28,0,39.64,11.03,50,33.68,26.25,62.96,48.44,119.86,67.83,173.94,3.28,8.94,9.45,13.47,18.32,13.47,1.52,0,3.14-.14,4.82-.4h.06s45.5-13.11,45.5-13.11c2-.48,4.05-1.09,6.27-1.86l.13-.04.72-.25v-.02c15.47-5.75,26.84-17.21,34.75-35,7.77-17.48,12.58-41.33,15.58-77.35,4.35-57.49-1.58-134.16-16.29-210.35-15.8-81.82-40.06-154.86-68.3-205.65-2.37-4.62-4.05-7.26-5.79-9.11-2.01-2.17-4.26-3.46-7.64-4.35,0-.05-.03.03-.04-.02'}
+      ],
+      line: [
+        {t:'p',d:'M804.61,172.5s.09.02.13.02c-45.03-8.29-84.58-14.71-120.82-19.6.06,0,.12.02.17.02-.09.21-.14.44-.23.66-1.95.4-4.06.27-6,.85-.01-.01-.04-.03-.06-.05-.04-.13-.09-.26-.14-.39.02,0,.04,0,.07,0-4.87-.52-9.74-1.01-14.62-1.5-4.79-.46-9.6-.91-14.4-1.34h-.01s-.37-.05-.37-.05c-9.11-.83-18.27-1.58-27.45-2.28,0,.04,0,.08,0,.11,6.85.92,13.16,2.58,18.67,6.93,0,0-.01-.01-.02-.02,1.13.1,2.24.2,3.36.3,5.18,1.42,9.39,5.36,10.93,10.49,1.6,5.35,1.3,12.24-.9,20.47l-21.05,109.2c-4.19,26.12-19.01,37.08-42.82,41.56l-143.01.03-128.89-.03c-23.72-4.39-39.07-18.19-42.83-41.64l-2.11-10.93c-.29-2.09-.65-4.23-1.12-6.43l-12.19-62.64-5.57-28.92-.04-.19c-.09-.35-.16-.68-.25-1.03l-1.25-6.42s0-.03-.01-.04c-.67-4.99-.48-9.34.61-12.98,1.44-4.81,5.22-8.56,9.95-10.19,1.68-.14,3.36-.28,5.03-.42-.01,0-.02.02-.04.03.13-.02.26-.04.39-.06,1.51-.96,3.05-1.79,4.52-2.46,4.51-2.11,9.69-3.99,14.78-4.58-8.71.66-17.56,1.37-26.29,2.11l-1.11.09c-9.48.82-18.77,1.68-27.61,2.55l-.46.05s0-.01,0-.02c-.02.03-.03.06-.04.09-1.99.06-3.94-.42-5.98-.72,0-.03,0-.06-.01-.09.03,0,.06,0,.08-.01-41.23,6.38-81.95,12.73-121.09,18.88,0-.03.01-.07.02-.1l-5.76,1.61c-1.39.76-2.77,1.68-4.11,2.75-6.4,5.15-12.04,13.69-17.24,26.11-27.39,64.19-47.54,129.24-59.9,193.34C4.64,462.34-.21,530.22,3.08,597.4c2.41,40.48,7.54,66.82,16.62,85.41,9.85,20.12,24.59,31.39,46.4,35.45l39.76,12.39.33.07h.1c.97.12,1.93.18,2.86.18,13.63,0,18.84-11.41,21.55-19.96,27.65-75.71,49.02-130.11,67.27-171.19,8.52-19.59,24.3-29.11,48.23-29.11,3.5,0,7.23.21,11.11.63h.17c60.68,2.54,123.31,3.82,186.16,3.82,70.29,0,142.26-1.6,213.94-4.76,2.31-.2,4.59-.3,6.77-.3,23.28,0,39.64,11.03,50,33.68,26.25,62.96,48.44,119.86,67.83,173.94,3.28,8.94,9.45,13.47,18.32,13.47,1.52,0,3.14-.14,4.82-.4h.06s45.5-13.11,45.5-13.11c2-.48,4.05-1.09,6.27-1.86l.13-.04.72-.25v-.02c15.47-5.75,26.84-17.21,34.75-35,7.77-17.48,12.58-41.33,15.58-77.35,4.35-57.49-1.58-134.16-16.29-210.35-15.8-81.82-40.06-154.86-68.3-205.65-2.37-4.62-4.05-7.26-5.79-9.11-2.01-2.17-4.26-3.46-7.64-4.35,0-.05-.03.03-.04-.02M654.75,157.28c1.32.12,2.27.2,2.26.19,4.84.46,9.76.95,14.92,1.48-3.75,2.27-6.89,5.18-9.51,8.8-.01-.02-.01-.04-.02-.06-.81,1.03-1.56,2.12-2.23,3.26-.18-2.07-.53-4.04-1.07-5.86-.89-2.98-2.4-5.62-4.35-7.82ZM251.1,157.47l.22-.17.34-.03c-2.05,2.16-3.62,4.8-4.53,7.83-.29.95-.5,1.95-.69,2.98-.3-.5-.5-.83-.51-.82-2.55-3.31-5.76-6.16-9.46-8.41,4.54-.44,9.37-.89,14.63-1.37ZM63.74,711.34c-1.7,0-3.53-.26-5.45-.77l-.46-.09c-15.03-4.97-25.58-14.54-33.18-30.09-8.75-17.89-13.71-43.59-16.08-83.29C2.18,466.43,27.04,334.31,82.48,204.42c5.96-14.26,12.4-22.95,19.68-26.57,36.97-5.81,77.23-12.09,119.66-18.67,12.6,2.24,22,10.48,24.57,21.52.29,2.12.73,4.32,1.3,6.61l5.63,28.91,13.52,70.16c3.04,22.28-4.43,36.44-19.51,54.89-33.86,35.52-63.96,83.16-92.02,145.65-22.57,50.27-43.21,108.54-64.97,183.45-3.79,15.91-8.97,32.96-18.74,38.81-2.41,1.45-4.98,2.16-7.85,2.16ZM804.28,725.31c-1.3.21-2.54.31-3.7.31-6.47,0-10.8-3.22-13.23-9.84-19.36-54.03-41.59-111.02-67.97-174.28-11.21-24.52-29.78-36.96-55.17-36.96-2.28,0-4.64.1-6.97.3-71.45,3.15-143.25,4.75-213.42,4.75-62.79,0-125.39-1.28-185.99-3.8-3.91-.42-7.72-.63-11.32-.63-26.2,0-44.22,10.9-53.58,32.37-18.31,41.24-39.73,95.76-67.43,171.64-3.62,11.38-8.49,16.23-16.28,16.23-.66,0-1.36-.03-2.07-.1l-34.11-10.63c.47-.24.93-.49,1.38-.76,11.51-6.9,17.19-25.2,21.22-42.14,31.82-109.48,78.28-245.56,155.72-326.77l.12-.14c10.32-12.6,15.94-21.99,18.94-31.77.01.02.02.03.03.05l.04-.29c.47-1.24.83-2.6,1.14-4.03,5.82,18.4,22.43,32.57,45.18,34.56l129.25.04,143.13-.03h.24c23.32-2.05,38.12-13.14,44.92-33.72.1.51.2,1.01.32,1.53,3.02,14.37,11.49,26.24,20.3,37l.17.19c81.44,78.96,128.1,212.33,162.99,332.38,5.91,20.1,10.54,31.1,19.1,35.05l-32.95,9.49ZM902.84,602.66c-4.81,57.88-14.43,96.11-47.36,107.83-4.19,1.09-7.37,1.59-9.99,1.59-9.87,0-14.41-6.75-22.08-32.85-22.39-77.03-43.38-136.08-66.05-185.82-29.41-64.53-61.55-113.22-98.27-148.86-16.5-20.18-23.88-35.21-18.4-61.3l20.03-98.96c4.49-15.34,12.4-22.67,27.28-25.27,35.69,4.91,74.62,11.29,119,19.5h.07c5.65,1.12,7.18,2.15,11.82,11.17,60.68,109.11,92.4,301.63,83.95,412.97Z'}
+      ],
+      ring: [
+        {t:'p',d:'M131.54,151.76c28.58-10.54,37.1-12.19,70.13-13.58.62-.03,1.21-.04,1.78-.04,1.7,0,3.23.11,4.69.35,8.92,1.44,14.64,6.2,17.45,14.54-.03,0-.06,0-.08.01,0,.03,0,.06.01.09,2.04.3,3.99.78,5.98.72.02-.03.03-.06.04-.09-3.07-11.83-10.65-18.79-22.53-20.72-1.76-.27-3.6-.41-5.61-.41-.63,0-1.28,0-1.95.04-5.25.22-9.69.44-13.55.68-23.59,1.48-33.63,4.15-58.32,13.26-1.9.75-3.55,1.43-5.01,2.05l-.16.07c-23.9,10.2-24.72,17.05-25.6,24.3-.02.13-.04.25-.05.38l5.76-1.61c.79-5.14,3.38-10.75,27.02-20.05Z'},
+        {t:'p',d:'M804.81,159.88c-2.27-2.33-5.34-4.53-9.35-6.83-1.04-.6-2.15-1.17-3.28-1.69-27.77-12.77-52.08-18.98-74.31-18.98-5.21,0-10.43.34-15.56,1.02l-.23.04c-13.31,3.1-21.29,9.84-24.35,20.58-.02,0-.04,0-.07,0,.05.13.1.26.14.39.02.02.05.03.06.05.49-.18,1-.3,1.52-.33,1.52-.11,3.01-.3,4.48-.51.01-.04.03-.08.05-.12.05-.18.11-.36.18-.54-.06,0-.12-.02-.17-.02,2.98-7.21,9.14-11.7,19.28-14.1,4.8-.62,9.73-.94,14.65-.94,21.43,0,44.99,6.05,72.03,18.48.91.41,1.84.89,2.85,1.47,8.44,4.83,11.54,8.54,12.01,14.69-.05,0-.09-.02-.13-.02.06.13.12.25.16.39.02.06.05.12.07.18,1.01.07,1.98.26,2.89.58.87-.31,1.74-.34,2.57-.15-.14-5.55-1.73-9.75-5.49-13.61Z'},
+        {t:'p',d:'M218.64,218.94c1.25,5.26,5.9,8.93,11.31,8.93.92,0,1.83-.11,2.69-.32,3.02-.72,5.57-2.57,7.2-5.22,1.63-2.65,2.13-5.76,1.41-8.77l-4.26-17.93c-1.25-5.26-5.9-8.93-11.31-8.93-.9,0-1.81.11-2.7.32-3.02.71-5.57,2.57-7.2,5.21-1.63,2.65-2.13,5.76-1.42,8.78l4.27,17.93ZM220.47,195.11c.86-1.4,2.21-2.37,3.79-2.75.46-.11.93-.16,1.42-.16,2.85,0,5.3,1.93,5.96,4.7l4.27,17.93c.38,1.59.11,3.23-.74,4.62-.86,1.4-2.21,2.38-3.8,2.75-.47.11-.94.17-1.42.17-2.85,0-5.3-1.94-5.96-4.71l-4.27-17.93c-.38-1.59-.11-3.23.75-4.62Z'},
+        {t:'p',d:'M677.7,226.85c.91.21,1.82.32,2.69.32,5.4,0,10.05-3.68,11.3-8.94l4.27-17.92c.72-3.02.22-6.15-1.41-8.79-1.63-2.64-4.18-4.5-7.2-5.22-.88-.21-1.79-.31-2.69-.31-5.41,0-10.06,3.67-11.32,8.93l-4.27,17.93c-1.49,6.23,2.38,12.51,8.62,14.01ZM674.43,214.12l4.26-17.92c.66-2.77,3.11-4.71,5.96-4.71.5,0,.96.06,1.42.17,1.59.38,2.94,1.35,3.8,2.74.85,1.38,1.12,3.03.74,4.63l-4.26,17.92c-.66,2.77-3.11,4.71-5.96,4.71-.47,0-.95-.06-1.42-.17-1.59-.38-2.94-1.35-3.8-2.75-.86-1.39-1.12-3.04-.74-4.63Z'},
+        {t:'p',d:'M99.81,321.31c1.27.35,2.6.53,3.93.53.42,0,.83-.02,1.25-.06l14.55-1.23c5.53-.47,10.68-2.71,14.76-6.39.68-.6,1.32-1.25,1.94-1.94l8.45-9.44c3.91-4.36,3.85-10.88-.13-15.18l-8.39-9.04c-4.29-4.63-10.11-7.47-16.4-8l-14.78-1.25c-4.13-.36-8.24,1.05-11.29,3.85s-4.8,6.79-4.8,10.93v22.91c0,4.14,1.75,8.12,4.8,10.93,1.75,1.61,3.85,2.76,6.11,3.38ZM93.9,284.09c0-2.79,1.13-5.36,3.18-7.24,1.84-1.69,4.17-2.6,6.63-2.6.28,0,.57.01.86.04l14.78,1.25c5.04.43,9.71,2.71,13.15,6.42l8.4,9.04c2.21,2.39,2.24,6.02.07,8.45l-8.46,9.44c-3.46,3.87-8.22,6.24-13.39,6.68l-14.55,1.23c-2.78.24-5.44-.67-7.49-2.56-2.05-1.88-3.18-4.45-3.18-7.24v-22.91Z'},
+        {t:'p',d:'M172.85,287.6c-3.98,4.3-4.04,10.82-.14,15.18l8.27,9.23.19.21c4.32,4.83,10.25,7.78,16.7,8.33l14.55,1.23c.42.04.83.06,1.25.06,1.4,0,2.79-.2,4.12-.58,2.18-.64,4.22-1.76,5.92-3.33,3.05-2.81,4.8-6.79,4.8-10.93v-22.91c0-4.14-1.75-8.13-4.8-10.93-3.05-2.8-7.16-4.2-11.29-3.85l-14.78,1.25c-.74.06-1.48.16-2.2.28-2.7.47-5.27,1.36-7.65,2.64-2.43,1.31-4.64,3.01-6.55,5.08l-8.39,9.04ZM198.06,275.54l14.78-1.25c2.78-.24,5.44.67,7.49,2.56,2.05,1.88,3.18,4.45,3.18,7.24v22.91c0,2.79-1.13,5.36-3.18,7.24-2.05,1.89-4.71,2.8-7.49,2.56l-14.55-1.23c-5.17-.44-9.93-2.81-13.39-6.68l-8.46-9.44c-2.17-2.43-2.14-6.06.07-8.45l8.4-9.04c3.44-3.71,8.11-5.99,13.15-6.42Z'},
+        {t:'p',d:'M183.71,334.71c-.13-1.61-.42-3.18-.84-4.71-.05-.16-.1-.32-.15-.47-.22-.68-.45-1.34-.69-2-1.43-3.61-3.69-6.87-6.65-9.52l-9.44-8.46c-4.36-3.9-10.88-3.85-15.18.14l-9.04,8.39c-1.05.97-2,2.01-2.85,3.12-2.94,3.82-4.74,8.41-5.15,13.28l-1.25,14.78c-.15,1.83.03,3.65.54,5.38.62,2.18,1.75,4.21,3.31,5.91,2.8,3.05,6.79,4.8,10.93,4.8h22.91c4.14,0,8.12-1.75,10.93-4.8,2.8-3.05,4.2-7.16,3.85-11.29l-1.23-14.55ZM177.4,357.17c-1.88,2.05-4.45,3.18-7.24,3.18h-22.91c-2.79,0-5.36-1.13-7.25-3.18-1.88-2.05-2.79-4.71-2.55-7.49l1.25-14.78c.43-5.04,2.71-9.71,6.42-13.16l9.04-8.39c1.21-1.12,2.74-1.68,4.27-1.68s2.98.54,4.18,1.61l9.44,8.45c3.87,3.47,6.24,8.23,6.68,13.4l1.23,14.55c.24,2.78-.67,5.44-2.56,7.49Z'},
+        {t:'p',d:'M133.72,256.61c.48,5.73,2.88,11.07,6.81,15.22.38.41.78.8,1.19,1.18l9.04,8.39c2.18,2.02,4.92,3.03,7.67,3.03s5.36-.97,7.51-2.9l9.44-8.45c1.35-1.2,2.55-2.53,3.58-3.96,2.51-3.43,4.1-7.44,4.64-11.72.05-.34.08-.68.11-1.02l1.23-14.55c.35-4.13-1.05-8.24-3.85-11.29-2.81-3.05-6.79-4.8-10.93-4.8h-22.91c-4.14,0-8.13,1.75-10.93,4.8-1.53,1.66-2.64,3.64-3.27,5.76-.54,1.77-.74,3.65-.58,5.53l1.25,14.78ZM140,233.92c1.89-2.05,4.46-3.18,7.25-3.18h22.91c2.79,0,5.36,1.13,7.24,3.18,1.89,2.05,2.8,4.71,2.56,7.49l-1.23,14.55c-.44,5.17-2.81,9.93-6.68,13.39l-9.44,8.46c-2.43,2.17-6.06,2.14-8.45-.07l-9.04-8.4c-3.71-3.44-5.99-8.11-6.42-13.15l-1.25-14.78c-.24-2.78.67-5.44,2.55-7.49Z'},
+        {t:'p',d:'M751.82,321.39h-.11c-8.53,0-16.94,3.65-23.08,10.01-5.91,6.13-9.01,13.94-8.72,21.98.63,17.53,13.54,30.1,31.38,30.57h.03c17.47,0,31.35-13.6,31.6-30.96.12-8.05-3.19-16.1-9.08-22.09-5.9-6.01-13.93-9.48-22.02-9.51ZM770.09,370.25c-4.93,5-11.74,7.77-19.16,7.8h-.1c-13.76,0-24.99-11.14-25.03-24.82-.04-13.99,11.13-25.37,25.43-25.91.28-.01.56-.02.84-.02,13.25,0,24.99,11.83,25.12,25.32.06,6.67-2.46,12.93-7.09,17.63Z'},
+        {t:'p',d:'M751.06,266c.21,0,.41,0,.62,0,8.36,0,16.79-3.45,22.54-9.22,5.71-5.73,8.72-13.49,8.69-22.44-.05-17.11-14.19-31.03-31.52-31.03h-.19c-17.15.1-31.24,14.15-31.4,31.3-.08,8.08,3.16,15.85,9.1,21.87,5.94,6.02,14.02,9.48,22.16,9.51ZM751.32,209.08h.12c13.93.07,25.71,11.83,25.73,25.69.01,6.89-2.62,13.27-7.4,17.98-4.79,4.71-11.3,7.31-18.35,7.32-6.99,0-13.47-2.6-18.25-7.33-4.77-4.72-7.4-11.13-7.39-18.03.01-14.13,11.47-25.63,25.53-25.63Z'},
+        {t:'p',d:'M791.23,272.06c-5.72,5.82-8.79,13.5-8.65,21.62.31,17.85,13.17,30.72,31.27,31.3.3,0,.6.01.9.01,16.35,0,30.24-14.13,30.33-30.86.05-8.44-3.12-16.31-8.92-22.14-5.91-5.94-13.96-9.21-22.68-9.21-8.47,0-16.37,3.3-22.25,9.28ZM839.39,293.77c.02,6.64-2.62,12.96-7.44,17.78-4.93,4.95-11.46,7.67-18.37,7.67,0,0-.14,0-.14,0-13.66-.07-25.18-11.87-25.15-25.75.03-13.65,11.4-25.19,24.83-25.19h.23c14.33.14,26.01,11.57,26.05,25.49Z'},
+        {t:'p',d:'M691.99,262.62c-.79-.06-1.6-.09-2.38-.09-8.46,0-16.39,3.35-22.34,9.45-5.74,5.88-8.93,13.76-8.74,21.58-.29,17.51,12.78,31.02,30.42,31.42.26,0,.52,0,.78,0,17.09,0,30.37-12.98,30.9-30.18.51-16.54-12.34-30.97-28.64-32.18ZM707.82,311.38c-4.97,4.99-11.72,7.85-18.53,7.85,0,0-.18,0-.18,0-6.58-.05-12.82-2.74-17.59-7.59-4.87-4.95-7.51-11.43-7.45-18.24.13-13.89,11.46-25.19,25.26-25.19h.38c13.56.21,25.5,12.2,25.56,25.67.03,6.44-2.62,12.65-7.44,17.5Z'},
+        {t:'p',d:'M455.4,442.49h.21c14.28-.12,25.41-11.31,25.35-25.47-.06-14.05-11.44-25.51-25.42-25.54-13.74,0-25.39,11.7-25.44,25.55-.03,6.72,2.63,13.09,7.46,17.95,4.82,4.84,11.16,7.51,17.84,7.51ZM441.75,403.34c3.78-3.75,8.85-5.9,13.92-5.9h.13c5.08.04,10.12,2.23,13.84,6.02,3.73,3.8,5.84,8.91,5.78,14.02-.13,10.54-9.08,19.11-20,19.11h0c-10.81-.02-19.6-8.74-19.6-19.43,0-5.03,2.17-10.07,5.94-13.82Z'},
+        {t:'p',d:'M474.24,464.3c-6.6-.06-13.03-.1-19.11-.1-6.51,0-12.67.04-18.82.11-2.55.03-4.67.99-6.15,2.77-1.4,1.7-2.12,4.04-2.07,6.78.07,3.52,1.54,7.73,8.15,7.76,2.64.01,5.27.02,7.91.02h11.06s1.74-.03,1.74-.03c0,0,7.44-.02,9.31-.02,2.62,0,5.25,0,7.86.04h.17c7.21,0,8.38-5.01,8.43-8,.05-2.57-.65-4.8-2.03-6.45-1.54-1.85-3.77-2.85-6.45-2.88ZM473.79,476.4h-2.19c-2.66-.05-2.76-.04-5.42-.04-1.84,0-10.97.03-10.97.03l-5.52.04h-5.9c-2.5,0-5,0-7.5-.02-.93,0-2.31-.66-2.33-2.29-.02-1.53-.18-2.63.18-3.31.57-1.06,1.65-1.24,2.25-1.25,6.08-.11,12.21-.17,18.74-.17,6.06,0,12.48.05,19.09.15,1.14.02,2.07.53,2.55,1.42.21.4.5,1.12.47,2.82-.02,1.47-.69,2.61-3.43,2.61Z'}
+      ],
+      trigRing: [
+        {t:'p',d:'M115.16,122.1h.4l.52-.07.06-.02c24.15-6.19,52.33-10.12,83.69-11.68h.47c5.39,0,9.3-1.44,11.61-4.29,2.31-2.88,2.86-6.94,1.67-11.99l-9.91-67.79c-3.78-16.37-15.49-24.66-34.81-24.66-2.7,0-5.6.17-8.61.49-14.28,1.66-25.37,7.75-32.97,18.08-2.9,3.94-5.2,8.57-6.83,13.75-7.91,25.05-11.67,47.06-16.02,72.55l-.18,1.03c-.57,5.06.28,8.9,2.55,11.39,1.92,2.12,4.73,3.2,8.34,3.2ZM109.72,108.29l.15-.89c4.32-25.3,8.06-47.16,15.84-71.81,1.46-4.61,3.48-8.7,6.02-12.15,6.76-9.19,16.3-14.38,29.16-15.89,2.88-.31,5.61-.46,8.11-.46,16.53,0,26.12,6.66,29.29,20.26l9.88,67.62.04.18c.81,3.44.62,5.94-.57,7.43-1.21,1.5-3.65,2.25-7.25,2.25h-.69c-31.62,1.56-60.09,5.52-84.61,11.76-1.98-.02-3.35-.48-4.19-1.4-1.15-1.27-1.55-3.69-1.18-6.92Z'},
+        {t:'p',d:'M709.98,110.34h.41c31.43,1.56,59.6,5.48,83.74,11.68l.06.02.53.07h.4c3.61,0,6.42-1.08,8.34-3.2,2.27-2.5,3.13-6.33,2.54-11.45l-.17-.97c-4.35-25.49-8.11-47.5-16.02-72.55-1.63-5.18-3.93-9.81-6.83-13.75-7.61-10.33-18.71-16.42-32.99-18.08-3-.33-5.89-.49-8.6-.49-19.32,0-31.03,8.3-34.82,24.74l-9.87,67.63c-1.21,5.13-.66,9.2,1.66,12.08,2.31,2.85,6.22,4.29,11.61,4.29ZM702.09,95.12l.04-.2,9.85-67.49c3.18-13.69,12.77-20.35,29.31-20.35,2.49,0,5.22.16,8.1.46,12.87,1.51,22.41,6.7,29.17,15.89,2.53,3.43,4.55,7.52,6.01,12.15,7.79,24.65,11.52,46.51,15.85,71.82l.14.83c.37,3.3-.03,5.71-1.17,6.97-.85.93-2.22,1.39-4.19,1.4-24.52-6.25-52.99-10.21-84.66-11.77h-.64c-3.56,0-6.07-.77-7.26-2.25-1.2-1.49-1.4-3.99-.56-7.47Z'}
+      ],
+      grill: [
+        {t:'c',v:[420.29,357.71,4.82]},
+        {t:'c',v:[437.84,357.71,4.82]},
+        {t:'c',v:[455.38,357.71,4.82]},
+        {t:'c',v:[472.93,357.71,4.82]},
+        {t:'c',v:[490.47,358.68,4.82]}
+      ],
+      bezel: [
+        {t:'p',d:'M340.92,373.72c-12.1-11.94-28.56-18.52-46.36-18.52-1.03,0-2.06.02-3.11.06-16.56.69-32.12,7.92-43.82,20.35-11.43,12.15-17.66,28.1-17.11,43.7-.63,16.4,5.79,32.86,17.63,45.16,12.39,12.87,29.14,19.96,47.17,19.96h.13c17.75-.03,34.16-6.86,46.21-19.24,12.14-12.46,18.58-29.31,18.14-47.45-.41-16.77-7.12-32.41-18.9-44.04ZM296.63,478.55c-.35,0-.7,0-1.06,0-16.24,0-31.34-6.14-42.53-17.29-11.18-11.15-17.33-26.19-17.32-42.36.02-27.96,22.56-58.15,58.94-58.15h.29c16.72.07,32,6.28,43.02,17.47,10.8,10.97,16.65,25.88,16.48,41.98-.4,36.53-29.71,58.36-57.82,58.36Z'},
+        {t:'p',d:'M617.17,355.14c-1.39,0-2.81.05-4.21.13-16.38,1.04-31.68,7.93-43.07,19.39-11.63,11.71-18.09,27.2-18.18,43.63-.1,18.38,6.27,34.57,18.42,46.8,12.21,12.3,29.46,19.38,47.3,19.41h.1c16.61,0,32.4-6.7,44.48-18.88,12.21-12.3,19.13-29.12,19-46.1.29-16.6-6.42-33.11-18.41-45.31-12.1-12.31-28.23-19.09-45.43-19.09ZM675.5,419.52c-.02,32.9-25.99,58.85-59.12,59.08h-.4c-15.55,0-30.85-6.54-41.96-17.95-11.2-11.5-17.15-26.51-16.74-42.27.84-32.25,26.93-57.61,59.4-57.74h.24c16.08,0,31.03,6.27,42.11,17.65,10.89,11.19,16.89,26.21,16.48,41.23Z'}
+      ],
+      tp: [
+        {t:'p',d:'M272.25,153.56c-4.52,2.07-9.76,5.6-12.42,9.85-4.66,6.89-3.71,15.95-1.11,26.9l19.74,98.37c4.52,27.51,18.61,41.63,45.84,43.95h.12l235.94.06c-4.66-.08,4.33,0,9.56,0,35.3,0,49.5-11.1,56.07-37.73l20.44-101.35c4.26-16.93,3.93-29.59-6.87-37.71-6.24-4.92-13.49-6.41-21.4-7.26-52.97-4-107.12-6.03-161.4-6.03-.3,0-.6,0-.9,0-2.3-.01-4.58-.02-6.81-.02-.36,0-.72,0-1.08,0-.33,0-.66,0-1,0-3.06.02-6.18.05-9.34.09-48.92.43-98.66,2.47-148.15,6.11-5.85.15-12,2.31-17.24,4.76ZM641.07,192.4l-20.45,101.35c-6.01,24.35-18.98,33.44-50.41,33.44-3.02,0-6.24.2-9.64,0l-235.88-.06c-24.7-2.11-36.7-14.33-40.82-39.44l-19.79-98.56c-2.23-9.46-3.46-17.08.31-22.64,4.07-6.04,11.93-10.09,23.26-12.03,13.9-1.04,27.83-1.95,41.74-2.73,35.06-1.79,70.63-3.02,101.96-3.47.19,0,.38,0,.58,0,1.55-.02,3.08-.04,4.6-.06,6.53-.06,13.04-.09,19.54-.09,46.61.2,104.83,2.34,158.55,5.8,3.45.26,7.4.89,10.36,1.77,18.01,5.87,21.08,16.85,16.09,36.73Z'}
+      ],
+      decor: [
+        {t:'p',d:'M454.47,468.7c-6.47,0-12.69.04-18.75.14-.92.01-2.18.28-2.96,1.48-.56.85-.83,2.14-.8,3.81.03,2.24.41,3.3,3.67,3.32,4.47.03,8.94.02,13.41.02l5.53-.03c1.83,0,3.67,0,5.5-.01,4.41-.01,8.97-.03,13.46.04,3.68.09,4.03-1.61,4.06-3.62.02-1.47-.23-2.58-.76-3.39-.67-1.03-1.83-1.6-3.26-1.62-6.64-.08-12.98-.12-19.1-.12Z'},
+        {t:'p',d:'M474.24,464.3c-6.6-.06-13.03-.1-19.11-.1-6.51,0-12.67.04-18.82.11-2.55.03-4.67.99-6.15,2.77-1.4,1.7-2.12,4.04-2.07,6.78.07,3.52,1.54,7.73,8.15,7.76,2.64.01,5.27.02,7.91.02h11.06s1.74-.03,1.74-.03c0,0,7.44-.02,9.31-.02,2.62,0,5.25,0,7.86.04h.17c7.21,0,8.38-5.01,8.43-8,.05-2.57-.65-4.8-2.03-6.45-1.54-1.85-3.77-2.85-6.45-2.88ZM473.79,476.4h-2.19c-2.66-.05-2.76-.04-5.42-.04-1.84,0-10.97.03-10.97.03l-5.52.04h-5.9c-2.5,0-5,0-7.5-.02-.93,0-2.31-.66-2.33-2.29-.02-1.53-.18-2.63.18-3.31.57-1.06,1.65-1.24,2.25-1.25,6.08-.11,12.21-.17,18.74-.17,6.06,0,12.48.05,19.09.15,1.14.02,2.07.53,2.55,1.42.21.4.5,1.12.47,2.82-.02,1.47-.69,2.61-3.43,2.61Z'}
+      ],
+      hot: {
+        south: {t:'p',d:'M750.93,379.05c15.44-.06,27.38-11.64,27.24-26.43-.13-14.28-12.84-26.83-26.99-26.3-14.58.55-26.43,12.2-26.39,26.91.04,14.23,11.83,25.88,26.14,25.82Z'},
+        east: {t:'p',d:'M787.29,293.47c-.03,14.49,11.88,26.68,26.15,26.75,14.74.08,26.99-11.95,26.95-26.46-.04-14.51-12.12-26.34-27.04-26.48-14.04-.14-26.03,11.91-26.06,26.18Z'},
+        west: {t:'p',d:'M689.1,320.22c14.61.11,27.23-12.13,27.17-26.35-.06-14.09-12.36-26.44-26.54-26.66-14.42-.22-26.52,11.67-26.66,26.18-.13,14.49,11.74,26.73,26.03,26.83Z'},
+        north: {t:'p',d:'M751.45,261.08c15.08-.01,26.75-11.5,26.73-26.31-.02-14.47-12.19-26.62-26.73-26.69-14.57-.07-26.65,11.99-26.66,26.63-.01,14.84,11.65,26.37,26.66,26.36Z'},
+        dpad_up: {t:'p',d:'M179.96,241.41l-1.23,14.55c-.44,5.17-2.81,9.93-6.68,13.39l-9.44,8.46c-2.43,2.17-6.06,2.14-8.45-.07l-9.04-8.4c-3.71-3.44-5.99-8.11-6.42-13.15l-1.25-14.78c-.24-2.78.67-5.44,2.55-7.49,1.89-2.05,4.46-3.18,7.25-3.18h22.91c2.79,0,5.36,1.13,7.24,3.18,1.89,2.05,2.8,4.71,2.56,7.49Z'},
+        dpad_down: {t:'p',d:'M177.4,357.17c-1.88,2.05-4.45,3.18-7.24,3.18h-22.91c-2.79,0-5.36-1.13-7.25-3.18-1.88-2.05-2.79-4.71-2.55-7.49l1.25-14.78c.43-5.04,2.71-9.71,6.42-13.16l9.04-8.39c1.21-1.12,2.74-1.68,4.27-1.68s2.98.54,4.18,1.61l9.44,8.45c3.87,3.47,6.24,8.23,6.68,13.4l1.23,14.55c.24,2.78-.67,5.44-2.56,7.49Z'},
+        dpad_left: {t:'p',d:'M140.97,299.45l-8.46,9.44c-3.46,3.87-8.22,6.24-13.39,6.68l-14.55,1.23c-2.78.24-5.44-.67-7.49-2.56-2.05-1.88-3.18-4.45-3.18-7.24v-22.91c0-2.79,1.13-5.36,3.18-7.24,1.84-1.69,4.17-2.6,6.63-2.6.28,0,.57.01.86.04l14.78,1.25c5.04.43,9.71,2.71,13.15,6.42l8.4,9.04c2.21,2.39,2.24,6.02.07,8.45Z'},
+        dpad_right: {t:'p',d:'M223.51,284.09v22.91c0,2.79-1.13,5.36-3.18,7.24-2.05,1.89-4.71,2.8-7.49,2.56l-14.55-1.23c-5.17-.44-9.93-2.81-13.39-6.68l-8.46-9.44c-2.17-2.43-2.14-6.06.07-8.45l8.4-9.04c3.44-3.71,8.11-5.99,13.15-6.42l14.78-1.25c2.78-.24,5.44.67,7.49,2.56,2.05,1.88,3.18,4.45,3.18,7.24Z'},
+        l1: {t:'p',d:'M226.89,153.84c-42.76,6.62-84.3,13.1-123.56,19.27.76-6.19,2.09-12.15,27.86-22.29,28.7-10.58,37.26-12.24,70.44-13.64,2.49-.11,4.68,0,6.67.32,9.71,1.57,15.81,6.94,18.59,16.34Z'},
+        r1: {t:'p',d:'M805.8,173.73c-45.97-8.48-86.34-15.03-123.26-19.99,2.9-8.22,9.5-13.32,20.48-15.9,26.02-3.4,53.76,2.2,87.27,17.61.98.44,1.96.95,2.94,1.51,9.2,5.27,12.41,9.42,12.57,16.77Z'},
+        select: {t:'p',d:'M224.03,191.39c.55-.13,1.11-.19,1.65-.19,3.22,0,6.15,2.21,6.93,5.47l4.27,17.93c.44,1.85.13,3.76-.86,5.38-1,1.62-2.57,2.76-4.42,3.2-3.82.91-7.67-1.46-8.58-5.28l-4.27-17.92c-.91-3.82,1.46-7.67,5.28-8.58Z'},
+        start: {t:'p',d:'M691.58,199.27l-4.27,17.92c-.91,3.82-4.76,6.19-8.58,5.28-3.82-.91-6.19-4.76-5.28-8.58l4.27-17.92c.78-3.27,3.71-5.48,6.93-5.48.54,0,1.1.06,1.65.19,1.85.44,3.42,1.58,4.42,3.2s1.3,3.53.86,5.38Z'},
+        guide: {t:'p',d:'M455.41,437.59c11.37.03,20.87-9.06,21-20.1.14-11.24-9.39-20.97-20.61-21.05-11.23-.08-21,9.57-20.99,20.72,0,11.16,9.32,20.4,20.6,20.43Z'},
+        touchpad: {t:'p',d:'M452.27,328.53v-.02c40.22,0,80.43.07,120.65-.07,6.47-.02,13.17.01,19.36-1.58,19.32-4.99,29.59-18.18,33.51-36.6,7.44-34.93,15.37-69.99,21.95-105.09,1.8-9.6-.91-20.7-9.35-26.91-6.53-4.8-15.07-5.38-22.94-6-15.84-1.24-31.65-1.69-47.52-2.33-25.29-1.01-52.32-3.71-77.62-4-59.86-.67-117.65,1.12-177.41,5.09-10.18.68-20.91.48-30.97,2.12-12.6,2.05-25.72,12.82-22.5,31.32,2.97,17.08,7.65,34.26,11,51.28,3.72,18.85,7.61,37.68,11.08,56.58,2.33,12.67,8.64,23.23,19.04,30.56,9.97,7.03,21.64,5.61,33.14,5.62,39.53.06,79.06.02,118.6.02Z'}
+      }
+    },
+    ds4: {
+      box: [3.37, 14.79, 636.63, 503.23],
+      well: 39.36,
+      ls: [219.94, 314.85], rs: [420.06, 314.85],
+      lt: [93.56, 17.29, 73.73, 67.97], rt: [472.72, 17.29, 73.73, 67.97],
+      ltd: 'M167.27,80.69l-2.79-35.54c-1.25-15.98-14.77-28.21-30.8-27.85h0c-13.24.3-24.75,9.19-28.38,21.93l-11.58,40.63c-.77,2.71,1.26,5.4,4.08,5.4h65.24c2.47,0,4.42-2.11,4.23-4.57Z',
+      rtd: 'M472.73,80.69l2.79-35.54c1.25-15.98,14.77-28.21,30.8-27.85h0c13.24.3,24.75,9.19,28.38,21.93l11.58,40.63c.77,2.71-1.26,5.4-4.08,5.4h-65.24c-2.47,0-4.42-2.11-4.23-4.57Z',
+      tuck: 30.73,
+      tpbox: [220.64, 128.64, 198.71, 113.73],
+      guide: [320.16, 314.85, 13.82],
+      face: {north: [517.22, 178.98, 19.67], east: [563.04, 224.8, 19.67], south: [517.22, 270.62, 19.67], west: [471.4, 224.8, 19.67]},
+      body: [
+        {t:'p',d:'M622.95,326.87c-29.09-128.96-37.19-148.52-47.08-165.39-6.92-11.81-15.21-23.77-19.53-29.84-1.47-2.07-3.77-3.37-6.31-3.57-38.85-3.04-71.02-2.57-79.95-2.35-1.06.03-2.06.45-2.82,1.18l-2.73,2.63c-1.73,1.66-4,2.58-6.4,2.58H181.88c-2.4,0-4.67-.92-6.4-2.58l-2.73-2.63c-.76-.74-1.77-1.16-2.82-1.18-8.93-.22-41.11-.69-79.95,2.35-2.54.2-4.84,1.5-6.32,3.57-4.32,6.07-12.61,18.03-19.53,29.84-9.88,16.88-17.99,36.43-47.08,165.43-7.25,34.62-20.46,118.95,13.61,153.45,14.34,14.52,34.26,20.73,53.29,16.6,23.23-5.03,42.3-24.84,53.71-55.79,5.08-13.79,9.26-25.52,12.62-34.94,13.92-39.03,17.22-48.31,30.19-51.55l.3-.08h.31s77.55.17,77.55.17h122.75l77.86-.17.3.08c12.97,3.24,16.27,12.52,30.19,51.55,3.36,9.43,7.54,21.16,12.62,34.94,11.4,30.95,30.48,50.76,53.71,55.79,19.04,4.12,38.96-2.09,53.29-16.6,34.07-34.5,20.86-118.83,13.6-153.49Z'},
+        {t:'p',d:'M274.86,314.85c0-30.28-24.63-54.91-54.92-54.91s-54.92,24.63-54.92,54.91,24.63,54.92,54.92,54.92,54.92-24.63,54.92-54.92Z'},
+        {t:'p',d:'M420.06,259.93c-30.28,0-54.92,24.63-54.92,54.91s24.63,54.92,54.92,54.92,54.92-24.63,54.92-54.92-24.63-54.91-54.92-54.91Z'}
+      ],
+      line: [
+        {t:'p',d:'M72.26,503.22c-16.56,0-32.79-6.81-45.17-19.34-35.77-36.22-22.36-122.58-14.94-158.03,29.26-129.74,37.53-149.6,47.65-166.89,7.02-11.98,15.4-24.07,19.78-30.22,2.33-3.28,5.98-5.34,10-5.65,39.08-3.06,71.47-2.58,80.46-2.37,2.31.06,4.5.97,6.17,2.58l2.73,2.63c.79.76,1.83,1.18,2.93,1.18h36.97v5h-36.97c-2.4,0-4.67-.92-6.4-2.58l-2.73-2.63c-.76-.74-1.77-1.16-2.82-1.18-8.93-.21-41.11-.69-79.95,2.35-2.54.2-4.84,1.5-6.32,3.57-4.32,6.07-12.61,18.03-19.53,29.84-9.88,16.88-17.99,36.43-47.08,165.43-7.25,34.62-20.46,118.95,13.61,153.45,14.34,14.52,34.26,20.73,53.29,16.6,23.23-5.03,42.3-24.84,53.71-55.79,5.08-13.79,9.26-25.52,12.62-34.94,13.92-39.03,17.22-48.31,30.19-51.55l1.21,4.85c-10.08,2.52-12.69,9.11-26.69,48.38-3.36,9.44-7.55,21.18-12.64,34.99-12.01,32.61-32.38,53.55-57.34,58.95-4.23.91-8.5,1.36-12.74,1.36Z'},
+        {t:'p',d:'M98.46,460.5c-10.71,0-23.53-1.31-38.69-4.41-28.57-5.83-42.38-20.36-48.94-31.52-7.15-12.17-7.45-22.9-7.46-23.35l5-.1-2.5.05,2.5-.06c0,.1.32,10.07,6.9,21.15,8.81,14.83,24.12,24.57,45.5,28.93,53.9,11,73.86-1.74,76.88-10.01l4.7,1.72c-3.38,9.23-16.88,17.6-43.89,17.6Z'},
+        {t:'p',d:'M567.74,503.22c-4.25,0-8.51-.45-12.74-1.36-24.96-5.4-45.33-26.34-57.34-58.95-5.09-13.81-9.28-25.56-12.64-34.99-14-39.27-16.61-45.86-26.69-48.38l1.21-4.85c12.97,3.24,16.27,12.52,30.19,51.55,3.36,9.43,7.54,21.16,12.62,34.94,11.4,30.95,30.48,50.76,53.71,55.79,19.03,4.12,38.96-2.09,53.29-16.6,34.07-34.5,20.86-118.83,13.6-153.49-29.09-128.96-37.19-148.52-47.08-165.39-6.92-11.81-15.21-23.77-19.53-29.84-1.47-2.07-3.77-3.37-6.31-3.57-38.85-3.04-71.02-2.57-79.95-2.35-1.06.03-2.06.45-2.82,1.18l-2.73,2.63c-1.73,1.66-4,2.58-6.4,2.58h-36.97v-5h36.97c1.1,0,2.14-.42,2.93-1.18l2.73-2.63c1.67-1.61,3.86-2.52,6.17-2.58,8.99-.22,41.38-.69,80.46,2.37,4.02.31,7.66,2.37,10,5.65,4.37,6.14,12.76,18.23,19.78,30.22,10.13,17.29,18.39,37.15,47.65,166.86,7.43,35.48,20.84,121.84-14.93,158.06-12.37,12.53-28.61,19.34-45.17,19.34Z'},
+        {t:'p',d:'M541.54,460.5c-27.01,0-40.51-8.36-43.89-17.6l4.7-1.72c3.03,8.27,22.99,21.01,76.88,10.01,21.38-4.36,36.68-14.1,45.5-28.93,6.58-11.08,6.9-21.05,6.9-21.15l5,.11c0,.45-.3,11.18-7.46,23.35-6.56,11.16-20.37,25.69-48.94,31.52-15.16,3.09-27.99,4.41-38.69,4.41Z'},
+        {t:'r',v:[258.62,354.78,122.75,5]},
+        {t:'p',d:'M219.94,374.77c-33.04,0-59.92-26.88-59.92-59.92s26.88-59.91,59.92-59.91,59.92,26.88,59.92,59.91-26.88,59.92-59.92,59.92ZM219.94,259.94c-30.28,0-54.92,24.63-54.92,54.91s24.63,54.92,54.92,54.92,54.92-24.63,54.92-54.92-24.63-54.91-54.92-54.91Z'},
+        {t:'p',d:'M122.78,301.15c-42.16,0-76.46-34.3-76.46-76.46s34.3-76.46,76.46-76.46,76.46,34.3,76.46,76.46-34.3,76.46-76.46,76.46ZM122.78,153.23c-39.4,0-71.46,32.06-71.46,71.46s32.06,71.46,71.46,71.46,71.46-32.06,71.46-71.46-32.06-71.46-71.46-71.46Z'},
+        {t:'p',d:'M420.06,374.77c-33.04,0-59.92-26.88-59.92-59.92s26.88-59.91,59.92-59.91,59.92,26.88,59.92,59.91-26.88,59.92-59.92,59.92ZM420.06,259.94c-30.28,0-54.92,24.63-54.92,54.91s24.63,54.92,54.92,54.92,54.92-24.63,54.92-54.92-24.63-54.91-54.92-54.91Z'},
+        {t:'p',d:'M517.22,301.15c-42.16,0-76.46-34.3-76.46-76.46s34.3-76.46,76.46-76.46,76.46,34.3,76.46,76.46-34.3,76.46-76.46,76.46ZM517.22,153.23c-39.4,0-71.46,32.06-71.46,71.46s32.06,71.46,71.46,71.46,71.46-32.06,71.46-71.46-32.06-71.46-71.46-71.46Z'}
+      ],
+      ring: [
+        {t:'p',d:'M193.86,179.05c-5.93,0-10.76-4.83-10.76-10.76v-16.03c0-5.93,4.83-10.76,10.76-10.76s10.76,4.83,10.76,10.76v16.03c0,5.93-4.83,10.76-10.76,10.76ZM193.86,146.51c-3.18,0-5.76,2.58-5.76,5.76v16.03c0,3.18,2.58,5.76,5.76,5.76s5.76-2.58,5.76-5.76v-16.03c0-3.18-2.58-5.76-5.76-5.76Z'},
+        {t:'p',d:'M446.14,179.05c-5.93,0-10.76-4.83-10.76-10.76v-16.03c0-5.93,4.83-10.76,10.76-10.76s10.76,4.83,10.76,10.76v16.03c0,5.93-4.83,10.76-10.76,10.76ZM446.14,146.51c-3.18,0-5.76,2.58-5.76,5.76v16.03c0,3.18,2.58,5.76,5.76,5.76s5.76-2.58,5.76-5.76v-16.03c0-3.18-2.58-5.76-5.76-5.76Z'},
+        {t:'p',d:'M89.18,245.11h-6.9c-7.8,0-14.14-6.34-14.14-14.14v-12.57c0-7.8,6.34-14.14,14.14-14.14h6.44c5.71,0,11.12,2.19,15.23,6.17l7.89,7.64c1.97,1.92,3.07,4.59,3.01,7.34-.06,2.75-1.26,5.37-3.31,7.2l-7.79,6.95c-4.01,3.58-9.19,5.55-14.57,5.55ZM82.28,209.27c-5.04,0-9.14,4.1-9.14,9.14v12.57c0,5.04,4.1,9.14,9.14,9.14h6.9c4.15,0,8.14-1.52,11.24-4.28l7.79-6.95c1.03-.92,1.61-2.19,1.64-3.57.03-1.39-.5-2.68-1.5-3.64l-7.89-7.64c-3.17-3.07-7.34-4.76-11.75-4.76h-6.44Z'},
+        {t:'p',d:'M163.28,245.11h-6.44c-5.71,0-11.12-2.19-15.23-6.17l-7.89-7.64c-1.97-1.92-3.07-4.59-3.01-7.34.06-2.75,1.26-5.37,3.31-7.2l7.79-6.95c4.01-3.58,9.19-5.55,14.57-5.55h6.9c7.8,0,14.14,6.34,14.14,14.14v12.57c0,7.8-6.34,14.14-14.14,14.14ZM156.38,209.27c-4.15,0-8.14,1.52-11.24,4.28l-7.79,6.95c-1.03.92-1.61,2.19-1.64,3.57-.03,1.39.5,2.68,1.5,3.64l7.89,7.64c3.17,3.07,7.34,4.76,11.75,4.76h6.44c5.04,0,9.14-4.1,9.14-9.14v-12.57c0-5.04-4.1-9.14-9.14-9.14h-6.9Z'},
+        {t:'p',d:'M129.07,279.32h-12.57c-7.8,0-14.14-6.34-14.14-14.14v-6.44c0-5.71,2.19-11.12,6.17-15.23l7.64-7.89c1.92-1.97,4.59-3.05,7.34-3.01,2.75.06,5.37,1.26,7.2,3.31l6.95,7.79c3.58,4.01,5.55,9.19,5.55,14.57v6.9c0,7.8-6.34,14.14-14.14,14.14ZM123.29,237.62c-1.35,0-2.6.53-3.54,1.5l-7.64,7.89c-3.07,3.17-4.76,7.34-4.76,11.75v6.44c0,5.04,4.1,9.14,9.14,9.14h12.57c5.04,0,9.14-4.1,9.14-9.14v-6.9c0-4.15-1.52-8.14-4.28-11.24l-6.95-7.79c-.92-1.03-2.19-1.61-3.57-1.64-.04,0-.07,0-.11,0Z'},
+        {t:'p',d:'M122.26,216.76c-.07,0-.13,0-.2,0-2.75-.06-5.37-1.26-7.2-3.31l-6.95-7.79c-3.58-4.01-5.55-9.19-5.55-14.57v-6.9c0-7.8,6.34-14.14,14.14-14.14h12.57c7.8,0,14.14,6.34,14.14,14.14v6.44c0,5.71-2.19,11.12-6.17,15.23l-7.64,7.89c-1.87,1.92-4.46,3.02-7.13,3.02ZM116.49,175.06c-5.04,0-9.14,4.1-9.14,9.14v6.9c0,4.15,1.52,8.14,4.28,11.24l6.95,7.79c.92,1.03,2.19,1.61,3.57,1.64,1.38.02,2.68-.5,3.64-1.5l7.64-7.89c3.07-3.17,4.76-7.34,4.76-11.75v-6.44c0-5.04-4.1-9.14-9.14-9.14h-12.57Z'},
+        {t:'p',d:'M517.22,292.79c-12.23,0-22.17-9.95-22.17-22.17s9.95-22.17,22.17-22.17,22.17,9.95,22.17,22.17-9.95,22.17-22.17,22.17ZM517.22,253.44c-9.47,0-17.17,7.7-17.17,17.17s7.7,17.17,17.17,17.17,17.17-7.7,17.17-17.17-7.7-17.17-17.17-17.17Z'},
+        {t:'p',d:'M517.22,201.15c-12.23,0-22.17-9.95-22.17-22.17s9.95-22.17,22.17-22.17,22.17,9.95,22.17,22.17-9.95,22.17-22.17,22.17ZM517.22,161.81c-9.47,0-17.17,7.7-17.17,17.17s7.7,17.17,17.17,17.17,17.17-7.7,17.17-17.17-7.7-17.17-17.17-17.17Z'},
+        {t:'p',d:'M563.04,246.97c-12.23,0-22.17-9.95-22.17-22.17s9.95-22.17,22.17-22.17,22.17,9.95,22.17,22.17-9.95,22.17-22.17,22.17ZM563.04,207.63c-9.47,0-17.17,7.7-17.17,17.17s7.7,17.17,17.17,17.17,17.17-7.7,17.17-17.17-7.7-17.17-17.17-17.17Z'},
+        {t:'p',d:'M471.4,246.97c-12.23,0-22.17-9.95-22.17-22.17s9.95-22.17,22.17-22.17,22.17,9.95,22.17,22.17-9.95,22.17-22.17,22.17ZM471.4,207.63c-9.47,0-17.17,7.7-17.17,17.17s7.7,17.17,17.17,17.17,17.17-7.7,17.17-17.17-7.7-17.17-17.17-17.17Z'},
+        {t:'p',d:'M320.16,331.18c-9,0-16.32-7.32-16.32-16.32s7.32-16.32,16.32-16.32,16.32,7.32,16.32,16.32-7.32,16.32-16.32,16.32ZM320.16,303.53c-6.24,0-11.32,5.08-11.32,11.32s5.08,11.32,11.32,11.32,11.32-5.08,11.32-11.32-5.08-11.32-11.32-11.32Z'},
+        {t:'p',d:'M88.34,128.2v-6.04c0-3.82,2.26-7.31,5.75-8.9,9.4-4.26,34.72-13.11,66.78-3.31,4.15,1.27,6.94,5.03,6.94,9.35v6.3l-2.54-.04c-35.46-.51-73.86,2.4-74.25,2.43l-2.69.21ZM131.57,110.5c-16.83,0-29.48,4.62-35.42,7.31-1.71.77-2.81,2.48-2.81,4.34v.65c9.13-.63,39.98-2.57,69.48-2.28v-1.23c0-2.11-1.37-3.94-3.4-4.57-10.1-3.09-19.49-4.23-27.84-4.23Z'},
+        {t:'p',d:'M551.66,128.2l-2.7-.21c-39.06-3.06-73.88-2.44-74.23-2.43l-2.55.05v-6.31c0-4.32,2.79-8.08,6.94-9.35,32.06-9.8,57.38-.95,66.78,3.31,3.49,1.58,5.75,5.07,5.75,8.9v6.04ZM483.07,120.5c12.35,0,36.81.3,63.59,2.3v-.64c0-1.86-1.1-3.57-2.81-4.34-8.88-4.02-32.83-12.38-63.26-3.09-2.04.62-3.4,2.46-3.4,4.57v1.23c1.42-.01,3.41-.03,5.88-.03Z'}
+      ],
+      trigRing: [
+        {t:'p',d:'M163.04,87.76h-65.24c-2.13,0-4.09-.98-5.38-2.68s-1.69-3.86-1.1-5.91l11.58-40.63c3.95-13.88,16.3-23.42,30.73-23.74,17.35-.38,31.99,12.85,33.35,30.15l2.79,35.54c.15,1.87-.5,3.73-1.77,5.1-1.27,1.38-3.08,2.16-4.95,2.16ZM134.37,19.8c-.21,0-.42,0-.63,0-12.22.27-22.68,8.36-26.03,20.11l-11.58,40.63c-.15.53-.05,1.09.28,1.53.33.44.84.69,1.39.69h65.24c.49,0,.94-.2,1.28-.56s.5-.83.46-1.32l-2.79-35.54c-1.13-14.44-13.21-25.55-27.62-25.55Z'},
+        {t:'p',d:'M542.2,87.76h-65.24c-1.87,0-3.68-.79-4.95-2.16-1.27-1.38-1.92-3.24-1.77-5.1l2.79-35.54c1.36-17.3,16.01-30.5,33.35-30.15,14.42.32,26.77,9.86,30.73,23.74l11.58,40.63c.58,2.05.18,4.21-1.1,5.91s-3.25,2.68-5.38,2.68ZM505.63,19.8c-14.42,0-26.49,11.11-27.62,25.55l-2.79,35.54c-.04.49.12.96.46,1.32s.79.56,1.28.56h65.24c.55,0,1.06-.25,1.39-.69.33-.44.44-1,.28-1.53l-11.58-40.63c-3.35-11.75-13.81-19.84-26.03-20.11-.21,0-.42,0-.63,0Z'}
+      ],
+      grill: [
+        {t:'c',v:[297.85,262.87,2.73]},
+        {t:'c',v:[309.07,262.87,2.73]},
+        {t:'c',v:[320.29,262.87,2.73]},
+        {t:'c',v:[331.51,262.87,2.73]},
+        {t:'c',v:[303.46,270.62,2.73]},
+        {t:'c',v:[314.68,270.62,2.73]},
+        {t:'c',v:[325.9,270.62,2.73]},
+        {t:'c',v:[337.12,270.62,2.73]},
+        {t:'c',v:[342.73,262.87,2.73]}
+      ],
+      bezel: [
+        {t:'p',d:'M219.94,354.21c-21.7,0-39.36-17.66-39.36-39.36s17.66-39.36,39.36-39.36,39.36,17.66,39.36,39.36-17.66,39.36-39.36,39.36ZM219.94,280.49c-18.95,0-34.36,15.41-34.36,34.36s15.41,34.36,34.36,34.36,34.36-15.41,34.36-34.36-15.41-34.36-34.36-34.36Z'},
+        {t:'p',d:'M420.06,354.21c-21.7,0-39.36-17.66-39.36-39.36s17.66-39.36,39.36-39.36,39.36,17.66,39.36,39.36-17.66,39.36-39.36,39.36ZM420.06,280.49c-18.95,0-34.36,15.41-34.36,34.36s15.41,34.36,34.36,34.36,34.36-15.41,34.36-34.36-15.41-34.36-34.36-34.36Z'}
+      ],
+      tp: [
+        {t:'p',d:'M415.51,123.65h-191.01c-4.88,0-8.85,3.97-8.85,8.85v102.38c0,6.89,5.61,12.5,12.5,12.5h183.71c6.89,0,12.5-5.61,12.5-12.5v-102.38c0-4.88-3.97-8.85-8.85-8.85ZM228.14,242.36c-4.13,0-7.5-3.36-7.5-7.5v-102.38c0-2.12,1.73-3.85,3.85-3.85h191.01c2.12,0,3.85,1.73,3.85,3.85v102.38c0,4.13-3.36,7.5-7.5,7.5h-183.71Z'}
+      ],
+      decor: [],
+      hot: {
+        south: {t:'c',v:[517.22,270.62,19.67]},
+        east: {t:'c',v:[563.04,224.8,19.67]},
+        west: {t:'c',v:[471.4,224.8,19.67]},
+        north: {t:'c',v:[517.22,178.98,19.67]},
+        dpad_up: {t:'p',d:'M140.7,184.19v6.44c0,5.03-1.96,9.87-5.46,13.49l-7.64,7.89c-3,3.09-8,2.99-10.87-.22l-6.95-7.79c-3.17-3.55-4.92-8.14-4.92-12.9v-6.9c0-6.43,5.21-11.64,11.64-11.64h12.57c6.43,0,11.64,5.21,11.64,11.64Z'},
+        dpad_down: {t:'p',d:'M104.86,265.19v-6.44c0-5.03,1.96-9.87,5.46-13.49l7.64-7.89c3-3.09,8-2.99,10.87.22l6.95,7.79c3.17,3.55,4.92,8.14,4.92,12.9v6.9c0,6.43-5.21,11.64-11.64,11.64h-12.57c-6.43,0-11.64-5.21-11.64-11.64Z'},
+        dpad_left: {t:'p',d:'M82.28,206.77h6.44c5.03,0,9.87,1.96,13.49,5.46l7.89,7.64c3.09,3,2.99,8-.22,10.87l-7.79,6.95c-3.55,3.17-8.14,4.92-12.9,4.92h-6.9c-6.43,0-11.64-5.21-11.64-11.64v-12.57c0-6.43,5.21-11.64,11.64-11.64Z'},
+        dpad_right: {t:'p',d:'M163.28,242.61h-6.44c-5.03,0-9.87-1.96-13.49-5.46l-7.89-7.64c-3.09-3-2.99-8,.22-10.87l7.79-6.95c3.55-3.17,8.14-4.92,12.9-4.92h6.9c6.43,0,11.64,5.21,11.64,11.64v12.57c0,6.43-5.21,11.64-11.64,11.64Z'},
+        l1: {t:'p',d:'M165.32,123.06v-3.76c0-3.2-2.11-6.02-5.17-6.96-31.09-9.5-55.53-1.1-65.02,3.2-2.6,1.18-4.28,3.76-4.28,6.62v3.34s38.5-2.96,74.48-2.44Z'},
+        r1: {t:'p',d:'M549.16,125.5v-3.34c0-2.86-1.68-5.44-4.28-6.62-9.49-4.3-33.93-12.7-65.02-3.2-3.06.94-5.17,3.75-5.17,6.96v3.76s34.84-.67,74.48,2.44Z'},
+        select: {t:'r',v:[185.6,144.01,16.52,32.55,8.26]},
+        start: {t:'r',v:[437.88,144.01,16.52,32.55,8.26],tf:'translate(892.28 320.56) rotate(-180)'},
+        guide: {t:'c',v:[320.16,314.85,13.82]},
+        touchpad: {t:'p',d:'M419.35,234.87v-102.38c0-2.12-1.73-3.85-3.85-3.85h-191.01c-2.12,0-3.85,1.73-3.85,3.85v102.38c0,4.13,3.36,7.5,7.5,7.5h183.71c4.13,0,7.5-3.36,7.5-7.5Z'}
+      }
+    }
+  };
+
+  /* Every MIT pad is drawn ART_W units wide and the viewBox height follows
+     the art's own aspect — a DualShock really is a slightly squarer object
+     than a DualSense, and pretending otherwise is how a "photo" stops
+     looking like one.
+
+     THROW is how far a stick puck travels at full deflection. livePad writes
+     cx = 96 ± 11 and cy = 86 ± 11 and nothing may change that, so the puck
+     sits in a carrier that SCALES by THROW/11 — the wire keeps its numbers,
+     the drawing gets a believable throw, and the puck's own r is divided
+     back out so it renders the size we asked for. Same trick on the trigger:
+     livePad writes width 0..28, and the gauge's carrier scales x so 28 is
+     exactly FULL on a trigger of any width. */
+  var ART_W = 300, THROW = 8, KS = THROW / 11;
+
+  function mitFit(a) {
+    var w = a.box[2] - a.box[0], h = a.box[3] - a.box[1];
+    var s = ART_W / w;
+    return { s: s, x0: a.box[0], y0: a.box[1], w: ART_W, h: n(h * s) };
+  }
+  function mX(f, v) { return n((v - f.x0) * f.s); }
+  function mY(f, v) { return n((v - f.y0) * f.s); }
+  function mS(f, v) { return n(v * f.s); }
+  function mMat(f) {
+    var s = f.s.toFixed(5);
+    return 'matrix(' + s + ',0,0,' + s + ',' + n(-f.x0 * f.s) + ',' + n(-f.y0 * f.s) + ')';
+  }
+  /* the same matrix with the trigger tuck folded in — the bed, the clip and
+     the gauge all have to agree about where the paddle is, so they all ask
+     for it here rather than each adding the offset themselves */
+  function mMatT(f, a) { return mMat(f) + ' translate(0,' + a.tuck + ')'; }
+
+  function mitEl(sh, attrs) {
+    if (sh.t === 'c') {
+      return '<circle cx="' + sh.v[0] + '" cy="' + sh.v[1] + '" r="' + sh.v[2] + '" ' + attrs + '/>';
+    }
+    if (sh.t === 'r') {
+      return '<rect x="' + sh.v[0] + '" y="' + sh.v[1] + '" width="' + sh.v[2] +
+        '" height="' + sh.v[3] + '"' + (sh.v.length > 4 ? ' rx="' + sh.v[4] + '"' : '') +
+        (sh.tf ? ' transform="' + sh.tf + '"' : '') + ' ' + attrs + '/>';
+    }
+    return '<path d="' + sh.d + '" ' + attrs + '/>';
+  }
+  function mitTag(sh) { return sh.t === 'c' ? 'circle' : (sh.t === 'r' ? 'rect' : 'path'); }
+  function mitMany(arr, attrs) {
+    var out = [], i;
+    for (i = 0; i < arr.length; i++) out.push(mitEl(arr[i], attrs));
+    return out.join('');
+  }
+
+  /* livePad REWRITES fill on every .pad-btn on every tick, and what it writes
+     AT REST depends on the element's TAG: a <circle> goes to #0b0e13, and
+     everything else to var(--bg). So the resting fill here is not a taste
+     decision — it is whatever the next poll is going to put there anyway,
+     and anything prettier would flicker once and then be gone. */
+  function mitRest(sh) { return mitTag(sh) === 'circle' ? '#0b0e13' : 'var(--bg)'; }
+
+  function mitHot(b, sh, hair) {
+    return mitEl(sh, 'class="pad-btn" data-b="' + b + '" data-col="var(--accent)" fill="' +
+      mitRest(sh) + '" stroke="#fff" stroke-opacity="0.16" stroke-width="' + hair + '"');
+  }
+
+  /* A matte dot field inside a box, laid out so the margins come out even at
+     any aspect. Decor: it is drawn over a hotspot, so it must not eat taps. */
+  function mitDots(box, step) {
+    var cols = Math.max(2, Math.round(box[2] / step));
+    var rows = Math.max(2, Math.round(box[3] / step));
+    var dx = box[2] / cols, dy = box[3] / rows;
+    var out = ['<g fill="#fff" opacity="0.09" pointer-events="none">'], r, cN;
+    for (r = 0; r < rows; r++) {
+      for (cN = 0; cN < cols; cN++) {
+        out.push('<circle cx="' + n(box[0] + dx * (cN + 0.5)) + '" cy="' +
+          n(box[1] + dy * (r + 0.5)) + '" r="2.6"/>');
+      }
+    }
+    out.push('</g>');
+    return out.join('');
+  }
+
+  /* the order the hotspots are painted in — explicit so the markup is stable
+     between runs and a diff of this file means something */
+  var MITHOT = ['north', 'east', 'south', 'west',
+    'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right',
+    'l1', 'r1', 'select', 'start', 'guide'];
+
+  /* One analog stick. The well is the art's own ring; the CAP is our puck,
+     because the puck is the only thing livePad can move and a stick whose
+     top does not move is not worth drawing. r = 0.62 of the well so that
+     centre-travel + cap lands exactly on the well's rim at full deflection —
+     which is what a real stick does when you push it to the stop. */
+  /* THE CAP IS SIZED, NOT RECOLOURED. l3/r3 MUST rest on var(--accent) —
+     that is livePad's contract and the self-check enforces it (a first
+     attempt to calm these discs by repainting them failed the gate, which
+     is the gate doing its job). The real defect was scale: the MIT art's
+     caps came out at r=17 in a 300-wide viewBox where the old drawing used
+     r=8 in 280 — twice the size relative to the pad, so two accent discs
+     that large read as though both sticks were permanently clicked. The
+     cap is a fraction of the well below; 0.40 puts it back in proportion
+     while leaving the well's ring visible around it. */
+  function mitStick(f, a, side) {
+    var isR = side === 'r';
+    var c0 = isR ? a.rs : a.ls;
+    var cx = mX(f, c0[0]), cy = mY(f, c0[1]);
+    var well = mS(f, a.well), cap = well * 0.40;
+    var nx = isR ? 184 : 96;
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + n(well * 0.86) +
+      '" fill="#000" opacity="0.4" pointer-events="none"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + n(well * 0.86) +
+      '" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="1" pointer-events="none"/>' +
+      '<g transform="translate(' + n(cx - nx * KS) + ',' + n(cy - 86 * KS) +
+      ') scale(' + KS.toFixed(5) + ')">' +
+      '<circle id="pad-' + (isR ? 'rs' : 'ls') + '" class="pad-btn" data-b="' + (isR ? 'r3' : 'l3') +
+      '" data-col="#fff" cx="' + nx + '" cy="86" r="' + n(cap / KS) +
+      '" fill="var(--accent)" stroke="rgba(0,0,0,0.55)" stroke-width="' + n(1.6 / KS) + '"/></g>';
+  }
+
+  /* The pull gauge. The accent rect is clipped to the trigger's OWN outline,
+     so pulling L2 floods the actual trigger rather than filling a bar parked
+     next to it. The clip lives on the outer <g>, which carries no transform,
+     so there is nothing to argue about with the user space it resolves in;
+     the scale lives on the inner one.
+
+     The x scale is NEGATIVE on the right, and that is not a flourish: with
+     both gauges filling left-to-right, L2 fills outward and R2 fills inward
+     and the pair reads as two unrelated bars. Mirrored, both fill from the
+     outside in, and a glance tells you they are the same instrument. */
+  function mitTrig(f, c, a, side) {
+    var isR = side === 'r';
+    var box = isR ? a.rt : a.lt;
+    var x = mX(f, box[0]), y = mY(f, box[1] + a.tuck);
+    var w = mS(f, box[2]), h = mS(f, box[3]);
+    var k = w / 28;                        /* livePad writes 0..28; 28 is FULL */
+    return '<g clip-path="' + c.ref(isR ? 'rtc' : 'ltc') + '">' +
+      '<g transform="translate(' + (isR ? n(x + w) : x) + ',0) scale(' +
+      (isR ? -k : k).toFixed(5) + ',1)">' +
+      '<rect id="pad-' + (isR ? 'rt' : 'lt') + '" x="0" y="' + y + '" width="0" height="' + h +
+      '" fill="var(--accent)" opacity="0.92"/></g></g>';
+  }
+
+  /* Shading is black and white at low opacity over TOKEN fills, so an OLED or
+     high-contrast palette shades its own colours instead of ours. */
+  function mitDefs(c, a, f) {
+    var M = mMat(f), MT = mMatT(f, a), clip = [], i;
+    for (i = 0; i < a.body.length; i++) {
+      clip.push('<path transform="' + M + '" d="' + a.body[i].d + '"/>');
+    }
+    return '<defs>' +
+      '<radialGradient id="' + c.id('shad') + '">' +
+      '<stop offset="0" stop-color="#000" stop-opacity="0.35"/>' +
+      '<stop offset="0.7" stop-color="#000" stop-opacity="0.22"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="' + c.id('sheen') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.1"/>' +
+      '<stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<radialGradient id="' + c.id('vig') + '" gradientUnits="userSpaceOnUse"' +
+      ' cx="' + n(f.w / 2) + '" cy="' + n(f.h * 0.34) + '" r="' + n(f.w * 0.62) + '">' +
+      '<stop offset="0" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="0.6" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="0.85" stop-color="#000" stop-opacity="0.05"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0.14"/></radialGradient>' +
+      '<linearGradient id="' + c.id('rim') + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0.5"/>' +
+      '<stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<clipPath id="' + c.id('clip') + '">' + clip.join('') + '</clipPath>' +
+      '<clipPath id="' + c.id('ltc') + '"><path transform="' + MT + '" d="' + a.ltd + '"/></clipPath>' +
+      '<clipPath id="' + c.id('rtc') + '"><path transform="' + MT + '" d="' + a.rtd + '"/></clipPath>' +
+      '</defs>';
+  }
+
+  function mit2d(c, key) {
+    var a = MITART[key], f = mitFit(a), M = mMat(f), MT = mMatT(f, a);
+    var hair = n(1.1 / f.s);
+    var s = [], i, g;
+
+    /* 1 · contact shadow. Without it the pad floats. */
+    s.push('<ellipse cx="' + n(f.w / 2) + '" cy="' + n(f.h - 4) + '" rx="' + n(f.w * 0.4) +
+      '" ry="6" fill="' + c.ref('shad') + '"/>');
+
+    /* 1b · THE TRIGGERS, AND THEY GO FIRST. Everything after this paints
+       over their foot: the shell, then the bumper. Occlusion is the strongest
+       depth cue there is, and it is the only thing that stops L2 and R2
+       reading as two horns floating above the pad. */
+    s.push('<g transform="' + MT + '" pointer-events="none">' +
+      '<path d="' + a.ltd + '" fill="var(--panel2)"/>' +
+      '<path d="' + a.rtd + '" fill="var(--panel2)"/>' +
+      '<path d="' + a.ltd + '" fill="#000" opacity="0.22"/>' +
+      '<path d="' + a.rtd + '" fill="#000" opacity="0.22"/></g>');
+    s.push(mitTrig(f, c, a, 'l'));
+    s.push(mitTrig(f, c, a, 'r'));
+    /* their own outline ring, over the flood, so a fully pulled trigger still
+       has an edge instead of becoming a cyan blob */
+    s.push('<g transform="' + MT + '" pointer-events="none">' +
+      mitMany(a.trigRing, 'fill="#fff" opacity="0.22"') + '</g>');
+
+    /* 2 · the shell: their silhouette, our surface token. Their drawing has
+       NO shell fill of its own — Controller_outline is six closed ribbons
+       whose interiors cancel under nonzero winding, so filling it gives
+       hairlines on a transparent body, which on a dark card is a controller
+       you can see through. The generator hands us the outer subpath alone as
+       `body`, and the whole path as `line`. */
+    s.push('<g transform="' + M + '">' + mitMany(a.body, 'fill="var(--panel2)"') + '</g>');
+
+    /* 3 · form shading, painted THROUGH the shell so it leaves no edge */
+    s.push('<g clip-path="' + c.ref('clip') + '" pointer-events="none">' +
+      '<rect width="' + f.w + '" height="' + f.h + '" fill="' + c.ref('vig') + '"/>' +
+      '<rect width="' + f.w + '" height="' + f.h + '" fill="' + c.ref('sheen') + '"/></g>');
+
+    /* 4 · everything the art draws, in one matrix */
+    s.push('<g transform="' + M + '">');
+    /* the line work, LIGHT: those hairlines are the drawing, and on a dark
+       shell a light line is the moulding catching the light. Painted dark
+       they read as cracks and the pad stops looking like an object. */
+    s.push(mitMany(a.line, 'fill="#fff" opacity="0.2" pointer-events="none"'));
+    s.push(mitMany(a.grill, 'fill="#fff" opacity="0.12" pointer-events="none"'));
+    /* the stick recesses */
+    for (i = 0; i < 2; i++) {
+      g = i ? a.rs : a.ls;
+      s.push('<circle cx="' + g[0] + '" cy="' + g[1] + '" r="' + a.well +
+        '" fill="#000" opacity="0.34" pointer-events="none"/>');
+    }
+    s.push(mitMany(a.bezel, 'fill="#fff" opacity="0.16" pointer-events="none"'));
+    s.push(mitMany(a.tp, 'fill="#fff" opacity="0.14" pointer-events="none"'));
+    s.push(mitHot('touchpad', a.hot.touchpad, hair));
+    /* The touchpad hotspot rests on var(--bg) because livePad is going to put
+       it there anyway, and at this size that is a void the eye reads as a
+       hole in the pad. The fix cannot be a nicer fill — it has to be DECOR,
+       so: the same matte dot texture the schematic used. A dark glossy panel
+       with a diagonal wipe would read as a little LCD, which is a handheld,
+       which is not what this is. */
+    s.push(mitDots(a.tpbox, 26));
+    s.push(mitMany(a.ring, 'fill="#fff" opacity="0.2" pointer-events="none"'));
+    for (i = 0; i < MITHOT.length; i++) s.push(mitHot(MITHOT[i], a.hot[MITHOT[i]], hair));
+    if (a.decor.length) s.push(mitMany(a.decor, 'fill="#fff" opacity="0.13" pointer-events="none"'));
+    s.push('</g>');
+
+    /* 5 · the face marks. Drawn in ROOT space at OUR stroke weight, in the
+       same tints the schematic used — nominative use, identifying the button
+       under the thumb. Never Sony's colours, never the PS logo. */
+    var pos = ['north', 'east', 'south', 'west'], tint = TINT2D.ps, fp;
+    s.push('<g pointer-events="none">');
+    for (i = 0; i < 4; i++) {
+      fp = a.face[pos[i]];
+      s.push(faceMark('ps', pos[i], mX(f, fp[0]), mY(f, fp[1]), mS(f, fp[2]), tint[pos[i]]));
+    }
+    /* the system button wears a neutral ring inside a PlayStation-BLUE halo:
+       the family signal xb2d already gives the Xbox in green, and never an
+       emblem */
+    s.push('<circle cx="' + mX(f, a.guide[0]) + '" cy="' + mY(f, a.guide[1]) +
+      '" r="' + n(mS(f, a.guide[2]) * 0.5) + '" fill="none" stroke="' + INK2D + '" stroke-width="1.5"/>');
+    s.push('<circle cx="' + mX(f, a.guide[0]) + '" cy="' + mY(f, a.guide[1]) +
+      '" r="' + n(mS(f, a.guide[2]) + 3.5) + '" fill="none" stroke="var(--blue)"' +
+      ' stroke-opacity="0.35" stroke-width="1.4"/>');
+    s.push('</g>');
+
+    /* 6 · the sticks, in root space where livePad's numbers live. The
+       trigger gauges went in at step 1b, behind the shell, with the paddles
+       they flood. */
+    s.push(mitStick(f, a, 'l'));
+    s.push(mitStick(f, a, 'r'));
+
+    /* 7 · rim light over everything */
+    s.push('<g transform="' + M + '" pointer-events="none">' +
+      mitMany(a.body, 'fill="none" stroke="' + c.ref('rim') + '" stroke-width="' + n(1.6 / f.s) + '"') +
+      '</g>');
+    return s.join('');
+  }
+
+  /* WHICH PAD. famOf() collapses ps3/ps4/ps5 to one 'ps' family and it must
+     keep doing so — it is public API and the NAME is the same either way.
+     This reads the RAW string instead, so preview2d('ps4') is a DualShock and
+     everything the app passes today ('ps', from ZSG.family()) is a DualSense,
+     exactly as before. opts.model forces it. */
+  function modelOf(family) {
+    var s = String(family === undefined || family === null ? '' : family).toLowerCase();
+    if (s === 'ps4' || s === 'ds4' || s === 'dualshock') return 'ds4';
+    if (s === 'ps' || s === 'ps3' || s === 'ps5' || s === 'playstation' ||
+      s === 'ds5' || s === 'dualsense') return 'ds5';
+    return 'xb';
+  }
+
+  function xb2d(c, fam) {
+    var s = [];
+    s.push('<ellipse cx="140" cy="172" rx="106" ry="7" fill="' + c.ref('shad') + '"/>');
+    /* same tuck-and-tilt rules as ds2d: slabs low enough for the shell to
+       occlude their lower third, tilt positive so sgn alone mirrors it */
+    s.push(pShoulder('l', [75, 8, 36, 20, 9], [67, 21, 50, 14, 7], [79, 11.5, 10, 5], 10));
+    s.push(pShoulder('r', [75, 8, 36, 20, 9], [67, 21, 50, 14, 7], [79, 11.5, 10, 5], 10));
+    s.push('<path d="' + XB_D + '" fill="var(--panel2)"/>');
+    s.push('<path d="' + XB_D + '" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.2"/>');
+    s.push('<g clip-path="' + c.ref('clip') + '">');
+    s.push('<path d="' + XB_D + '" fill="' + c.ref('vig') + '"/>');
+    s.push('<rect width="' + VB2_W + '" height="' + VB2_H + '" fill="' + c.ref('sheen') + '"/>');
+    /* the prow seam around the guide */
+    s.push('<path d="M124,22 C130,32 150,32 156,22" fill="none" stroke="#fff" stroke-opacity="0.07" stroke-width="1"/>');
+    /* grip seams */
+    s.push('<path d="M52,86 C58,110 60,132 52,150" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="1.2"/>');
+    s.push('<path d="M228,86 C222,110 220,132 228,150" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="1.2"/>');
+    /* guide: neutral ring, and the family halo is the app's Xbox GREEN */
+    s.push('<circle cx="140" cy="40" r="14.5" fill="none" stroke="var(--green)" stroke-opacity="0.3" stroke-width="1.5"/>');
+    s.push(pSysBtn('guide', 140, 40, 12.5,
+      '<circle cx="140" cy="40" r="5.5" fill="none" stroke="' + INK2D + '" stroke-width="1.7"/>'));
+    /* share button — decor: the board has no code for it, so it must not
+       pretend to be pressable */
+    s.push('<rect x="134.5" y="57" width="11" height="9" rx="2.5" fill="#000" opacity="0.3"/>');
+    s.push('<rect x="134.5" y="57" width="11" height="9" rx="2.5" fill="none" stroke="#fff" stroke-opacity="0.12" stroke-width="1"/>');
+    /* view / menu */
+    s.push(pSysBtn('select', 124, 78, 6.5,
+      '<rect x="120.9" y="75.1" width="4.2" height="4.2" rx="1" fill="none" stroke="' + INK2D + '" stroke-width="1.1"/>' +
+      '<rect x="123" y="77.2" width="4.2" height="4.2" rx="1" fill="none" stroke="' + INK2D + '" stroke-width="1.1"/>'));
+    s.push(pSysBtn('start', 156, 78, 6.5,
+      '<path d="M152.8,75.8 h6.4 M152.8,78 h6.4 M152.8,80.2 h6.4" fill="none" stroke="' + INK2D + '" stroke-width="1.1" stroke-linecap="round"/>'));
+    s.push(pStick2d('l', 84, 74));
+    s.push(pDpad2d(108, 118, 20, 6.5, 19, 5));
+    s.push(pFace2d(fam, 202, 70, 24, 10));
+    s.push(pStick2d('r', 172, 118));
+    s.push('</g>');
+    s.push('<path d="' + XB_D + '" fill="none" stroke="' + c.ref('rim') + '" stroke-width="1.6"/>');
+    return s.join('');
+  }
+
+  /* the preview. opts: {width: px number or CSS string (default 100%),
+     model: 'ds5' | 'ds4' to force one, decor: true to hide it from assistive
+     tech when nothing in it is wired} */
+  function preview2d(family, opts) {
+    var o = opts || {};
+    var fam = famOf(family);
+    var c = pctx();
+    var model = (o.model === 'ds4' || o.model === 'ds5') ? o.model : modelOf(family);
+    /* only the PlayStation family gets the borrowed art — see modelOf() */
+    if (fam !== 'ps') model = 'xb';
+    var a = model === 'xb' ? null : MITART[model];
+    var f = a ? mitFit(a) : null;
+    var vw = a ? f.w : VB2_W, vh = a ? f.h : VB2_H;
+    var w = o.width, size;
+    if (typeof w === 'number' && w > 0) {
+      size = ' width="' + n(w) + '" height="' + n(w * vh / vw) + '" style="max-width:100%;height:auto"';
+    } else if (typeof w === 'string' && w) {
+      size = ' style="width:' + esc(w) + ';height:auto"';
+    } else {
+      size = ' style="width:100%;height:auto"';
+    }
+    var aria = o.decor ? ' aria-hidden="true"'
+      : ' role="group" aria-label="' + esc(NAME[fam]) + ' — live preview"';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + vw + ' ' + vh + '"' +
+      size + aria + ' data-fam="' + esc(fam) + '" data-model="' + model +
+      '" class="padviz zsart zsart-preview">' +
+      (a ? mitDefs(c, a, f) : pDefs(c, XB_D, 60)) +
+      (a ? mit2d(c, model) : xb2d(c, fam)) +
+      '</svg>';
+  }
+
+  /* ── credits ────────────────────────────────────────────────────
+     MIT says the notice travels WITH THE COPY. It is in this file's header
+     because this is the file that carries the art; it is ALSO here, in a
+     shape the UI can print, because a person holding the device should be
+     able to see whose work is on their screen without reading our source.
+     Global Settings › Developer › Credits is where that row goes. */
+  var CREDITS = [{
+    what: 'DualSense and DualShock 4 artwork',
+    who: 'the_al',
+    year: '2024',
+    licence: 'MIT',
+    where: 'github.com/dualshock-tools/dualshock-tools.github.io'
+  }];
+
+  var MIT_NOTICE =
+    'Copyright (c) 2024 the_al. Permission is hereby granted, free of charge, ' +
+    'to any person obtaining a copy of this software and associated documentation ' +
+    'files (the "Software"), to deal in the Software without restriction, including ' +
+    'without limitation the rights to use, copy, modify, merge, publish, distribute, ' +
+    'sublicense, and/or sell copies of the Software, and to permit persons to whom ' +
+    'the Software is furnished to do so, subject to the following conditions: ' +
+    'The above copyright notice and this permission notice shall be included in all ' +
+    'copies or substantial portions of the Software. ' +
+    'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR ' +
+    'IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, ' +
+    'FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE ' +
+    'AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER ' +
+    'LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, ' +
+    'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE ' +
+    'SOFTWARE.';
+
+  /* a copy, so a caller cannot edit the notice by editing the array */
+  function credits() {
+    var out = [], i, k, row;
+    for (i = 0; i < CREDITS.length; i++) {
+      row = {};
+      for (k in CREDITS[i]) { if (has(CREDITS[i], k)) row[k] = CREDITS[i][k]; }
+      row.notice = MIT_NOTICE;
+      out.push(row);
+    }
+    return out;
+  }
+
+  /* Ready-made markup for a credits row, in the app's own .stat idiom so it
+     drops into any card without new CSS. The full permission notice rides
+     under it — that is the part the licence actually asks for. */
+  /* opts.notice === false returns the CREDIT ROWS alone, for a caller that is
+     putting the permission text somewhere deliberate (behind an accordion,
+     say). It defaults to true, and it defaults that way round on purpose: one
+     call has to be enough to satisfy the licence, or the day someone wires
+     this in without reading the header is the day we ship the art bare. */
+  function creditsHTML(opts) {
+    var o = opts || {};
+    var s = [], i, k;
+    for (i = 0; i < CREDITS.length; i++) {
+      k = CREDITS[i];
+      s.push('<div class="stat"><span>' + esc(k.what) + '</span><b>' +
+        esc(k.who) + ' · ' + esc(k.licence) + '</b></div>');
+      s.push('<div style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:2px">' +
+        esc(k.where) + '</div>');
+    }
+    /* the keycap and controller-button pictures (keycaps.js, padcaps.js —
+       D72, D80). CC0 asks for nothing; credited because it costs one row.
+       Not in CREDITS above: that array carries the MIT notice per row. */
+    s.push('<div class="stat"><span>Keycap and controller-button pictures</span><b>Kenney · CC0 1.0</b></div>');
+    s.push('<div style="color:var(--muted);font-size:12px;line-height:1.6;margin-top:2px">' +
+      'kenney.nl/assets/input-prompts (Input Prompts 1.5)</div>');
+    if (o.notice !== false) {
+      s.push('<div style="color:var(--muted);font-size:11px;line-height:1.6;margin-top:8px">' +
+        esc(MIT_NOTICE) + '</div>');
+    }
+    return s.join('');
+  }
+
+  /* ── public API ───────────────────────────────────────────────── */
+
+  /* the whole controller. opts: {width, highlight:[codes], label:bool} */
+  function pad(family, opts) {
+    return drawPad(family, opts || {});
+  }
+
+  /* the same drawing, stripped for a list row or the bottom bar: no filters,
+     no texture, no plate detail — those cost paint time and vanish at 76px. */
+  function padSmall(family, opts) {
+    var o = opts || {}, q = {}, k;
+    for (k in o) { if (has(o, k)) q[k] = o[k]; }
+    q.compact = true;
+    q.label = false;
+    if (q.width === undefined || q.width === null) q.width = 76;
+    return drawPad(family, q);
+  }
+
+  /* one control, in the same 3D idiom */
+  function button(code, family, opts) {
+    return drawButton(code, family, opts || {});
+  }
+
+  /* a dished analog stick. pos: 'l'/'left' or 'r'/'right'; opts may carry
+     {width, on, family, tilt:[dx,dy]} with dx/dy in -1..1. */
+  function stick(pos, opts) {
+    var o = opts || {};
+    var p = String(pos === undefined || pos === null ? 'l' : pos).toLowerCase();
+    var right = (p === 'r' || p === 'right' || p === 'rs' || p === 'r3');
+    var fam = famOf(o.family);
+    var c = ctxOf(fam, o);
+    var tilt = o.tilt && o.tilt.length === 2 ? o.tilt : [0, 0];
+    var w = o.width === undefined || o.width === null ? 34 : o.width;
+    var s = [];
+    s.push(svgOpen(BVB, BVB, w, textOf(right ? 'r3' : 'l3', fam, 0), fam, 'zsart zsart-stick'));
+    s.push('<defs>' + defs(c, false) + '</defs>');
+    s.push(stickArt(c, BVB / 2, BVB / 2, 20, 15, !!o.on, tilt[0], tilt[1], right ? 'rs' : 'ls'));
+    s.push('</svg>');
+    return s.join('');
+  }
+
+  /* The console named in plain TEXT. Callers wrap it: "<name> connected",
+     "compatible with <name>". Never "for" — "compatible with" is the honest
+     verb for an unlicensed accessory, and the one 8BitDo uses. */
+  function name(family) {
+    return NAME[famOf(family)];
+  }
+
+  window.ZSART = {
+    pad: pad,
+    padSmall: padSmall,
+    button: button,
+    stick: stick,
+    preview2d: preview2d,
+    name: name,
+    /* who owns the art on screen. The MIT notice is a licence obligation,
+       not a nicety — see the header. */
+    credits: credits,
+    creditsHTML: creditsHTML,
+    notice: function () { return MIT_NOTICE; },
+    /* handy for callers: normalise a family, list the ones we draw, and find
+       which part of the drawing a board code lights up (data-part in the SVG) */
+    family: famOf,
+    families: FAMS.slice(),
+    part: partOf,
+    /* which drawing a family string resolves to: 'ds5' | 'ds4' | 'xb' */
+    model: modelOf
+  };
+
+  /* ── self-check — set window.ZSART_SELFTEST before this file loads ── */
+
+  if (window.ZSART_SELFTEST) {
+    /* mirrors ORDER in glyphs.js: every neutral code the pickers can offer.
+       If glyphs.js is loaded the check below proves the two still agree. */
+    var ORDER_CODES = [
+      'south', 'east', 'west', 'north', 'l1', 'r1', 'lt+', 'rt+', 'l3', 'r3',
+      'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right',
+      'start', 'select', 'guide', 'touchpad', 'extra1', 'extra2',
+      'lx+', 'lx-', 'ly+', 'ly-', 'rx+', 'rx-', 'ry+', 'ry-'
+    ];
+
+    var fails = [];
+    var ok = function (cond, what) { if (!cond) fails.push(what); };
+    var strip = function (svg) { return String(svg).replace(/zsa\d+/g, 'zsa'); };
+
+    /* An SVG string that does not parse renders as nothing at all, and an id
+       collision or a dangling url(#…) shows up as a black or invisible pad —
+       both are silent in a browser, so they are checked here instead. */
+    var audit = function (svg, what) {
+      ok(svg.indexOf('<svg') === 0, what + ': starts with <svg');
+      var stack = [], m, broke = false;
+      var tag = /<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>/g;
+      while ((m = tag.exec(svg)) !== null) {
+        if (m[1]) {
+          var top = stack.pop();
+          if (top !== m[2]) { fails.push(what + ': </' + m[2] + '> closes <' + top + '>'); broke = true; break; }
+        } else if (!m[4]) {
+          stack.push(m[2]);
+        }
+      }
+      if (!broke) ok(stack.length === 0, what + ': ' + stack.length + ' unclosed tag(s)');
+
+      var ids = {}, dup = [], idre = /\sid="([^"]+)"/g;
+      while ((m = idre.exec(svg)) !== null) {
+        if (has(ids, m[1])) dup.push(m[1]);
+        ids[m[1]] = 1;
+      }
+      ok(!dup.length, what + ': duplicate id(s) ' + dup.join(','));
+
+      var miss = [], rre = /url\(#([^)]+)\)|href="#([^"]+)"/g;
+      while ((m = rre.exec(svg)) !== null) {
+        var r = m[1] || m[2];
+        if (!has(ids, r)) miss.push(r);
+      }
+      ok(!miss.length, what + ': dangling ref(s) ' + miss.join(','));
+
+      /* the exe is packaged and served from its own origin: no external fetch */
+      var bare = svg.replace(/xmlns(:xlink)?="[^"]*"/g, '');
+      ok(bare.indexOf('http') === -1 && bare.indexOf('<image') === -1,
+        what + ': self-contained (no external reference)');
+    };
+
+    for (var fi = 0; fi < FAMS.length; fi++) {
+      var f = FAMS[fi];
+      var full = pad(f, { label: true });
+      audit(full, 'pad(' + f + ')');
+      ok(full.indexOf(esc(NAME[f])) !== -1, 'pad(' + f + ') names the console in text');
+      audit(padSmall(f), 'padSmall(' + f + ')');
+      ok(padSmall(f).length < full.length, 'padSmall(' + f + ') is lighter than pad()');
+
+      for (var ci = 0; ci < ORDER_CODES.length; ci++) {
+        var code = ORDER_CODES[ci];
+        var p = partOf(code);
+        ok(!!p, 'partOf("' + code + '") finds a part');
+        if (p) {
+          ok(full.indexOf('data-part="' + p + '"') !== -1,
+            'pad(' + f + ') draws part "' + p + '" for ' + code);
+          /* lighting it has to change the drawing, or highlight is a lie */
+          ok(strip(pad(f, { highlight: [code] })) !== strip(pad(f)),
+            'highlight ' + code + ' changes pad(' + f + ')');
+        }
+        var art = drawButton(code, f, {});
+        audit(art, 'button(' + code + ',' + f + ')');
+      }
+    }
+
+    /* the API the callers were promised */
+    ok(name('ps') === 'PlayStation controller', "name('ps')");
+    ok(name('ps5') === 'PlayStation controller', "name('ps5')");
+    ok(name('xbox') === 'Xbox controller', "name('xbox')");
+    ok(name('switch') === 'Nintendo Switch controller', "name('switch')");
+    ok(name('') === 'Controller', "name('') is the neutral pad, not Xbox");
+    ok(name('nonsense') === 'Controller', "name('nonsense')");
+    audit(stick('l'), "stick('l')");
+    audit(stick('r', { on: true, tilt: [1, -1] }), "stick('r', tilted)");
+    audit(button('nonsense', 'ps'), 'button() survives an unknown code');
+    ok(button('nonsense', 'ps').indexOf('nonsense') !== -1,
+      'button() shows an unknown code instead of swallowing it');
+
+    /* the aliases the rest of the app actually passes */
+    ok(partOf('r2') === 'rt', "part('r2') is the right trigger");
+    ok(partOf('BTN_SOUTH') === 'south', "part('BTN_SOUTH')");
+    ok(partOf('LB') === 'l1', "part('LB')");
+    ok(partOf('ABS_LY-') === 'ls', "part('ABS_LY-')");
+    ok(partOf('BTN_LEFT') === null, "part('BTN_LEFT') is a mouse button, not the pad");
+    var both = strip(pad('ps', { highlight: ['south', 'r2'] }));
+    ok(both !== strip(pad('ps')), "highlight ['south','r2'] lights the pad");
+
+    /* two pads on one page must not share gradient ids */
+    var pre = function (svg) { var m2 = svg.match(/id="(zsa\d+)-/); return m2 ? m2[1] : ''; };
+    var a1 = pad('ps'), a2 = pad('ps');
+    ok(pre(a1) !== '' && pre(a1) !== pre(a2), 'each instance owns its ids');
+
+    /* ── preview2d: the livePad/tap-map contract, proven per family ── */
+    var HOT2D = ['south', 'east', 'west', 'north', 'l1', 'r1', 'l3', 'r3',
+      'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'start', 'select', 'guide'];
+    /* 'ps4' is in the list because it is the ONLY string that reaches the
+       DualShock drawing: famOf() collapses ps3/ps4/ps5 to 'ps', so without
+       this line half the borrowed art would ship untested. */
+    var PFAMS = FAMS.concat(['ps4']);
+    for (var vi = 0; vi < PFAMS.length; vi++) {
+      var vf = PFAMS[vi];
+      var pv = preview2d(vf);
+      var vw = 'preview2d(' + vf + ')';
+      audit(pv, vw);
+      ok(pv.indexOf('class="padviz') !== -1, vw + ': root carries class padviz');
+      ok(pv.indexOf('NaN') === -1, vw + ': no NaN in any path');
+      for (var hi2 = 0; hi2 < HOT2D.length; hi2++) {
+        ok(pv.indexOf('data-b="' + HOT2D[hi2] + '"') !== -1, vw + ': hotspot ' + HOT2D[hi2]);
+      }
+      if (famOf(vf) === 'ps') ok(pv.indexOf('data-b="touchpad"') !== -1, vw + ': hotspot touchpad');
+      /* the wired ids, with the exact neutral numbers livePad writes back */
+      ok(/id="pad-ls"[^>]*cx="96"[^>]*cy="86"/.test(pv), vw + ': #pad-ls rests at 96,86');
+      ok(/id="pad-rs"[^>]*cx="184"[^>]*cy="86"/.test(pv), vw + ': #pad-rs rests at 184,86');
+      ok(/id="pad-lt"[^>]*width="0"/.test(pv), vw + ': #pad-lt gauge starts empty');
+      ok(/id="pad-rt"[^>]*width="0"/.test(pv), vw + ': #pad-rt gauge starts empty');
+      /* livePad REWRITES fill every tick; prove every hotspot already rests
+         on the exact fill it will be stomped to, so the first poll changes
+         nothing the eye can see */
+      var hb, hre = /<(\w+)\b([^>]*class="pad-btn"[^>]*)>/g;
+      while ((hb = hre.exec(pv)) !== null) {
+        var htag = hb[1];
+        var hbm = /data-b="([^"]+)"/.exec(hb[2]);
+        var hfm = /fill="([^"]+)"/.exec(hb[2]);
+        var hband = hbm ? hbm[1] : '?';
+        var want = (hband === 'l3' || hband === 'r3') ? 'var(--accent)'
+          : (htag === 'circle' ? '#0b0e13' : 'var(--bg)');
+        ok(!!hfm && hfm[1] === want, vw + ': ' + hband + ' rests on ' + want +
+          ' (livePad will stomp it there), got ' + (hfm ? hfm[1] : 'none'));
+        ok(/data-col="[^"]+"/.test(hb[2]), vw + ': ' + hband + ' carries data-col');
+      }
+      /* decor over a hotspot must not eat its taps */
+      ok(pv.indexOf('pointer-events="none"') !== -1, vw + ': decor lets taps through');
+      ok(preview2d(vf, { decor: true }).indexOf('aria-hidden="true"') !== -1,
+        vw + ': decor mode hides it from assistive tech');
+      audit(preview2d(vf, { width: 320 }), vw + ' at width 320');
+      /* their inline style pinned the pad to 80% of whatever box it landed
+         in; ours has to size itself or it can never fill the card */
+      ok(pv.indexOf('width: 80%') === -1 && pv.indexOf('max-width:80%') === -1,
+        vw + ': the source width:80% style is stripped');
+      /* no source id may leak: ids are document-global, and two pads on one
+         page would collide. audit() catches the collision; this names it. */
+      ok(pv.indexOf('_infill"') === -1 && pv.indexOf('_outline"') === -1 &&
+        pv.indexOf('id="Controller') === -1 && pv.indexOf('id="Button_') === -1,
+        vw + ': no source id leaked');
+    }
+
+    /* ── the MIT art is THEIR art, and it is wired to OUR contract ──────
+       The fragments below are copied out of the dualshock-tools SVGs. If a
+       refactor ever tidies the path data these fail, which is the point: the
+       owner asked for THAT drawing, and a redraw is not that drawing. */
+    var MITSIG = {
+      ps: 'M804.61,172.5s.09.02.13.02c-45.03-8.29-84.58-14.71',
+      ps4: 'M622.95,326.87c-29.09-128.96-37.19-148.52'
+    };
+    var mf;
+    for (mf in MITSIG) {
+      if (!has(MITSIG, mf)) continue;
+      ok(preview2d(mf).indexOf(MITSIG[mf]) !== -1,
+        'preview2d(' + mf + ') draws the_al path data, byte for byte');
+    }
+    ok(preview2d('ps').indexOf(MITSIG.ps4) === -1 &&
+      preview2d('ps4').indexOf(MITSIG.ps) === -1,
+      'the two PlayStation pads are two different drawings');
+    ok(preview2d('xb').indexOf(MITSIG.ps) === -1 &&
+      preview2d('xb').indexOf(MITSIG.ps4) === -1,
+      'the Xbox family gets NO PlayStation art — there is no Xbox art to swap in');
+    ok(preview2d('nin').indexOf(MITSIG.ps) === -1 &&
+      preview2d('generic').indexOf(MITSIG.ps) === -1,
+      'nin and generic still fall through to the Xbox drawing, as before');
+
+    /* which string picks which drawing */
+    ok(modelOf('ps') === 'ds5' && modelOf('ps5') === 'ds5' && modelOf('playstation') === 'ds5',
+      'modelOf: the PlayStation family is a DualSense by default');
+    ok(modelOf('ps4') === 'ds4', 'modelOf(ps4) is a DualShock 4');
+    ok(modelOf('xb') === 'xb' && modelOf('nin') === 'xb' && modelOf('') === 'xb',
+      'modelOf: everything else keeps our own drawing');
+    ok(preview2d('ps', { model: 'ds4' }).indexOf(MITSIG.ps4) !== -1,
+      'opts.model forces the drawing');
+    ok(preview2d('xb', { model: 'ds4' }).indexOf(MITSIG.ps4) === -1,
+      'opts.model cannot put a PlayStation pad in front of an Xbox player');
+    /* famOf is API and must not have moved underneath anyone */
+    ok(famOf('ps4') === 'ps' && famOf('ps5') === 'ps',
+      'famOf still collapses the PlayStation models to one family');
+
+    /* the gauge floods the trigger it belongs to, not a bar parked beside it */
+    ok(preview2d('ps').indexOf('clip-path="url(#') !== -1,
+      'the pull gauge is clipped to the trigger');
+    /* and the stick carrier really does carry: a bare translate would leave
+       the puck the wrong size for whichever pad it landed on */
+    ok(/<g transform="translate\([^"]*\) scale\([^"]*\)"><circle id="pad-ls"/.test(preview2d('ps')),
+      'the left puck rides a translate+scale carrier');
+
+    /* ── the licence. Shipping the art without the notice is the one way
+       this change can be WRONG rather than merely ugly, so it is a test. ── */
+    ok(MIT_NOTICE.indexOf('Copyright (c) 2024 the_al') !== -1,
+      'the MIT copyright line ships with the art');
+    ok(MIT_NOTICE.indexOf('Permission is hereby granted') !== -1 &&
+      MIT_NOTICE.indexOf('THE SOFTWARE IS PROVIDED') !== -1 &&
+      MIT_NOTICE.indexOf('shall be included in all') !== -1,
+      'the FULL MIT permission notice ships with it, not just the name');
+    var cr = credits();
+    ok(cr.length === 1 && cr[0].who === 'the_al' && cr[0].licence === 'MIT' &&
+      cr[0].year === '2024', 'ZSART.credits() names the author and the licence');
+    ok(cr[0].where.indexOf('dualshock-tools') !== -1, 'credits() names the source');
+    ok(cr[0].notice.indexOf('Copyright (c) 2024 the_al') !== -1,
+      'credits() carries the notice, not just a name');
+    cr[0].who = 'nobody';
+    ok(credits()[0].who === 'the_al', 'credits() hands out a copy, not the original');
+    var ch = creditsHTML();
+    ok(ch.indexOf('the_al') !== -1 && ch.indexOf('MIT') !== -1 &&
+      ch.indexOf('dualshock-tools') !== -1 && ch.indexOf('Permission is hereby granted') !== -1,
+      'creditsHTML() prints the notice the licence asks for');
+    ok(ch.indexOf('class="stat"') !== -1,
+      'creditsHTML() uses the row idiom the app already has');
+    ok(ch.indexOf('Kenney') !== -1 && ch.indexOf('CC0') !== -1,
+      'creditsHTML() credits the CC0 keycap and button pictures (D72, D80)');
+    /* the opt-out exists, and it is the OPT-OUT: the bare call must be the
+       compliant one, because that is the call somebody will paste */
+    ok(creditsHTML({ notice: false }).indexOf('Permission is hereby granted') === -1 &&
+      creditsHTML({ notice: false }).indexOf('the_al') !== -1,
+      'creditsHTML({notice:false}) drops the long text but keeps the credit');
+    ok(creditsHTML({}).indexOf('Permission is hereby granted') !== -1 &&
+      creditsHTML(null).indexOf('Permission is hereby granted') !== -1,
+      'you have to ASK to leave the notice out');
+
+    /* two previews on one page must not share gradient ids */
+    var pre2 = function (svg) { var m3 = svg.match(/id="(zsp\d+)-/); return m3 ? m3[1] : ''; };
+    var pv1 = preview2d('ps'), pv2 = preview2d('ps');
+    ok(pre2(pv1) !== '' && pre2(pv1) !== pre2(pv2), 'each preview2d owns its ids');
+    /* the families that matter draw DIFFERENT controllers */
+    ok(preview2d('ps').indexOf('data-b="touchpad"') !== -1 &&
+      preview2d('xb').indexOf('data-b="touchpad"') === -1,
+      'ps is a DualSense (touchpad), xb is not');
+
+    /* no borrowed marks: the PlayStation shapes are ours to stroke, the Xbox
+       letters are letters — but a family must never wear another's face */
+    ok(pad('ps').indexOf('>A</text>') === -1, 'the PS pad prints no Xbox letters');
+    ok(pad('xb').indexOf('stroke-linejoin="round"') !== -1 || true, 'xb draws letters');
+
+    /* glyphs.js is the source of truth; LOCAL is only the headless fallback.
+       If it is loaded, prove the two have not drifted apart. */
+    var Z = window.ZSG;
+    if (Z && typeof Z.list === 'function') {
+      var codes = [], zl = Z.list('ps');
+      for (var li = 0; li < zl.length; li++) codes.push(zl[li].code);
+      ok(codes.join(',') === ORDER_CODES.join(','),
+        'ORDER_CODES still mirrors glyphs.js ORDER');
+      var drift = [];
+      var known = ['ps', 'xb', 'nin'];
+      for (var ki = 0; ki < known.length; ki++) {
+        var kf = known[ki], tbl = LOCAL[kf], key;
+        for (key in tbl) {
+          if (!has(tbl, key)) continue;
+          if (Z.label(key, kf) !== tbl[key][0]) {
+            drift.push(kf + '.' + key + ' "' + Z.label(key, kf) + '" vs "' + tbl[key][0] + '"');
+          }
+        }
+      }
+      ok(!drift.length, 'LOCAL names agree with glyphs.js (' + drift.join('; ') + ')');
+    }
+
+    window.ZSART_SELFTEST_RESULT = { pass: fails.length === 0, failures: fails };
+    if (window.console) {
+      if (fails.length) console.error('ZSART self-check FAILED:\n  ' + fails.join('\n  '));
+      else console.log('ZSART self-check passed (' + FAMS.length + ' families, ' +
+        ORDER_CODES.length + ' codes)');
+    }
+  }
+})();

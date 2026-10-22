@@ -1,0 +1,110 @@
+/* smart-actions.js — the Smart Actions editor.
+
+   WHY this file exists: the previous editor kept its own "phone model" of an
+   action and translated it into the board's JSON on save. That translation was
+   where the damage happened — two of the seven trigger conditions produced no
+   action at all (and the sync then DELETED the action from the board), seven
+   step kinds the board actually runs were silently dropped, and ids derived
+   from the list index churned on every reorder. This editor edits the BOARD's
+   shape directly. There is no second model, so that whole class of bug cannot
+   come back.
+
+   Loaded straight into a browser with no build step: ES5 only (var, function,
+   string concatenation), and everything reaching innerHTML goes through esc().
+
+   NAMES AND ART — the two rules, and the only two:
+     INPUT  (the trigger: a button under your thumb) → the pad you are HOLDING.
+            A DualSense reads Cross / Square / L2, never A / X / LT.
+     OUTPUT (a step target: what the console receives) → the console THIS
+            config targets. A PS5 config says Circle; an Xbox or PC config
+            says B, because that is genuinely what arrives at the other end.
+   Getting those backwards is the bug this file was written to end.
+*/
+
+/* THIS FILE IS THE LOADER (2026-10-02). The editor above was one
+   10,970-line function; it is now 22 parts in smart-actions/, one per
+   piece of the editor, and this file only lets them share their names.
+   Nothing in any part changed but where it lives, except that four pieces
+   of module state more than one part writes now live on one object, VIEW
+   (01-model.js): VIEW.SCOPE (the room being drawn), VIEW.lastRoot (the
+   screen to redraw into), VIEW.panelOpener and VIEW.panelPid (the open
+   panel). And ZS.deck is published by 15-pager.js, next to what it names.
+
+   THE RULES (phone-sections.js has the same four for the app's screens):
+     1. phone.html loads this file, then every smart-actions/*.js in order.
+        Each part is ZS_SMART_PARTS.add(name, function (SEC) { 'use strict';
+        <its code, as it was> }).
+     2. Nothing runs while the parts load. The last part (99-selfcheck.js)
+        calls ZS_SMART_PARTS.run(), which runs them all in order, in one go,
+        where the one big function used to run, and runs NOTHING when
+        window.ZS is missing (the old first line: "devbar.js idiom").
+     3. A part shares a name at its foot (SEC.esc = esc) and lists what it
+        uses from other parts at its head. A name from a part that runs
+        later is bound by ZS_SMART_PARTS.after() once every part has run.
+     4. A shared name is never reassigned after it is shared: state that
+        several parts change is a field of VIEW.
+
+   THE PARTS, in load (and run) order:
+     01-model          the board's action JSON, both ways, and the sync
+     02-validate       capabilities, problems, the plain sentence
+     03-strip          the step strip and its pictures
+     04-styling        the stylesheet (injectCSS)
+     05-list           the actions list
+     06-mappings       Smart Mappings (D85)
+     07-recoil-doors   the Recoil Workshop's doors (D170)
+     08-editor-view    "When", the binding tile, the disclosure rules
+     09-sheets         the step sheet, the trigger picker
+     10-recorder       recording a sequence (EXO; Core D130)
+     11-library        the ready-made library
+     12-share-live     share codes, the live indicators
+     13-join           one row per input, across both lists
+     14-palette        picking what a step presses
+     15-pager          the swipe deck (and ZS.deck)
+     16-buttons        the Buttons list (Mappings)
+     17-editor-sheet   authoring one action
+     18-pills          the pills' sheets, the helpers, the titles
+     19-submenu        the sub-menu panel (D81)
+     20-in-place       the editor in place (D79); render / renderInputs /
+                       renderScoped
+     21-rooms-exports  rooms (D134), presets, packs, window.ZS_SMART
+     99-selfcheck      the self-check, then run()
+
+   dashboard/tools/app-sources.js reads this list from phone.html for the
+   tests that read the editor's source. docs/CODE-GUIDE.md "Scripts" has
+   the whole feature, app to firmware. */
+(function () {
+  var queue = [];
+  var later = [];
+  var ran = false;
+  var SEC = {};
+
+  window.ZS_SMART_PARTS = {
+    add: function (name, body) {
+      queue.push({ name: name, body: body });
+    },
+    after: function (fn) {
+      later.push(fn);
+    },
+    run: function () {
+      var i;
+
+      if (ran) {
+        return;
+      }
+      ran = true;
+      if (!window.ZS) {
+        return;                      /* the old early return: no app, no editor */
+      }
+      for (i = 0; i < queue.length; i++) {
+        queue[i].body.call(undefined, SEC);   /* strict parts: `this` is undefined, as it was */
+      }
+      for (i = 0; i < later.length; i++) {
+        later[i]();
+      }
+    },
+    files: function () {
+      return queue.map(function (q) { return q.name; });
+    },
+    names: SEC
+  };
+})();

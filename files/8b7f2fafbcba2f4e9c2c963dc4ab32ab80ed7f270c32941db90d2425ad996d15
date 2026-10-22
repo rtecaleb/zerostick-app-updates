@@ -1,0 +1,20 @@
+# vendor/dualshock-tools (D410)
+
+The calibration site the EXO app's **Calibration** screen runs in a frame
+(`pad-cal.js`), for a DualSense, DualSense Edge or DualShock 4 plugged into
+the Core.
+
+- **What it is:** dualshock-tools (MIT, Copyright (c) 2024 the_al,
+  `LICENSE.txt`), as the ZS Pad Calibrator builds it: upstream v2.34 plus
+  `patch_site.py` (offline, analytics stubbed, ZeroStick branding) and the
+  owner's `zs-tweaks.js` (pad-button hotkeys, auto-save). The calibration flow
+  and its timings are the shipped ones, unchanged (owner rule: 1:1).
+- **What is ours:** `zs-core-hid.js` (WebHID through the Core's `/padcal/...`
+  routes, in place of the exe's `webhid-shim.js`), `zs-mobile.css` +
+  `zs-mobile.js` (D414: the phone layout and the app's colours, presentation
+  only), this README, and the copy of `LICENSE.txt`.
+- **To refresh it:** rebuild `site-dist` in `ZS Pad Calibrator`, then
+  `node dashboard/tools/vendor-dualshock-tools.js` (it keeps our files and
+  fails if a patch anchor has moved).
+- It references nothing outside this folder, and nothing outside it but
+  `pad-cal.js` references it (`tools/test-pad-cal.js`).

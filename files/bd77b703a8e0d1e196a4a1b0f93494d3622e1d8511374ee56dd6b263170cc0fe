@@ -1,0 +1,246 @@
+/* smart-actions/15-pager.js — THE PAGER: the one swipe deck.
+ *
+ * deckHTML / wireDeck / lockAxis: the swipe pager the palette and the app's
+ * button picker (ZS.pickButton in sections/01-kit.js) share, published here as
+ * ZS.deck so there is never a second one.
+ *
+ * Tests: test-smart-actions.js (self-check: lockAxis)
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('pager', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var clamp = SEC.clamp, esc = SEC.esc, intOf = SEC.intOf, ZS = SEC.ZS,
+      injectCSS = SEC.injectCSS;
+
+  /* ══ THE PAGER ════════════════════════════════════════════════════
+     A SWIPE IS THE SHORTCUT, NEVER THE ONLY WAY IN. Four independent
+     routes reach every page: the named segmented control (the primary
+     control), ← / → / Home / End on it, the tab order through the current
+     page's real <button>s, and the horizontal drag.
+
+     THE CONFLICT this solves. zs-motion's attachSheet binds pointerdown to
+     .sheet and bails only on a scrolled ancestor or a real control — so at
+     scrollTop 0 a pointerdown in a deck GUTTER arms the sheet's vertical
+     drag, captures the pointer and preventDefaults every move, and no click
+     ever fires. Exactly the failure the sheet's ✕ had. Three parts fix it,
+     all inside this file: data-nodrag on the deck (already in attachSheet's
+     own exclusion list), touch-action:pan-y so the browser keeps vertical
+     panning and hands us horizontal, and a direction lock with hysteresis. */
+
+  /* PURE, and exported: this one function decides the bug. 10px of movement
+     before committing to a direction, then a 1.2 bias in favour of the
+     SCROLLER — a mis-fired page flip is more disorienting than a mis-fired
+     scroll. */
+  function lockAxis(dx, dy) {
+    var ax = Math.abs(dx), ay = Math.abs(dy);
+    if (Math.sqrt(ax * ax + ay * ay) <= 10) return null;
+    return ax > ay * 1.2 ? 'x' : 'y';
+  }
+
+  /* THE NAMES AND THE PAGES ARE EMITTED APART, and that split is the whole
+     of the fix. They used to be one string, so the editor had no way to pin
+     the control without pinning the pages under it — and the control is the
+     PRIMARY route. deckHTML still returns the pair in order, so every other
+     caller is untouched; the editor takes the two halves and puts the names
+     inside its sticky block. */
+  function deckSegHTML(id, pages, cur) {
+    var i, seg = '<div class="seg2 sabseg" id="' + id + '-seg" data-nosave="1" ' +
+      'aria-label="which palette page">';
+    for (i = 0; i < pages.length; i++) {
+      seg += '<button type="button" data-page="' + i + '"' + (i === cur ? ' class="on"' : '') +
+        (pages[i].say ? ' aria-label="' + esc(pages[i].say) + '"' : '') +
+        '>' + esc(pages[i].n) + '</button>';
+    }
+    return seg + '</div>';
+  }
+
+  function deckBodyHTML(id, pages, cur) {
+    var i;
+    var rail = '';
+    for (i = 0; i < pages.length; i++) {
+      rail += '<div class="sabpage" data-pi="' + i + '"' +
+        (i === cur ? '' : ' aria-hidden="true"') + '>' + pages[i].h + '</div>';
+    }
+    var dots = '<div class="sabdots" id="' + id + '-dots" aria-hidden="true">';
+    for (i = 0; i < pages.length; i++) dots += '<i' + (i === cur ? ' class="on"' : '') + '></i>';
+    dots += '</div>';
+    /* data-nodrag is what stops the sheet's drag-to-dismiss arming in here.
+       The header and the strip ABOVE the deck keep it, which is the right
+       split: you dismiss a sheet by pulling its header. */
+    return '<div class="sabdeck" id="' + id + '" data-nodrag="1">' +
+      '<div class="sabrail">' + rail + '</div></div>' + dots;
+  }
+
+  function deckHTML(id, pages, cur) {
+    return deckSegHTML(id, pages, cur) + deckBodyHTML(id, pages, cur);
+  }
+
+  /* wire the deck: tap, keyboard, and the direction-locked drag. `onPage`
+     remembers the page so a repaint lands where you left it. */
+  function wireDeck(host, id, cur, onPage) {
+    var deck = host.querySelector('#' + id);
+    if (!deck) return;
+    var rail = deck.querySelector('.sabrail');
+    var seg = host.querySelector('#' + id + '-seg');
+    var dots = host.querySelector('#' + id + '-dots');
+    var pages = deck.querySelectorAll('.sabpage');
+    var n = pages.length;
+    if (!rail || !n) return;
+    var at = clamp(intOf(cur, 0), 0, n - 1);
+    var ZSM = window.ZSM;
+
+    function width() { return Math.max(1, deck.clientWidth || 320); }
+    /* the rail's offset is in pixels of the deck's width; when that width
+       changes (a zoom, a resize, Text size) the current page slides out of
+       frame unless the offset is re-derived */
+    if (typeof ResizeObserver === 'function') {
+      try { new ResizeObserver(function () { setX(-at * width()); }).observe(deck); } catch (e) { /* observer optional */ }
+    }
+    function setX(x) { rail.style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)'; }
+
+    var spring = (ZSM && ZSM.spring) ? ZSM.spring({
+      from: -at * width(), damping: 1.0, response: 0.35,
+      restDelta: 0.4, restSpeed: 8,
+      onUpdate: function (v) { setX(v); }
+    }) : null;
+
+    function paint() {
+      var i, j, kids;
+      for (i = 0; i < n; i++) {
+        var on = (i === at);
+        if (on) pages[i].removeAttribute('aria-hidden');
+        else pages[i].setAttribute('aria-hidden', 'true');
+        /* an off-page control must not be a tab stop — the skill's Keyboard
+           Navigation rule, at High severity */
+        kids = pages[i].querySelectorAll('button,input,select,textarea,[tabindex]');
+        for (j = 0; j < kids.length; j++) {
+          if (on) kids[j].removeAttribute('tabindex');
+          else kids[j].setAttribute('tabindex', '-1');
+        }
+        if ('inert' in pages[i]) pages[i].inert = !on;
+      }
+      if (seg) {
+        var bs = seg.querySelectorAll('button');
+        for (i = 0; i < bs.length; i++) {
+          bs[i].classList.toggle('on', i === at);
+          bs[i].setAttribute('aria-pressed', i === at ? 'true' : 'false');
+        }
+      }
+      if (dots) {
+        var ds = dots.querySelectorAll('i');
+        for (i = 0; i < ds.length; i++) ds[i].classList.toggle('on', i === at);
+      }
+      /* the deck is as tall as the page you are ON, not the tallest page: a
+         keyboard under a four-row pad page would otherwise stretch every
+         page to the keyboard's height and put the scroll back on the button
+         screen (2026-09-04). offsetHeight is 0 in the node harness, and 0
+         means "leave it to CSS". */
+      var ph = pages[at].offsetHeight;
+      if (ph > 0) deck.style.height = ph + 'px';
+      if (onPage) onPage(at);
+    }
+
+    function go(i, vel) {
+      at = clamp(i, 0, n - 1);
+      var to = -at * width();
+      if (spring) spring.to(to, { velocity: vel || 0, damping: 0.8, response: 0.35 });
+      else setX(to);
+      paint();
+    }
+
+    setX(-at * width());
+    paint();
+
+    if (seg) {
+      seg.querySelectorAll('[data-page]').forEach(function (b) {
+        b.addEventListener('click', function () { go(+b.dataset.page); });
+      });
+      seg.addEventListener('keydown', function (e) {
+        var d = 0;
+        if (e.key === 'ArrowRight') d = 1;
+        else if (e.key === 'ArrowLeft') d = -1;
+        else if (e.key === 'Home') { e.preventDefault(); go(0); focusSeg(); return; }
+        else if (e.key === 'End') { e.preventDefault(); go(n - 1); focusSeg(); return; }
+        if (!d) return;
+        e.preventDefault();
+        go(at + d);
+        focusSeg();
+      });
+    }
+    function focusSeg() {
+      if (!seg) return;
+      var b = seg.querySelectorAll('button')[at];
+      if (b && b.focus) try { b.focus(); } catch (e) {}
+    }
+
+    /* ── the drag ── */
+    var x0 = 0, y0 = 0, axis = null, pid = null, base = 0;
+    var velo = (ZSM && ZSM.Velo) ? new ZSM.Velo(90) : null;
+
+    deck.addEventListener('pointerdown', function (e) {
+      if (e.button > 0) return;
+      /* do NOT capture yet — until the direction is known this pointer may
+         belong to the scroller, and capturing would steal it */
+      axis = null; pid = e.pointerId;
+      x0 = e.clientX; y0 = e.clientY;
+      base = spring ? spring.value : -at * width();
+      if (spring) spring.stop();
+      if (velo) { velo.clear(); velo.push(e.clientX, e.timeStamp || Date.now()); }
+    });
+    deck.addEventListener('pointermove', function (e) {
+      if (pid == null || e.pointerId !== pid) return;
+      var dx = e.clientX - x0, dy = e.clientY - y0;
+      if (!axis) {
+        axis = lockAxis(dx, dy);
+        if (!axis) return;
+        if (axis === 'y') { pid = null; return; }   /* let .sbody scroll */
+        try { deck.setPointerCapture(pid); } catch (err) {}
+      }
+      if (velo) velo.push(e.clientX, e.timeStamp || Date.now());
+      var v = base + dx;
+      var lo = -(n - 1) * width(), hi = 0;
+      if (v > hi) v = hi + (ZSM ? ZSM.rubberband(v - hi, width()) : (v - hi) * 0.55);
+      if (v < lo) v = lo + (ZSM ? ZSM.rubberband(v - lo, width()) : (v - lo) * 0.55);
+      if (spring) { spring.value = v; spring._render(); } else setX(v);
+      if (e.cancelable) e.preventDefault();
+    });
+    function endDrag(e) {
+      if (pid == null || (e && e.pointerId !== pid)) return;
+      var wasX = axis === 'x';
+      try { deck.releasePointerCapture(pid); } catch (err) {}
+      pid = null; axis = null;
+      if (!wasX) return;
+      var vx = velo ? velo.get(e.timeStamp || Date.now()) : 0;
+      var restPx = (spring ? spring.value : 0) + (ZSM ? ZSM.project(vx) : vx / 3);
+      var idx = Math.round(-restPx / width());
+      /* the SAME 620 px/s threshold attachSheet uses, so a flick here and a
+         flick on the sheet feel like one hand */
+      if (vx > 620) idx = at - 1;
+      else if (vx < -620) idx = at + 1;
+      go(idx, vx);
+    }
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (nm) {
+      deck.addEventListener(nm, endDrag);
+    });
+  }
+
+
+
+  /* the deck, for the picker sheet in phone-sections.js (ZS.pickButton),
+     so the app has ONE swipe pager and never two that disagree. css() is
+     the injector, idempotent, because that sheet can open before this
+     section has ever painted. */
+  ZS.deck = { html: deckHTML, wire: wireDeck, css: injectCSS };
+
+  /* what the other parts use from this one */
+  SEC.deckBodyHTML = deckBodyHTML;
+  SEC.deckHTML = deckHTML;
+  SEC.deckSegHTML = deckSegHTML;
+  SEC.lockAxis = lockAxis;
+  SEC.wireDeck = wireDeck;
+});

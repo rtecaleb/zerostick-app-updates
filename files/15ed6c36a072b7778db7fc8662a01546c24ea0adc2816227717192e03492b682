@@ -1,0 +1,1095 @@
+/* sections/13-calibrate.js — Calibrate: the Core measures the game itself (D172, D178, D187),
+ * and Velocity calibration, the customer's (D284).
+ *
+ * D284 (owner, 2026-10-13): Calibrate is the owner's CURVE calibration, in
+ * the Translation tab's "DEV ONLY — USE FOR LOGIC" fold; velWire is the
+ * customer's card above it: POST /calibrate/start {mode:"velocity", the
+ * measured curve's points}, the same status / model / cancel routes, and
+ * "Use these speeds" writes the measured dead zone and turn rates into the
+ * measured model it started from (velApply), the old one kept for Restore.
+ * Each card shows only its own mode's run (status.mode).
+ *
+ * calWire: start, cancel and poll a calibration on the Core, show its phases
+ * (CAL_PHASE) and what it found (calLawLines: the turn ramp and the diagonals),
+ * and "Use it", which writes mouseTranslation.resolvedAimModel and keeps the
+ * old one as previousAimModel. Firmware: main/zs_run_calib.c, components/zs_calib.
+ *
+ * After a curve calibration, "Copy for the game preset" (D284) copies the
+ * Core's model as a game pack's aimModel (calPackModel) for
+ * tools/set-pack-aim-model.js to write into game-packs/<id>.json.
+ *
+ * Also offers on ZS:          ZS.calLawLines, ZS.calPackModel
+ * Core / board routes:        /calibrate/cancel, /calibrate/model, /calibrate/start,
+ *                             /calibrate/status
+ * Tests:                      test-translation-tab.js (against fixtures/core-calib.json and
+ *                             core-calib-velocity.json), test-set-pack-aim-model.js
+ *
+ * D218: in GPC mode and in EXO Studio's mode the Core's capture is parked
+ * and it refuses every calibration start (409 "Switch to normal mode to
+ * calibrate."), so the card says that and offers no start (calParked).
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('calibrate', function (SEC) {
+  /* from the files before this one */
+  var esc = SEC.esc, note = SEC.note, ZS = SEC.ZS, trName = SEC.trName,
+      trMeasured = SEC.trMeasured, trSwapPrevious = SEC.trSwapPrevious, helpHTML = SEC.helpHTML,
+      copyText = SEC.copyText, txtFld = SEC.txtFld;
+
+  /* ── CALIBRATE (D172) ─────────────────────────────────────────────
+     The Core runs the whole thing: it levels the view, turns it at about
+     forty stick positions, times whole turns, looks up and down, does the
+     same aiming down sights, and fits the model (components/zs_calib). This
+     card asks, follows (GET /calibrate/status every 600 ms while it is on
+     screen), shows the numbers, and on "Use this translator" fetches
+     /calibrate/model and saves it as the config's translator through the
+     same resolve() a game pack's model goes through. */
+  /* THE OWNER'S ORDER (D178, docs/AIM-MODEL.md "How Calibrate measures"):
+     1 the floor and the sky, 2 timing floor to sky, 3 level, 4 the dead zone,
+     5 turning, 6 up-and-down speed, 7 all of it aiming down sights, 8 level
+     and let go. The words say which, plainly. */
+  var CAL_PHASE = {
+    rest: 'Getting ready', noise: 'Watching the picture hold still',
+    clamp: 'Finding the floor and the sky', sweep: 'Timing floor to sky',
+    level: 'Levelling the view', yaw: 'Turning', turn360: 'Timing full turns',
+    ramp: 'Turning at full stick', diag: 'Checking the dead zone\u2019s shape',
+    dzprobe: 'Finding the dead zone', dzfine: 'Finding the dead zone', dzconfirm: 'Checking the dead zone again',
+    pitch: 'Looking up and down', kick: 'Measuring recoil', 'return': 'Levelling the view',
+    land360: 'Timing full turns',
+    /* D187 */
+    rhold: 'Timing the turn ramp', dburst: 'Checking diagonals'
+  };
+  function calPhase(d){
+    var w = CAL_PHASE[d.kind] || 'Measuring';
+    var x = Math.abs(d.rx || 0), y = Math.abs(d.ry || 0);
+    if(d.kind === 'yaw' || d.kind === 'ramp' || d.kind === 'land360' || d.kind === 'rhold')
+      w += ' at '+Math.round(x * 100)+'% stick';
+    if(d.kind === 'dzprobe' || d.kind === 'dzfine' || d.kind === 'dzconfirm')
+      w += (y > x ? ' (up and down)' : ' (left and right)')+' at '+Math.round(Math.max(x, y) * 100)+'% stick';
+    if(d.kind === 'sweep') w = 'Looking down to the floor at '+Math.round(y * 100)+'% stick';
+    if(d.kind === 'clamp') w = (d.ry < 0 ? 'Looking all the way down' : 'Looking all the way up');
+    return (d.group === 1 ? 'Aiming down sights: ' : '')+w;
+  }
+  function calBar(frac){
+    var pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+    return '<div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+
+      '" style="height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 6px">'+
+      '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:4px;'+
+      'transition:width .5s"></div></div>';
+  }
+  function calNum(v, dp){ var n = Number(v); return isFinite(n) ? n.toFixed(dp || 0) : '\u2013'; }
+  /* D187: what Calibrate found about the game's TURN RAMP and HOW IT
+     COMBINES THE TWO AXES (result.ramp, result.axes), one plain sentence
+     each, "Label: what it means". Nothing when the Core did not measure it
+     (or is older and does not say): an older Core's result has no such
+     objects, and its card is unchanged. */
+  function calLawLines(r){
+    var out = [];
+    if(!r || typeof r !== 'object') return out;
+    var rp = r.ramp, ax = r.axes;
+    if(rp && typeof rp === 'object' && rp.measured){
+      out.push(rp.present
+        ? 'Turn ramp: '+calNum(Number(rp.toFullMs) / 1000, 2)+' s to full speed ('+calNum(rp.gain, 2)+
+          'x after holding) - corrected'
+        : 'Turn ramp: none - nothing to correct');
+    }
+    if(ax && typeof ax === 'object' && ax.measured){
+      var shape = { axial: 'square - diagonals corrected', radial: 'round',
+        mixed: 'mixed (round + square) - diagonals corrected' }[ax.shape];
+      if(shape) out.push('Dead zone shape: '+shape);
+      var comb = { perAxis: 'each axis turns on its own - corrected',
+        radial: 'turn like a circle - already right',
+        unknown: 'the game\u2019s curve is straight there, so they already match' }[ax.combine];
+      if(comb) out.push('Diagonals: '+comb);
+    }
+    return out;
+  }
+  ZS.calLawLines = calLawLines;
+  function calLaw(r, dim){
+    return calLawLines(r).map(function(t){
+      var at = t.indexOf(': ');
+      return '<div class="stat cal-law"><span>'+esc(t.slice(0, at))+'</span><b'+
+        (dim ? ' style="opacity:.55"' : '')+'>'+esc(t.slice(at + 2))+'</b></div>';
+    }).join('');
+  }
+  /* D218: GPC mode or EXO Studio has the Core's capture parked (the Core's
+     own /status): no calibration can start, so none is offered */
+  function calParked(){ return !!(window.ZSMODES && ZSMODES.parked && ZSMODES.parked()); }
+  function calParkedHTML(){
+    return '<div class="note" id="cal-parked" role="status" style="margin-top:10px">'+
+      esc((window.ZSMODES && ZSMODES.CAL_PARKED) || 'Switch to normal mode to calibrate')+'</div>';
+  }
+  /* ── COPY FOR THE GAME PRESET (D284) ──────────────────────────────────
+     The customer's help promises "The ZeroStick team measures each game once
+     and adds it to the game's preset." After a curve calibration this turns
+     the Core's model (GET /calibrate/model) into EXACTLY what a game pack's
+     `aimModel` holds (cod-bo2.json's shape): the pack's id, a name for
+     players, needsCalibration false, a first `sources` line with the date
+     and the run's numbers, then the Core's own sources; the preset's
+     gameSettings and stickHz when the Core's model has none. The owner pastes
+     it to Claude, or saves it and runs tools/set-pack-aim-model.js, which
+     checks it again and writes it into game-packs/<id>.json.
+     Only the Core's model will do. A config's saved translator (resolve()'s
+     form) cannot be turned back into a preset losslessly: it drops the
+     sources, the in-game settings, the stick rate and the turn's climb
+     (accel), and a velocity-calibrated one is scaled to one player. */
+  var CAL_PRESET_GONE = 'Your Core no longer has this run’s curve. A config’s saved translator can’t '+
+    'be turned back into a preset exactly (it keeps no record of the run), so run Curve calibration again '+
+    'and copy straight after.';
+  function calPackModel(m, pack, d, date){
+    if(!m || typeof m !== 'object') return { problem: CAL_PRESET_GONE };
+    if(!pack || !pack.id) return { problem: 'This config has no game preset to add the curve to.' };
+    var words = [String(m.name || '')].concat((m.sources || []).map(function(s){ return String((s && s.what) || ''); }));
+    if(words.some(function(w){ return /velocity calibrated/i.test(w); }))
+      return { problem: 'Your Core’s last run was a velocity calibration, not a curve calibration. Run Curve calibration.' };
+    if(m.id !== pack.id)
+      return { problem: 'Your Core’s last run was for “'+String(m.id)+'”, not '+pack.name+
+        '. Run Curve calibration on this config.' };
+    if(m.needsCalibration !== false) return { problem: 'Your Core’s model is not a measured one.' };
+    var old = (pack.aimModel && typeof pack.aimModel === 'object') ? pack.aimModel : null;
+    var hip = m.hip || {}, ads = m.ads || {};
+    var adsYaw = (ads.turnRate && ads.turnRate.yaw) || (ads.inherit === 'hip' && hip.turnRate ? hip.turnRate.yaw : null);
+    var r = (d && d.result) || {};
+    var bits = [];
+    if(d && d.frames > 0) bits.push(d.frames+' capture frames');
+    if(hip.turnRate) bits.push('full stick '+calNum(hip.turnRate.yaw, 1)+' deg/s, up and down '+calNum(hip.turnRate.pitch, 1));
+    if(adsYaw) bits.push('aiming '+calNum(adsYaw, 1)+' deg/s');
+    if(typeof hip.deadzone === 'number') bits.push('dead zone '+calNum(hip.deadzone * 100, 1)+' %');
+    if(Number(r.hfov) > 0) bits.push('field of view '+calNum(r.hfov, 1)+' deg');
+    var out = {
+      format: m.format, id: pack.id,
+      name: pack.name+', measured by the ZeroStick team',
+      needsCalibration: false,
+      sources: [{ what: 'Curve calibration for the game preset on '+date+' (D284, the DEV ONLY fold’s Curve '+
+        'calibration, "Copy for the game preset"): '+bits.join(', ')+'. Velocity calibration scales it to each '+
+        'player’s sensitivity.' }].concat(JSON.parse(JSON.stringify(m.sources || [])))
+    };
+    var gs = Array.isArray(m.gameSettings) && m.gameSettings.length ? m.gameSettings
+      : (old && Array.isArray(old.gameSettings) && old.gameSettings.length ? old.gameSettings : null);
+    if(gs) out.gameSettings = JSON.parse(JSON.stringify(gs));
+    var hz = m.stickHz !== undefined ? m.stickHz : (old ? old.stickHz : undefined);
+    if(hz !== undefined) out.stickHz = hz;
+    out.hip = JSON.parse(JSON.stringify(m.hip));
+    out.ads = JSON.parse(JSON.stringify(m.ads));
+    var errs = window.ZSAIMMODEL ? ZSAIMMODEL.validate(out) : ['zs-aim-model.js did not load'];
+    if(errs.length) return { problem: 'The measured curve is not usable: '+errs[0] };
+    return { model: out };
+  }
+  ZS.calPackModel = calPackModel;
+
+  /* ── COPY MAX-SENS SPEEDS FOR THE GAME PRESET (D284, the owner's plan) ──
+     The preset ships at MAX in-game sensitivity, so a customer at max needs
+     no calibration at all. The owner measures the curve's SHAPE at a low
+     sensitivity (above: Copy for the game preset), then sets the game to max
+     and runs Velocity calibration; after that run passes, the fold offers
+     this. It carries the PRESET's measured shape (never the run's) with the
+     run's dead zone and turn rates per mode, the sensitivity and dead zone
+     the owner says it was measured at (gameSettings rows), and a dated
+     source line, wrapped as {zerostickPresetSpeeds: 1, pack, measuredAt,
+     aimModel} so tools/set-pack-aim-model.js knows it is SPEEDS for an
+     existing shape. Refused: no measured curve in the preset yet (a velocity
+     run is never a shape), another game's run, a run that scaled a different
+     curve from the preset's (it was not started on the preset's shape), a
+     missing sensitivity. */
+  var CAL_SPEEDS_TAG = 'Max-sens speeds for the game preset';
+  function calPts(m){
+    var c = m && m.curve;
+    return (c && c.type === 'points' && Array.isArray(c.points)) ? c.points : null;
+  }
+  function calMerged(model, name){
+    var m = model && model[name] ? JSON.parse(JSON.stringify(model[name])) : {};
+    if(name === 'ads' && m.inherit === 'hip' && model.hip){
+      var out = JSON.parse(JSON.stringify(model.hip)), k;
+      for(k in m){ if(k !== 'inherit') out[k] = m[k]; }
+      return out;
+    }
+    return m;
+  }
+  function calSameCurve(a, b){
+    var pa = calPts(a), pb = calPts(b);
+    if(!pa || !pb) return JSON.stringify((a && a.curve) || null) === JSON.stringify((b && b.curve) || null);
+    if(pa.length !== pb.length) return false;
+    for(var i = 0; i < pa.length; i++){
+      if(Math.abs(pa[i][0] - pb[i][0]) > 1e-3 || Math.abs(pa[i][1] - pb[i][1]) > 1e-3) return false;
+    }
+    return true;
+  }
+  /* a gameSettings row set to {setting, value}: the row whose name matches
+     `re` (or the same name) takes the new value; none = a new row */
+  function calSetRow(rows, re, row){
+    if(!row || !row.value) return rows;
+    var i, hit = -1;
+    for(i = 0; i < rows.length; i++){
+      if(rows[i].setting === row.setting || re.test(rows[i].setting)){ hit = i; break; }
+    }
+    if(hit >= 0) rows[hit] = { setting: rows[hit].setting, value: row.value };
+    else rows.push({ setting: row.setting, value: row.value });
+    return rows;
+  }
+  var CAL_SENS_RE = /sensitiv/i, CAL_DZ_RE = /dead ?zone/i;
+  function calRowOf(pack, re){
+    var gs = pack && pack.aimModel && Array.isArray(pack.aimModel.gameSettings) ? pack.aimModel.gameSettings : [];
+    for(var i = 0; i < gs.length; i++) if(re.test(gs[i].setting)) return gs[i];
+    return null;
+  }
+  function calSpeedsModel(vm, pack, d, date, at){
+    if(!vm || typeof vm !== 'object') return { problem: 'Your Core no longer has this run’s speeds. Run Velocity calibration again and copy straight after.' };
+    if(!pack || !pack.id) return { problem: 'This config has no game preset to add the speeds to.' };
+    var old = pack.aimModel;
+    if(!old || typeof old !== 'object' || old.needsCalibration !== false)
+      return { problem: pack.name+'’s preset has no measured curve yet, and a velocity run is never a curve. '+
+        'Run Curve calibration at a low sensitivity and add its shape to the preset first.' };
+    if(vm.id !== pack.id)
+      return { problem: 'Your Core’s last run was for “'+String(vm.id)+'”, not '+pack.name+'.' };
+    var words = [String(vm.name || '')].concat((vm.sources || []).map(function(s){ return String((s && s.what) || ''); }));
+    if(!words.some(function(w){ return /velocity calibrated/i.test(w); }))
+      return { problem: 'Your Core’s last run was not a velocity calibration.' };
+    var vh = calMerged(vm, 'hip'), va = calMerged(vm, 'ads');
+    var adsMeasured = !(d && d.result && d.result.velocity && d.result.velocity.ads === false) &&
+      !!(va.turnRate && typeof va.deadzone === 'number');
+    var oh = calMerged(old, 'hip'), oa = calMerged(old, 'ads');
+    var adsOwn = JSON.stringify([oa.deadzone, oa.curve, oa.turnRate]) !== JSON.stringify([oh.deadzone, oh.curve, oh.turnRate]);
+    if(!calSameCurve(vh, oh) || (adsOwn && adsMeasured && !calSameCurve(va, oa)))
+      return { problem: 'This run scaled a different curve from '+pack.name+'’s preset. Use the '+pack.name+
+        ' translator on this config, then run Velocity calibration again.' };
+    var sens = at && at.sensitivity, dz = at && at.deadzone;
+    if(!sens || !String(sens.value || '').trim())
+      return { problem: 'Say which in-game sensitivity this was measured at.' };
+    if(!(vh.turnRate && typeof vh.deadzone === 'number')) return { problem: 'The run’s speeds are missing.' };
+    var out = JSON.parse(JSON.stringify(old));
+    out.hip.deadzone = vh.deadzone;
+    out.hip.turnRate = { yaw: vh.turnRate.yaw, pitch: vh.turnRate.pitch };
+    if(typeof vh.accel === 'number') out.hip.accel = vh.accel;
+    var ay, ap, az;
+    if(adsMeasured){ ay = va.turnRate.yaw; ap = va.turnRate.pitch; az = va.deadzone; }
+    else if(adsOwn){
+      /* aiming not measured this time: the same speed-up as hip (velApply) */
+      ay = oa.turnRate.yaw * (oh.turnRate.yaw > 0 ? vh.turnRate.yaw / oh.turnRate.yaw : 1);
+      ap = oa.turnRate.pitch * (oh.turnRate.pitch > 0 ? vh.turnRate.pitch / oh.turnRate.pitch : 1);
+      az = vh.deadzone;
+    }
+    if(ay !== undefined && out.ads){
+      out.ads.deadzone = az;
+      out.ads.turnRate = { yaw: Math.round(ay * 10) / 10, pitch: Math.round(ap * 10) / 10 };
+    }
+    var rows = JSON.parse(JSON.stringify(old.gameSettings || []));
+    calSetRow(rows, CAL_SENS_RE, { setting: String(sens.setting || 'Look sensitivity'), value: String(sens.value).trim() });
+    if(dz && String(dz.value || '').trim())
+      calSetRow(rows, CAL_DZ_RE, { setting: String(dz.setting || 'Stick dead zone'), value: String(dz.value).trim() });
+    out.gameSettings = rows;
+    var at1 = String(sens.setting || 'Look sensitivity')+' '+String(sens.value).trim()+
+      (dz && String(dz.value || '').trim() ? ', '+String(dz.setting || 'Stick dead zone')+' '+String(dz.value).trim() : '');
+    out.sources = [{ what: CAL_SPEEDS_TAG+': velocity calibration on '+date+' at '+at1+' (D284): dead zone '+
+      calNum(vh.deadzone * 100, 1)+' %, full stick '+calNum(vh.turnRate.yaw, 1)+' deg/s, up and down '+
+      calNum(vh.turnRate.pitch, 1)+(ay !== undefined ? ', aiming '+calNum(ay, 1)+' deg/s'+(adsMeasured ? '' : ' (scaled with hip)') : '')+
+      '. The curve’s shape is the preset’s, kept; a player at this sensitivity needs no calibration.' }]
+      .concat((vm.sources || []).filter(function(s){ return s && /velocity calibrated/i.test(String(s.what)); }))
+      .concat((old.sources || []).filter(function(s){
+        var w = String((s && s.what) || '');
+        return w.indexOf(CAL_SPEEDS_TAG) !== 0 && !/^Velocity calibrated on device/i.test(w);
+      }));
+    var errs = window.ZSAIMMODEL ? ZSAIMMODEL.validate(out) : ['zs-aim-model.js did not load'];
+    if(errs.length) return { problem: 'The measured speeds are not usable: '+errs[0] };
+    return { model: {
+      zerostickPresetSpeeds: 1, pack: pack.id,
+      measuredAt: { sensitivity: { setting: String(sens.setting || 'Look sensitivity'), value: String(sens.value).trim() },
+        deadzone: dz && String(dz.value || '').trim() ? { setting: String(dz.setting || 'Stick dead zone'), value: String(dz.value).trim() } : null },
+      aimModel: out } };
+  }
+  ZS.calSpeedsModel = calSpeedsModel;
+
+  function calWire(root, p, found){
+    var box = root.querySelector('#tr-calibrate');
+    if(!box) return;
+    var timer = null;
+    /* the config's game preset, with or without a curve yet (found is only
+       a preset that already carries one): its id goes to the Core, so the
+       model comes back named for the preset it belongs in (D284) */
+    var pack = (found && found.pack) ||
+      ((window.ZSPACKS && ZSPACKS.ofConfig) ? ZSPACKS.ofConfig(p) : null);
+    var packId = pack ? (pack.id || 'game') : 'game';
+    var gameName = pack ? pack.name : 'this game';
+    function alive(){ return document.body.contains(box); }
+    function later(ms){ clearTimeout(timer); timer = setTimeout(poll, ms); }
+    function btn(id, cls, text){ return '<button class="btn '+cls+'" id="'+id+'" style="margin-top:10px">'+esc(text)+'</button>'; }
+    function on(id, fn){ var b = box.querySelector('#'+id); if(b) b.addEventListener('click', fn); }
+    function idle(extra){
+      if(calParked()){
+        box.innerHTML =
+          helpHTML('cal-what', 'Calibrate', 'Measures '+esc(gameName)+' through your capture card, '+
+            'so its translator turns exactly as far as your hand.')+calParkedHTML();
+        return;
+      }
+      box.innerHTML =
+        '<div class="xsub" style="margin-bottom:6px">About eight minutes.</div>'+
+        helpHTML('cal-what', 'Calibrate', 'Measures '+esc(gameName)+' through your capture card, '+
+          'so its translator turns exactly as far as your hand. About eight minutes.')+
+        '<div class="stat"><span>1</span><b>Open a private match, alone, with nothing in your way</b></div>'+
+        '<div class="stat"><span>2</span><b>Stand in open space with detail all round you (not up against a wall)</b></div>'+
+        '<div class="stat"><span>3</span><b>Gun out, aim assist off, then don\u2019t touch the controller, mouse or keys</b></div>'+
+        /* D275 (owner, 2026-10-10): "Your in-game deadzone (optional)" is
+           gone - Calibrate measures the deadzone itself. A number typed
+           before (mouseTranslation.gameDeadzone) stays in the config and
+           the encoders still use it until a measured translator replaces
+           it; it is no longer asked for or compared here. */
+        (extra || '')+
+        btn('cal-start', 'primary', 'Calibrate');
+      on('cal-start', start);
+    }
+    /* D182: the first visible movement, when it differs from the measured
+       zone (the game creeps just past its edge). D275 dropped the typed
+       number's comparison with the Calibrate card's input. */
+    function dzCheck(r){
+      var m = Number(r.deadzone), lad = Number(r.zoneLadder);
+      if(!isFinite(m)) return '';
+      if(isFinite(lad) && lad > 0 && Math.abs(lad - m) >= 0.01)
+        return '<div class="xsub" style="margin:6px 0">Dead zone found by carrying the turn rates down to '+
+          'zero turn; the first visible movement was at '+calNum(lad * 100, 1)+'%, where the game barely creeps.</div>';
+      return '';
+    }
+    /* THE OWNER (2026-10-01): a 3 second countdown before it starts, so
+       there is time to take the hands off the controller and mouse. Leaving
+       the screen during the countdown starts nothing. */
+    function start(){
+      var b = box.querySelector('#cal-start');
+      if(b) b.disabled = true;
+      var n = 3;
+      function tick(){
+        if(!alive()) return;
+        if(n > 0){
+          if(b) b.textContent = 'Hands off... ' + n;
+          n--;
+          setTimeout(tick, 1000);
+          return;
+        }
+        if(b) b.textContent = 'Starting...';
+        go();
+      }
+      tick();
+    }
+    function go(){
+      ZS.api('/calibrate/start', 'POST', { id: packId, name: gameName+' (measured on your game)',
+        date: new Date().toISOString().slice(0, 10) })
+        .then(function(j){
+          if(!alive()) return;
+          if(!j || !j.ok){
+            idle(note((j && j.error) || 'The Core did not start the calibration.', 'warn', true));
+            return;
+          }
+          render(j);
+          later(600);
+        });
+    }
+    function useIt(){
+      var b = box.querySelector('#cal-use');
+      if(b) b.disabled = true;
+      ZS.api('/calibrate/model').then(function(j){
+        if(!alive()) return;
+        var m = j && j.ok ? j.data : null;
+        if(m && found && found.model && Array.isArray(found.model.gameSettings) &&
+           (!m.gameSettings || !m.gameSettings.length)){
+          m.gameSettings = found.model.gameSettings;   /* what the numbers assume in the game */
+        }
+        var errs = (m && window.ZSAIMMODEL) ? ZSAIMMODEL.validate(m) : ['no model'];
+        if(errs.length){
+          if(b) b.disabled = false;
+          ZS.toast && ZS.toast('The measured model was not usable: '+errs[0]);
+          return;
+        }
+        ZS.putProfileDebounced(p.id, function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          var rm = ZSAIMMODEL.resolve(m, f.mouseTranslation);
+          if(!rm) return;
+          /* D178: keep what it replaces, so Restore is one tap */
+          var cur = f.mouseTranslation.resolvedAimModel;
+          f.mouseTranslation.previousAimModel = (cur && typeof cur === 'object') ? cur : 'standard';
+          f.mouseTranslation.resolvedAimModel = rm;
+          if(ZSAIMMODEL.markChoice) ZSAIMMODEL.markChoice(f.mouseTranslation, 'curve calibration');
+        });
+        ZS.toast && ZS.toast('Measured translator on');
+        setTimeout(function(){ if(ZS.redrawOpenScreen) ZS.redrawOpenScreen(); }, 900);
+      });
+    }
+    /* The translator running now, in the result's terms (D178): the
+       resolved model's own numbers, or the standard one. */
+    function nowNumbers(){
+      var full = (ZS.live.online !== false ? ZS.live.full[p.id] : null) || {};
+      var mt = full.mouseTranslation || {};
+      var r = mt.resolvedAimModel;
+      if(!r || typeof r !== 'object' || !r.hip) return { name: 'Standard', std: true };
+      return { name: trName(r.name || 'Game translator'), deadzone: r.hip.deadzone, yaw: r.hip.vx,
+               pitch: r.hip.vy, adsYaw: r.ads ? r.ads.vx : null };
+    }
+    function calRows(r, now, dim){
+      function row(label, nv, ov, unit, dp, scale){
+        var s = scale || 1;
+        var n = (nv === null || nv === undefined) ? '\u2013' : calNum(nv * s, dp)+unit;
+        var o = (now.std || ov === null || ov === undefined) ? '\u2013' : calNum(ov * s, dp)+unit;
+        return '<div class="stat"><span>'+esc(label)+'</span><b'+(dim ? ' style="opacity:.55"' : '')+'>'+
+          n+'</b><b style="opacity:.6;min-width:5.5em;text-align:right">'+o+'</b></div>';
+      }
+      return '<div class="stat"><span></span><b class="xsub">'+(dim ? 'Measured' : 'New')+'</b>'+
+          '<b class="xsub" style="min-width:5.5em;text-align:right">Now ('+esc(now.name)+')</b></div>'+
+        row('Dead zone', r.deadzone, now.deadzone, '%', 1, 100)+
+        row('Full-stick turn', r.yaw, now.yaw, '\u00b0/s', 0)+
+        row('Up and down', r.pitch, now.pitch, '\u00b0/s', 0)+
+        row('Aiming down sights', r.adsYaw, now.adsYaw, '\u00b0/s', 0)+
+        row('Field of view', r.hfov, null, '\u00b0', 0);
+    }
+    function done(d){
+      var r = d.result || {};
+      var full = Number(r.yaw);
+      box.innerHTML =
+        '<div class="xsub" style="margin-bottom:6px">Measured, and every check passed. These are your game\u2019s own numbers'+
+          (full > 0 ? ' (a whole turn at full stick in '+calNum(360 / full, 2)+' s)' : '')+'.</div>'+
+        calRows(r, nowNumbers(), false)+
+        calLaw(r, false)+
+        dzCheck(r)+
+        (d.fitWhy ? note(d.fitWhy, 'warn') : '')+
+        btn('cal-use', 'primary', 'Use this translator')+
+        (calParked() ? calParkedHTML() : btn('cal-again', 'ghost', 'Measure again'))+
+        presetHTML();
+      on('cal-use', useIt);
+      on('cal-again', start);
+      on('cal-copy', function(){ copyForPreset(d); });
+    }
+    /* D284: the owner's way from this run into the game's preset */
+    function presetHTML(){
+      if(!pack) return '<div class="xsub" id="cal-preset" style="margin-top:10px">This config has no game preset, '+
+        'so there is no preset to add this curve to.</div>';
+      return '<div id="cal-preset" style="margin-top:4px">'+
+        btn('cal-copy', 'ghost', 'Copy for the game preset')+
+        '<div class="xsub" id="cal-preset-how" style="margin-top:6px">Then paste it to Claude, or save it as a file and run '+
+          '<b>node dashboard/tools/set-pack-aim-model.js '+esc(pack.id)+' &lt;file&gt;</b>. Next, set the game to the '+
+          'sensitivity the preset ships at and run Velocity calibration for its speeds.</div>'+
+        '<div class="xsub" id="cal-preset-say" role="status" style="margin-top:6px"></div></div>';
+    }
+    /* D284: after a passing velocity run, the speeds at the sensitivity the
+       game was set to, for the preset (calSpeedsModel) */
+    function speedsHTML(){
+      if(!pack) return '';
+      var sr = calRowOf(pack, CAL_SENS_RE), dr = calRowOf(pack, CAL_DZ_RE);
+      return '<div id="cal-speedsbox" style="margin:0 0 10px">'+
+        '<div class="xsub" style="margin-bottom:6px">Your Core has a finished velocity calibration. If the game was at '+
+          'the sensitivity the preset ships at, copy its speeds for the preset.</div>'+
+        txtFld('In-game '+(sr ? sr.setting.toLowerCase() : 'sensitivity')+' it was measured at',
+          sr ? sr.value : '', 'cal-sens')+
+        txtFld('In-game '+(dr ? dr.setting.toLowerCase() : 'dead zone')+' (optional)', dr ? dr.value : '', 'cal-sensdz')+
+        btn('cal-speeds', 'ghost', 'Copy max-sens speeds for the game preset')+
+        '<div class="xsub" style="margin-top:6px">Then paste it to Claude, or save it and run '+
+          '<b>node dashboard/tools/set-pack-aim-model.js '+esc(pack.id)+' &lt;file&gt; --speeds</b>.</div>'+
+        '<div class="xsub" id="cal-speeds-say" role="status" style="margin-top:6px"></div></div>';
+    }
+    function copySpeeds(d){
+      var b = box.querySelector('#cal-speeds'), say = box.querySelector('#cal-speeds-say');
+      var sIn = box.querySelector('input.cal-sens'), dIn = box.querySelector('input.cal-sensdz');
+      var sr = calRowOf(pack, CAL_SENS_RE), dr = calRowOf(pack, CAL_DZ_RE);
+      var at = {
+        sensitivity: { setting: sr ? sr.setting : 'Look sensitivity', value: sIn ? String(sIn.value || '') : '' },
+        deadzone: { setting: dr ? dr.setting : 'Stick dead zone', value: dIn ? String(dIn.value || '') : '' }
+      };
+      if(b) b.disabled = true;
+      ZS.api('/calibrate/model').then(function(j){
+        if(!alive()) return;
+        if(b) b.disabled = false;
+        var got = calSpeedsModel(j && j.ok ? j.data : null, pack, d, new Date().toISOString().slice(0, 10), at);
+        if(got.problem){
+          if(say) say.innerHTML = note(esc(got.problem), 'warn', true);
+          return;
+        }
+        if(say) say.textContent = '';
+        copyText(JSON.stringify(got.model, null, 2)+'\n',
+          'Copied '+pack.id+'’s max-sens speeds. Paste them to Claude, or run set-pack-aim-model.js --speeds.',
+          'Copy failed — this device did not allow it');
+      });
+    }
+    function copyForPreset(d){
+      var b = box.querySelector('#cal-copy'), say = box.querySelector('#cal-preset-say');
+      if(b) b.disabled = true;
+      ZS.api('/calibrate/model').then(function(j){
+        if(!alive()) return;
+        if(b) b.disabled = false;
+        var got = calPackModel(j && j.ok ? j.data : null, pack, d, new Date().toISOString().slice(0, 10));
+        if(got.problem){
+          if(say) say.innerHTML = note(esc(got.problem), 'warn', true);
+          return;
+        }
+        if(say) say.textContent = '';
+        copyText(JSON.stringify(got.model, null, 2)+'\n',
+          'Copied '+pack.id+'’s curve. Paste it to Claude, or run set-pack-aim-model.js.',
+          'Copy failed — this device did not allow it');
+      });
+    }
+    /* D178: A RUN THAT FAILED A CHECK is shown, said plainly, and never
+       offered: the Core will not hand its model out either (409). */
+    function rejected(d){
+      var probs = Array.isArray(d.problems) && d.problems.length ? d.problems
+        : [d.fitWhy || d.why || 'The calibration did not finish.'];
+      box.innerHTML =
+        '<div class="stat"><span>This run can\u2019t be used</span><b style="color:var(--amber)">Not saved</b></div>'+
+        '<div class="xsub" style="margin:6px 0">'+esc(probs[0])+'</div>'+
+        (probs.length > 1
+          ? '<div class="xsub" style="margin-bottom:6px;opacity:.75">Also: '+probs.slice(1).map(esc).join(' ')+'</div>'
+          : '')+
+        note('Something blocked the view or moved. Stand in open space, aim assist off, don\u2019t touch '+
+             'the controller, and try again. Your translator was not changed.', 'warn', true)+
+        (d.result ? calRows(d.result, nowNumbers(), true)+calLaw(d.result, true)+dzCheck(d.result) : '')+
+        (calParked() ? calParkedHTML() : btn('cal-again', 'primary', 'Measure again'));
+      on('cal-again', start);
+    }
+    /* M27 (audit 2026-10-10): ONE LOST REPLY IS NOT "NO CALIBRATION". The
+       USB link drops about one line in hundreds, and during an eight-minute
+       run that pauses the player's controller and mouse, one lost status
+       reply drew "update its firmware", stopped asking and took Stop away.
+       A reply that never came (or a run we know is going) keeps the last
+       state, keeps Stop, and asks again; only the Core's own refusal of
+       the route says it cannot calibrate. */
+    var lastState = null, misses = 0;
+    function lostReply(j){
+      if(!j) return true;
+      var e = String(j.error || (j.errors && j.errors[0]) || '');
+      return ZS.live.online === false || /unreachable|timed? ?out|usb request failed|no answer|abort/i.test(e);
+    }
+    function cancelRun(){ ZS.api('/calibrate/cancel', 'POST', {}).then(function(){ later(200); }); }
+    function waiting(){
+      misses++;
+      if(!box.querySelector('#cal-wait')){
+        box.innerHTML =
+          '<div class="stat"><span>'+(lastState === 'running' ? 'Measuring' : 'Asking your Core')+'</span><b>\u2026</b></div>'+
+          '<div class="xsub" id="cal-wait"></div>'+
+          '<div class="xsub">To stop: Stop here, or hold Start / Menu (or Esc) for a second.</div>'+
+          btn('cal-cancel', 'ghost', 'Stop');
+        on('cal-cancel', cancelRun);
+      }
+      var w = box.querySelector('#cal-wait');
+      if(w) w.textContent = 'No answer from your Core just now \u2014 asking again.';
+      later(Math.min(1000 * misses, 5000));
+    }
+    function render(j){
+      if(!j || !j.ok){
+        if(lastState === 'running' || lostReply(j)){ waiting(); return; }
+        /* a Core before D172 refuses the route with an error frame whose
+           words are the firmware's; the player gets ours */
+        box.innerHTML = '<div class="xsub">This Core cannot calibrate yet. Update its firmware '+
+          'to measure your game.</div>';
+        return;
+      }
+      misses = 0;
+      var d = j.data || {};
+      /* D284: a velocity calibration's run is the Velocity card's, not
+         this one's (one session, two cards) */
+      /* D397: a Measure this game run is its own card's too */
+      if(d.mode === 'measure'){
+        lastState = null;
+        idle('');
+        return;
+      }
+      if(d.mode === 'velocity'){
+        lastState = null;
+        /* ...except a finished, passing one: the owner's max-sens speeds
+           for the game preset (D284) */
+        if(d.state === 'done' && d.fitOk && !calParked()){
+          idle(speedsHTML());
+          on('cal-speeds', function(){ copySpeeds(d); });
+        } else idle('');
+        return;
+      }
+      lastState = d.state || null;
+      if(d.state === 'running'){
+        box.innerHTML =
+          '<div class="stat"><span>'+esc(calPhase(d))+'</span><b>'+
+            Math.round((d.doneMs || 0) / 1000)+' / '+Math.round((d.totalMs || 0) / 1000)+' s</b></div>'+
+          calBar(d.totalMs ? d.doneMs / d.totalMs : 0)+
+          /* D182 (the owner): every input is held while it runs */
+          '<div class="xsub">Your controller and mouse are paused while it measures. Fire is never pressed. '+
+            'To stop: Stop here, or hold Start / Menu (or Esc) for a second.</div>'+
+          btn('cal-cancel', 'ghost', 'Stop');
+        on('cal-cancel', cancelRun);
+        return;
+      }
+      if(d.state === 'done' && d.fitOk){ done(d); return; }
+      if(d.state === 'done' && !d.fitOk && d.fitWhy){ rejected(d); return; }
+      if(d.state === 'done' && !d.fitOk && !d.fitWhy){
+        box.innerHTML = '<div class="stat"><span>Working out the numbers</span><b>\u2026</b></div>';
+        later(800);
+        return;
+      }
+      if(d.state === 'failed'){ rejected(d); return; }
+      if(d.state === 'cancelled' || d.state === 'done'){
+        idle(note(d.state === 'cancelled' ? 'Stopped. The stick was let go.'
+          : (d.fitWhy || d.why || 'The calibration did not finish.'), 'warn'));
+        return;
+      }
+      idle('');
+    }
+    function poll(){
+      if(!alive()){ clearTimeout(timer); return; }
+      ZS.api('/calibrate/status').then(function(j){
+        if(!alive()) return;
+        render(j);
+        if(j && j.ok && j.data && j.data.state === 'running' && j.data.mode !== 'velocity' && j.data.mode !== 'measure') later(600);
+      });
+    }
+    poll();
+  }
+
+  /* ── VELOCITY CALIBRATION (D284) ─────────────────────────────────────
+     The CUSTOMER's calibration. The owner measures each game's curve once
+     (Curve calibration, in the DEV ONLY fold, at a low in-game sensitivity)
+     and ships it in the game preset. A player's sensitivity and in-game
+     dead zone are their own, so this measures only those: the dead zone,
+     looks down and up, and turns at two sticks, about a minute (two with
+     aiming down sights), and the Core SCALES the saved curve to them
+     (POST /calibrate/start {mode:"velocity", the curve's points}). It never
+     refits the curve's shape; when the game turns differently from its
+     saved curve it still saves and says so.
+     `measured` is the game's measured model (12-translation.js trMeasured):
+     without one the card is greyed with one sentence and starts nothing. */
+  var VEL_NONE = 'This game’s curve hasn’t been measured yet.';
+  /* a mode's curve as the points the Core keeps: [share of the travel
+     above the dead zone, share of full turn], rising, at most 16. A lut's
+     own points; a power or linear curve sampled. */
+  function velCurve(m){
+    var out = [], i;
+    if(m && m.curve === 'lut' && Array.isArray(m.points) && m.points.length){
+      m.points.forEach(function(q){
+        var u = Number(q[0]), y = Number(q[1]);
+        var last = out[out.length - 1];
+        if(u > 0 && u <= 1 && y > 0 && y <= 1 && (!last || (u > last[0] && y > last[1]))) out.push([u, y]);
+      });
+      return out.slice(-16);
+    }
+    for(i = 1; i <= 12; i++){
+      var uu = i / 12, yy = ZSAIMMODEL.fracOfStick(Object.assign({}, m, { deadzone: 0 }), uu);
+      if(yy > 0 && (!out.length || yy > out[out.length - 1][1])) out.push([uu, yy]);
+    }
+    return out;
+  }
+  /* aiming is measured only when the model has an aiming mode of its own
+     (D284): one whose numbers differ from hip's */
+  function velAdsOwn(r){
+    var h = r && r.hip, a = r && r.ads;
+    if(!h || !a) return false;
+    return JSON.stringify([a.deadzone, a.vx, a.vy, a.curve, a.exp, a.points || []]) !==
+      JSON.stringify([h.deadzone, h.vx, h.vy, h.curve, h.exp, h.points || []]);
+  }
+  function velBaseName(r, found){
+    if(found && found.pack && found.pack.name) return found.pack.name;
+    return String((r && r.name) || 'This game').replace(/\s*\([^)]*\)\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '') || 'This game';
+  }
+  /* the start request: the curve the Core keeps, and what it shipped with */
+  function velBody(r, found){
+    var b = {
+      mode: 'velocity', id: r.translator || (found && found.pack && found.pack.id) || 'game',
+      name: velBaseName(r, found)+' (velocity calibrated)',
+      date: new Date().toISOString().slice(0, 10),
+      zone: r.hip.deadzone, hipCurve: velCurve(r.hip), hipYaw: r.hip.vx, hipPitch: r.hip.vy,
+      /* the timed sticks stay under the game's turn ramp (D284 stress
+         review); 0 = no ramp, the sticks may go to 95 % */
+      rampThreshold: (r.hip.ramp && r.hip.ramp.threshold > 0) ? r.hip.ramp.threshold : 0
+    };
+    if(velAdsOwn(r)){
+      b.adsCurve = velCurve(r.ads);
+      b.adsYaw = r.ads.vx;
+      b.adsPitch = r.ads.vy;
+    }
+    return b;
+  }
+  /* one mode of the resolved model with the measured dead zone and rates;
+     a measured axes law keeps its round / square split (D187) */
+  function velMode(m, dz, vx, vy){
+    var old = m.deadzone;
+    m.deadzone = dz;
+    m.vx = vx;
+    m.vy = vy;
+    if(m.axes && typeof m.axes === 'object'){
+      var a = m.axes;
+      if(!(a.dzAxial > 0)){ a.dzRadial = dz; a.dzAxial = 0; }
+      else if(!(a.dzRadial > 0)){ a.dzRadial = 0; a.dzAxial = dz; }
+      else {
+        a.dzAxial = old > 0 ? Math.min(dz, a.dzAxial * dz / old) : a.dzAxial;
+        a.dzRadial = a.dzAxial < 1 ? (dz - a.dzAxial) / (1 - a.dzAxial) : 0;
+      }
+    }
+  }
+  /* The new translator: the measured model it was started from, every
+     field kept (curve, ramp, axes law, game id), only the dead zone and
+     the turn rates the Core measured. Exposed for the tests. */
+  function velApply(base, m, found){
+    var rm = JSON.parse(JSON.stringify(base));
+    var adsOwn = velAdsOwn(base);
+    velMode(rm.hip, m.hip.deadzone, m.hip.turnRate.yaw, m.hip.turnRate.pitch);
+    if(m.ads && m.ads.turnRate && typeof m.ads.deadzone === 'number'){
+      velMode(rm.ads, m.ads.deadzone, m.ads.turnRate.yaw, m.ads.turnRate.pitch);
+    } else if(!adsOwn){
+      rm.ads = JSON.parse(JSON.stringify(rm.hip));
+    } else {
+      /* an aiming mode not measured this time: the same speed-up as hip */
+      var k = base.hip.vx > 0 ? m.hip.turnRate.yaw / base.hip.vx : 1;
+      var kp = base.hip.vy > 0 ? m.hip.turnRate.pitch / base.hip.vy : k;
+      velMode(rm.ads, m.hip.deadzone, rm.ads.vx * k, rm.ads.vy * kp);
+    }
+    rm.name = velBaseName(base, found)+' (velocity calibrated)';
+    rm.needsCalibration = false;
+    return rm;
+  }
+  ZS.velApply = velApply;
+  ZS.velBody = velBody;
+
+  /* D218's parked line, with an id of its own (the fold's card has one too) */
+  function velParked(){ return calParkedHTML().replace('id="cal-parked"', 'id="vel-parked"'); }
+
+  /* THE CUSTOMER'S WORDS (D284 follow-up, owner 2026-10-13: "make it
+     perfect"). A controller player who is not technical reads this card,
+     so: one short line on the card, the why behind the ? (helpHTML, D258),
+     steps as a numbered list, numbers in plain units, and every result
+     says in a sentence what changed. The shape check is the TEAM's signal
+     that the game's SAVED curve is off at this sensitivity; the customer is
+     never told (owner 2026-10-13): the speeds save and "Put the old speeds
+     back" is their whole answer. */
+  var VEL_INTRO = 'Matches your aim to your in-game sensitivity and dead zone.';
+  var VEL_HELP = 'Your Core turns your view a few times and watches it through your capture card. '+
+    'It measures how fast your in-game sensitivity turns and where your dead zone starts. '+
+    'Only those change. How aim builds up from slow to fast stays as the game was measured. '+
+    'Run it again whenever you change your in-game sensitivity or dead zone. '+
+    'It never presses fire.';
+  var VEL_NONE_HELP = 'The ZeroStick team measures each game once and adds it to the game’s preset. '+
+    'Until this game has one, the standard translator is used and this stays off.';
+  var VEL_STOP_HOW = 'To stop: tap Stop, or hold Start / Menu (or Esc) for a second.';
+  function velClock(ms){
+    var s = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(s / 60)+':'+('0'+(s % 60)).slice(-2);
+  }
+  /* the plan's own estimate, as time left (the Core's totalMs is the plan's
+     estimate, D284: a run can take a little longer than it says) */
+  function velLeft(d){
+    if(!(d.totalMs > 0)) return '';
+    var left = d.totalMs - (d.doneMs || 0);
+    return left > 1500 ? 'About '+velClock(left)+' left' : 'Almost done';
+  }
+  function velPct(v){ var n = Number(v) * 100; return (Math.abs(n - Math.round(n)) < 0.05 ? n.toFixed(0) : n.toFixed(1))+'%'; }
+
+  function velWire(root, p, found, measured){
+    var box = root.querySelector('#tr-velocity');
+    if(!box) return;
+    var timer = null, lastState = null, misses = 0;
+    var ads = !!measured && velAdsOwn(measured);
+    function alive(){ return document.body.contains(box); }
+    function later(ms){ clearTimeout(timer); timer = setTimeout(poll, ms); }
+    function btn(id, cls, text, off){
+      return '<button class="btn '+cls+'" id="'+id+'" style="margin-top:10px"'+(off ? ' disabled' : '')+'>'+esc(text)+'</button>';
+    }
+    function on(id, fn){ var b = box.querySelector('#'+id); if(b) b.addEventListener('click', fn); }
+    function line(t, id, top){
+      return '<div class="xsub"'+(id ? ' id="'+id+'"' : '')+' style="margin:'+(top ? '10px' : '0')+' 0 6px">'+t+'</div>';
+    }
+    function intro(){
+      return line(esc(VEL_INTRO)+' '+(ads ? 'About two minutes.' : 'About a minute.'))+
+        helpHTML('vel-what', 'Velocity calibration', VEL_HELP);
+    }
+    function steps(){
+      return '<ol class="vel-steps" style="margin:8px 0 2px;padding:0 0 0 20px;font-size:13px;line-height:1.5;color:var(--text)">'+
+        '<li style="margin:0 0 6px">Stand still in a quiet spot, like a private match or the firing range.</li>'+
+        '<li style="margin:0 0 6px">Make sure no enemies are in view.</li>'+
+        '<li style="margin:0">Tap Start, then put your controller down. It’s paused while your Core measures.</li></ol>';
+    }
+    /* `extra` sits above the Start key; `off` greys Start with a reason
+       already said in `extra` (offline, another calibration running) */
+    function idle(extra, off){
+      if(!measured){
+        /* nothing to scale: greyed, one plain sentence, no start; the
+           why behind the ? */
+        box.innerHTML =
+          '<div id="vel-none" aria-disabled="true" style="opacity:.55">'+
+            line(esc(VEL_NONE))+
+            btn('vel-start', 'ghost', 'Start', true)+'</div>'+
+          helpHTML('vel-none-why', 'Why this is off', VEL_NONE_HELP);
+        return;
+      }
+      if(calParked()){
+        box.innerHTML = intro()+velParked();
+        return;
+      }
+      /* a Start that cannot be pressed drops to the secondary face (zs-kit
+         section 7, "never dim a primary": the flat skin paints every
+         primary blue, disabled or not) */
+      box.innerHTML = intro()+steps()+(extra || '')+btn('vel-start', off ? 'ghost' : 'primary', 'Start', !!off);
+      on('vel-start', start);
+    }
+    /* the owner's 3 second countdown, as Calibrate's. Every key in the card
+       is off while it counts, and the one tapped says the count (Start or
+       Measure again). Leaving the screen during it starts nothing. */
+    function start(e){
+      var b = (e && e.currentTarget) || box.querySelector('#vel-start');
+      [].forEach.call(box.querySelectorAll('button.btn'), function(x){ x.disabled = true; });
+      var n = 3;
+      function tick(){
+        if(!alive()) return;
+        if(n > 0){
+          if(b) b.textContent = 'Hands off… ' + n;
+          n--;
+          setTimeout(tick, 1000);
+          return;
+        }
+        if(b) b.textContent = 'Starting…';
+        go();
+      }
+      tick();
+    }
+    function go(){
+      ZS.api('/calibrate/start', 'POST', velBody(measured, found)).then(function(j){
+        if(!alive()) return;
+        if(!j || !j.ok){
+          var e = (j && j.error) || 'Your Core did not start the calibration. Try again.';
+          /* a Core from before D284 names the modes it knows */
+          if(/"calibrate" or "kick"/.test(e)) e = 'Update your Core to use velocity calibration.';
+          /* the answer to the tap: a full block, not a chip (D70) */
+          idle(note(esc(e), 'warn', true));
+          return;
+        }
+        render(j);
+        later(600);
+      });
+    }
+    function cur(){
+      var full = (ZS.live.online !== false ? ZS.live.full[p.id] : null) || {};
+      return full.mouseTranslation || {};
+    }
+    /* the run's numbers already ARE the translator in use (after "Use
+       these speeds" the card is drawn again over the same finished run) */
+    function applied(r){
+      var mh = measured.hip;
+      return !!mh && typeof r.deadzone === 'number' && typeof r.yaw === 'number' &&
+        Math.abs(mh.deadzone - r.deadzone) < 1e-4 && Math.abs(mh.vx - r.yaw) < 0.05 &&
+        /velocity calibrated/.test(String(measured.name || ''));
+    }
+    /* New beside Now, in fixed right-aligned columns so the numbers line up
+       at 393 px; Now in the label grey (DESIGN.md: no grey by opacity) */
+    function rows(r, one){
+      var mh = measured.hip, ma = measured.ads;
+      var COL = 'flex:none;width:4.6em;text-align:right';
+      function val(v, unit, dp, scale){
+        return (v === null || v === undefined) ? '–' : calNum(v * (scale || 1), dp)+unit;
+      }
+      function row(label, nv, ov, unit, dp, scale){
+        return '<div class="stat vel-row"><span style="flex:1;min-width:0">'+esc(label)+'</span>'+
+          '<b style="'+COL+'">'+val(nv, unit, dp, scale)+'</b>'+
+          (one ? '' : '<b style="'+COL+';color:var(--muted)">'+val(ov, unit, dp, scale)+'</b>')+'</div>';
+      }
+      return (one ? '' : '<div class="stat vel-row"><span style="flex:1"></span>'+
+          '<b class="xsub" style="'+COL+'">New</b><b class="xsub" style="'+COL+';color:var(--muted)">Now</b></div>')+
+        row('Dead zone', r.deadzone, mh.deadzone, '%', 1, 100)+
+        row('Turn speed', r.yaw, mh.vx, '°/s', 0)+
+        row('Up and down', r.pitch, mh.vy, '°/s', 0)+
+        (ads ? row('Aiming', velAdsNew(r), ma ? ma.vx : null, '°/s', 0) : '');
+    }
+    /* aiming's new speed: measured, or (a run that did not measure it,
+       result.velocity.ads false) the same speed-up as hip, as velApply
+       saves it; never the 0 an unmeasured mode reports */
+    function velAdsNew(r){
+      var mh = measured.hip, ma = measured.ads;
+      var took = !(r.velocity && r.velocity.ads === false) && r.adsYaw > 0;
+      if(took) return r.adsYaw;
+      return (ma && mh.vx > 0 && r.yaw > 0) ? ma.vx * r.yaw / mh.vx : null;
+    }
+    /* what changed, in two plain sentences: the speed and the dead zone */
+    function summary(r){
+      var mh = measured.hip, out = [];
+      if(mh.vx > 0 && r.yaw > 0){
+        var pc = Math.round((r.yaw / mh.vx - 1) * 100);
+        out.push(Math.abs(pc) < 2 ? 'Your turn speed already matches.'
+          : 'Your game turns '+Math.abs(pc)+'% '+(pc > 0 ? 'faster' : 'slower')+' than your aim is set up for.');
+      }
+      if(typeof r.deadzone === 'number' && typeof mh.deadzone === 'number'){
+        out.push(Math.abs(r.deadzone - mh.deadzone) < 0.005 ? 'Your dead zone already matches.'
+          : 'Your dead zone is '+(r.deadzone > mh.deadzone ? 'bigger' : 'smaller')+': '+
+            velPct(r.deadzone)+' instead of '+velPct(mh.deadzone)+'.');
+      }
+      return '<div id="vel-sum" style="font-size:13px;line-height:1.5;color:var(--text);margin:0 0 6px">'+
+        out.map(function(t){ return '<div>'+esc(t)+'</div>'; }).join('')+'</div>';
+    }
+    function useIt(){
+      var b = box.querySelector('#vel-use');
+      if(b){ b.disabled = true; b.textContent = 'Saving…'; }
+      ZS.api('/calibrate/model').then(function(j){
+        if(!alive()) return;
+        var m = j && j.ok ? j.data : null;
+        if(!m || !m.hip || !m.hip.turnRate || typeof m.hip.deadzone !== 'number'){
+          if(b){ b.disabled = false; b.textContent = 'Use these speeds'; }
+          ZS.toast && ZS.toast('Your Core didn’t send the speeds. Try again.');
+          return;
+        }
+        ZS.putProfileDebounced(p.id, function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          var mt = f.mouseTranslation;
+          /* the measured model as it is NOW in the config (it may have
+             changed since the card was drawn), else the one drawn */
+          var base = trMeasured(found, mt, p.platform) || measured;
+          var was = mt.resolvedAimModel;
+          /* D178/D181: keep what it replaces, so Restore is one tap */
+          mt.previousAimModel = (was && typeof was === 'object') ? was : 'standard';
+          mt.resolvedAimModel = velApply(base, m, found);
+          if(ZSAIMMODEL.markChoice) ZSAIMMODEL.markChoice(mt, 'velocity calibration');
+        });
+        ZS.toast && ZS.toast('Your speeds are on');
+        setTimeout(function(){ if(ZS.redrawOpenScreen) ZS.redrawOpenScreen(); }, 900);
+      });
+    }
+    /* Restore, right where the player just changed it: the same one-tap
+       swap as the Game translator card's "Restore previous translator"
+       (D178, 12-translation.js trSwapPrevious) */
+    function restore(){
+      var b = box.querySelector('#vel-restore');
+      if(b) b.disabled = true;
+      ZS.putProfileDebounced(p.id, function(f){
+        if(trSwapPrevious(f) && ZSAIMMODEL.markChoice) ZSAIMMODEL.markChoice(f.mouseTranslation, 'restore previous translator');
+      });
+      ZS.toast && ZS.toast('Your old speeds are back');
+      setTimeout(function(){ if(ZS.redrawOpenScreen) ZS.redrawOpenScreen(); }, 900);
+    }
+    function done(d){
+      var r = d.result || {};
+      /* the shape check (r.velocity.shapeOk) is the TEAM's signal, never
+         the player's (owner 2026-10-13: "we don't need the customer to be
+         that informed"): the speeds still save, and "Put the old speeds
+         back" is the player's whole answer if aim feels off */
+      var prev = cur().previousAimModel;
+      if(applied(r)){
+        box.innerHTML =
+          '<div class="stat" id="vel-on"><span>Your speeds are on</span><b class="ok">✓ In use</b></div>'+
+          rows(r, true)+
+          (prev !== undefined && prev !== null
+            ? line('Aim feels worse? Put the old speeds back.', 'vel-undo', true)+btn('vel-restore', 'ghost', 'Put the old speeds back')
+            : '')+
+          (calParked() ? velParked() : btn('vel-again', 'ghost', 'Measure again'));
+        on('vel-restore', restore);
+        on('vel-again', start);
+        return;
+      }
+      box.innerHTML =
+        line('Measured. Every check passed.')+
+        summary(r)+
+        rows(r, false)+
+        line('Use these speeds to match them. Nothing else in your setup changes.', '', true)+
+        btn('vel-use', 'primary', 'Use these speeds')+
+        (calParked() ? velParked() : btn('vel-again', 'ghost', 'Measure again'));
+      on('vel-use', useIt);
+      on('vel-again', start);
+    }
+    /* a run that failed its checks (done, not fit) or that the Core gave up
+       on (failed): said plainly, nothing saved; the Core's own words (which
+       can be technical) behind the ? */
+    function rejected(d){
+      var failed = d.state === 'failed';
+      var probs = Array.isArray(d.problems) && d.problems.length ? d.problems
+        : [d.fitWhy || d.why || 'The calibration did not finish.'];
+      box.innerHTML =
+        '<div class="stat"><span>'+(failed ? 'It stopped before the end' : 'This run can’t be used')+'</span>'+
+          '<b style="color:var(--amber)">Not saved</b></div>'+
+        (failed && d.why ? line(esc(d.why)) : '')+
+        note(esc(failed ? 'Check your capture card shows the game, then try again. Your speeds were not changed.'
+          : 'Something moved or blocked the view. Stand still in a quiet spot with no enemies in view, '+
+            'don’t touch the controller, and try again. Your speeds were not changed.'), 'warn', true)+
+        (failed ? '' : helpHTML('vel-why', 'What your Core saw', probs.map(esc).join(' ')))+
+        (calParked() ? velParked() : btn('vel-again', 'primary', 'Measure again'));
+      on('vel-again', start);
+    }
+    function cancelRun(){
+      var b = box.querySelector('#vel-cancel');
+      if(b){ b.disabled = true; b.textContent = 'Stopping…'; }
+      ZS.api('/calibrate/cancel', 'POST', {}).then(function(){ later(200); });
+    }
+    function lostReply(j){
+      if(!j) return true;
+      var e = String(j.error || (j.errors && j.errors[0]) || '');
+      return ZS.live.online === false || /unreachable|timed? ?out|usb request failed|no answer|abort/i.test(e);
+    }
+    /* M27: one lost reply is not "no calibration" (as Calibrate's). A run
+       we know is going keeps its Stop; with no run going, the card says the
+       Core is not answering and greys Start (no Stop for nothing). */
+    function waiting(){
+      misses++;
+      if(lastState !== 'running'){
+        idle(line(esc(ZS.live.online === false
+          ? 'Your Core isn’t connected. Connect it to calibrate.'
+          : 'No answer from your Core just now. Asking again…'), 'vel-wait', true), true);
+        later(Math.min(1000 * misses, 5000));
+        return;
+      }
+      if(!box.querySelector('#vel-wait')){
+        box.innerHTML =
+          '<div class="stat"><span>Measuring</span><b>…</b></div>'+
+          line('', 'vel-wait')+
+          line(esc(VEL_STOP_HOW))+
+          btn('vel-cancel', 'ghost', 'Stop');
+        on('vel-cancel', cancelRun);
+      }
+      var w = box.querySelector('#vel-wait');
+      if(w) w.textContent = 'No answer from your Core just now. Asking again…';
+      later(Math.min(1000 * misses, 5000));
+    }
+    function render(j){
+      if(!measured){ idle(''); return; }
+      if(!j || !j.ok){
+        if(lastState === 'running' || lostReply(j)){ waiting(); return; }
+        box.innerHTML = line('This Core can’t calibrate yet. Update its firmware to use velocity calibration.');
+        return;
+      }
+      misses = 0;
+      var d = j.data || {};
+      /* the owner's curve calibration is the fold's card, not this one's;
+         while it runs, this card waits for it */
+      if(d.mode !== 'velocity'){
+        lastState = null;
+        if(d.state === 'running'){
+          idle(line('Another calibration is running. Start is ready again when it finishes.', '', true), true);
+          later(2000);
+        } else idle('');
+        return;
+      }
+      lastState = d.state || null;
+      if(d.state === 'running'){
+        var left = velLeft(d);
+        box.innerHTML =
+          '<div class="stat"><span style="flex:1;min-width:0">'+esc(calPhase(d))+'</span>'+
+            (left ? '<b id="vel-left" style="flex:none">'+esc(left)+'</b>' : '')+'</div>'+
+          calBar(d.totalMs ? d.doneMs / d.totalMs : 0)+
+          line('Your controller is paused. Fire is never pressed.')+
+          line(esc(VEL_STOP_HOW))+
+          btn('vel-cancel', 'ghost', 'Stop');
+        on('vel-cancel', cancelRun);
+        return;
+      }
+      if(d.state === 'done' && d.fitOk){ done(d); return; }
+      if(d.state === 'done' && !d.fitOk && d.fitWhy){ rejected(d); return; }
+      if(d.state === 'done' && !d.fitOk && !d.fitWhy){
+        box.innerHTML = '<div class="stat"><span>Working out your speeds</span><b>…</b></div>';
+        later(800);
+        return;
+      }
+      if(d.state === 'failed'){ rejected(d); return; }
+      /* stopped: said plainly, not a warning (nothing went wrong) */
+      if(d.state === 'cancelled'){ idle(note('Stopped. Your speeds were not changed.')); return; }
+      idle('');
+    }
+    function poll(){
+      if(!alive()){ clearTimeout(timer); return; }
+      if(!measured){ idle(''); return; }
+      ZS.api('/calibrate/status').then(function(j){
+        if(!alive()) return;
+        render(j);
+        if(j && j.ok && j.data && j.data.state === 'running' && j.data.mode === 'velocity') later(600);
+      });
+    }
+    poll();
+  }
+
+  /* what the other screen files use from this one */
+  SEC.calWire = calWire;
+  SEC.velWire = velWire;
+  SEC.calParked = calParked;
+  SEC.calParkedHTML = calParkedHTML;
+});

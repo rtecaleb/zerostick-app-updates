@@ -1,0 +1,393 @@
+/* gpc-sim.js - window.GPC: compile a GPC script and run it, in the phone.
+ *
+ * ES5 ONLY, like every file phone.html loads (docs/DESIGN.md).
+ *
+ * ============================================================================
+ *  THE CONTRACT (stable: the GPC tab, gpc-tab.js, is written against it)
+ * ============================================================================
+ *
+ *   GPC.compile(text) -> {
+ *       ok:       true | false,
+ *       error:    null | { line, col, msg }     1-based line and column.
+ *                 For the common ':'-typed-instead-of-';' mistake the
+ *                 compiler reports the line and column OF THE ':' and a msg
+ *                 that names ';' -- the tab offers its one-tap fix from that,
+ *                 and only ever touches that one line.
+ *       features: [ { feature, verdict: 'runs' | 'differs' | 'cannot', reason } ]
+ *                 plain words, shown to the player as they are.
+ *       bytecode: Uint8Array (empty when !ok)
+ *       pending:  true only while the engine is still loading (see below):
+ *                 the answer is not about the script, so do not keep it
+ *   }
+ *
+ *   GPC.Sim(bytecode, host) -> {         (call with or without `new`)
+ *       tick(ms, input)     advance the script by `ms` milliseconds with this
+ *                           input held. The tab calls tick(1, input) once per
+ *                           elapsed millisecond, in batches each frame.
+ *       output()            what the console would see now (same keys as input)
+ *       screen()            Uint8Array(1024): the 128 x 64 screen
+ *       screenVersion()     a number that changes whenever screen() changes;
+ *                           the tab redraws only when it does
+ *       fault()             null, or { code, msg, line, col } once the script
+ *                           has stopped (a runaway loop, a bad array index...)
+ *     optional, used when present:
+ *       spvars()            the script's saved menu values (SPVAR_1..64) as an
+ *                           array of numbers, so the app can keep them
+ *       setSpvars(array)    put saved values back before the first tick
+ *       setHost(host)       the device facts the script can read (below)
+ *       slotRequest()       -1, or the slot 0..8 the script asked for with
+ *                           load_slot(n) (answered once); the script has
+ *                           stopped itself, and the device should load it
+ *   }
+ *   host (optional): { slot: 1..8, slotsPresent: bit n-1 = slot n holds a
+ *   script, family: 'ps' | 'xbox' } -- what get_slot(), check_slot() and
+ *   get_console() / get_controller() answer.
+ *
+ *   THE SCREEN (fixed): 128 x 64 pixels, 1 bit per pixel, 1024 bytes,
+ *   row-major, 16 bytes per row, bit 7 (the MSB) of each byte is the LEFTMOST
+ *   of its 8 pixels, 1 = lit. Pixel (x, y) is bit (7 - x % 8) of byte
+ *   y * 16 + (x >> 3).
+ *
+ *   INPUT AND OUTPUT: one plain object, named keys, in GPC units:
+ *
+ *     buttons     0 (up) or 100 (down)
+ *                 PS SHARE OPTIONS R1 R3 L1 L3 UP DOWN LEFT RIGHT
+ *                 TRIANGLE CIRCLE CROSS SQUARE TOUCH
+ *     triggers    0..100            R2 L2
+ *     sticks      -100..100         RX RY LX LY   (Y: -100 is UP, as a
+ *                                                  GPC script reads it)
+ *
+ *   A key that is missing reads as 0. The names are PlayStation's because
+ *   that is how most scripts name them; an Xbox pad's A is CROSS, B is
+ *   CIRCLE, X is SQUARE, Y is TRIANGLE, LB/RB are L1/R1, LT/RT are L2/R2,
+ *   View is SHARE and Menu is OPTIONS. GPC.KEYS lists them in GPC's own
+ *   index order (the published identifier table: PS = 0 ... SQUARE = 20,
+ *   TOUCH = 27), which is what the runtime maps them to.
+ *
+ * ============================================================================
+ *  THE ENGINE: gpc.wasm
+ * ============================================================================
+ *
+ * Everything below runs the REAL compiler, verifier and VM: gpc/ (D86),
+ * built to WebAssembly with `python gpc/build.py --wasm` and copied here as
+ * dashboard/public/gpc.wasm by `node dashboard/tools/copy-gpc-wasm.js`
+ * (docs/GPC-TAB.md). It is the same VM the Core will run; its exports are
+ * gpc/RUNTIME.md section 9. GPC.mock is false.
+ *
+ * The file is an app asset, fetched next to this script: from the exe's own
+ * server (dashboard/server.js serves .wasm as application/wasm), or from the
+ * mobile app's bundle (www/exo/gpc.wasm, no network). A browser compiles a
+ * module this size only asynchronously, so the engine starts loading the
+ * moment this file runs and GPC.ready settles when it is there:
+ *
+ *   GPC.state()        'loading' | 'ready' | 'failed'
+ *   GPC.ready          a Promise of true (ready) or false (failed)
+ *   GPC.whenReady(fn)  fn(ok) once it is settled (at once if it already is)
+ *   GPC.unavailable()  '' or the sentence saying why it cannot run
+ *
+ * Until then compile() answers { ok: false, pending: true } with "still
+ * loading", and Sim() throws. A phone whose web view has no WebAssembly gets
+ * a plain sentence instead of a script check, and nothing else breaks.
+ *
+ * WORDS. The runtime's report names the script dialects after the products
+ * that defined them; this app names no other company's product (D76), so
+ * ourWords() says the same thing without the names.
+ */
+(function () {
+  'use strict';
+
+  /* GPC's identifier table, in index order. Gaps (21-26: the motion
+     sensors' and touch positions' slots) are left out: the phone has no
+     such inputs to give. */
+  var KEYS = [
+    ['PS', 0], ['SHARE', 1], ['OPTIONS', 2], ['R1', 3], ['R2', 4], ['R3', 5],
+    ['L1', 6], ['L2', 7], ['L3', 8], ['RX', 9], ['RY', 10], ['LX', 11], ['LY', 12],
+    ['UP', 13], ['DOWN', 14], ['LEFT', 15], ['RIGHT', 16],
+    ['TRIANGLE', 17], ['CIRCLE', 18], ['CROSS', 19], ['SQUARE', 20], ['TOUCH', 27]
+  ];
+  var AXES = { RX: 1, RY: 1, LX: 1, LY: 1 };
+  var TRIGGERS = { R2: 1, L2: 1 };
+  var W = 128, H = 64, FB_BYTES = 1024, IO = 64;
+
+  /* the input / output object every key at rest */
+  function neutral() {
+    var o = {};
+    for (var i = 0; i < KEYS.length; i++) { o[KEYS[i][0]] = 0; }
+    return o;
+  }
+  /* any object -> a clean one in range: unknown keys dropped, numbers
+     clamped, buttons snapped to 0 / 100 */
+  function cleanInput(inp) {
+    var o = neutral(), k, v;
+    if (!inp || typeof inp !== 'object') { return o; }
+    for (var i = 0; i < KEYS.length; i++) {
+      k = KEYS[i][0];
+      v = Number(inp[k]);
+      if (!isFinite(v)) { continue; }
+      if (AXES[k]) { o[k] = v < -100 ? -100 : v > 100 ? 100 : Math.round(v); }
+      else if (TRIGGERS[k]) { o[k] = v < 0 ? 0 : v > 100 ? 100 : Math.round(v); }
+      else { o[k] = v >= 50 ? 100 : 0; }
+    }
+    return o;
+  }
+
+  /* ══════════════════════════════════════════════ loading the engine ══ */
+
+  var WASM_FILE = 'gpc.wasm';
+  var NO_WASM = 'This phone’s browser cannot run the script engine (it has no WebAssembly). ' +
+    'Update the phone’s system browser, or use the ZeroStick app on a computer.';
+  var NOT_LOADED = 'The script engine did not load. Close the app and open it again.';
+  var LOADING = 'The script engine is still loading. One moment.';
+  /* the runtime's event bits and console numbers (gpc/src/gpc_io.h) */
+  var EV_LOAD_SLOT = 0x0002;
+  var PIO_PS4 = 4, PIO_XB1 = 5;
+
+  var X = null;                 /* the module's exports */
+  var state = 'loading', why = '', waiters = [];
+  var url = (function () {
+    try {
+      var cs = document.currentScript, src = cs && cs.src;
+      if (src && /\/[^\/]*$/.test(src)) { return src.replace(/[^\/]*$/, '') + WASM_FILE; }
+    } catch (e) { /* no document, or an old web view */ }
+    return WASM_FILE;
+  }());
+
+  function settle(ok, msg) {
+    state = ok ? 'ready' : 'failed';
+    why = ok ? '' : (msg || NOT_LOADED);
+    var w = waiters; waiters = [];
+    for (var i = 0; i < w.length; i++) { try { w[i](ok); } catch (e) { /* a waiter's own problem */ } }
+  }
+  function whenReady(fn) {
+    if (typeof fn !== 'function') { return; }
+    if (state === 'loading') { waiters.push(fn); } else { fn(state === 'ready'); }
+  }
+  /* the bytes: fetch, else (a file:// page, an old web view) XHR */
+  function getBytes() {
+    function xhr() {
+      return new Promise(function (resolve, reject) {
+        if (typeof XMLHttpRequest !== 'function') { reject(new Error('no way to read ' + WASM_FILE)); return; }
+        var r = new XMLHttpRequest();
+        r.open('GET', url, true);
+        r.responseType = 'arraybuffer';
+        r.onload = function () {
+          if ((r.status === 200 || r.status === 0) && r.response) { resolve(r.response); }
+          else { reject(new Error(WASM_FILE + ': ' + r.status)); }
+        };
+        r.onerror = function () { reject(new Error(WASM_FILE + ' could not be read')); };
+        r.send();
+      });
+    }
+    if (typeof fetch !== 'function') { return xhr(); }
+    return fetch(url).then(function (res) {
+      if (!res || !res.ok || typeof res.arrayBuffer !== 'function') { throw new Error(WASM_FILE + ': ' + (res && res.status)); }
+      return res.arrayBuffer();
+    }).then(null, function (e) { return xhr().then(null, function () { throw e; }); });
+  }
+  var ready = (typeof Promise !== 'function')
+    ? { then: function (f) { whenReady(f); } }
+    : new Promise(function (resolve) {
+      whenReady(resolve);
+      if (typeof WebAssembly !== 'object' || !WebAssembly || typeof WebAssembly.instantiate !== 'function') {
+        settle(false, NO_WASM);
+        return;
+      }
+      getBytes().then(function (buf) {
+        return WebAssembly.instantiate(buf, {});
+      }).then(function (r) {
+        var ex = r && (r.instance ? r.instance.exports : r.exports);
+        if (!ex || typeof ex.gpc_compile !== 'function' || ex.gpc_io_count() !== IO) { throw new Error('not the GPC engine'); }
+        X = ex;
+        settle(true);
+      }).then(null, function () { settle(false, NOT_LOADED); });
+    });
+
+  /* ════════════════════════════════════════════════ talking to it ══ */
+
+  function u8() { return new Uint8Array(X.memory.buffer); }
+  function i32(ptr, n) { return new Int32Array(X.memory.buffer, ptr, n); }
+  /* text -> UTF-8 bytes and back, without TextEncoder (the phone's web view
+     has it, the headless tests do not) */
+  function utf8(s) {
+    var b = unescape(encodeURIComponent(s)), out = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) { out[i] = b.charCodeAt(i); }
+    return out;
+  }
+  function fromUtf8(bytes) {
+    var s = '', i, step = 4096;
+    for (i = 0; i < bytes.length; i += step) {
+      s += String.fromCharCode.apply(null, Array.prototype.slice.call(bytes.subarray(i, i + step)));
+    }
+    try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+  }
+  function str(ptr, len) { return len ? fromUtf8(u8().subarray(ptr, ptr + len)) : ''; }
+  /* copy bytes into the module's memory; the caller frees */
+  function put(bytes) {
+    var p = X.gpc_alloc(bytes.length + 1);
+    if (!p) { throw new Error('out of memory'); }
+    u8().set(bytes, p);
+    u8()[p + bytes.length] = 0;
+    return p;
+  }
+
+  /* ── the words (D76): the same meaning, no other company's name ───── */
+  var WORDS = [
+    [/^Zen screen$/, 'Menu screen'],
+    [/^Cronus Zen script$/, 'Script type'],
+    [/^Titan Two script$/, 'Script type'],
+    [/Compiled as a Cronus Zen 32-bit script/, 'Compiled as a 32-bit script'],
+    [/Compiled as a Titan Two script/, 'Compiled as a 1 ms script'],
+    [/Compiled as a Titan One \/ CronusMAX script/, 'Compiled as an older 16-bit script'],
+    [/^Titan Two (.)/, function (m, c) { return c.toUpperCase(); }],
+    [/\bThe Titan Two settings memory\b/, 'The settings memory'],
+    [/\bTitan Two (mouse|macro|key)/g, function (m, w) { return w.charAt(0).toUpperCase() + w.slice(1); }]
+  ];
+  var NAMES = /\b(Cronus ?Zen|CronusMAX|Cronus|Titan One|Titan Two|Zen)\b/g;
+  function ourWords(s) {
+    s = String(s || '');
+    for (var i = 0; i < WORDS.length; i++) { s = s.replace(WORDS[i][0], WORDS[i][1]); }
+    return s.replace(NAMES, 'the original device');
+  }
+  function sentence(s) { s = ourWords(s); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  var VERDICT = { 'runs': 'runs', 'runs-with-differences': 'differs', 'cannot-run': 'cannot' };
+
+  function notReady() {
+    return { ok: false, error: { line: 1, col: 0, msg: state === 'failed' ? why : LOADING }, features: [],
+             bytecode: new Uint8Array(0), pending: state === 'loading' };
+  }
+
+  function compile(text) {
+    if (typeof text !== 'string') {
+      return { ok: false, error: { line: 1, col: 0, msg: 'There is no script text to read' }, features: [], bytecode: new Uint8Array(0) };
+    }
+    if (!X) { return notReady(); }
+    var src = utf8(text), p = put(src), ok, rep, bc = new Uint8Array(0);
+    try {
+      ok = X.gpc_compile(p, src.length, -1) === 1;
+    } finally { X.gpc_free(p); }
+    try {
+      rep = JSON.parse(str(X.gpc_result_json_ptr(), X.gpc_result_json_len()));
+      if (ok) {
+        var bp = X.gpc_result_bc_ptr(), bl = X.gpc_result_bc_len();
+        bc = u8().slice(bp, bp + bl);
+      }
+    } finally { X.gpc_result_free(); }
+    var feats = [], f = rep.features || [], i;
+    for (i = 0; i < f.length; i++) {
+      feats.push({ feature: sentence(f[i].feature), verdict: VERDICT[f[i].verdict] || 'runs', reason: ourWords(f[i].reason) });
+    }
+    var err = null;
+    if (!rep.ok) {
+      var e = rep.error || {};
+      err = { line: Math.max(1, Number(e.line) || 1), col: Math.max(0, Number(e.col) || 0),
+              msg: sentence(e.msg || 'The script has a mistake here') };
+    }
+    var loose = [], np = rep.notPortable || [];
+    for (i = 0; i < np.length; i++) {
+      if (np[i]) { loose.push({ line: Number(np[i].line) || 1, col: Number(np[i].col) || 0, msg: sentence(np[i].msg || '') }); }
+    }
+    return { ok: !!(ok && rep.ok), error: err, features: rep.ok ? feats : [], bytecode: bc,
+             dialect: rep.dialect || '', notPortable: loose };
+  }
+
+  /* ── the simulator: ONE VM at a time in the module, so a Sim made
+     earlier goes quiet (does nothing, reads at rest) once a newer one has
+     been loaded ─────────────────────────────────────────────────────── */
+  var current = 0;
+  function hostFacts(h) {
+    h = h || {};
+    var fam = h.family === 'xbox' ? PIO_XB1 : PIO_PS4;
+    var slot = Math.max(0, Math.min(8, Math.floor(Number(h.slot) || 0)));
+    var present = Math.max(0, Math.min(255, Math.floor(Number(h.slotsPresent) || 0)));
+    return [fam, fam, 10, slot || 1, present || (slot ? 1 << (slot - 1) : 1)];
+  }
+  function Sim(bytecode, host) {
+    if (!(this instanceof Sim)) { return new Sim(bytecode, host); }
+    if (!X) { throw new Error(state === 'failed' ? why : LOADING); }
+    if (!bytecode || typeof bytecode.length !== 'number' || !bytecode.length) { throw new Error('There is no compiled script to run'); }
+    var p = put(bytecode), loaded;
+    try { loaded = X.gpc_sim_load(p, bytecode.length) === 1; } finally { X.gpc_free(p); }
+    if (!loaded) { throw new Error(sentence(str(X.gpc_sim_error_ptr(), X.gpc_sim_error_len()) || 'the script was refused')); }
+    var me = ++current, wantSlot = -1, started = false;
+    function live() { return me === current && !!X; }
+    function setHost(h) {
+      if (!live()) { return; }
+      var f = hostFacts(h);
+      X.gpc_sim_set_host(f[0], f[1], f[2], f[3], f[4]);
+    }
+    setHost(host);
+
+    this.tick = function (ms, input) {
+      if (!live()) { return; }
+      var n = Math.max(0, Math.floor(Number(ms) || 0)), inp = cleanInput(input), a, i;
+      if (!n) { return; }
+      a = i32(X.gpc_sim_in_ptr(), IO);
+      for (i = 0; i < IO; i++) { a[i] = 0; }
+      for (i = 0; i < KEYS.length; i++) { a[KEYS[i][1]] = inp[KEYS[i][0]]; }
+      started = true;
+      X.gpc_sim_tick(n);
+      if (X.gpc_sim_events() & EV_LOAD_SLOT) { wantSlot = X.gpc_sim_load_slot(); }
+    };
+    this.output = function () {
+      var o = neutral(), a, i;
+      if (!live()) { return o; }
+      a = i32(X.gpc_sim_out_ptr(), IO);
+      for (i = 0; i < KEYS.length; i++) { o[KEYS[i][0]] = a[KEYS[i][1]]; }
+      return o;
+    };
+    this.screen = function () {
+      if (!live()) { return new Uint8Array(FB_BYTES); }
+      var sp = X.gpc_sim_screen_ptr();
+      return sp ? u8().slice(sp, sp + FB_BYTES) : new Uint8Array(FB_BYTES);
+    };
+    this.screenVersion = function () { return live() ? X.gpc_sim_screen_version() : -1; };
+    this.fault = function () {
+      if (!live()) { return null; }
+      var code = X.gpc_sim_fault();
+      if (!code) { return null; }
+      return { code: code, msg: sentence(str(X.gpc_sim_fault_text_ptr(), X.gpc_sim_fault_text_len())),
+               line: X.gpc_sim_fault_line(), col: X.gpc_sim_fault_col() };
+    };
+    this.spvars = function () {
+      var out = [], i;
+      for (i = 0; i < 64; i++) { out.push(live() ? X.gpc_sim_get_spvar(i) : 0); }
+      return out;
+    };
+    /* saved values go in before the first tick, the way the device loads a
+       slot with its values */
+    this.setSpvars = function (arr) {
+      if (!live() || started || !arr || typeof arr.length !== 'number') { return; }
+      for (var i = 0; i < 64 && i < arr.length; i++) {
+        var v = Number(arr[i]);
+        if (isFinite(v)) { X.gpc_sim_set_spvar(i, Math.round(v) | 0); }
+      }
+    };
+    this.setHost = setHost;
+    this.slotRequest = function () { var s = wantSlot; wantSlot = -1; return s; };
+    /* the rest of what the VM hands back, for whoever wants it */
+    this.led = function () {
+      var v = live() ? X.gpc_sim_led() >>> 0 : 0;
+      return { script: (v >>> 24) === 1, r: (v >>> 16) & 255, g: (v >>> 8) & 255, b: v & 255 };
+    };
+    this.mainPeriod = function () { return live() ? X.gpc_sim_main_period() : 0; };
+    this.time = function () { return live() ? X.gpc_sim_time() : 0; };
+  }
+
+  window.GPC = {
+    /* false: the real compiler and VM (gpc.wasm) run here */
+    mock: false,
+    KEYS: KEYS.map(function (k) { return k[0]; }),
+    INDEX: (function () { var o = {}; for (var i = 0; i < KEYS.length; i++) { o[KEYS[i][0]] = KEYS[i][1]; } return o; }()),
+    W: W, H: H, FB_BYTES: FB_BYTES,
+    neutral: neutral,
+    cleanInput: cleanInput,
+    compile: compile,
+    Sim: Sim,
+    ready: ready,
+    whenReady: whenReady,
+    state: function () { return state; },
+    unavailable: function () { return state === 'failed' ? why : ''; },
+    ourWords: ourWords,
+    url: url
+  };
+}());

@@ -1,0 +1,820 @@
+/* zk-pad.js — the ZS8K Configurator's Sticks and Triggers pages, at phone size.
+ *
+ * D242/D245 (owner, 2026-10-09: "it should literally be just like the 8K pad,
+ * but have the option in the aim curves to disable it and use the native game
+ * aim curve ... literally take the app and make it fit into my mobile area";
+ * then "use the blue colour scheme"). The controller Aim screen IS the
+ * Configurator now: its tab bar (Sticks | Triggers), its cards (charcoal, a
+ * coloured top edge, an icon on a 15% tint), its live dials with amber
+ * deadzone rings, its Snappy / Linear / Precise curves with the invert buttons
+ * under them, its trigger tubes with a dashed hair marker - in the
+ * Configurator's BLUE (#58a6ff) rather than its teal. Drawn over the Core's
+ * OWN fields - nothing here is an 8K field:
+ *
+ *   Curve            Native (no curve, no deadzones: the game's own stick)
+ *                    or a curve = curves.<side>Stick power, exponent 1/3..3
+ *                    (the Configurator's arc 0..200 mapping); picking a curve
+ *                    on a Native stick makes it Custom (opt.onMode)
+ *   Inner deadzone   deadZones.<side>Inner      0..40 % (D260: the owner wants 0;
+ *                                               under 3 % a warning chip says a
+ *                                               resting stick may drift)
+ *   Outer deadzone   deadZones.<side>Outer      shown as what is trimmed off
+ *                                               the edge: 0..40 % = 1.0..0.6
+ *   Anti-deadzone    deadZones.<side>Anti       0..40 % = 0..0.4, 0 = off (D261:
+ *                                               the smallest push lifted past
+ *                                               the GAME's deadzone; shown only
+ *                                               when the Core reads STICKANTI,
+ *                                               opt.anti; a Native stick keeps
+ *                                               its mode)
+ *   Custom curve     curves.<side>Stick piecewise: eight points to drag at
+ *                    1/9 .. 8/9, plus the two ends (D246)
+ *   Invert           axisInvert.lx / ly / rx / ry
+ *   Stick limit      constraints.maxStickMagnitude  10..100 % (Deadzones)
+ *   Hair trigger     deadZones.hairTrigger<L|R> 0 = off, 1..50 %
+ *   Trigger limit    constraints.maxTrigger         10..100 % (Triggers)
+ *
+ * D246 (owner, 2026-10-09): Controller Feel is gone; its limits are here.
+ * Deadzones show for BOTH sticks: moving one on a Native stick puts that
+ * stick on a curve (Custom), the way picking a curve does. Copy L -> R and
+ * R -> L copy a stick's mode, curve and deadzones, its anti-deadzone too
+ * (opt.onCopy).
+ *
+ * The dots are what the CONSOLE is told (ZS.liveInput, the /output/live
+ * poll), so the dial shows the deadzones and curve as they really land.
+ *
+ * opt (from R.aim): { mode: {left, right}  'native' | 'custom' | 'exoLinear',
+ *   exo: <EXO Linear is offered>, exoReady: <...and can run (a measured game)>,
+ *   drawn: {left, right} <this stick draws its own curve on the game's
+ *   measured stick, so its row is Native | EXO Linear | Custom instead of the
+ *   three presets (D186)>, curveFoot: html under the curve rows,
+ *   after: {left, right} html under a Custom stick's curve,
+ *   slot: {left, right} html that replaces a
+ *   Custom stick's curve picture (a drawn curve on a measured game),
+ *   dzExtra: html at the foot of the Deadzones card, onMode(side, mode, fn),
+ *   anti: <the Core reads STICKANTI (0x0034), so the Anti slider shows>,
+ *   onTab(tab) }
+ *
+ * API: ZSZK.pageHTML(full, opt, tab, extra) · ZSZK.triggersHTML(full)
+ *      ZSZK.cardHTML(icon, colour, title, body) · ZSZK.wire(root, p, opt)
+ * Tests: test-zk-pad.js (and test-aim-stance, test-stick-modes)
+ */
+(function () {
+  'use strict';
+  var BLUE = '#58a6ff', AMBER = '#ffb454';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function num(v, d) { v = +v; return isFinite(v) ? v : d; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  /* the Configurator's header and tab icons, in its own stroke style */
+  var IC = {
+    sticks: '<circle cx="8" cy="14" r="4"/><circle cx="16" cy="14" r="4"/><path d="M8 10V6M16 10V6"/>',
+    trig: '<path d="M7 3h7a5 5 0 0 1 5 5v13H7z"/><path d="M7 11h12"/>',
+    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+    dz: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" stroke-dasharray="2 2"/>',
+    curve: '<path d="M4 20h16M4 20V4"/><path d="M4 20C10 19 14 14 20 4"/>',
+    speed: '<path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-5"/>',
+    scope: '<circle cx="12" cy="12" r="9"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/><circle cx="12" cy="12" r="1.5"/>'
+  };
+  function svg(k, size) {
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[k] + '</svg>';
+  }
+  function ic(k, col) {
+    return '<span class="zkic" style="color:' + col + ';background:' + col + '26">' + svg(k, 16) + '</span>';
+  }
+  /* D248 (owner, 2026-10-09: "make all these settings collapsible"): a card
+     with a `fold` key folds from its own header; FOLD remembers it across
+     redraws (the Speed card has no key - it never folds) */
+  var FOLD = {};
+  function cardH(icon, col, title, body, attrs, fold) {
+    if (!fold) {
+      return '<div class="zkcard"' + (attrs || '') + '><h3>' + ic(icon, col) + esc(title) + '</h3>' + body + '</div>';
+    }
+    var shut = !!FOLD[fold];
+    return '<div class="zkcard zkfold' + (shut ? ' zkshut' : '') + '"' + (attrs || '') + '>' +
+      '<h3><button type="button" class="zkfoldhd" data-zkfold="' + fold + '" aria-expanded="' + (shut ? 'false' : 'true') + '">' +
+        ic(icon, col) + '<span>' + esc(title) + '</span><i class="zkchev" aria-hidden="true">\u203a</i></button></h3>' +
+      '<div class="zkbody">' + body + '</div></div>';
+  }
+  /* D236: an explanation lives behind a small "?" (ZS.helpHTML), never as
+     a paragraph on the card */
+  function hlp(id, label, text) {
+    return (window.ZS && ZS.helpHTML) ? ZS.helpHTML(id, label, text)
+                                      : '<div class="zknote">' + text + '</div>';
+  }
+
+  /* ── the numbers as the panel shows them ─────────────────────── */
+  function dzOf(full, side) {
+    var dz = (full && full.deadZones) || {};
+    var inner = num(dz[side + 'Inner'], 0.08);
+    var outer = num(dz[side + 'Outer'], 1);
+    if (!(outer >= 0.6 && outer <= 1)) outer = 1;   /* 0 = unset on the wire */
+    var anti = num(dz[side + 'Anti'], 0);             /* D261: 0 = off */
+    return { inner: clamp(inner, 0, 0.4), outer: outer, anti: clamp(anti, 0, 0.4) };
+  }
+  /* curves.<side>Stick as an exponent (1 = linear) */
+  /* D254: side 'ads' is the aim stick's own curve while aiming,
+     curves.rightStick.adsCurve; 'left' / 'right' are curves.<side>Stick */
+  function curveObj(f, side, make) {
+    if (!f.curves) { if (!make) return null; f.curves = {}; }
+    if (side === 'ads') {
+      var rs = f.curves.rightStick || (make ? (f.curves.rightStick = {}) : null);
+      if (!rs) return null;
+      if (!rs.adsCurve || typeof rs.adsCurve !== 'object') { if (!make) return null; rs.adsCurve = {}; }
+      return rs.adsCurve;
+    }
+    return f.curves[side + 'Stick'] || (make ? (f.curves[side + 'Stick'] = {}) : null);
+  }
+  function expOf(full, side) {
+    var c = (full && curveObj(full, side, false)) || {};
+    if (c.type === 'power') return clamp(num(c.strength, 1), 1 / 3, 3);
+    return 1;
+  }
+  /* the Configurator's arc 0..200 <-> exponent */
+  function arcOf(e) { return Math.round(e >= 1 ? 100 + (e - 1) * 50 : 100 - 50 * (1 / e - 1)); }
+  function expOfArc(a) {
+    var b = (clamp(a, 0, 200) - 100) / 100;
+    return b > 0 ? 1 + b * 2 : (b < 0 ? 1 / (1 - b * 2) : 1);
+  }
+  var PRESETS = [['Snappy', 40], ['Linear', 100], ['Precise', 160]];
+  function presetOf(e) {
+    var a = arcOf(e);
+    for (var i = 0; i < PRESETS.length; i++) if (Math.abs(PRESETS[i][1] - a) <= 2) return PRESETS[i][0];
+    return '';
+  }
+  function writeCurve(f, side, arc) {
+    var c = curveObj(f, side, true);
+    var e = Math.round(expOfArc(arc) * 100) / 100;
+    c.type = Math.abs(e - 1) < 0.02 ? 'linear' : 'power';
+    c.strength = c.type === 'linear' ? 1.0 : e;
+    c.points = [];
+  }
+  /* D246: the Custom curve - eight points to drag, at 1/9 .. 8/9 */
+  var CX = [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return i / 9; });
+  function stickCurve(full, side) { return (full && curveObj(full, side, false)) || {}; }
+  function isPts(full, side) {
+    var c = stickCurve(full, side);
+    return c.type === 'piecewise' && Array.isArray(c.points) && c.points.length >= 3;
+  }
+  function evalPts(pts, x) {
+    var P = pts.filter(function (q) { return Array.isArray(q) && isFinite(+q[0]) && isFinite(+q[1]); })
+      .map(function (q) { return [+q[0], +q[1]]; }).sort(function (a, b) { return a[0] - b[0]; });
+    if (!P.length || P[0][0] > 0) P.unshift([0, 0]);
+    if (P[P.length - 1][0] < 1) P.push([1, 1]);
+    for (var i = 0; i < P.length - 1; i++) {
+      if (x <= P[i + 1][0]) {
+        var span = P[i + 1][0] - P[i][0];
+        return span > 0 ? P[i][1] + (P[i + 1][1] - P[i][1]) * (x - P[i][0]) / span : P[i + 1][1];
+      }
+    }
+    return P[P.length - 1][1];
+  }
+  function ysOf(full, side) {
+    if (isPts(full, side)) {
+      var pts = stickCurve(full, side).points;
+      return CX.map(function (x) { return clamp(evalPts(pts, x), 0, 1); });
+    }
+    var e = expOf(full, side);
+    return CX.map(function (x) { return Math.pow(x, e); });
+  }
+  function r4(v) { return Math.round(v * 10000) / 10000; }
+  function writePts(f, side, ys) {
+    var c = curveObj(f, side, true);
+    c.type = 'piecewise';
+    c.points = [[0, 0]].concat(CX.map(function (x, i) { return [r4(x), r4(ys[i])]; })).concat([[1, 1]]);
+    if (!(c.strength >= 0.1)) c.strength = 1.0;        /* schema floor */
+  }
+  function modeOf(opt, side) { return ((opt && opt.mode) || {})[side] || 'native'; }
+  /* D249 (owner, 2026-10-09: "instead of Left stick and Right stick menus,
+     you select one - click Right stick, it shows the right stick's settings"):
+     the Sticks tab shows ONE stick at a time, opt.sel */
+  function selOf(opt) { return (opt && opt.sel === 'left') ? 'left' : 'right'; }
+  function stickPickHTML(opt) {
+    var sel = selOf(opt);
+    return '<div class="zkstickpick" role="tablist" aria-label="Which stick">' +
+      [['left', 'Left stick'], ['right', 'Right stick']].map(function (t) {
+        var on = t[0] === sel;
+        return '<button type="button" role="tab" data-zksel="' + t[0] + '" class="' + (on ? 'on' : '') +
+          '" aria-selected="' + (on ? 'true' : 'false') + '">' + t[1] + '</button>';
+      }).join('') + '</div>';
+  }
+  function custom(opt, side) { return modeOf(opt, side) === 'custom'; }
+
+  /* ── the live dial: what the shaping does to a stick ─────────── */
+  function unit(v) { v = +v || 0; if (Math.abs(v) > 1.5) v = v / 32767; return clamp(v, -1, 1); }
+  function pull(v) { v = +v || 0; if (v > 1.5) v = v / 255; return clamp(v, 0, 1); }
+
+  /* a canvas that cannot draw (an old WebView, a test DOM) must never take
+     the screen down with it: the cards and their sliders are the controls */
+  function canDraw(g) {
+    return !!g && ['arc', 'fillText', 'clearRect', 'beginPath', 'stroke', 'fill', 'moveTo', 'lineTo']
+      .every(function (k) { return typeof g[k] === 'function'; });
+  }
+  function dial(cv, side, full, isCustom) {
+    if (!cv || !cv.getContext) return;
+    var g = cv.getContext('2d');
+    if (!canDraw(g)) return;
+    var S = cv.width, C = S / 2, R = C - 12;
+    g.clearRect(0, 0, S, S);
+    g.lineWidth = 1;
+    g.strokeStyle = '#4a5261';
+    g.beginPath(); g.arc(C, C, R, 0, 7); g.stroke();
+    g.strokeStyle = '#343b44';
+    g.beginPath(); g.moveTo(C - R, C); g.lineTo(C + R, C); g.moveTo(C, C - R); g.lineTo(C, C + R); g.stroke();
+    if (isCustom) {
+      var d = dzOf(full, side);
+      g.strokeStyle = AMBER;
+      g.lineWidth = 2;
+      if (d.inner > 0) { g.beginPath(); g.arc(C, C, R * d.inner, 0, 7); g.stroke(); }
+      if (d.outer < 1) { g.beginPath(); g.arc(C, C, R * d.outer, 0, 7); g.stroke(); }
+      g.lineWidth = 1;
+    }
+    g.fillStyle = '#3a414b';
+    g.font = '700 ' + Math.round(S / 6) + 'px Segoe UI, sans-serif';
+    g.textAlign = 'center';
+    g.fillText(side === 'left' ? 'L' : 'R', C, Math.round(S * 0.22));
+    var li = (window.ZS && ZS.liveInput) || null;
+    var st = li && li.sticks;
+    if (!st || !li.at) {
+      g.fillStyle = '#727d88';
+      g.font = '11px Segoe UI, sans-serif';
+      g.fillText('no controller', C, C - 6);
+      return;
+    }
+    var x = unit(side === 'left' ? st.lx : st.rx), y = unit(side === 'left' ? st.ly : st.ry);
+    g.fillStyle = BLUE;
+    /* the Core's y rises UPWARD and a canvas's rises downward (D246: the
+       owner saw up as down) */
+    g.beginPath(); g.arc(C + x * R, C - y * R, Math.max(6, S / 22), 0, 7); g.fill();
+  }
+
+  function drawCurve(cv, e) {
+    if (!cv || !cv.getContext) return;
+    var g = cv.getContext('2d');
+    if (!canDraw(g)) return;
+    var W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    g.lineWidth = 1;
+    g.strokeStyle = '#343b44';
+    g.beginPath(); g.moveTo(8, H - 8); g.lineTo(W - 8, H - 8); g.moveTo(8, H - 8); g.lineTo(8, 8); g.stroke();
+    g.strokeStyle = '#4a5261';
+    if (g.setLineDash) g.setLineDash([3, 4]);
+    g.beginPath(); g.moveTo(8, H - 8); g.lineTo(W - 8, 8); g.stroke();
+    if (g.setLineDash) g.setLineDash([]);
+    g.strokeStyle = BLUE;
+    g.lineWidth = 2.5;
+    g.beginPath();
+    for (var i = 0; i <= 40; i++) {
+      var xx = i / 40, yy = Math.pow(xx, e);
+      var px = 8 + xx * (W - 16), py = H - 8 - yy * (H - 16);
+      if (i) g.lineTo(px, py); else g.moveTo(px, py);
+    }
+    g.stroke();
+    g.lineWidth = 1;
+  }
+
+  /* ── markup ──────────────────────────────────────────────────── */
+  var MODE_NAME = { native: 'Native', custom: 'Custom', exoLinear: 'EXO Linear' };
+  function sideName(side) { return side === 'left' ? 'Left stick' : side === 'ads' ? 'Aiming' : 'Right stick'; }
+  function slider(key, side, label, val, lo, hi, unitTxt) {
+    return '<div class="zkrow"><span class="zkring zk-' + key + '" aria-hidden="true"></span>' +
+      '<b class="zkl">' + esc(label) + '</b>' +
+      '<input type="range" class="zk-rng" data-zk="' + key + '" data-zkside="' + side + '" min="' + lo +
+      '" max="' + hi + '" step="1" value="' + val + '" aria-label="' +
+        esc((side === 'both' ? '' : sideName(side) + ' ') + label) + '">' +
+      '<b class="zkv" data-zkv="' + key + '-' + side + '">' + val + esc(unitTxt) + '</b></div>';
+  }
+
+  /* the Configurator's tab bar, two of its six tabs */
+  /* D253 (owner, 2026-10-09: "make the tab HIP and the other one ADS - that's
+     how we will separate the two"): the tab bar is the stance */
+  function tabsHTML(tab) {
+    return '<div class="zktabs" role="tablist" aria-label="Aim stance">' +
+      [['hip', 'HIP', 'target'], ['ads', 'ADS', 'scope']].map(function (t) {
+        var on = t[0] === tab;
+        return '<button type="button" role="tab" class="zktab' + (on ? ' on' : '') + '" data-zktab="' + t[0] +
+          '" aria-selected="' + (on ? 'true' : 'false') + '">' + svg(t[2], 21) +
+          '<span>' + t[1] + '</span></button>';
+      }).join('') + '</div>';
+  }
+
+  function liveHTML(opt) {
+    return cardH('target', BLUE, 'Live Stick',
+      '<div class="zkdials">' +
+        [selOf(opt)].map(function (s) {
+          /* D251 (owner): bigger, and out of its box */
+          return '<div class="zkdial"><canvas id="zk-d-' + s + '" width="260" height="260" ' +
+            'role="img" aria-label="' + sideName(s) + ': where it sits now"></canvas>' +
+            '<span class="zkcap">' + esc(MODE_NAME[modeOf(opt, s)] || 'Native') + '</span></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="zklegend"><span><i style="background:' + BLUE + '"></i>output</span>' +
+        '<span><i style="background:' + AMBER + '"></i>deadzone rings</span></div>',
+      ' data-zkcard="live"');   /* D251: never folds */
+  }
+
+  function curveHTML(full, opt) {
+    var inv = (full && full.axisInvert) || {};
+    var body = '';
+    var sel = selOf(opt);
+    [sel].forEach(function (s) {
+      var m = modeOf(opt, s), e = expOf(full, s);
+      var pts = isPts(full, s), cur = m === 'custom' ? (pts ? 'Custom' : presetOf(e)) : '';
+      var drawn = !!(opt.drawn && opt.drawn[s]);
+      var btns = [['native', 'Native']];
+      if (opt.exo || m === 'exoLinear') btns.push(['exoLinear', 'EXO Linear']);
+      if (drawn) btns.push(['custom', 'Custom']);
+      body += '<div class="zkcurve" data-zkcurve="' + s + '" data-zkmodeis="' + m + '">' +
+        '<div class="zkseg" role="group" aria-label="' + sideName(s) + ' curve">' +
+          btns.map(function (b) {
+            var dim = b[0] === 'exoLinear' && !opt.exoReady;
+            return '<button type="button" data-zkmode="' + b[0] + '" data-zkside="' + s + '"' +
+              ' class="' + (m === b[0] ? 'on' : '') + (dim ? ' dim' : '') + '"' +
+              (dim ? ' aria-disabled="true"' : '') +
+              ' aria-pressed="' + (m === b[0] ? 'true' : 'false') + '">' + b[1] + '</button>';
+          }).join('') +
+          (drawn ? [] : PRESETS.concat([['Custom', 'custom']])).map(function (pr) {
+            var on = cur === pr[0];
+            return '<button type="button" data-zkpre="' + pr[1] + '" data-zkside="' + s + '"' +
+              (on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + pr[0] + '</button>';
+          }).join('') + '</div>';
+      if (m === 'custom') {
+        var slot = opt.slot && opt.slot[s];
+        if (drawn) body += '<div class="zkmuted">Custom: draw your own curve on this game\u2019s measured stick.</div>';
+        body += slot ? slot : pts ? editorHTML(full, s) :
+          '<div class="zkcurverow"><canvas id="zk-c-' + s + '" width="120" height="100" ' +
+            'role="img" aria-label="' + sideName(s) + ' response curve"></canvas>' +
+            '<input type="range" class="zk-rng" data-zk="arc" data-zkside="' + s + '" min="0" max="200" step="1" ' +
+            'value="' + arcOf(e) + '" aria-label="' + sideName(s) + ' curve"></div>';
+        body += (opt.after && opt.after[s]) || '';
+      } else {
+        body += '<div class="zkmuted">' + (m === 'exoLinear'
+          ? 'EXO Linear: every bit of stick turns the same amount; the game\u2019s own curve is removed.'
+          : 'Native: the game\u2019s own aim curve, untouched.') + '</div>';
+      }
+      body += '</div>';
+    });
+    body += (opt.curveFoot || '') +
+      '<div class="zkcopy" role="group" aria-label="Copy this stick to the other">' +
+        '<button type="button" data-zkcopy="' + sel + '">Copy to the ' + (sel === 'left' ? 'right' : 'left') +
+        ' stick</button></div>' +
+      '<div class="zkinv" role="group" aria-label="Invert"><span>Invert</span>' +
+      (sel === 'left' ? ['lx', 'ly'] : ['rx', 'ry']).map(function (a) {
+        var on = !!inv[a];
+        return '<button type="button" data-zkinv="' + a + '"' + (on ? ' class="on"' : '') +
+          ' aria-pressed="' + (on ? 'true' : 'false') + '">' + (a.charAt(1) === 'x' ? 'Left / right' : 'Up / down') +
+          '</button>';
+      }).join('') + '</div>';
+    body += hlp('zk-curve', 'Response Curve', '<b>Native</b> turns the curve off: the game gets your stick ' +
+      'untouched and uses its own aim curve, with no deadzones from your board. <b>Snappy</b> reaches speed ' +
+      'sooner; <b>Linear</b> is 1:1; <b>Precise</b> is calmer near the centre. Drag a curve picture, or the ' +
+      'slider beside it, to set your own; <b>Custom</b> gives you eight points to drag and draw any curve. ' +
+      '<b>Copy</b> puts this stick\u2019s curve and deadzones on the other one. ' +
+      '<b>Invert</b> flips this stick\u2019s left/right or up/down.');
+    return cardH('curve', '#bb9af7', 'Response Curve', body, ' data-zkcard="curve"', 'curve');
+  }
+
+  /* D261: the anti-deadzone slider, 0 reads Off (like a hair trigger) */
+  function antiSlider(side, v) {
+    return slider('anti', side, 'Anti', v, 0, 40, '%').replace('>' + v + '%</b></div>',
+      '>' + (v ? v + '%' : 'Off') + '</b></div>');
+  }
+
+  /* the stick law of a measured game (EXO Linear, a drawn Custom curve)
+     already adds the game's deadzone back, and the Core skips Anti there */
+  function antiHTML(opt, s, d) {
+    if (opt.drawn && opt.drawn[s] && modeOf(opt, s) !== 'native') {
+      return '<div class="zkmuted"><b>Anti</b> is not needed here: ' + MODE_NAME[modeOf(opt, s)] +
+        ' already clears this game’s deadzone.</div>';
+    }
+    return antiSlider(s, Math.round(d.anti * 100));
+  }
+
+  function dzHTML(full, opt) {
+    var body = '';
+    [selOf(opt)].forEach(function (s) {
+      var d = dzOf(full, s);
+      body += (custom(opt, s) ? '' : '<div class="zksub">' + sideName(s) + ' <i>\u00b7 Native</i></div>') +
+        slider('in', s, 'Inner', Math.round(d.inner * 100), 0, 40, '%') +
+        slider('out', s, 'Outer', Math.round((1 - d.outer) * 100), 0, 40, '%') +
+        (opt.anti ? antiHTML(opt, s, d) : '');
+    });
+    var lim = clamp(num(((full && full.constraints) || {}).maxStickMagnitude, 1), 0.1, 1);
+    body += '<div class="zksub">Both sticks</div>' +
+      slider('lim', 'both', 'Limit', Math.round(lim * 100), 10, 100, '%') +
+      (opt.dzExtra || '') +
+      hlp('zk-dz', 'Deadzones', '<b>Inner</b> stops drift around the centre: the stick does nothing until ' +
+        'it is pushed past the inner ring. <b>Outer</b> reaches full tilt earlier: past the outer ring the ' +
+        'game already gets a full push. Moving one on a <b>Native</b> stick puts that stick on a curve. ' +
+        '<b>Limit</b> caps how far either stick can ever go, however hard you push \u2014 for a stick that ' +
+        'over-travels.' + (opt.anti ? ' <b>Anti</b> makes the smallest push count: it lifts your first ' +
+        'bit of stick past the game\u2019s own deadzone, so tiny aim moves register. <b>Anti</b> works best set ' +
+        'to about the game\u2019s own deadzone; 0 is off. <b>Anti</b> needs a little <b>Inner</b>: without it, a ' +
+        'resting stick\u2019s wobble is lifted too. <b>EXO Linear</b> and <b>Custom</b> on a measured game ' +
+        'already clear the game\u2019s deadzone, so Anti is not offered there.' : ''));
+    return cardH('dz', AMBER, 'Deadzones', body, ' data-zkcard="dz"', 'dz');
+  }
+
+  function triggersHTML(full) {
+    var dz = (full && full.deadZones) || {};
+    var tubes = [['left', 'L2', dz.hairTriggerLeft], ['right', 'R2', dz.hairTriggerRight]];
+    return '<div class="zk" data-zkpanel="triggers">' + cardH('trig', BLUE, 'Live Triggers',
+      '<div class="zkgauges">' + tubes.map(function (t) {
+        var hp = Math.round(clamp(num(t[2], 0), 0, 0.5) * 100);
+        return '<div class="zkgauge"><b class="zkpct" id="zk-tp-' + t[0] + '">0%</b>' +
+          '<div class="zktube"><i class="zkfill" id="zk-tf-' + t[0] + '"></i>' +
+          '<i class="zkhair" id="zk-th-' + t[0] + '" style="bottom:' + hp + '%' + (hp ? '' : ';display:none') + '"></i></div>' +
+          '<span class="zkglab">' + t[1] + '</span></div>';
+      }).join('') + '</div>', ' data-zkcard="trigs"', 'trigs') +
+      cardH('dz', AMBER, 'Trigger Settings',
+      tubes.map(function (t) {
+        var hp = Math.round(clamp(num(t[2], 0), 0, 0.5) * 100);
+        return '<div class="zkrow"><span class="zkring zk-hair" aria-hidden="true"></span>' +
+          '<b class="zkl">' + t[1] + '</b>' +
+          '<input type="range" class="zk-rng" data-zk="hair" data-zkside="' + t[0] + '" min="0" max="50" step="1" ' +
+          'value="' + hp + '" aria-label="' + t[1] + ' hair trigger">' +
+          '<b class="zkv" data-zkv="hair-' + t[0] + '">' + (hp ? hp + '%' : 'Off') + '</b></div>';
+      }).join('') +
+      slider('tlim', 'both', 'Limit', Math.round(clamp(num(((full && full.constraints) || {}).maxTrigger, 1), 0.1, 1) * 100),
+        10, 100, '%') +
+      hlp('zk-hair', 'Hair triggers', 'A hair trigger counts as fully pressed once pulled past the dashed ' +
+        'line, for a feather-light touch. <b>Off</b> = the trigger works as it comes. While one is on, ' +
+        '<b>Register at</b> on the Fire &amp; Aim Buttons screen does nothing for that trigger. ' +
+        '<b>Limit</b> caps how far both triggers can ever go \u2014 for a trigger that is hard to hold part-way.'),
+      ' data-zkcard="hair"') + '</div>';   /* D251: never folds */
+  }
+
+  /* the Custom curve's editor: eight handles on a 200 x 140 picture */
+  var EL = 12, ER = 188, ET = 10, EB = 130;
+  function epx(x) { return EL + x * (ER - EL); }
+  function epy(y) { return EB - y * (EB - ET); }
+  function epath(ys) {
+    return 'M' + epx(0) + ' ' + epy(0) + ys.map(function (y, i) {
+      return ' L' + epx(CX[i]).toFixed(1) + ' ' + epy(y).toFixed(1);
+    }).join('') + ' L' + epx(1) + ' ' + epy(1);
+  }
+  function hlabel(i, y) {
+    return 'Point ' + (i + 1) + ' of 8: ' + Math.round(y * 100) + '% speed at ' + Math.round(CX[i] * 100) + '% push';
+  }
+  function editorHTML(full, s) {
+    var ys = ysOf(full, s);
+    return '<svg class="zkcedit" id="zk-ce-' + s + '" viewBox="0 0 200 140" data-zkside="' + s + '" role="group" ' +
+      'aria-label="' + sideName(s) + ' custom curve: drag the eight points">' +
+      '<line class="zkcax" x1="' + EL + '" y1="' + EB + '" x2="' + ER + '" y2="' + EB + '"/>' +
+      '<line class="zkcax" x1="' + EL + '" y1="' + EB + '" x2="' + EL + '" y2="' + ET + '"/>' +
+      '<line class="zkcdiag" x1="' + EL + '" y1="' + EB + '" x2="' + ER + '" y2="' + ET + '"/>' +
+      '<path class="zkcpath" d="' + epath(ys) + '"/>' +
+      ys.map(function (y, i) {
+        return '<circle class="zkh" data-i="' + i + '" cx="' + epx(CX[i]).toFixed(1) + '" cy="' + epy(y).toFixed(1) +
+          '" r="7" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+          Math.round(y * 100) + '" aria-label="' + hlabel(i, y) + '"/>';
+      }).join('') + '</svg>';
+  }
+
+  /* the whole controller page: the tab bar, then one tab's cards.
+     `extra` is the Sticks tab's own card R.aim adds (Speed). D248 (owner:
+     "speed at the top, not collapsible, then deadzone below it, and then the
+     curves"): Speed, Deadzones, Response Curve - under the Live Stick, which
+     is always the top (owner, same evening). */
+  /* D254: the ADS Response Curve card - the same Snappy / Linear / Precise /
+     Custom row and picture as HIP's, on curves.rightStick.adsCurve. No
+     Native here: Native is the stick's own mode, set on HIP. */
+  function adsCurveHTML(full) {
+    var pts = isPts(full, 'ads'), e = expOf(full, 'ads');
+    var cur = pts ? 'Custom' : presetOf(e);
+    var body = '<div class="zkcurve" data-zkcurve="ads" data-zkmodeis="custom">' +
+      '<div class="zkseg" role="group" aria-label="Aiming curve">' +
+        PRESETS.concat([['Custom', 'custom']]).map(function (pr) {
+          var on = cur === pr[0];
+          return '<button type="button" data-zkpre="' + pr[1] + '" data-zkside="ads"' +
+            (on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + pr[0] + '</button>';
+        }).join('') + '</div>' +
+      (pts ? editorHTML(full, 'ads') :
+        '<div class="zkcurverow"><canvas id="zk-c-ads" width="120" height="100" role="img" ' +
+          'aria-label="Aiming curve"></canvas>' +
+          '<input type="range" class="zk-rng" data-zk="arc" data-zkside="ads" min="0" max="200" step="1" ' +
+          'value="' + arcOf(e) + '" aria-label="Aiming curve"></div>') + '</div>';
+    return cardH('curve', '#bb9af7', 'ADS Response Curve', body, ' data-zkcard="adscurve"', 'adscurve');
+  }
+
+  /* `parts` from R.aim: { speed: the HIP Speed card, ads: the ADS page }.
+     D253: the trigger cards are the bottom of the HIP page. */
+  function pageHTML(full, opt, tab, parts) {
+    parts = parts || {};
+    tab = tab === 'ads' ? 'ads' : 'hip';
+    return '<div class="zkapp">' + tabsHTML(tab) +
+      '<section class="zkpage" data-zkpage="hip"' + (tab === 'hip' ? '' : ' hidden') + '>' +
+        stickPickHTML(opt) +
+        '<div class="zk" data-zkpanel="sticks">' + liveHTML(opt) + (parts.speed || '') + dzHTML(full, opt) +
+        curveHTML(full, opt) + '</div>' +
+        '<div class="zksec">Triggers</div>' + triggersHTML(full) + '</section>' +
+      '<section class="zkpage" data-zkpage="ads"' + (tab === 'ads' ? '' : ' hidden') + '>' +
+        '<div class="zk" data-zkpanel="ads">' + (parts.ads || '') + '</div></section></div>';
+  }
+
+  /* ── wiring ──────────────────────────────────────────────────── */
+  var SUB = false;
+  var CUR = null;            /* { p, opt } of the page on screen */
+
+  function fullOf(p) { return (window.ZS && ZS.live && ZS.live.full && ZS.live.full[p.id]) || null; }
+  function liveOk(p) { return ZS.live.online !== false && !!fullOf(p); }
+
+  function paint() {
+    if (!CUR || typeof document === 'undefined') return;
+    var full = fullOf(CUR.p);
+    ['left', 'right', 'ads'].forEach(function (s) {
+      if (s !== 'ads') dial(document.getElementById('zk-d-' + s), s, full, custom(CUR.opt, s));
+      var cv = document.getElementById('zk-c-' + s);
+      if (cv) drawCurve(cv, expOf(full, s));
+    });
+    var st = ((window.ZS && ZS.liveInput) || {}).sticks || {};
+    [['left', st.lt], ['right', st.rt]].forEach(function (t) {
+      var f = document.getElementById('zk-tf-' + t[0]);
+      if (!f) return;
+      var v = Math.round(pull(t[1]) * 100);
+      f.style.height = v + '%';
+      var pc = document.getElementById('zk-tp-' + t[0]);
+      if (pc) pc.textContent = v + '%';
+    });
+  }
+
+  /* M8: the change goes onto a clone of the cached copy (ZS.editProfile),
+     never onto the cached copy itself: changing it in place put the first
+     change into D257's staged base, so "exit without saving" kept it on
+     screen. The redraw still shows what the write makes true, because
+     editProfile replaces the cached copy with the changed clone. */
+  function write(p, fn) {
+    if (ZS.editProfile && fullOf(p)) { ZS.editProfile(p.id, fn); return; }
+    ZS.putProfileDebounced(p.id, fn);
+  }
+
+  function wire(root, p, opt) {
+    if (!root || !p) return;
+    opt = opt || {};
+    CUR = { p: p, opt: opt };
+    var warned = false;
+    function offline() {
+      if (liveOk(p)) return false;
+      if (!warned) { warned = true; ZS.toast('Your board is offline — these settings are stored on the board'); }
+      return true;
+    }
+    root.querySelectorAll('.zk [data-zkfold]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var card = b.closest ? b.closest('.zkcard') : null;
+        if (!card) return;
+        var shut = !card.classList.contains('zkshut');
+        card.classList.toggle('zkshut', shut);
+        b.setAttribute('aria-expanded', shut ? 'false' : 'true');
+        FOLD[b.getAttribute('data-zkfold')] = shut;
+        if (!shut) paint();
+      });
+    });
+    root.querySelectorAll('.zkstickpick [data-zksel]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var s = b.getAttribute('data-zksel');
+        if (s !== selOf(opt) && opt.onSel) opt.onSel(s);
+      });
+    });
+    /* the tab bar flips the page and remembers it (opt.onTab) */
+    root.querySelectorAll('.zktabs [data-zktab]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = b.getAttribute('data-zktab');
+        root.querySelectorAll('.zktabs [data-zktab]').forEach(function (o) {
+          var on = o === b;
+          o.classList.toggle('on', on);
+          o.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        root.querySelectorAll('.zkpage[data-zkpage]').forEach(function (pg) {
+          if (pg.getAttribute('data-zkpage') === t) pg.removeAttribute('hidden'); else pg.setAttribute('hidden', '');
+        });
+        if (opt.onTab) opt.onTab(t);
+        paint();
+      });
+    });
+    root.querySelectorAll('.zk input.zk-rng').forEach(function (r) {
+      var key = r.getAttribute('data-zk'), side = r.getAttribute('data-zkside');
+      function label() {
+        var v = +r.value, out = root.querySelector('[data-zkv="' + key + '-' + side + '"]');
+        if (key === 'hair' || key === 'anti') {
+          if (out) out.textContent = v ? v + '%' : 'Off';
+          if (key === 'anti') return;
+          var hm = root.querySelector('#zk-th-' + side);
+          if (hm) { hm.style.bottom = v + '%'; hm.style.display = v ? '' : 'none'; }
+        } else if (out) out.textContent = v + '%';
+      }
+      function commit() {
+        if (offline()) return;
+        var v = +r.value;
+        var fn = function (f) {
+          if (!f.deadZones) f.deadZones = {};
+          if (key === 'in') f.deadZones[side + 'Inner'] = clamp(v, 0, 40) / 100;
+          else if (key === 'out') f.deadZones[side + 'Outer'] = Math.round((1 - clamp(v, 0, 40) / 100) * 100) / 100;
+          else if (key === 'anti') f.deadZones[side + 'Anti'] = clamp(v, 0, 40) / 100;   /* D261 */
+          else if (key === 'hair') {
+            f.deadZones[side === 'left' ? 'hairTriggerLeft' : 'hairTriggerRight'] = clamp(v, 0, 50) / 100;
+          } else if (key === 'arc') writeCurve(f, side, v);
+          else if (key === 'lim' || key === 'tlim') {
+            if (!f.constraints) f.constraints = {};
+            f.constraints[key === 'lim' ? 'maxStickMagnitude' : 'maxTrigger'] = clamp(v, 10, 100) / 100;
+          }
+        };
+        /* a deadzone on a Native stick puts it on a curve, in the same write */
+        if ((key === 'in' || key === 'out') && !custom(opt, side) && opt.onMode) {
+          opt.onMode(side, 'custom', fn);
+          return;
+        }
+        write(p, fn);
+        if (key === 'arc') {
+          var pre = presetOf(expOfArc(v));
+          root.querySelectorAll('[data-zkpre][data-zkside="' + side + '"]').forEach(function (b) {
+            var on = b.textContent === pre;
+            b.classList.toggle('on', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        }
+        paint();
+      }
+      r.addEventListener('input', function () {
+        label();
+        if (key === 'arc') drawCurve(root.querySelector('#zk-c-' + side), expOfArc(+r.value));
+        if (key === 'in' || key === 'out') {
+          /* the rings follow the finger before the write lands */
+          var f = fullOf(p);
+          if (f) {
+            if (!f.deadZones) f.deadZones = {};
+            if (key === 'in') f.deadZones[side + 'Inner'] = +r.value / 100;
+            else f.deadZones[side + 'Outer'] = 1 - (+r.value) / 100;
+          }
+          paint();
+        }
+      });
+      r.addEventListener('change', commit);
+    });
+    /* Native / EXO Linear: the stick's mode (R.aim's writer, which redraws) */
+    root.querySelectorAll('.zk [data-zkmode]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var side = b.getAttribute('data-zkside'), m = b.getAttribute('data-zkmode');
+        if (modeOf(opt, side) === m) return;
+        if (opt.onMode) opt.onMode(side, m);
+      });
+    });
+    /* a curve: on a Native stick it makes the stick Custom WITH that curve,
+       in one write; on a Custom one it is the slider's own write */
+    root.querySelectorAll('.zk [data-zkpre]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var side = b.getAttribute('data-zkside'), pre = b.getAttribute('data-zkpre'), arc = +pre;
+        if (pre === 'custom') {
+          /* eight points, starting from the curve the stick has now */
+          if (offline()) return;
+          if (isPts(fullOf(p), side) && custom(opt, side)) return;
+          var ys = ysOf(fullOf(p), side);
+          if (opt.onMode) opt.onMode(side, 'custom', function (f) { writePts(f, side, ys); });
+          return;
+        }
+        if (!custom(opt, side) || isPts(fullOf(p), side)) {
+          if (opt.onMode) opt.onMode(side, 'custom', function (f) { writeCurve(f, side, arc); });
+          return;
+        }
+        var rng = root.querySelector('input[data-zk="arc"][data-zkside="' + side + '"]');
+        if (!rng) {
+          /* a drawn curve is the curve here: the preset is the Core's, stored */
+          if (offline()) return;
+          write(p, function (f) { writeCurve(f, side, arc); });
+          return;
+        }
+        rng.value = String(arc);
+        drawCurve(root.querySelector('#zk-c-' + side), expOfArc(arc));
+        rng.dispatchEvent(new Event('change'));
+      });
+    });
+    /* Copy one stick onto the other (R.aim's writer, which redraws) */
+    root.querySelectorAll('.zk [data-zkcopy]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (offline()) return;
+        if (opt.onCopy) opt.onCopy(b.getAttribute('data-zkcopy'));
+      });
+    });
+    /* the Custom curve: drag a point, or arrow keys on a focused one */
+    root.querySelectorAll('.zk svg.zkcedit').forEach(function (svgEl) {
+      var side = svgEl.getAttribute('data-zkside');
+      var ys = ysOf(fullOf(p), side);
+      var path = svgEl.querySelector('.zkcpath');
+      function place(i) {
+        var h = svgEl.querySelector('.zkh[data-i="' + i + '"]');
+        if (!h) return;
+        h.setAttribute('cy', epy(ys[i]).toFixed(1));
+        h.setAttribute('aria-valuenow', String(Math.round(ys[i] * 100)));
+        h.setAttribute('aria-label', hlabel(i, ys[i]));
+      }
+      /* D249 (owner: "it doesn't let you draw any curve you want - if the
+         left is higher the right can't be lower"): each point is free */
+      function setY(i, y) {
+        ys[i] = clamp(y, 0, 1);
+        place(i);
+        if (path) path.setAttribute('d', epath(ys));
+      }
+      function save() {
+        if (offline()) return;
+        var copy = ys.slice();
+        write(p, function (f) { writePts(f, side, copy); });
+      }
+      svgEl.querySelectorAll('.zkh').forEach(function (h) {
+        var i = +h.getAttribute('data-i');
+        h.addEventListener('pointerdown', function (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          try { h.setPointerCapture(ev.pointerId); } catch (e) {}
+          h.classList.add('on');
+          function mv(e2) {
+            var r = svgEl.getBoundingClientRect();
+            if (!r.height) return;
+            var yy = (e2.clientY - r.top) / r.height * 140;
+            setY(i, (EB - yy) / (EB - ET));
+          }
+          /* m44: a drag the browser takes back (pointercancel, or the
+             capture lost to a scroll or a system gesture) ends here too and
+             saves what the curve now shows; with pointerup alone the point
+             looked set but was never written, and each cancel left its
+             listeners behind to stack onto the next drag */
+          var done = false;
+          function up() {
+            if (done) return;
+            done = true;
+            h.classList.remove('on');
+            h.removeEventListener('pointermove', mv);
+            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
+              h.removeEventListener(t, up);
+            });
+            save();
+          }
+          h.addEventListener('pointermove', mv);
+          ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
+            h.addEventListener(t, up);
+          });
+        });
+        h.addEventListener('keydown', function (ev) {
+          var d = ev.key === 'ArrowUp' ? 0.02 : ev.key === 'ArrowDown' ? -0.02 : 0;
+          if (!d) return;
+          if (ev.preventDefault) ev.preventDefault();
+          setY(i, ys[i] + d);
+          save();
+        });
+      });
+    });
+    /* Invert, the Configurator's four buttons */
+    root.querySelectorAll('.zk [data-zkinv]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (offline()) return;
+        var a = b.getAttribute('data-zkinv'), on = !b.classList.contains('on');
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        write(p, function (f) {
+          if (!f.axisInvert) f.axisInvert = {};
+          f.axisInvert[a] = on;
+        });
+      });
+    });
+    /* drag a curve picture to draw your own (the Configurator's gesture) */
+    ['left', 'right', 'ads'].forEach(function (s) {
+      var cv = root.querySelector('#zk-c-' + s);
+      var rng = root.querySelector('input[data-zk="arc"][data-zkside="' + s + '"]');
+      if (!cv || !rng) return;
+      function apply(ev) {
+        var r = cv.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var x = clamp((ev.clientX - r.left - 8) / (r.width - 16), 0.02, 0.98);
+        var y = clamp(1 - (ev.clientY - r.top - 8) / (r.height - 16), 0.001, 0.999);
+        rng.value = arcOf(clamp(Math.log(y) / Math.log(x), 1 / 3, 3));
+        drawCurve(cv, expOfArc(+rng.value));
+      }
+      cv.addEventListener('pointerdown', function (ev) {
+        try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+        apply(ev);
+        function mv(e2) { apply(e2); }
+        var done = false;              /* m44: as the curve handles above */
+        function up() {
+          if (done) return;
+          done = true;
+          cv.removeEventListener('pointermove', mv);
+          ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
+            cv.removeEventListener(t, up);
+          });
+          rng.dispatchEvent(new Event('change'));
+        }
+        cv.addEventListener('pointermove', mv);
+        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
+          cv.addEventListener(t, up);
+        });
+      });
+    });
+    if (!SUB && ZS.onLiveInput) { SUB = true; ZS.onLiveInput(paint); }
+    paint();
+  }
+
+  window.ZSZK = { pageHTML: pageHTML, triggersHTML: triggersHTML, wire: wire, paint: paint,
+                  cardHTML: cardH, iconHTML: ic, adsCurveHTML: adsCurveHTML, _arcOf: arcOf, _expOfArc: expOfArc };
+})();

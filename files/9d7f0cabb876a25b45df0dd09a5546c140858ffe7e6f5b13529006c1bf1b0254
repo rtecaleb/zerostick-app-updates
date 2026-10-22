@@ -1,0 +1,36 @@
+{
+  "zerostickGamePack": 1,
+  "id": "rocket-league",
+  "name": "Rocket League",
+  "aliases": [
+    "RL"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "rocket-league.png",
+    "tall": "rocket-league-tall.png"
+  },
+  "aimPreset": null,
+  "notes": "Rocket League, Steam app 252950. The store page is unlisted for new purchases, but it still exists.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Rocket League are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "No measured mouse turn rates for Rocket League are in the repo yet. This block sets nothing, so a mouse config starts on the same neutral mouse settings every new config gets.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "Nothing has been measured for Rocket League with a stick in one hand and a mouse in the other. This block sets nothing: the neutral settings every new config gets.",
+      "config": {}
+    }
+  }
+}

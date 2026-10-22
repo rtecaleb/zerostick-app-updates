@@ -1,0 +1,223 @@
+/* zs-core-hid.js - WebHID for the dualshock-tools site, through the Core
+ * (D410). Ours (ZeroStick), not the site's; the site's files beside it are
+ * dualshock-tools (MIT, (c) 2024 the_al), copied unchanged by
+ * dashboard/tools/vendor-dualshock-tools.js.
+ *
+ * The site expects Chrome's navigator.hid. In the EXO app the pad is
+ * plugged into the Core, so this file installs a navigator.hid whose one
+ * device sends every report to the Core's /padcal/... routes over the
+ * app's own link (USB in the exe, Bluetooth on a phone): the same job the
+ * ZS Pad Calibrator's webhid-shim.js did over HTTP, with the same contract:
+ *
+ *   - receiveFeatureReport answers WITH the report id byte first;
+ *   - every input report the pad sent reaches oninputreport, in order, at
+ *     the pad's own rate (the Core keeps them all in a ring and the app
+ *     pulls them in batches: the calibrator learned that latest-only
+ *     delivery breaks range and finetune sampling), without its id byte;
+ *   - nothing is ever invented: no report the pad did not send (a new
+ *     DualSense goes silent when untouched, and the site must see that);
+ *   - the feature report sizes are the pad's own (from its report
+ *     descriptor, read by the Core), so the site pads its requests the way
+ *     Chrome would; without a descriptor, 63 bytes as the exe did.
+ *
+ * Loaded as a plain script before app.js. It talks to the EXO app through
+ * window.parent.ZSPadCalBridge (pad-cal.js): the same origin, one call
+ * function, so this page never touches the link itself.
+ */
+(function () {
+  'use strict';
+
+  var bridge = null;
+  try { bridge = window.parent && window.parent !== window ? window.parent.ZSPadCalBridge : null; }
+  catch (e) { bridge = null; }
+
+  function call(method, path, body) {
+    if (bridge) return bridge.call(method, path, body);
+    /* opened on its own (a developer's tab): the dev server's /agent proxy */
+    return fetch('/agent' + path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: method === 'GET' ? undefined : JSON.stringify(body || {}),
+    }).then(function (r) { return r.json(); });
+  }
+  var slowLink = !!(bridge && bridge.slow && bridge.slow());
+
+  function b64ToBytes(s) {
+    var bin = atob(s || ''), u = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u;
+  }
+  function bytesToB64(u) {
+    var s = '';
+    for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+    return btoa(s);
+  }
+  function toBytes(data) {
+    if (data instanceof Uint8Array) return data;
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    return new Uint8Array(data || []);
+  }
+  function refuse(r, what) {
+    return new DOMException((r && r.error) || (what + ' failed'), 'NotAllowedError');
+  }
+
+  var FALLBACK = [];
+  for (var rid = 1; rid < 256; rid++) FALLBACK.push({ reportId: rid, items: [{ reportSize: 8, reportCount: 63 }] });
+  function reports(list) {
+    return (list || []).map(function (p) {
+      return { reportId: p[0], items: [{ reportSize: 8, reportCount: p[1] }] };
+    });
+  }
+
+  var listeners = { connect: [], disconnect: [] };
+  var current = null;
+
+  function fire(type, dev) {
+    listeners[type].forEach(function (f) {
+      try { f({ device: dev }); } catch (e) { console.error(e); }
+    });
+  }
+
+  function CoreHIDDevice(info) {
+    this.vendorId = parseInt(info.vid, 16);
+    this.productId = parseInt(info.pid, 16);
+    this.productName = info.name || info.title || 'Wireless Controller';
+    this.opened = false;
+    this.oninputreport = null;
+    this.collections = [{
+      usagePage: 0x0001, usage: 0x0005,
+      featureReports: info.descriptor ? reports(info.features) : FALLBACK,
+      inputReports: reports(info.inputs), outputReports: reports(info.outputs),
+    }];
+    this._seq = 0;
+    this._last = null;               /* the newest whole report, for trimmed ones */
+    this._polling = false;
+  }
+
+  CoreHIDDevice.prototype.open = function () {
+    this.opened = true;
+    this._poll();
+    return Promise.resolve();
+  };
+  CoreHIDDevice.prototype.close = function () {
+    this.opened = false;
+    return Promise.resolve();
+  };
+  CoreHIDDevice.prototype.forget = function () { return this.close(); };
+
+  CoreHIDDevice.prototype.sendFeatureReport = function (reportId, data) {
+    return call('POST', '/padcal/sfr', { id: reportId, d: bytesToB64(toBytes(data)) })
+      .then(function (r) { if (!r || !r.ok) throw refuse(r, 'sendFeatureReport'); });
+  };
+
+  CoreHIDDevice.prototype.receiveFeatureReport = function (reportId) {
+    var t0 = Date.now();
+    return call('GET', '/padcal/gfr?id=' + reportId).then(function (r) {
+      if (!r || !r.ok || !r.data) throw refuse(r, 'receiveFeatureReport');
+      if (bridge && bridge.rtt) bridge.rtt(Date.now() - t0);
+      var u = b64ToBytes(r.data.d);
+      return new DataView(u.buffer);         /* WITH the id byte, like WebHID */
+    });
+  };
+
+  CoreHIDDevice.prototype.sendReport = function (reportId, data) {
+    return call('POST', '/padcal/sor', { id: reportId, d: bytesToB64(toBytes(data)) })
+      .then(function (r) { if (!r || !r.ok) throw refuse(r, 'sendReport'); });
+  };
+
+  /* whole: the newest whole report of the batch u came in (the Core
+     always sends the newest of a batch whole) */
+  CoreHIDDevice.prototype._deliver = function (u, whole) {
+    var tail = this._last || whole;
+    if (tail && u.length < tail.length) {
+      /* a trimmed report (Bluetooth): its tail is the last whole one's
+         (the sticks, triggers and buttons are always in the kept head) */
+      var w = new Uint8Array(tail.length);
+      w.set(tail);
+      w.set(u, 0);
+      u = w;
+    } else {
+      this._last = u;
+    }
+    if (this.oninputreport) {
+      try {
+        this.oninputreport({ data: new DataView(u.slice(1).buffer), device: this, reportId: u[0] });
+      } catch (e) { console.error('inputreport handler:', e); }
+    }
+    if (window.__zsInputTap) {
+      try { window.__zsInputTap(u, this.productId); } catch (e) { console.error('input tap:', e); }
+    }
+  };
+
+  CoreHIDDevice.prototype._poll = function () {
+    if (this._polling) return;
+    this._polling = true;
+    var self = this;
+    var q = slowLink ? '&max=24&trim=12' : '&max=48';
+    (function loop() {
+      if (!self.opened) { self._polling = false; return; }
+      call('GET', '/padcal/input?since=' + self._seq + q).then(function (r) {
+        if (!r || !r.ok || !r.data) {
+          if (r && /unplugged|went quiet|Open calibration/.test(r.error || '')) {
+            self._polling = false;
+            self.opened = false;
+            if (current === self) current = null;
+            fire('disconnect', self);
+            return;
+          }
+          setTimeout(loop, 300);
+          return;
+        }
+        var d = r.data;
+        var batch = d.r.map(b64ToBytes);
+        var whole = batch.length ? batch[batch.length - 1] : null;
+        for (var i = 0; i < batch.length && self.opened; i++) self._deliver(batch[i], whole);
+        self._seq = d.seq;
+        setTimeout(loop, d.more ? 0 : (slowLink ? 25 : 6));
+      }, function () { setTimeout(loop, 500); });
+    })();
+  };
+
+  function fetchDevice() {
+    var opening = bridge && bridge.open ? bridge.open() : call('POST', '/padcal/open', {});
+    return Promise.resolve(opening).then(function (r) {
+      var d = r && r.ok ? r.data : null;
+      if (!d || !d.open || d.family === 'zs8k') { current = null; return []; }
+      if (current && current.vendorId === parseInt(d.vid, 16) && current.productId === parseInt(d.pid, 16)) {
+        return [current];
+      }
+      current = new CoreHIDDevice(d);
+      return [current];
+    }, function () { return []; });
+  }
+
+  var hidShim = {
+    __zs: 'core',
+    getDevices: function () { return fetchDevice(); },
+    requestDevice: function () {
+      /* Chrome would show a picker; the Core has the one pad */
+      var tries = 0;
+      return new Promise(function (resolve) {
+        (function attempt() {
+          fetchDevice().then(function (devs) {
+            if (devs.length || tries++ > 8) resolve(devs);
+            else setTimeout(attempt, 500);
+          });
+        })();
+      });
+    },
+    addEventListener: function (type, fn) { if (listeners[type]) listeners[type].push(fn); },
+    removeEventListener: function (type, fn) {
+      if (!listeners[type]) return;
+      var i = listeners[type].indexOf(fn);
+      if (i >= 0) listeners[type].splice(i, 1);
+    },
+  };
+
+  try {
+    Object.defineProperty(navigator, 'hid', { value: hidShim, configurable: true });
+  } catch (e) {
+    navigator.hid = hidShim;
+  }
+})();

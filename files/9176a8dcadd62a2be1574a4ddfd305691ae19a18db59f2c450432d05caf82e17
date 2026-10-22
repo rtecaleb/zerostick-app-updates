@@ -1,0 +1,409 @@
+/* sections/11-kbmove-behavior.js — Keyboard Movement and Behavior (D163).
+ *
+ * R.kbmove: WASD as an analog left stick (keyboardMovement.*; on the Core only
+ * stickMerge reaches the engine, the rest is decoded and unused; D375: its door
+ * is on Translation, an EXO's, and a Core shows only stickMerge there). R.behavior and
+ * behaviorHTML (also drawn at the TOP of the Translation tab, D275): behavior.
+ * moveAnalog, lookAnalog, humanize (shown in ms), one section and one card
+ * since D337, Script timing beside the Scripts picture. D377 (a Core):
+ * waitVariationPct (XIM's %), stickAngle, aimKeysAnalog, triggerAnalog.
+ *
+ * Screens (window.RENDERERS):  R.kbmove, R.behavior
+ * Tests:                      test-translation-tab.js, test-render.js, test-aim-simple.js (D376)
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('kbmove-behavior', function (SEC) {
+  /* from the files before this one */
+  var acc = SEC.acc, B = SEC.B, card = SEC.card, helpHTML = SEC.helpHTML, note = SEC.note,
+      R = SEC.R, seg = SEC.seg, sh = SEC.sh, slider = SEC.slider, stepper = SEC.stepper,
+      toggleFld = SEC.toggleFld, ZS = SEC.ZS, esc = SEC.esc;
+
+  /* ── Keyboard Movement (WASD → a real analog left stick) ──────────
+     Every control on this screen writes a keyboardMovement.* field that
+     core/stages.py KeyboardMovementStage reads. It did not before: the screen
+     promised a run ramp, a walk/run threshold and turn assist, and the board
+     implemented none of them — WASD reached the stick as a digital ±1 the
+     instant the key went down, and W+D gave a diagonal 41% faster than a
+     cardinal. This screen is now the front end of a stage that exists. */
+  R.kbmove = function(p){
+    var full = ZS.live.full[p.id] || null;
+    var live = ZS.live.online!==false && !!full;
+    var km   = (full && full.keyboardMovement) || null;
+    var on   = km ? km.enabled===true : false;
+    /* A board that predates the stage has no keyboardMovement block at all.
+       Say so rather than showing sliders that quietly write into a void. */
+    var stale = live && !km;
+    /* M29 (audit 2026-10-10): the board takes up to 1000 ms for both, and a
+       slider shorter than the stored value drew it at its end and wrote the
+       end back on the first nudge, so a value set elsewhere was lost. The
+       slider reaches at least what is stored (up to the bind's 1000). */
+    function kmTop(k, top){
+      var v = km && Number(km[k]);
+      return (isFinite(v) && v > top) ? Math.min(1000, Math.ceil(v / 50) * 50) : top;
+    }
+
+    var html =
+      note('Turns your <b>WASD</b> presses into real stick movement: a tap walks, holding builds '+
+           'up to a run, and letting go eases back to a stop.')+
+      (stale ? note('Your board is running an older ZeroStick version that doesn’t have keyboard '+
+                    'movement yet. Update the board and these settings will start working.','warn') : '')+
+      card(toggleFld('Smooth keyboard movement', on,
+             'off = keys slam the stick to full instantly, as they always did', false,
+             B('keyboardMovement.enabled', 1, {t:'bool'})))+
+      '<div id="km-body"'+(on?'':' style="display:none"')+'>'+
+        sh('How movement builds')+
+        card(slider('Walk speed', 0, 100, 55, '%',
+              B('keyboardMovement.walkThreshold', .01, {mn:0, mx:1}))+
+          slider('Time to full run', 0, kmTop('rampMs', 600), 120, ' ms',
+              B('keyboardMovement.rampMs', 1, {mn:0, mx:1000}))+
+          slider('Time to stop', 0, kmTop('releaseMs', 400), 80, ' ms',
+              B('keyboardMovement.releaseMs', 1, {mn:0, mx:1000})))+
+        note('<b>Walk speed</b> — how far the stick moves the instant you press a key, so a tap is '+
+             'a step not a sprint. <b>Time to full run</b> — how long holding builds up to a run. '+
+             '<b>Time to stop</b> — how long you take to come to rest.')+
+        sh('Corners and turns')+
+        card(seg('Diagonal speed', ['Same as straight','Faster'], 0, false,
+              B('keyboardMovement.diagonalShape', 1,
+                {t:'str', map:{'Same as straight':'circular','Faster':'square'}}))+
+          slider('Turn assist', 0, 100, 0, '%',
+              B('keyboardMovement.turnAssist', .01, {mn:0, mx:1}))+
+          slider('Small movement boost', 0, 90, 0, '%',
+              B('keyboardMovement.antiDeadzone', .01, {mn:0, mx:0.9})))+
+        note('<b>Diagonal speed</b> — <b>Same as straight</b> is right for nearly every modern game; '+
+             '<b>Faster</b> keeps the old 41%-faster diagonals for older ones.<br>'+
+             '<b>Turn assist</b> — raise it if changing direction feels mushy.<br>'+
+             '<b>Small movement boost</b> — pushes the shortest tap past the game’s own dead centre.')+
+        acc('More movement settings','keycap',
+          seg('If a controller stick is plugged in too', ['Whichever is pushed further','Add them together'], 0, false,
+            B('keyboardMovement.stickMerge', 1,
+              {t:'str', map:{'Whichever is pushed further':'strongest','Add them together':'sum'}}))+
+          note('Only matters when a pad is connected too. <b>Whichever is pushed further</b> stops a '+
+               'resting pad bending your walk; <b>Add them together</b> lets the two fight.'), false)+
+      '</div>';
+
+    return { html: html, after: function(root){
+      var body = root.querySelector('#km-body');
+      var rows = [].slice.call(root.querySelectorAll('.fld'));
+      var sw = null;
+      for(var i=0;i<rows.length;i++){
+        var fl = rows[i].querySelector('.flab');
+        if(fl && ((fl.childNodes[0]&&fl.childNodes[0].textContent)||'').trim()==='Smooth keyboard movement'){
+          sw = rows[i].querySelector('.sw');
+          rows[i].addEventListener('click', function(){
+            setTimeout(function(){
+              if(body) body.style.display = sw.classList.contains('on') ? '' : 'none';
+            }, 0);
+          });
+          break;
+        }
+      }
+      /* wire() restores the switch from the board, which can disagree with the
+         `on` used to render — sync the panel to what is actually shown. */
+      if(sw && body) body.style.display = sw.classList.contains('on') ? '' : 'none';
+    }};
+  };
+
+  /* ── Behavior (D163) — XIM's Behavior Simulation, on the Core ─────
+     All in the profile's `behavior` block, travelling in the BEHAVIOR
+     section (0x0023) with Fine aim; every one 0 = off and every config's
+     old behaviour exactly (the board never even calls the filter):
+       Left stick movement  behavior.moveAnalog  0-100 %: keys that drive
+                 the left stick ease up and back down like a thumb instead
+                 of slamming 0 -> 100 %
+       Right stick look     behavior.lookAnalog  0-100 %: the mouse's right
+                 stick eases in and settles; NO random noise, the same turn
+       Script timing        behavior.humanize, SHOWN IN MILLISECONDS (D275):
+                 the field stays 0..1 on the wire and in saved configs, and
+                 the slider is that amount x HUMANIZE_MAX_MS (15, the
+                 firmware's ZS_ACT_HUMANIZE_MAX_MS), whole ms. It is the most
+                 a step may be LENGTHENED: every script runs at its own
+                 timing, this only adds 0..N ms at random to each timed step
+                 (never more than a quarter of the step), never shortens one,
+                 so 0 = exactly as written and the lowest. An old 50 % reads
+                 8 ms; it is only rewritten when the slider moves.
+       Stick     behavior.stickVariance (D171) is on each Smart Action
+     The labels say which stick (owner, 2026-10-10: "Movement" -> "Left
+     stick movement", "Look" -> "Right stick look"); the storage keys did not
+     change, so saved configs keep their values. */
+  var HUMANIZE_MAX_MS = 15;
+  /* D337 (owner, 2026-10-14: "put behavior sim and natural timing together
+     in one thing, and show the script image for script timing so it's more
+     obvious what it is"): ONE section, ONE card. Behavior simulation's two
+     sliders, their "?", then Script timing wearing the Scripts door's own
+     picture (brand/zs-scripts.png, the A -> X -> loop the editor menu's
+     Scripts row wears, D204), then its "?". The picture is decoration (the
+     label says it), so alt="" and aria-hidden; it sits in a flex row BESIDE
+     the slider's .fld, never inside .flab, because the label's first text
+     node is what phone.html's labFor() keys the control by. Drawn whole
+     (object-fit: contain; the PNG carries its own black ground, DESIGN.md Pictures). */
+  var SCRIPTS_PIC = 'brand/zs-scripts.png';
+  /* D376 (owner, 2026-10-14, with XIM's Behavior Simulation screenshots:
+     "add these behavior simulation options inside my Translation area: the
+     same ones, plus any extras I have"): XIM's card, in XIM's order and
+     words, on OUR fields - never a control the Core does not run.
+       intro        "Simulate natural human behavior patterns for better
+                    game compatibility."
+       Wait timing  XIM's "Add natural timing variation of Wait actions",
+       variation    in %. Ours is behavior.humanize, which the Core runs as
+                    MILLISECONDS (0..15 ms added to a step, never more than
+                    a quarter of it, zs_actions.h ZS_ACT_HUMANIZE_MAX_MS),
+                    not a percentage of the wait: shown in ms, and the "?"
+                    says so. The Scripts picture stays beside it (D337).
+       Aim actions  XIM's magnitude (%) and angle (deg) variation of Aim
+                    actions. The Core varies every Smart Action stick push
+                    by +-N points of full stick (behavior.stickVariance,
+                    D171: absent = the +-1 default, so the field reads 1
+                    and goes 0.5..10; 0 would read as the default, so the
+                    stepper stops at 0.5, an action's own 0 stays exact).
+                    That is the MAGNITUDE half. There is no angle variation
+                    on the Core: no control (firmware work, D376). A Core's
+                    only (the EXO's agent has none: 'aimXim').
+       Digital ->   XIM's "Make sticks and triggers that are mapped digitally
+       analog       appear analog": a carousel, Movement Stick | Aiming
+                    Stick, one amount each. Movement Stick IS XIM's (keys
+                    that drive the left stick ease like a thumb,
+                    behavior.moveAnalog); Aiming Stick is our Right stick
+                    look (behavior.lookAnalog), which eases the MOUSE's
+                    right stick. Keys mapped to the right stick and the
+                    triggers are not eased by the Core: no Triggers page
+                    (firmware work). The two slider labels keep the owner's
+                    2026-10-10 words ("Left stick movement", "Right stick
+                    look").
+       warnings     XIM's "Aim / Movement behavior simulation value is low
+                    (less than 50%)", as D70's collapsed amber "!" chips,
+                    repainted as the sliders move (behaviorWire). */
+  function scriptTimingRow(){
+    var sl = slider('Script timing', 0, HUMANIZE_MAX_MS, 0, ' ms',
+      B('behavior.humanize', 1 / HUMANIZE_MAX_MS, {mn:0, mx:1, dp:0}))
+      .replace('<div class="fld col">', '<div class="fld col" style="padding-left:0">');
+    return '<div class="trscript" style="display:flex;align-items:center;gap:12px;padding-left:var(--sp-3,16px)">'+
+      '<img class="trscript-pic" src="'+SCRIPTS_PIC+'" alt="" aria-hidden="true" width="44" height="44" '+
+        'style="flex:none;width:44px;height:44px;object-fit:contain;border-radius:10px">'+
+      '<div style="flex:1;min-width:0">'+sl+'</div></div>';
+  }
+  /* D377 (owner: "all of XIM's options"): the Core now runs what D376 left
+     out, so the card is XIM's whole card on a Core:
+       Wait timing  behavior.waitVariationPct, XIM's PERCENT of each wait
+                    (0..50; the Core lengthens a step by 0..pct of it, never
+                    shortens one, D275). A config that already uses the ms
+                    amount (behavior.humanize above 0, no percent) keeps its
+                    ms slider and its behaviour; a button there switches it
+                    to percent (humanize 0, percent 0). New configs see %.
+       Aim actions  magnitude (behavior.stickVariance, D171) AND angle
+                    (behavior.stickAngle, 0..15 degrees: each aim push
+                    turned by up to that much either way).
+       Carousel     Movement Stick | Aiming Stick | Triggers. Aiming Stick
+                    is XIM's keys-on-the-right-stick easing
+                    (behavior.aimKeysAnalog) with our mouse look easing
+                    (behavior.lookAnalog) under it; Triggers eases keys
+                    mapped to L2 / R2 (behavior.triggerAnalog).
+     An EXO's agent runs none of these ('aimXim'): it keeps D376's card. */
+  var BS_PAGES = [['move', 'Movement Stick'], ['look', 'Aiming Stick'], ['trig', 'Triggers']];
+  var bsPage = 0;
+  function bsPagesFor(core){ return core ? BS_PAGES : BS_PAGES.slice(0, 2); }
+  var WAIT_PCT_MAX = 50;
+  function waitPctRow(){
+    var sl = slider('Wait variation', 0, WAIT_PCT_MAX, 0, '%',
+      B('behavior.waitVariationPct', 1, {mn:0, mx:WAIT_PCT_MAX}))
+      .replace('<div class="fld col">', '<div class="fld col" style="padding-left:0">');
+    return '<div class="trscript" style="display:flex;align-items:center;gap:12px;padding-left:var(--sp-3,16px)">'+
+      '<img class="trscript-pic" src="'+SCRIPTS_PIC+'" alt="" aria-hidden="true" width="44" height="44" '+
+        'style="flex:none;width:44px;height:44px;object-fit:contain;border-radius:10px">'+
+      '<div style="flex:1;min-width:0">'+sl+'</div></div>';
+  }
+  /* which unit this config's wait timing is in: % unless it already uses
+     the ms amount and has never said a percent */
+  function waitInPct(bh){
+    return typeof bh.waitVariationPct === 'number' || !(+bh.humanize > 0);
+  }
+  var BS_LOW = 0.5;
+  var BS_WARN = {
+    look: 'Aim behavior simulation value is low (less than 50%)',
+    move: 'Movement behavior simulation value is low (less than 50%)'
+  };
+  function bsFull(p){
+    var pid = (p && p.id) || ZS.activeId;
+    return (pid && ZS.live && ZS.live.online !== false && ZS.live.full && ZS.live.full[pid]) || null;
+  }
+  /* `look` is the Aiming Stick's larger amount (its keys or the mouse look) */
+  function bsWarnsHTML(move, look){
+    return (look < BS_LOW ? note(esc(BS_WARN.look), 'warn') : '')+
+           (move < BS_LOW ? note(esc(BS_WARN.move), 'warn') : '');
+  }
+  function bsSub(t){
+    return '<div class="xsub bssub" style="padding:10px var(--sp-3,16px) 0;color:var(--muted);font-size:13px">'+esc(t)+'</div>';
+  }
+  var bsPid = null;                 /* the config the card was last drawn for */
+  function behaviorHTML(p){
+    bsPid = (p && p.id) || ZS.activeId || null;
+    var full = bsFull(p) || {};
+    var bh = full.behavior || {};
+    var move = +bh.moveAnalog || 0, look = +bh.lookAnalog || 0;
+    var core = !(ZS.productHides && ZS.productHides('aimXim'));
+    var aimKeys = core ? (+bh.aimKeysAnalog || 0) : 0;
+    var sv = (typeof bh.stickVariance === 'number' && bh.stickVariance > 0) ? bh.stickVariance : 1;
+    var ang = (typeof bh.stickAngle === 'number' && bh.stickAngle > 0) ? bh.stickAngle : 0;
+    var pages = bsPagesFor(core);
+    if(bsPage > pages.length - 1) bsPage = pages.length - 1;
+    var pct = core && waitInPct(bh);
+    /* D258/D260: the explanations are behind the "?", one per part of the
+       card, and helpHTML turns each into bullet points */
+    return sh('Behavior simulation')+
+      card(
+        bsSub('Simulate natural human behavior patterns for better game compatibility.')+
+        /* WAIT TIMING VARIATION: XIM's % on a Core (D377), the ms amount
+           for a config that already uses it and on an EXO. Both drawn on
+           a Core, one hidden, so the switch needs no new draw. */
+        bsSub('Add natural timing variation of Wait actions.')+
+        (core
+          ? '<div data-waitpane="pct"'+(pct ? '' : ' hidden')+'>'+waitPctRow()+'</div>'+
+            '<div data-waitpane="ms"'+(pct ? ' hidden' : '')+'>'+scriptTimingRow()+
+              '<div style="padding:4px var(--sp-3,16px) 0"><button type="button" class="btn ghost bswaitpct" data-waitpct="1">'+
+                'Use a percent of each wait</button></div></div>'
+          : scriptTimingRow())+
+        helpHTML('behavior-timing', 'Wait timing variation',
+          'Natural timing for your scripts\u2019 waits. '+
+          'Every script already runs at its own timing. '+
+          (core
+            ? 'This adds a random extra to each press and wait, from 0 up to the percent you set of that wait, so no two runs are identical. '+
+              'At 15% a 40 ms tap runs 40 to 46 ms, and a 1 second wait 1 to 1.15 seconds. '+
+              'Configs made before this was a percent keep their milliseconds. '+
+              'They add up to that many ms (never more than a quarter of a step), until you tap <b>Use a percent of each wait</b>, which starts at 0%. '
+            : 'This adds a random extra to each press and wait, from 0 ms up to the number you set, so no two runs are identical. '+
+              'Shown in milliseconds, not the percent other adapters use: your board adds up to this many ms to a step. '+
+              'It never adds more than a quarter of a step. ')+
+          'It only ever adds time: a step is never shorter than you made it, and the steps stay in order. '+
+          '<b>0</b> runs every script exactly as written.')+
+        /* AIM ACTIONS: magnitude and angle variation (a Core's) */
+        (core
+          ? '<div class="bsaim">'+
+              bsSub('Add natural magnitude and angle variation of Aim actions.')+
+              stepper('Aim actions', sv, 0.5, 0.5, 10, '%',
+                'Magnitude: how much each push varies',
+                B('behavior.stickVariance', 1, {mn:0.5, mx:10, dp:1}))+
+              stepper('Aim angle', ang, 0.5, 0, 15, '\u00b0',
+                'Angle: how far each push may turn',
+                B('behavior.stickAngle', 1, {mn:0, mx:15, dp:1}))+
+              helpHTML('behavior-aimvar', 'Aim actions',
+                'Each stick push a script makes varies by up to this much, so no two are the same. '+
+                'Magnitude is points of a full push: 1% moves a half push by up to one point either way. '+
+                'A push of zero or a full push is never varied. '+
+                'The default is <b>1%</b>. A script can set its own, including exact, under <b>Timing and safety</b>. '+
+                'Angle turns each push by up to this many degrees either way, so a straight pull wanders a little to the side. '+
+                'It keeps the push as strong as it was. <b>0\u00b0</b> = off. A script set to exact is never turned.')+'</div>'
+          : '')+
+        /* D421: Recoil strength wobble (default for all recoil scripts on this config) */
+        (core
+          ? bsSub('Add natural strength variation to Recoil Lab scripts.')+
+            stepper('Recoil strength wobble', Math.round((+bh.recoilStrengthWobble || 0) * 100), 5, 0, 100, '%',
+              B('behavior.recoilStrengthWobble', 0.01, {mn:0, mx:1, dp:0}))+
+            helpHTML('behavior-rclvar', 'Recoil strength wobble',
+              'Each recoil correction step varies by up to this much, so no two pulls are identical. '+
+              '0 is exact. 20% means a step could be 80–120% of its normal strength. '+
+              'Recoil Lab scripts can override this per script from their Advanced tab.')
+          : '')+
+        /* DIGITAL -> ANALOG: the carousel and its pages */
+        '<div class="trbeh">'+
+          bsSub('Make sticks and triggers that are mapped digitally appear analog.')+
+          '<div class="smcar bscar" data-bscar="1" data-noswipe="1" data-bspages="'+pages.length+'" style="margin:8px auto 0">'+
+            '<button class="arr" data-d="-1" aria-label="previous stick"'+(bsPage<=0?' disabled':'')+'>\u2039</button>'+
+            '<span class="smval" role="status">'+esc(pages[bsPage][1])+'</span>'+
+            '<button class="arr" data-d="1" aria-label="next stick"'+(bsPage>=pages.length-1?' disabled':'')+'>\u203a</button>'+
+          '</div>'+
+          '<div data-bspane="move"'+(bsPage===0?'':' hidden')+'>'+
+            slider('Left stick movement', 0, 100, 0, '%', B('behavior.moveAnalog', .01, {mn:0, mx:1}))+'</div>'+
+          '<div data-bspane="look"'+(bsPage===1?'':' hidden')+'>'+
+            (core ? slider('Aiming stick keys', 0, 100, 0, '%', B('behavior.aimKeysAnalog', .01, {mn:0, mx:1})) : '')+
+            slider('Right stick look', 0, 100, 0, '%', B('behavior.lookAnalog', .01, {mn:0, mx:1}))+'</div>'+
+          (core
+            ? '<div data-bspane="trig"'+(bsPage===2?'':' hidden')+'>'+
+                slider('Triggers', 0, 100, 0, '%', B('behavior.triggerAnalog', .01, {mn:0, mx:1}))+'</div>'
+            : '')+
+          '<div class="bswarn" data-bswarn="1" style="padding:0 var(--sp-3,16px)">'+bsWarnsHTML(move, Math.max(look, aimKeys))+'</div>'+
+          helpHTML('behavior-why', 'Behavior simulation',
+            'Moves the sticks the way a thumb does, instead of jumping like a switch. '+
+            'Every one starts at 0% = off. Use the arrows to switch between them. '+
+            '<b>Movement Stick</b> (Left stick movement): keys that walk (WASD) push the left stick up smoothly and ease it '+
+            'back to centre. At 100% a full push takes about a sixth of a second. '+
+            (core
+              ? '<b>Aiming Stick</b>: <b>Aiming stick keys</b> eases keys mapped to the right stick the same way. '+
+                '<b>Right stick look</b> eases your mouse aim in and out instead of stepping. '
+              : '<b>Aiming Stick</b> (Right stick look): your mouse aim eases in and settles instead of stepping. ')+
+            'It never adds shake, and you still turn exactly as far. '+
+            'At 100% it adds about 10 ms of delay, so keep it low for the snappiest aim. '+
+            (core
+              ? '<b>Triggers</b>: a key mapped to L2 or R2 pulls the trigger smoothly instead of all at once. '+
+                'Aiming still starts the moment you press it. A real trigger is never changed. '
+              : 'Keys mapped to the aiming stick, and triggers, are not eased on this board. ')+
+            'Under 50% the amber ! says the value is low, as other adapters warn.')+
+        '</div>');
+  }
+  /* the carousel and the warnings; R.translation's trWire and R.behavior
+     call this */
+  function behaviorWire(root){
+    if(!root || !root.querySelector) return;
+    var car = root.querySelector('[data-bscar]');
+    function paintWarn(){
+      var box = root.querySelector('[data-bswarn]');
+      if(!box) return;
+      function val(path){
+        var sv = root.querySelector('[data-bind="'+path+'"]');
+        var n = sv ? parseFloat(sv.value != null && sv.value !== '' ? sv.value : sv.textContent) : NaN;
+        return isFinite(n) ? n / 100 : 0;
+      }
+      box.innerHTML = bsWarnsHTML(val('behavior.moveAnalog'),
+        Math.max(val('behavior.lookAnalog'), val('behavior.aimKeysAnalog')));
+    }
+    var pages = BS_PAGES.slice(0, car ? (+car.getAttribute('data-bspages') || 2) : 2);
+    if(car) car.querySelectorAll('.arr').forEach(function(b){
+      b.addEventListener('click', function(){
+        var d = +b.getAttribute('data-d');
+        bsPage = Math.max(0, Math.min(pages.length - 1, bsPage + d));
+        var v = car.querySelector('.smval');
+        if(v) v.textContent = pages[bsPage][1];
+        var arrs = car.querySelectorAll('.arr');
+        if(arrs[0]) arrs[0].disabled = bsPage <= 0;
+        if(arrs[1]) arrs[1].disabled = bsPage >= pages.length - 1;
+        pages.forEach(function(pg, i){
+          var pane = root.querySelector('[data-bspane="'+pg[0]+'"]');
+          if(pane){ if(i === bsPage) pane.removeAttribute('hidden'); else pane.setAttribute('hidden', ''); }
+        });
+      });
+    });
+    ['behavior.moveAnalog', 'behavior.lookAnalog', 'behavior.aimKeysAnalog'].forEach(function(path){
+      var el = root.querySelector('[data-bind="'+path+'"]');
+      if(el){ el.addEventListener('input', paintWarn); el.addEventListener('change', paintWarn); }
+    });
+    /* D377: an ms config moves to XIM's percent: the ms amount goes to 0
+       and the percent starts at 0 (honest: the % slider shows what runs),
+       and the % pane takes the ms pane's place */
+    var toPct = root.querySelector('[data-waitpct]');
+    if(toPct) toPct.addEventListener('click', function(){
+      var pid = bsPid || ZS.activeId;
+      var host = root.querySelector('[data-waitpane="pct"]');
+      if(pid && ZS.editProfile) ZS.editProfile(pid, function(f){
+        if(!f.behavior || typeof f.behavior !== 'object') f.behavior = {};
+        f.behavior.humanize = 0;
+        f.behavior.waitVariationPct = 0;
+      });
+      var ms = root.querySelector('[data-waitpane="ms"]');
+      if(ms) ms.setAttribute('hidden', '');
+      if(host){
+        host.removeAttribute('hidden');
+        var r = host.querySelector('input[data-bind="behavior.waitVariationPct"]');
+        if(r){ r.value = '0'; try{ r.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){} }
+      }
+    });
+  }
+  R.behavior = function(p){ return { html: behaviorHTML(p), after: function(root){ behaviorWire(root); } }; };
+
+  /* what the other screen files use from this one */
+  SEC.behaviorHTML = behaviorHTML;
+  SEC.behaviorWire = behaviorWire;
+  SEC.HUMANIZE_MAX_MS = HUMANIZE_MAX_MS;
+  SEC.SCRIPTS_PIC = SCRIPTS_PIC;
+});

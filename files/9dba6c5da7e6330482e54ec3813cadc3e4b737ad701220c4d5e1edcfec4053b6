@@ -1,0 +1,251 @@
+/* sections/08-game-presets.js — Match Your Game: presets that write real fields.
+ *
+ * GAME_PRESETS (a pack may preselect one through aimPreset) and R.game.
+ * Writes mouseTranslation sensitivity, curve, smoothing, anti-deadzone and the
+ * right stick's curve/gain in one go.
+ *
+ * Screens (window.RENDERERS):  R.game
+ * Also offers on ZS:          ZS.gamePresetIds
+ * Tests:                      test-stick-modes.js, test-render.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('game-presets', function (SEC) {
+  /* from the files before this one */
+  var armConfirm = SEC.armConfirm, btn = SEC.btn, card = SEC.card, esc = SEC.esc,
+      note = SEC.note, R = SEC.R, selFld = SEC.selFld, sh = SEC.sh, ZS = SEC.ZS,
+      STICK_CHOICE_NAME = SEC.STICK_CHOICE_NAME, stickChoiceOf = SEC.stickChoiceOf,
+      stickChoiceWrite = SEC.stickChoiceWrite, packOfConfig = SEC.packOfConfig;
+
+  /* ── Match Your Game — presets that write REAL fields ─────────────
+     What this screen used to be: a game "Preset" select that wrote nothing, a
+     Standard / Custom / Manual sync method that wrote nothing, five in-game
+     sensitivity steppers, a field-of-view stepper, an "add scope" button and
+     two Expert toggles. The board has no field for a single one of them, so
+     typing your Warzone numbers in here changed exactly nothing about how the
+     adapter behaved.
+
+     What a game preset CAN honestly do is set the fields the pipeline really
+     reads — aim speed, response curve, smoothing, game-deadzone model, top
+     speed — in one tap, and show every value before it writes it. That is the whole
+     screen now. These are STARTING POINTS, not a measured equivalence with the
+     game's own sensitivity, and the screen says so instead of implying a
+     precision we do not have. */
+  var GAME_PRESETS = [
+    { id:'zs', n:'ZeroStick standard',
+      d:'A safe, neutral starting point: even response, a game-deadzone model that lets slow careful aiming actually register, and a top speed that leaves room for a real flick.',
+      mt:{sensitivityX:0.014, curve:'linear', curveStrength:1.0, smoothing:0.30,
+          smoothingMode:'oneEuro', oneEuroBeta:1.5, antiDeadzone:0.12, maxVelocity:16000},
+      pad:{gain:1.0, type:'linear', strength:1.0, smooth:0.0, inner:0.08} },
+    { id:'cod', n:'Call of Duty (Warzone / MW)',
+      d:'Steadier aim and the largest game-deadzone model, so the game’s own aim assist has something to grab on to while you track.',
+      mt:{sensitivityX:0.012, curve:'linear', curveStrength:1.0, smoothing:0.38,
+          smoothingMode:'oneEuro', oneEuroBeta:1.4, antiDeadzone:0.16, maxVelocity:16000},
+      pad:{gain:0.95, type:'linear', strength:1.0, smooth:0.20, inner:0.10} },
+    { id:'fn', n:'Fortnite',
+      d:'Faster turns for building and edit fights, and less smoothing so a flick stays sharp.',
+      mt:{sensitivityX:0.020, curve:'linear', curveStrength:1.0, smoothing:0.18,
+          smoothingMode:'oneEuro', oneEuroBeta:2.5, antiDeadzone:0.12, maxVelocity:22000},
+      pad:{gain:1.25, type:'power', strength:0.75, smooth:0.0, inner:0.08} },
+    { id:'apex', n:'Apex Legends',
+      d:'Quick tracking with a light touch of smoothing to help hold a target through recoil.',
+      mt:{sensitivityX:0.018, curve:'linear', curveStrength:1.0, smoothing:0.25,
+          smoothingMode:'oneEuro', oneEuroBeta:2.0, antiDeadzone:0.13, maxVelocity:20000},
+      pad:{gain:1.15, type:'linear', strength:1.0, smooth:0.10, inner:0.08} },
+    { id:'d2', n:'Destiny 2',
+      d:'Steadier than the rest — Destiny’s own stick response is already fast, so ZeroStick does less on top of it.',
+      mt:{sensitivityX:0.014, curve:'linear', curveStrength:1.0, smoothing:0.32,
+          smoothingMode:'oneEuro', oneEuroBeta:1.5, antiDeadzone:0.14, maxVelocity:16000},
+      pad:{gain:1.0, type:'linear', strength:1.0, smooth:0.15, inner:0.08} }
+  ];
+  /* A game pack may name one of these rows (`aimPreset`) to be PRESELECTED
+     when Match Your Game opens on a config made from it (D115). The pack
+     references the row by id and never copies its numbers, and these numbers
+     stay what the header above says they are: starting points, not a
+     calibration. tools/test-game-packs.js refuses a pack naming a row that
+     is not here, through ZS.gamePresetIds. */
+  function gamePresetKnown(id){
+    for(var i=0;i<GAME_PRESETS.length;i++){ if(GAME_PRESETS[i].id===id) return true; }
+    return false;
+  }
+  ZS.gamePresetIds = function(){ return GAME_PRESETS.map(function(g){ return g.id; }); };
+  function gamePreset(id){
+    for(var i=0;i<GAME_PRESETS.length;i++){ if(GAME_PRESETS[i].id===id) return GAME_PRESETS[i]; }
+    return GAME_PRESETS[0];
+  }
+  /* the plain-English name of a stored curve, shared with the Aim screen's
+     Curve preset seg so the two screens never disagree about what is loaded */
+  function curveName(type, strength){
+    if(type==='piecewise') return 'Custom';
+    if(type==='linear') return 'Even';
+    if(type==='power') return (+strength >= 1) ? 'Gentle' : 'Aggressive';
+    return '—';
+  }
+  R.game = function(p){
+    /* A Joystick + Mouse config has BOTH, so a preset applies to both. The
+       old `var mnk` sent it down the stick-only arm and quietly left every
+       mouse field untouched while the screen said "applied". */
+    var hasMouse = ZS.inputShows(p.input, 'mouse');
+    var hasPad   = ZS.inputShows(p.input, 'controller');
+    var bothHalves = hasMouse && hasPad;
+    var full = ZS.live.full[p.id] || null;
+    var live = ZS.live.online!==false && !!full;
+    var key  = 'gamepreset|'+p.id;
+    /* A config made from a game pack opens on the preset its pack names
+       (D115: `aimPreset`). It is only PRESELECTED: nothing is written until
+       Apply, exactly as when the player picks a row by hand. */
+    var packPk = packOfConfig(p, full);
+    var packPreset = (packPk && packPk.aimPreset && gamePresetKnown(packPk.aimPreset))
+      ? packPk.aimPreset : '';
+    var picked = ZS.store.vals[key] || packPreset || GAME_PRESETS[0].id;
+    var names = GAME_PRESETS.map(function(g){ return g.n; });
+
+    function pct(v, dflt){ return Math.round((v==null? dflt : v)*100)+'%'; }
+    /* Every row here is (label, what your config holds now, what Apply writes).
+       Nothing is a guess: each one names a field a pipeline stage reads. */
+    function rows(g){
+      var out = [];
+      /* Two rows are called "Aim speed" when both halves are listed, so each
+         says which half it belongs to — otherwise the table reads as one
+         setting written twice with different numbers. */
+      function add(half, name, now, next){ out.push([(bothHalves? half+' — ':'')+name, now, next]); }
+      if(hasMouse){
+        var mt = (full && full.mouseTranslation) || {};
+        add('Mouse', 'Aim speed',
+          full? Math.round((mt.sensitivityX||0.014)/0.014*100)+'%' : '—',
+          Math.round(g.mt.sensitivityX/0.014*100)+'%');
+        add('Mouse', 'Response curve',
+          full? curveName(mt.curve, mt.curveStrength) : '—',
+          curveName(g.mt.curve, g.mt.curveStrength));
+        add('Mouse', 'Smoothing', full? pct(mt.smoothing, 0) : '—', pct(g.mt.smoothing));
+        /* "Game deadzone size", not "Small movement boost" — the renamed row
+           from the copy pass; it is the same mouseTranslation.antiDeadzone. */
+        add('Mouse', 'Game deadzone size', full? pct(mt.antiDeadzone, 0) : '—', pct(g.mt.antiDeadzone));
+        add('Mouse', 'Snappiness', full? Math.round((mt.oneEuroBeta==null?1:mt.oneEuroBeta)*10)+'%' : '—',
+          Math.round(g.mt.oneEuroBeta*10)+'%');
+        add('Mouse', 'Fastest swipe', full? String(Math.round(mt.maxVelocity||4000)) : '—',
+          String(g.mt.maxVelocity));
+      }
+      if(hasPad){
+        var cv = ((full && full.curves) || {}).rightStick || {};
+        var sm = (full && full.smoothing) || {};
+        var dz = (full && full.deadZones) || {};
+        add('Stick', 'Aim speed', full? pct(cv.gain, 1) : '—', pct(g.pad.gain));
+        add('Stick', 'Response curve', full? curveName(cv.type, cv.strength) : '—',
+          curveName(g.pad.type, g.pad.strength));
+        add('Stick', 'Steadiness', full? pct(sm.rightStick, 0) : '—', pct(g.pad.smooth));
+        add('Stick', 'Inner deadzone', full? pct(dz.rightInner, 0.08) : '—', pct(g.pad.inner));
+      }
+      return out;
+    }
+    function whatHTML(g){
+      return card(rows(g).map(function(r){
+        return '<div class="stat"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+' → '+esc(r[2])+'</b></div>';
+      }).join(''));
+    }
+
+    var g0 = gamePreset(picked);
+    var html =
+      note('Pick the game you play and ZeroStick loads aim settings that suit it. These are '+
+           '<b>starting points</b> — tune them on the <b>Aim</b> screen afterwards.')+
+      sh('Your game')+
+      card(selFld('Game', names, GAME_PRESETS.map(function(g){return g.id;}).indexOf(picked),
+                  'nothing is saved until you tap Apply below'))+
+      '<div id="gp-desc"></div>'+
+      sh('What Apply will change')+
+      '<div id="gp-what">'+whatHTML(g0)+'</div>'+
+      note(bothHalves
+        ? 'Writes the mouse-aim fields <b>and</b> the stick fields on the <b>Aim</b> screen — this '+
+          'config is played with both. Your buttons, keyboard movement and Scripts are not touched.'
+        : hasMouse
+          ? 'Writes the mouse-aim fields on the <b>Aim</b> screen. Your buttons, keyboard movement '+
+            'and Scripts are not touched.'
+          : 'Writes the stick fields on the <b>Aim</b> screen. Your buttons, trigger settings and '+
+            'Scripts are not touched.')+
+      btn('Apply these settings','primary','gp-apply')+
+      (live? '' : note('Your board is offline, so Apply has nothing to write to yet.','warn'));
+
+    return { html: html, after: function(root){
+      var sel  = root.querySelector('select.sel');
+      var what = root.querySelector('#gp-what');
+      var desc = root.querySelector('#gp-desc');
+      function cur(){ return gamePreset(picked); }
+      function paint(){
+        var g = cur();
+        if(what) what.innerHTML = whatHTML(g);
+        if(desc) desc.innerHTML = note(esc(g.d));
+      }
+      paint();
+      if(sel) sel.addEventListener('change', function(){
+        var i = sel.selectedIndex;
+        picked = GAME_PRESETS[i] ? GAME_PRESETS[i].id : GAME_PRESETS[0].id;
+        ZS.store.vals[key] = picked; ZS.persistStore();
+        paint();
+      });
+      var ap = root.querySelector('#gp-apply');
+      if(ap) armConfirm(ap, function(){
+        if(!(ZS.live.online!==false && ZS.live.full[p.id])){
+          ZS.toast('Your board is offline — nothing was written'); return;
+        }
+        var g = cur();
+        /* the aim stick's mode before, read from the cache NOW: putProfile
+           runs its mutate later (after it re-reads the board), so a flag set
+           inside it would still be unset when the toast below is built */
+        var was0 = hasPad ? stickChoiceOf(ZS.live.full[p.id], 'right') : 'custom';
+        var prevChoice = was0!=='custom' ? was0 : null;
+        /* m3/m4 (audit 2026-10-10): a preset is settings, so it waits for
+           Save like every other (D257, stageProfile), and the toast and the
+           redraw come from the answer, not before it: it used to say
+           "applied" for a write that was refused or never sent. */
+        ZS.stageProfile(p.id, function(f){
+          /* Two `if`s, not an if/else: a Joystick + Mouse config gets both
+             halves written, which is what the table above just promised. */
+          if(hasMouse){
+            if(!f.mouseTranslation) f.mouseTranslation={};
+            var m = f.mouseTranslation;
+            m.sensitivityX = g.mt.sensitivityX;
+            /* sensitivityY is never written by the app any more: the engine
+               derives it from mouseTranslation.yxRatio (schema v5) — one
+               sensitivity, one ratio. A preset leaves the user's ratio alone. */
+            m.curve = g.mt.curve; m.curveStrength = g.mt.curveStrength; m.curvePoints = [];
+            m.smoothing = g.mt.smoothing; m.smoothingMode = g.mt.smoothingMode;
+            m.oneEuroBeta = g.mt.oneEuroBeta;
+            m.antiDeadzone = g.mt.antiDeadzone;
+            m.maxVelocity = g.mt.maxVelocity;
+          }
+          if(hasPad){
+            if(!f.curves) f.curves={};
+            if(!f.curves.rightStick) f.curves.rightStick={};
+            var rs = f.curves.rightStick;
+            rs.gain = g.pad.gain; rs.type = g.pad.type; rs.strength = g.pad.strength; rs.points = [];
+            if(!f.smoothing) f.smoothing={};
+            f.smoothing.rightStick = g.pad.smooth;
+            if(!f.deadZones) f.deadZones={};
+            f.deadZones.rightInner = g.pad.inner;
+            /* A game preset IS a curve, a smoothing amount and a dead zone —
+               every one of which a native stick ignores. Writing them onto a
+               native config would leave the settings on disk doing nothing,
+               which is the exact "setting that isn't wired up" failure this
+               product refuses to ship. A preset is a deliberate request to
+               shape the stick, so it moves the aim stick to Custom (D186:
+               stick.mode and stick.right.mode together) and the toast says
+               so. The walking stick keeps its own mode. */
+            if(stickChoiceOf(f, 'right')!=='custom') stickChoiceWrite(f, 'right', 'custom');
+          }
+        }).then(function(j){
+          if(!(j && j.ok)) return;        /* the save has said why */
+          ZS.toast(g.n+' settings applied'+(j.staged ? ' \u2014 press Save to keep them' : '')+(prevChoice
+            ? ' — this switched your aim stick from '+STICK_CHOICE_NAME[prevChoice]+' to Custom, because a game preset IS a curve and a deadzone'
+            : ' — try it, then fine-tune on Aim'));
+          ZS.redrawOpenScreen();
+        });
+      });
+    }};
+  };
+
+  /* what the other screen files use from this one */
+  SEC.gamePreset = gamePreset;
+});

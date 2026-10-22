@@ -1,0 +1,291 @@
+/* zs-mark.js — the ZeroStick EXO brand mark as vector art (window.ZSLOGO).
+ *
+ * ES5 ONLY. var / function / string concatenation. No arrow functions, no
+ * template literals, no let/const — same discipline as marks.js and glyphs.js,
+ * held by hand because check-js.js only proves the file parses under Node.
+ *
+ * ── Why this exists when zs-logo.png already did ─────────────────────────────
+ *
+ * The shipped mark was a 512×198 PNG. That is fine for one appbar and wrong
+ * for everything else this product needs:
+ *
+ *   · It cannot take a colour. The mark is white ink, so on the light
+ *     surfaces (a sheet, a printed setup card, a high-contrast theme) it
+ *     disappears. currentColor fixes that once, everywhere.
+ *   · It cannot animate. The reticle IS a crosshair, and this is an
+ *     aim-assist product — a spinning reticle is the most on-brand possible
+ *     "working…" indicator, and a PNG can never be one.
+ *   · It is a raster on a Retina phone at 44px tall, and it is ~9 KB that a
+ *     phone pairing over Bluetooth LE would rather not fetch.
+ *
+ * The geometry here is TRACED FROM THE REAL ARTWORK, not redrawn by eye: the
+ * white ink of zs-logo.png was contour-traced and Douglas-Peucker simplified
+ * at ε=1.0px, which for a mark built entirely from straight cuts recovers the
+ * actual polygon rather than approximating a curve. zs-logo.png stays on disk
+ * and stays referenced, so nothing that points at it breaks.
+ *
+ * ── The three pieces, and when to use which ──────────────────────────────────
+ *
+ *   lockup()    reticle + ZS + EXO, horizontal      the appbar, splash, docs
+ *   monogram()  reticle + ZS, square               app icon, favicon, avatars
+ *   reticle()   the crosshair alone, geometric     spinners, "targeting" state
+ *
+ * reticle() is deliberately NOT traced. The traced ring is 27 contours of
+ * polyline that exists to be looked at; a spinner needs to be rebuilt from
+ * circles and dashes so it can rotate crisply at any size and cost ~600 bytes.
+ * It quotes the logo rather than reproducing it, which is the correct
+ * relationship for a functional indicator.
+ *
+ * ── Colour ──────────────────────────────────────────────────────────────────
+ *
+ * Everything is fill="currentColor" / stroke="currentColor". Set the colour on
+ * the container. The one exception is the `tone:"brand"` option, which paints
+ * the mark with the Ion→violet gradient for premium surfaces; each gradient
+ * gets a unique id because two of these can legitimately be on screen at once
+ * and duplicate ids would make the second one adopt the first one's stops.
+ */
+(function () {
+  'use strict';
+
+  /* Traced at ε=1.0 from the white ink of zs-logo.png.
+     Height-led: both paths live in a 100-unit-tall space, so a caller only
+     ever sets a height and the width follows. */
+  var P_MARK = 'M52.02 0.00L53.03 0.00L53.03 12.12L54.04 13.13L62.63 14.14L71.21 17.68L75.76 20.71L82.32 27.27L84.85 31.82L82.83 30.30L78.28 24.24L71.72 19.19L65.66 16.16L58.59 14.14L54.55 14.14L54.04 13.13L53.03 14.14L53.03 31.82L51.52 31.82L51.52 14.14L46.46 14.14L37.88 16.67L29.29 21.72L21.21 30.81L18.18 36.87L17.17 41.41L15.66 43.43L16.16 39.90L19.70 31.31L23.23 26.26L28.28 21.21L31.82 18.69L40.40 14.65L46.97 13.13L50.51 13.13L51.52 12.12L52.02 0.00ZM46.46 9.09L50.51 9.09L50.00 11.11L38.89 13.13L28.79 18.69L27.27 17.68L30.81 14.65L35.86 12.12L46.46 9.09ZM54.55 9.09L61.11 9.60L67.68 11.62L74.75 15.15L77.27 17.68L75.76 18.69L67.17 13.64L60.61 11.62L54.55 11.11L54.55 9.09ZM69.70 19.70L75.76 23.74L81.82 31.31L79.80 31.82L74.75 25.76L68.69 21.72L69.70 19.70ZM34.34 20.20L35.86 21.72L31.82 24.24L26.26 29.80L24.75 32.32L22.73 31.82L24.75 28.28L30.30 22.73L34.34 20.20ZM47.47 24.24L50.51 24.75L42.42 26.77L35.35 31.31L33.84 31.31L37.37 28.28L47.47 24.24ZM54.55 24.24L62.63 25.76L68.69 29.29L71.21 31.82L69.19 31.31L63.64 27.27L57.58 25.25L55.05 25.25L54.55 24.24ZM84.85 24.24L87.88 28.28L89.39 31.82L87.37 31.82L83.33 25.76L84.85 24.24ZM19.19 25.25L20.71 26.77L15.66 35.35L13.13 45.96L11.11 46.97L11.62 41.41L13.64 34.85L15.66 30.30L19.19 25.25ZM28.28 32.83L99.49 32.83L91.92 40.40L92.93 40.91L93.43 46.97L91.41 46.97L90.91 42.42L91.92 41.41L90.91 40.91L85.35 46.46L77.78 47.47L88.38 57.07L77.27 67.68L75.25 68.18L9.60 68.18L30.30 47.47L14.14 46.97L28.28 32.83ZM58.59 36.87L58.59 35.35L30.30 35.86L22.22 43.43L38.38 43.94L17.68 64.65L43.43 65.15L52.02 56.57L39.39 56.06L58.59 36.87ZM90.91 36.87L90.91 35.35L62.63 35.86L54.55 43.94L68.18 56.06L56.57 56.06L47.47 64.65L75.25 65.15L83.84 57.07L69.19 43.94L83.33 43.94L90.91 36.87ZM0.00 48.48L27.78 48.48L26.26 50.00L0.00 50.00L0.00 48.48ZM15.15 51.01L16.16 51.01L17.17 56.57L16.67 59.09L15.15 51.01ZM11.11 51.52L13.13 51.52L13.64 53.54L13.64 56.06L15.15 60.61L13.64 62.12L12.12 58.59L11.11 51.52ZM91.41 51.52L93.43 51.52L93.43 54.04L90.91 63.64L85.86 72.73L82.83 76.26L81.82 76.26L81.31 74.75L85.35 69.70L88.89 63.13L90.91 56.57L91.41 51.52ZM47.47 53.54L60.10 53.03L52.53 46.97L46.46 53.03L47.47 53.54ZM87.88 59.09L84.34 67.68L75.76 77.27L66.67 82.32L59.60 84.34L54.55 84.85L54.55 83.84L60.10 83.33L66.67 81.31L75.25 76.26L82.83 68.18L86.36 60.61L87.88 59.09ZM16.67 69.19L19.70 69.70L24.24 75.76L23.74 77.27L22.73 77.27L21.21 75.76L16.67 69.19ZM21.72 69.19L22.73 69.19L29.29 76.26L32.83 78.79L42.42 82.83L50.51 84.34L48.48 84.85L40.91 83.33L31.82 79.29L28.28 76.77L23.23 71.72L21.72 69.19ZM26.26 69.19L27.27 69.19L33.84 75.25L37.88 77.27L37.37 78.79L36.87 79.29L30.30 75.25L25.25 70.20L26.26 69.19ZM36.87 69.19L38.89 69.19L46.97 72.73L50.00 72.73L50.51 73.74L45.45 73.23L36.87 69.19ZM51.52 69.19L53.03 69.19L53.03 99.49L51.52 98.99L51.52 69.19ZM65.66 69.19L67.68 69.19L63.64 71.72L59.60 73.23L54.55 73.74L54.55 72.73L59.60 72.22L65.66 69.19ZM77.27 69.19L78.79 70.71L74.24 75.25L67.17 79.29L66.67 77.27L72.73 73.74L77.27 69.19ZM74.24 80.30L75.25 82.32L68.69 85.86L60.10 88.38L54.55 88.89L54.55 86.87L55.56 86.36L63.64 85.35L69.19 83.33L74.24 80.30ZM31.31 80.81L35.35 83.33L40.91 85.35L48.99 86.36L50.00 86.87L50.00 88.89L42.42 87.88L35.86 85.86L30.30 82.83L31.31 80.81Z';
+
+  var P_WORD = 'M106.06 31.31L148.48 31.31L144.44 39.90L114.14 39.90L112.63 41.92L112.12 45.45L142.42 45.45L139.39 53.54L109.09 53.54L106.57 58.59L107.07 59.60L138.89 59.60L136.36 67.68L93.43 67.68L99.49 50.51L82.32 50.00L80.81 48.48L99.49 48.48L106.06 31.31ZM152.53 31.31L166.67 31.31L177.27 42.42L191.92 31.31L207.58 31.31L183.84 49.49L201.01 67.68L186.87 67.68L175.25 55.56L158.59 67.68L144.44 67.68L168.69 48.99L152.53 31.31ZM220.20 31.31L250.51 31.31L256.57 33.84L258.08 36.36L257.58 42.93L252.53 59.09L248.48 64.65L240.91 67.68L209.60 67.68L204.04 65.15L202.53 62.12L202.53 58.59L208.08 40.40L211.62 34.85L220.20 31.31ZM246.46 45.45L246.97 41.92L244.95 39.90L221.21 39.90L217.17 43.43L213.64 56.57L216.67 59.60L239.90 59.09L243.94 55.05L246.46 45.45Z';
+
+  var VB_FULL = '0 0 258.59 100';   /* whole lockup                     */
+  var VB_MARK = '0 0 103.54 100';   /* reticle + ZS, square-ish         */
+  var ASPECT_FULL = 258.59 / 100;
+  var ASPECT_MARK = 103.54 / 100;
+
+  var gradSeq = 0;
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* An <svg> that is decoration gets aria-hidden; one that carries the product
+     name gets a <title> and role="img". Getting this backwards means a screen
+     reader either announces "image" forty times or never says the app's name
+     once — and this product's whole reason for existing is access. */
+  function open(vb, w, h, opts, titleText) {
+    var cls = opts.className ? ' class="' + esc(opts.className) + '"' : '';
+    var size = '';
+    if (h) { size += ' height="' + h + '"'; }
+    if (w) { size += ' width="' + w + '"'; }
+    var a11y = titleText
+      ? ' role="img" aria-label="' + esc(titleText) + '"'
+      : ' aria-hidden="true" focusable="false"';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vb + '"' +
+      size + cls + a11y + ' fill="none">';
+  }
+
+  /* tone:"brand" paints the Ion→violet gradient used for the premium tier.
+     Unique id per call: two marks can share a screen, and a duplicated id
+     silently makes the second one inherit the first one's stops. */
+  function paint(tone, vbw) {
+    if (tone !== 'brand') { return { fill: 'currentColor', defs: '' }; }
+    gradSeq += 1;
+    var id = 'zsg' + gradSeq;
+    var defs = '<defs><linearGradient id="' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#2fd9ce"/>' +
+      '<stop offset=".52" stop-color="#6f9bff"/>' +
+      '<stop offset="1" stop-color="#a371f7"/>' +
+      '</linearGradient></defs>';
+    return { fill: 'url(#' + id + ')', defs: defs };
+  }
+
+  /* fill-rule:evenodd is not optional. The Z and the S are separated by black
+     in the artwork, which on a dark ground reads as background — traced as
+     white ink those separations come back as inner contours, and only evenodd
+     renders them as holes rather than filling them solid. */
+  function body(d, p, cls) {
+    return '<path class="' + cls + '" fill-rule="evenodd" clip-rule="evenodd" fill="' +
+      p.fill + '" d="' + d + '"/>';
+  }
+
+  var API = {};
+
+  /**
+   * Full ZS EXO lockup. Height-led; width follows the artwork's aspect.
+   *
+   * The reticle+ZS and the EXO wordmark are emitted as SEPARATE paths carrying
+   * .zs-m and .zs-w, so a stylesheet can tint them independently without this
+   * file needing to know anything about themes. The house treatment paints the
+   * reticle in the accent and the word in the text colour — the crosshair is
+   * what the product DOES, so it is the half that should carry the colour.
+   * One path with both halves could never do that.
+   */
+  API.lockup = function (opts) {
+    opts = opts || {};
+    var h = opts.height || 28;
+    var p = paint(opts.tone, 258.59);
+    return open(VB_FULL, Math.round(h * ASPECT_FULL), h, opts,
+      opts.decorative ? null : 'ZeroStick EXO') + p.defs +
+      body(P_MARK, p, 'zs-m') + body(P_WORD, p, 'zs-w') + '</svg>';
+  };
+
+  /** Reticle + ZS only. The square-ish mark: icons, avatars, tight spaces. */
+  API.monogram = function (opts) {
+    opts = opts || {};
+    var h = opts.size || opts.height || 32;
+    var p = paint(opts.tone, 103.54);
+    return open(VB_MARK, Math.round(h * ASPECT_MARK), h, opts,
+      opts.decorative ? null : 'ZeroStick') + p.defs +
+      body(P_MARK, p, 'zs-m') + '</svg>';
+  };
+
+  /** Just the EXO wordmark, for places that already show the monogram. */
+  API.wordmark = function (opts) {
+    opts = opts || {};
+    var h = opts.height || 20;
+    var p = paint(opts.tone, 178);
+    /* shift the word back to x=0 so it can be laid out on its own */
+    return open('80 31 178.08 37', Math.round(h * (178.08 / 37)), h, opts,
+      opts.decorative ? null : 'EXO') + p.defs +
+      body(P_WORD, p, 'zs-w') + '</svg>';
+  };
+
+  /* ── the reticle ───────────────────────────────────────────────────────────
+     Rebuilt from primitives rather than traced, so it can spin. The geometry
+     quotes the logo: a segmented outer ring, a plain inner ring, four
+     crosshair arms with a gap at the centre, and a centre dot.
+
+     `state` drives what it MEANS, and each state is distinguishable without
+     colour (apple-design §16 — never colour alone):
+
+       'idle'      still, dimmed              nothing happening
+       'scanning'  outer ring rotating        looking for a target
+       'locked'    ring closed + centre dot   target held
+
+     The stroke widths are in viewBox units against vector-effect
+     non-scaling-stroke being deliberately NOT used: at 16px a hairline
+     disappears, so the ring must get proportionally thicker as it shrinks,
+     which is what a plain scaled stroke already does. */
+  API.reticle = function (opts) {
+    opts = opts || {};
+    var size = opts.size || 24;
+    var state = opts.state || 'idle';
+    var stroke = opts.weight || 6;
+    var cls = 'zs-ret zs-ret-' + state + (opts.className ? ' ' + opts.className : '');
+
+    /* pathLength="100" renormalises the circle so dash lengths are PERCENT of
+       the circumference, not user units. That makes the tiling exact by
+       construction at any radius — the first attempt computed real lengths
+       from 2πr and rounded them to 2dp, which came out at 8.0015 segments and
+       would have made the ring visibly stutter once per rotation. Caught by
+       the self-test at the bottom of this file, not by reading it. */
+    var s = open('0 0 100 100', size, size,
+      { className: cls }, opts.label || null);
+
+    s += '<g stroke="currentColor" fill="none" stroke-linecap="butt">';
+    /* segmented outer ring — 8 segments, 70% on / 30% gap */
+    s += '<circle class="zs-ret-ring" cx="50" cy="50" r="40" pathLength="100" ' +
+      'stroke-width="' + stroke + '" stroke-dasharray="8.75 3.75"/>';
+    /* inner ring — 4 segments, counter-rotating, lighter weight */
+    s += '<circle class="zs-ret-inner" cx="50" cy="50" r="27" pathLength="100" ' +
+      'stroke-width="' + (stroke * 0.62).toFixed(2) +
+      '" stroke-dasharray="13.75 11.25"/>';
+    /* crosshair arms, gap at the centre so the target stays visible */
+    s += '<g class="zs-ret-cross" stroke-width="' + stroke + '">';
+    s += '<path d="M50 0V17M50 83V100M0 50H17M83 50H100"/>';
+    s += '</g></g>';
+    /* centre dot — only drawn when locked; its presence IS the signal */
+    s += '<circle class="zs-ret-dot" cx="50" cy="50" r="' +
+      (stroke * 0.9).toFixed(2) + '" fill="currentColor"/>';
+    s += '</svg>';
+    return s;
+  };
+
+  /** A data: URI of the monogram, for <link rel="icon"> and manifests. */
+  API.faviconURI = function (colour) {
+    var c = colour || '#2fd9ce';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + VB_MARK +
+      '"><path fill-rule="evenodd" clip-rule="evenodd" fill="' + c +
+      '" d="' + P_MARK + '"/></svg>';
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  };
+
+  /** Replace an element's contents with a mark. Convenience for wiring. */
+  API.into = function (el, kind, opts) {
+    if (!el) { return null; }
+    var fn = API[kind];
+    if (typeof fn !== 'function') { return null; }
+    el.innerHTML = fn(opts || {});
+    return el;
+  };
+
+  API.paths = { mark: P_MARK, word: P_WORD };
+  API.viewBox = { full: VB_FULL, mark: VB_MARK };
+
+  window.ZSLOGO = API;
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     Same convention as marks.js: assert the invariants that would otherwise
+     fail silently and only show up as a blank appbar on someone's phone. */
+  if (typeof window !== 'undefined') {
+    (function () {
+      var fail = [];
+
+      function ck(cond, msg) { if (!cond) { fail.push(msg); } }
+
+      var lk = API.lockup({ height: 28 });
+      ck(lk.indexOf('<svg') === 0, 'lockup must start with <svg');
+      ck(lk.indexOf('viewBox="' + VB_FULL + '"') > -1, 'lockup viewBox wrong');
+      ck(lk.indexOf('fill-rule="evenodd"') > -1,
+        'evenodd missing — the Z/S separation would fill in solid');
+      ck(lk.indexOf('aria-label="ZeroStick EXO"') > -1,
+        'lockup must name the product for screen readers');
+
+      var mono = API.monogram({ size: 32 });
+      ck(mono.indexOf('viewBox="' + VB_MARK + '"') > -1, 'monogram viewBox wrong');
+      ck(mono.indexOf(P_WORD.slice(0, 24)) === -1,
+        'monogram must NOT contain the EXO wordmark');
+      ck(API.monogram({ decorative: true }).indexOf('aria-hidden="true"') > -1,
+        'decorative marks must be hidden from screen readers');
+
+      /* two brand-tone marks on one screen must not share a gradient id */
+      var a = API.lockup({ tone: 'brand' });
+      var b = API.lockup({ tone: 'brand' });
+      var idA = /id="(zsg\d+)"/.exec(a);
+      var idB = /id="(zsg\d+)"/.exec(b);
+      ck(idA && idB && idA[1] !== idB[1],
+        'gradient ids must be unique per call, else the 2nd mark steals the 1st');
+
+      var ret = API.reticle({ size: 24, state: 'scanning' });
+      ck(ret.indexOf('zs-ret-scanning') > -1, 'reticle state class missing');
+      ck(ret.indexOf('stroke-dasharray') > -1, 'reticle ring must be segmented');
+      /* The dash pattern must tile the circumference a WHOLE number of times
+         or the ring stutters once per rotation. pathLength="100" is what makes
+         that exact rather than approximately true, so assert both halves:
+         the renormalisation is present, and the dashes divide 100 evenly. */
+      ck(/r="40"[^/]*pathLength="100"/.test(ret),
+        'outer ring must set pathLength="100" or dash tiling drifts with r');
+      var m = /r="40"[^/]*stroke-dasharray="([\d.]+) ([\d.]+)"/.exec(ret);
+      if (m) {
+        var per = parseFloat(m[1]) + parseFloat(m[2]);
+        var reps = 100 / per;
+        ck(Math.abs(reps - Math.round(reps)) < 1e-9,
+          'outer ring dash does not tile evenly: ' + reps + ' repeats');
+      } else {
+        fail.push('could not find the outer ring dash pattern');
+      }
+      var mi = /r="27"[^/]*stroke-dasharray="([\d.]+) ([\d.]+)"/.exec(ret);
+      if (mi) {
+        var peri = parseFloat(mi[1]) + parseFloat(mi[2]);
+        var repsi = 100 / peri;
+        ck(Math.abs(repsi - Math.round(repsi)) < 1e-9,
+          'inner ring dash does not tile evenly: ' + repsi + ' repeats');
+      } else {
+        fail.push('could not find the inner ring dash pattern');
+      }
+
+      ck(API.faviconURI().indexOf('data:image/svg+xml,') === 0,
+        'faviconURI must be a data URI');
+
+      window.ZSLOGO_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

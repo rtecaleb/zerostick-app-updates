@@ -1,0 +1,1050 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "battlefield-6",
+  "title": "Battlefield 6",
+  "asOf": "2026-10-10",
+  "season": "Season 4: Tidal Strike",
+  "review": "Waiting for the owner's check (D132): gun names and classes verified against EA's Season 4 weapon-class page and season roadmaps on 2026-10-10; the HUD (gun silhouette, whether a name ever shows) is not checked on a real frame yet.",
+  "integrated": [],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.m433",
+          "name": "M433",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed",
+            "https://mein-mmo.de/en/battlefield-6-all-weapons-overview,1518723"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.b36a4",
+          "name": "B36A4",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.sor_556_mk2",
+          "name": "SOR-556 MK2",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.ak4d",
+          "name": "AK4D",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.tr_7",
+          "name": "TR-7",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.kord_6p67",
+          "name": "KORD 6P67",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.nvo_228e",
+          "name": "NVO-228E",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed",
+            "https://mein-mmo.de/en/battlefield-6-all-weapons-overview,1518723"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.l85a3",
+          "name": "L85A3",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.vcr_2",
+          "name": "VCR-2",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.shacknews.com/article/147926/battlefield-6-season-2-roadmap"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.m16a4",
+          "name": "M16A4",
+          "from": "Season 3 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.shacknews.com/article/149101/every-new-weapon-coming-in-season-3-of-battlefield-6"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.ef88",
+          "name": "EF88",
+          "from": "Season 4 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know",
+            "https://www.dexerto.com/wikis/battlefield-6/season-4-roadmap/"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "carbines",
+      "name": "Carbines",
+      "items": [
+        {
+          "id": "carbines.m4a1",
+          "name": "M4A1",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.m277",
+          "name": "M277",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.ak_205",
+          "name": "AK-205",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.m417_a2",
+          "name": "M417 A2",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.grt_bc",
+          "name": "GRT-BC",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.qbz_192",
+          "name": "QBZ-192",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.sg_553r",
+          "name": "SG 553R",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.sor_300sc",
+          "name": "SOR-300SC",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://www.gfinityesports.com/article/all-battlefield-6-season-1-weapons-attachments",
+            "https://www.techradar.com/gaming/battlefield-6-season-one-roadmap-reveals-buckets-of-free-content-including-new-maps-weapons-and-gear"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "carbines.brod_3",
+          "name": "BROD 3",
+          "from": "Season 4 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know",
+            "https://www.dexerto.com/wikis/battlefield-6/season-4-roadmap/"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "smgs",
+      "name": "SMGs",
+      "items": [
+        {
+          "id": "smgs.sgx",
+          "name": "SGX",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.pw5a3",
+          "name": "PW5A3",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.pw7a2",
+          "name": "PW7A2",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.umg_40",
+          "name": "UMG-40",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.usg_90",
+          "name": "USG-90",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.kv9",
+          "name": "KV9",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.scw_10",
+          "name": "SCW-10",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.sl9",
+          "name": "SL9",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.cz3a1",
+          "name": "CZ3A1",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.gfinityesports.com/article/battlefield-6-season-2-nightfall-when-does-phase-two-start"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.pp_19",
+          "name": "PP-19",
+          "from": "Season 3 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.shacknews.com/article/149457/how-to-unlock-the-pp-19-smg-in-battlefield-6-season-3"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "lmgs",
+      "name": "LMGs",
+      "items": [
+        {
+          "id": "lmgs.l110",
+          "name": "L110",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.drs_iar",
+          "name": "DRS-IAR",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.m_60",
+          "name": "M/60",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto",
+          "aliases": [
+            "M60"
+          ]
+        },
+        {
+          "id": "lmgs.rpkm",
+          "name": "RPKM",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.dexerto.com/wikis/battlefield-6/rpkm/",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": "EA's weapon-class page (updated for Season 4) leaves it out of its LMG list, though guides list it as a Career Rank 30 unlock separate from the RPK-74M; its name is from guides, not EA."
+        },
+        {
+          "id": "lmgs.m123k",
+          "name": "M123K",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.m250",
+          "name": "M250",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.kts100_mk8",
+          "name": "KTS100 MK8",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.m240l",
+          "name": "M240L",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.m121_a2",
+          "name": "M121 A2",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.shacknews.com/article/147926/battlefield-6-season-2-roadmap"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.rpk_74m",
+          "name": "RPK-74M",
+          "from": "Season 3 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.shacknews.com/article/149101/every-new-weapon-coming-in-season-3-of-battlefield-6"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "dmrs",
+      "name": "DMRs",
+      "items": [
+        {
+          "id": "dmrs.m39_emr",
+          "name": "M39 EMR",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "dmrs.lmr27",
+          "name": "LMR27",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "dmrs.svk_8_6",
+          "name": "SVK-8.6",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "dmrs.svdm",
+          "name": "SVDM",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "dmrs.grt_cps",
+          "name": "GRT-CPS",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.shacknews.com/article/147926/battlefield-6-season-2-roadmap"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "dmrs.vssm",
+          "name": "VSSM",
+          "from": "Season 4 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know",
+            "https://www.dexerto.com/wikis/battlefield-6/season-4-roadmap/"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.m2010_esr",
+          "name": "M2010 ESR",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.sv_98",
+          "name": "SV-98",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.psr",
+          "name": "PSR",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.mini_scout",
+          "name": "Mini Scout",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://www.techradar.com/gaming/battlefield-6-season-one-roadmap-reveals-buckets-of-free-content-including-new-maps-weapons-and-gear"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.l115a3",
+          "name": "L115A3",
+          "from": "Season 3 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.shacknews.com/article/149101/every-new-weapon-coming-in-season-3-of-battlefield-6"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt",
+          "aliases": [
+            "L115"
+          ]
+        },
+        {
+          "id": "sniper_rifles.interdictor",
+          "name": "Interdictor",
+          "from": "Season 4 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know",
+            "https://www.dexerto.com/wikis/battlefield-6/season-4-roadmap/"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.m87a1",
+          "name": "M87A1",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.m1014",
+          "name": "M1014",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.18_5ks_k",
+          "name": "18.5KS-K",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.db_12",
+          "name": "DB-12",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://beebom.com/battlefield-6-update-1-1-2-0-patch-notes-new-weapons-and-map-bug-fixes-and-more/"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        }
+      ]
+    },
+    {
+      "id": "sidearms",
+      "name": "Sidearms",
+      "items": [
+        {
+          "id": "sidearms.p18",
+          "name": "P18",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.es_5_7",
+          "name": "ES 5.7",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.m45a1",
+          "name": "M45A1",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.m44",
+          "name": "M44",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.gfinityesports.com/article/battlefield-6s-full-arsenal-leaks-with-45-weapons-confirmed"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.ggh_22",
+          "name": "GGH-22",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://www.gfinityesports.com/article/all-battlefield-6-season-1-weapons-attachments"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.m357_trait",
+          "name": "M357 TRAIT",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://beebom.com/battlefield-6-update-1-1-2-0-patch-notes-new-weapons-and-map-bug-fixes-and-more/"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "sidearms.vz_61",
+          "name": "vz. 61",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.gfinityesports.com/article/battlefield-6-season-2-nightfall-when-does-phase-two-start"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "gadget_weapons",
+      "name": "Gadget weapons",
+      "items": [
+        {
+          "id": "gadget_weapons.rpg_7v2",
+          "name": "RPG-7V2",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.mbt_law",
+          "name": "MBT-LAW",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.m136_at",
+          "name": "M136 AT",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.mas_148",
+          "name": "MAS 148",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.slm_93a",
+          "name": "SLM-93A",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.9k38_igla",
+          "name": "9K38 IGLA",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know",
+            "https://www.shacknews.com/article/147926/battlefield-6-season-2-roadmap"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.m320a1_he",
+          "name": "M320A1 HE",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.m320a1_thrm",
+          "name": "M320A1 THRM",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.m320a1_smk",
+          "name": "M320A1 SMK",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "gadget_weapons.x95_brm",
+          "name": "X95 BRM",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": "Some guides write X95 BRE (a breaching projectile launcher); no EA page spelling was found."
+        },
+        {
+          "id": "gadget_weapons.ss26_fire_shotgun",
+          "name": "SS26 Fire Shotgun",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        }
+      ]
+    },
+    {
+      "id": "melee",
+      "name": "Melee",
+      "items": [
+        {
+          "id": "melee.combat_knife",
+          "name": "Combat Knife",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes"
+          ],
+          "uncertain": "EA's loadout page lists it as COMBAT KNIFE; guides call the default knife the KBR Mark II, so the HUD name is not settled."
+        },
+        {
+          "id": "melee.sledgehammer",
+          "name": "Sledgehammer",
+          "from": "Launch (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "melee.nomad_cx_12_ice_climbing_axe",
+          "name": "NOMAD CX-12 Ice-Climbing Axe",
+          "from": "Season 1 (2025)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes",
+            "https://www.ea.com/en/games/battlefield/battlefield-6/news/season-1-full-roadmap",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know"
+          ],
+          "uncertain": "EA writes it three ways (Ice Climbing Axe, NOMAD CX-12 Ice Axe, NOMAD CX-12 ICE-CLIMBING AXE); the in-game spelling is not seen."
+        },
+        {
+          "id": "melee.ripper_14",
+          "name": "Ripper 14\"",
+          "from": "Season 2 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-2-hunter-prey-bonus-path-free-challenges-guide",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know"
+          ],
+          "uncertain": "The Season 2 roadmap announced the \"KAPOK 14” Machete\"; the Hunter / Prey bonus path that delivered it names its reward \"Ripper 14”\" and calls it a Serrated Blade, so they are taken as one weapon, not confirmed.",
+          "aliases": [
+            "Machete"
+          ]
+        },
+        {
+          "id": "melee.royal_navy_dive_knife",
+          "name": "Royal Navy Dive Knife",
+          "from": "Season 4 (2026)",
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/redsec/news/battlefield-season-4-update-event-guide",
+            "https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know"
+          ],
+          "uncertain": "EA names it the final reward of the Deep Six Collection Event (Tidal Strike) but does not say whether it is its own melee weapon or a skin."
+        },
+        {
+          "id": "melee.hunting_knife",
+          "name": "Hunting Knife",
+          "from": null,
+          "image": null,
+          "sources": [
+            "https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes"
+          ],
+          "uncertain": "Named only in EA's loadout page list; when it arrived and how it is unlocked were not found."
+        }
+      ]
+    }
+  ],
+  "tiers": [
+    {
+      "id": "common",
+      "name": "Common",
+      "colour": "#E6E6E6",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour white; the display colour is ours, not sampled from a frame."
+    },
+    {
+      "id": "uncommon",
+      "name": "Uncommon",
+      "colour": "#4CAF50",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour green; the display colour is ours, not sampled from a frame."
+    },
+    {
+      "id": "rare",
+      "name": "Rare",
+      "colour": "#2F80ED",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour blue; the display colour is ours, not sampled from a frame."
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced",
+      "colour": "#A94DE0",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour purple; the highest tier a Weapon Upgrade Kit reaches. The display colour is ours."
+    },
+    {
+      "id": "superior",
+      "name": "Superior",
+      "colour": "#F28C28",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour orange; a few per match. The display colour is ours."
+    },
+    {
+      "id": "unique",
+      "name": "Unique",
+      "colour": "#E0393E",
+      "sources": [
+        "https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101"
+      ],
+      "note": "REDSEC (battle royale) only. EA names the colour red; custom-weapon drops. The display colour is ours."
+    }
+  ]
+}

@@ -1,0 +1,213 @@
+/* zs-photos.js — the player's config photos, kept in the APP (D120).
+ *
+ * WHY HERE AND NOT ON THE ADAPTER. The owner, 2026-09-23: "keep the pictures
+ * in the phone app, off the actual memory, which is for firmware and
+ * profiles." A photo is the player's own way of spotting a config in a list;
+ * the adapter never looks at it, so it has no business in the adapter's
+ * memory. The Core never had a photo route, which meant a player could not
+ * set a photo on a Core at all until the photo moved here.
+ *
+ * THE ONE COST, stated where the code is: a photo set on the phone is not on
+ * the PC app, and one set on the PC is not on the phone. Each install keeps
+ * its own drawer. That is the price of keeping pictures off the adapter, and
+ * the owner chose it.
+ *
+ * WHERE: IndexedDB, one database, one object store. Both places the app runs
+ * have it (the phone's Capacitor webview and the exe's Edge window), and both
+ * can clear it, so every call here answers "no photo" rather than throwing
+ * when the store is missing, blocked, full or wiped.
+ *
+ * WHY IndexedDB AND NOT localStorage. phone.html's persist() rewrites the
+ * whole localStorage STORE on every reorder and config switch inside a
+ * catch(e){}. A 50 KB picture per config there would blow the ~5 MB quota and
+ * persist() would start failing silently, losing config edits with nothing on
+ * screen to say why.
+ *
+ * THE KEY IS (adapter, config), never the config alone. Every adapter has a
+ * config called "default", and a duplicated config can reach a second
+ * adapter with its id intact, so a key of the config id alone would show one
+ * adapter's photo on another's config. phone.html forms the adapter half from
+ * the identity the adapter reports on /status (photoDevKey there).
+ *
+ * THE BYTES ARE STORED AS AN ArrayBuffer, not a Blob. Blobs in IndexedDB have
+ * a history of failing in some WebKit builds ("Error preparing Blob/File data
+ * to be stored"), and an ArrayBuffer is plain structured-clone data every
+ * engine has always accepted. The picture is ~50 KB after the app's own
+ * shrink, so the copy costs nothing worth measuring.
+ *
+ * A RECORD:
+ *   dev, pid   the key's two halves, kept in the value so all(dev) can filter
+ *   bytes      the JPEG, as an ArrayBuffer
+ *   type       'image/jpeg'
+ *   show       'photo' | 'mark': the player's choice of what the tile shows,
+ *              kept WITH the picture because it is only a question when there
+ *              is one. Before D120 it was written into the config on the
+ *              adapter, which cost a whole config save to change a tile.
+ *   at         when it was written, for a person reading the store in devtools
+ *
+ * ES5 only, like every file phone.html loads (docs/DESIGN.md). Sets one
+ * global, reads nothing at load time.
+ */
+(function () {
+  'use strict';
+
+  var DB_NAME = 'zs-photos';
+  var DB_VERSION = 1;
+  var STORE = 'photos';
+
+  var opening = null;           /* Promise<IDBDatabase|null>, made once */
+
+  function factory() {
+    /* Reading window.indexedDB itself can throw (a sandboxed frame, some
+       privacy modes), so even the look is guarded. */
+    try { return window.indexedDB || null; } catch (e) { return null; }
+  }
+
+  function available() { return !!factory(); }
+
+  function open() {
+    if (opening) { return opening; }
+    opening = new Promise(function (resolve) {
+      var f = factory();
+      var rq;
+      if (!f) { resolve(null); return; }
+      try { rq = f.open(DB_NAME, DB_VERSION); } catch (e) { resolve(null); return; }
+      rq.onupgradeneeded = function () {
+        try {
+          var db = rq.result;
+          if (!db.objectStoreNames.contains(STORE)) { db.createObjectStore(STORE); }
+        } catch (e) { /* onerror follows and says no */ }
+      };
+      rq.onsuccess = function () {
+        var db = rq.result;
+        /* Another window upgrading the schema must not be blocked by this
+           one: close, and the next call opens afresh. */
+        try { db.onversionchange = function () { try { db.close(); } catch (e) {} opening = null; }; } catch (e) {}
+        resolve(db);
+      };
+      rq.onerror = function () { opening = null; resolve(null); };
+      rq.onblocked = function () { opening = null; resolve(null); };
+    });
+    return opening;
+  }
+
+  /* JSON of the pair, so no id can make two different pairs spell the same
+     key (a separator character could appear inside either half). */
+  function key(dev, pid) { return JSON.stringify([String(dev), String(pid)]); }
+
+  /* One request in one transaction. Resolves {ok, value}; never rejects,
+     because every caller's answer to a failure is the same: no photo. */
+  function run(mode, make) {
+    return open().then(function (db) {
+      if (!db) { return { ok: false, value: null }; }
+      return new Promise(function (resolve) {
+        var t, rq, value = null, settled = false;
+        function done(ok) { if (!settled) { settled = true; resolve({ ok: ok, value: ok ? value : null }); } }
+        try {
+          t = db.transaction(STORE, mode);
+          rq = make(t.objectStore(STORE));
+        } catch (e) { done(false); return; }
+        rq.onsuccess = function () { value = rq.result === undefined ? null : rq.result; };
+        t.oncomplete = function () { done(true); };
+        t.onerror = function () { done(false); };
+        t.onabort = function () { done(false); };
+      });
+    });
+  }
+
+  function toBuffer(blob) {
+    if (!blob) { return Promise.reject(new Error('no picture')); }
+    if (typeof blob.arrayBuffer === 'function') { return blob.arrayBuffer(); }
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(fr.result); };
+      fr.onerror = function () { reject(fr.error || new Error('read failed')); };
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+
+  function valid(rec, dev) {
+    return !!rec && typeof rec === 'object' && rec.dev === dev &&
+      typeof rec.pid === 'string' && !!rec.bytes;
+  }
+
+  /* Every picture kept for one adapter, as a list. */
+  function all(dev) {
+    if (!dev) { return Promise.resolve([]); }
+    return run('readonly', function (s) { return s.getAll(); }).then(function (r) {
+      var out = [], list = (r.ok && r.value && r.value.length !== undefined) ? r.value : [];
+      for (var i = 0; i < list.length; i++) { if (valid(list[i], dev)) { out.push(list[i]); } }
+      return out;
+    });
+  }
+
+  function get(dev, pid) {
+    if (!dev) { return Promise.resolve(null); }
+    return run('readonly', function (s) { return s.get(key(dev, pid)); }).then(function (r) {
+      return valid(r.value, dev) ? r.value : null;
+    });
+  }
+
+  function write(rec) {
+    return run('readwrite', function (s) { return s.put(rec, key(rec.dev, rec.pid)); })
+      .then(function (r) { return r.ok; });
+  }
+
+  /* Keep a picture. `blob` is the shrunk JPEG. Resolves true once it is
+     really stored, false when the device said no. */
+  function put(dev, pid, blob, show) {
+    if (!dev || !pid) { return Promise.resolve(false); }
+    return toBuffer(blob).then(function (bytes) {
+      return write({ dev: dev, pid: String(pid), bytes: bytes,
+        type: (blob && blob.type) || 'image/jpeg',
+        show: show === 'mark' ? 'mark' : 'photo', at: Date.now() });
+    }, function () { return false; });
+  }
+
+  /* Change only which the tile shows. False when there is no picture to
+     remember the choice against. */
+  function setShow(dev, pid, show) {
+    return get(dev, pid).then(function (rec) {
+      if (!rec) { return false; }
+      rec.show = show === 'mark' ? 'mark' : 'photo';
+      rec.at = Date.now();
+      return write(rec);
+    });
+  }
+
+  /* The player removed the photo, or deleted the config. */
+  function remove(dev, pid) {
+    if (!dev || !pid) { return Promise.resolve(false); }
+    return run('readwrite', function (s) { return s['delete'](key(dev, pid)); })
+      .then(function (r) { return r.ok; });
+  }
+
+  /* Every picture for every adapter, gone (D272: Settings > Factory reset,
+     which the Privacy Policy says clears the config pictures). Resolves
+     true when the store was emptied, false when there was none to empty. */
+  function clearAll() {
+    return run('readwrite', function (s) { return s.clear(); })
+      .then(function (r) { return r.ok; });
+  }
+
+  /* An object URL for a stored record, or '' for anything else. The caller
+     owns it and revokes it when the tile's picture changes. */
+  function urlFor(rec) {
+    if (!rec || !rec.bytes) { return ''; }
+    try {
+      return URL.createObjectURL(new Blob([rec.bytes], { type: rec.type || 'image/jpeg' }));
+    } catch (e) { return ''; }
+  }
+
+  window.ZSPHOTOS = {
+    available: available,
+    key: key,
+    all: all,
+    get: get,
+    put: put,
+    setShow: setShow,
+    remove: remove,
+    clearAll: clearAll,
+    urlFor: urlFor
+  };
+}());

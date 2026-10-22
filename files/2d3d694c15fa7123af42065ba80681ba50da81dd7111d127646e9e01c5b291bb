@@ -1,0 +1,667 @@
+/* xim-import-screen.js - the "Copy your XIM settings in" screen, the
+ * editor's `ximimport` screen. Its door is in the editor's Legacy Devices
+ * room (D215, legacy-room.js), for configs that use a mouse; it was in the
+ * Aim page's Hip ••• fold until then. Its back key leads to that room.
+ *
+ * The decisions live in xim-import.js (window.ZSXIM, pure, Node-tested);
+ * this file only draws and wires. Three steps on one screen:
+ *
+ *   1. THE NUMBERS. Laid out like XIM's own Aim Settings, so an XIM owner
+ *      can copy across field by field: which XIM, the game, a Hip Aim
+ *      section, the settings for both, and an Aim Down Sight section with
+ *      XIM's three inheritance choices. Every number is a big stepper you
+ *      can also type into; a bad number gets one plain sentence under it.
+ *   2. THE PREVIEW. Every XIM field, what it becomes here, what it is now,
+ *      and an honest label: Same, Close or Not available. Nothing is saved
+ *      until Apply.
+ *   3. APPLIED, with Undo. Apply sends exactly the changes the preview
+ *      showed, through the app's one write path (ZS.putProfile); Undo puts
+ *      every one of them back the same way.
+ *
+ * Pasting an XIM MATRIX share code (XMC: ... :XMC) into the code box, or
+ * anywhere on this screen, READS it (ZSXIM.fromShareCode, over
+ * xim-share-code.js) and puts its numbers into the form, with a note of what
+ * was filled, what could not be copied and why, and what a code does not
+ * carry. Nothing is applied from a code: the preview and Apply still follow.
+ * The code's text is not kept: only the report is.
+ *
+ * Two more ways in, from docs/XIM-PUBLIC-CONFIGS.md: typical starting points
+ * (ZSXIM.PRESETS, said to be community values, not XIM's) and "I have a
+ * screenshot", which names the XIM screens to read the numbers from (the
+ * app reads no pictures).
+ *
+ * Wording (D76): "copy your XIM settings in", never "XIM compatible", no
+ * XIM logos. ES5 only (docs/DESIGN.md); everything into innerHTML via esc().
+ */
+(function () {
+  'use strict';
+  if (!window.ZS || !window.ZSXIM) { return; }
+
+  var ZS = window.ZS, X = window.ZSXIM, esc = ZS.esc;
+  var CSS_ID = 'zs-xim-css';
+
+  /* Module-wide, not per draw: openDetail() re-runs the renderer whenever
+     the screen is redrawn (a pad plugged in, the pad poll), and the numbers
+     being typed must survive that. A different config starts afresh. */
+  var S = {
+    pid: null,
+    form: null,
+    errors: {},
+    step: 'edit',          /* edit | preview | done */
+    pv: null,              /* the last good preview */
+    undo: null,            /* what Apply replaced, for Undo */
+    busy: false,
+    say: null,             /* { kind: 'ok' | 'warn', text } */
+    share: false,          /* a share code was pasted and this build cannot read it */
+    code: null,            /* the last code's REPORT (never its text) */
+    preset: null,          /* the typical starting point last put in */
+    shots: false           /* "I have a screenshot" is open */
+  };
+  var P = null;            /* the open config (the app's small object) */
+
+  function fullOf(p) { return (p && ZS.live && ZS.live.online !== false && ZS.live.full) ? (ZS.live.full[p.id] || null) : null; }
+  function mtOf(p) { var f = fullOf(p); return (f && f.mouseTranslation) || {}; }
+  function online() { return !(ZS.live && ZS.live.online === false); }
+  function gameName(p) {
+    var f = fullOf(p) || {};
+    var pk = (window.ZSPACKS && ZSPACKS.ofConfig) ? ZSPACKS.ofConfig(f.game ? f : p) : null;
+    return (pk && pk.name) || f.game || (p && p.game) || '';
+  }
+  function el(id) { return document.getElementById(id); }
+  function box() { return el('xi'); }
+
+  function reset(p) {
+    S.pid = p ? p.id : null;
+    S.form = X.defaults(mtOf(p));
+    S.errors = {}; S.step = 'edit'; S.pv = null; S.undo = null; S.busy = false; S.say = null; S.share = false;
+    S.code = null; S.preset = null; S.shots = false;
+  }
+
+  /* ════════════════════════════════════════════════════════ the CSS ══ */
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.xi-lead{color:var(--muted);font-size:13.5px;line-height:1.5;margin:2px 2px 12px}',
+      '.xi-card{padding:12px 14px}',
+      '.xi-ctl{display:flex;align-items:center;margin-top:8px}',
+      '.xi-ttl{font-size:17px;font-weight:650;margin:2px 0 8px}',
+      '.xi-seg{margin:6px 0 4px}',
+      '.xi-seg button{min-height:48px;font-size:14.5px}',
+      '.xi-stp input.xi-num{width:76px;min-height:44px;text-align:center;font-size:17px;font-weight:700;',
+      'font-variant-numeric:tabular-nums;color:var(--text);background:transparent;border:none;',
+      'border-radius:var(--r-chip,10px);padding:0 4px}',
+      '.xi-stp input.xi-num:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}',
+      '.xi-stp button{width:50px;height:50px}',
+      '.xi-unit{color:var(--muted);font-size:12.5px;margin-left:8px;align-self:center}',
+      '.xi-err{color:var(--red);font-size:13px;line-height:1.45;margin:2px 2px 8px;font-weight:600}',
+      '.xi-err:empty{display:none}',
+      '.xi-fld.bad .xi-stp{border-color:var(--red)}',
+      '.xi-sub{color:var(--muted);font-size:12.5px;line-height:1.45;margin:2px 0 8px}',
+      '.xi-acts{display:flex;flex-direction:column;gap:10px;margin:14px 0 6px}',
+      '.xi-acts .btn{min-height:52px;font-size:16px;width:100%}',
+      '.xi-grp{font-size:12px;font-weight:700;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;',
+      'color:var(--muted);margin:16px 2px 6px}',
+      '.xi-row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card,14px);',
+      'padding:10px 12px;margin:0 0 8px}',
+      '.xi-row.xi-same{border-left:4px solid var(--green)}',
+      '.xi-row.xi-close{border-left:4px solid var(--amber)}',
+      '.xi-row.xi-none{border-left:4px solid var(--muted)}',
+      '.xi-rh{display:flex;justify-content:space-between;align-items:center;gap:8px}',
+      '.xi-rh b{font-size:14.5px;font-weight:650}',
+      '.xi-chip{flex:none;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;border:1px solid currentColor}',
+      '.xi-same .xi-chip{color:var(--green)}',
+      '.xi-close .xi-chip{color:var(--amber)}',
+      '.xi-none .xi-chip{color:var(--muted)}',
+      '.xi-map{font-size:13.5px;line-height:1.5;margin-top:4px}',
+      '.xi-map .xi-arrow{color:var(--muted);margin:0 4px}',
+      '.xi-now{font-size:12.5px;color:var(--muted);margin-top:2px}',
+      '.xi-note{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:4px}',
+      '.xi-row.xi-nochange .xi-map{color:var(--muted)}',
+      '.xi-share{margin:0 0 12px}',
+      '.xi-share .btn{margin-top:8px}',
+      '.xi-code{width:100%;min-height:76px;box-sizing:border-box;resize:vertical;font-size:14px;line-height:1.4;',
+      'color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:var(--r-chip,10px);padding:10px 12px}',
+      '.xi-code:focus-visible{outline:2px solid var(--accent);outline-offset:1px}',
+      '.xi-list{margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.5}',
+      '.xi-list li{margin:2px 0}',
+      '.xi-pre{display:flex;flex-direction:column;gap:8px;margin-top:6px}',
+      '.xi-pre .btn{min-height:52px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;',
+      'text-align:left;white-space:normal;padding:8px 14px}',
+      '.xi-pre .btn em{display:block;font-style:normal;font-weight:500;font-size:12.5px;color:var(--muted);margin-top:2px}',
+      '.xi-pre .btn.on{border-color:var(--accent)}',
+      '.xi-shots dt{font-weight:650;font-size:13.5px;margin-top:8px}',
+      '.xi-shots dd{margin:2px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}'
+    ].join('')));
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ═══════════════════════════════════════════════════ the controls ══ */
+  /* A form value at a dotted key ('hip.cm360', 'yScale', 'hip.quant.angle') */
+  function getF(key) {
+    var parts = key.split('.'), o = S.form, i;
+    for (i = 0; i < parts.length; i++) { o = o ? o[parts[i]] : undefined; }
+    return o;
+  }
+  function setF(key, v) {
+    var parts = key.split('.'), o = S.form, i;
+    for (i = 0; i < parts.length - 1; i++) { o = o[parts[i]]; }
+    o[parts[parts.length - 1]] = v;
+  }
+  function shown(v) {
+    var n = X.parseNum(v);
+    return n === null ? String(v === undefined || v === null ? '' : v) : String(Math.round(n * 100) / 100);
+  }
+  /* a big stepper you can also type into: − [number] + */
+  function numFld(key, rangeKey, label, sub, unit) {
+    var err = S.errors[key] || '';
+    var id = 'xi-' + key.replace(/\./g, '-');
+    return '<div class="fld col xi-fld' + (err ? ' bad' : '') + '" data-xf="' + esc(key) + '">' +
+        '<div class="flab">' + esc(label) + (sub ? '<em>' + esc(sub) + '</em>' : '') + '</div>' +
+        '<div class="xi-ctl"><span class="stp xi-stp" data-noswipe="1">' +
+          '<button type="button" data-xstep="-1" aria-label="' + esc('decrease ' + label) + '">−</button>' +
+          '<input class="xi-num" id="' + id + '" data-xk="' + esc(key) + '" data-xr="' + esc(rangeKey) + '" type="text" ' +
+            'inputmode="decimal" autocomplete="off" value="' + esc(shown(getF(key))) + '" ' +
+            'aria-label="' + esc(label + (unit ? ', ' + unit : '')) + '" aria-describedby="' + id + '-err"' +
+            (err ? ' aria-invalid="true"' : '') + '>' +
+          '<button type="button" data-xstep="1" aria-label="' + esc('increase ' + label) + '">+</button>' +
+        '</span>' +
+        (unit ? '<span class="xi-unit" aria-hidden="true">' + esc(unit) + '</span>' : '') +
+      '</div></div>' +
+      '<div class="xi-err" id="' + id + '-err" role="alert">' + esc(err) + '</div>';
+  }
+  /* pick one of a few: big buttons, the kit's .seg2 look */
+  function segFld(key, label, options, cur, sub) {
+    return '<div class="fld col"><div class="flab">' + esc(label) + (sub ? '<em>' + esc(sub) + '</em>' : '') + '</div>' +
+      '<div class="seg2 xi-seg" data-noswipe="1" role="group" aria-label="' + esc(label) + '">' +
+        options.map(function (o) {
+          var on = o[0] === cur;
+          return '<button type="button" data-xseg="' + esc(key) + '" data-v="' + esc(o[0]) + '"' +
+            (on ? ' class="on"' : '') + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(o[1]) + '</button>';
+        }).join('') +
+      '</div></div>';
+  }
+
+  /* ════════════════════════════════════════════════════ step 1: edit ══ */
+  /* What this adapter can run (PRODUCTS.<product>.lacks): an EXO has no
+     Classic smoothing (D191) and no Quantization (D189). The preview is told
+     the same, so it says "Not available" instead of writing. */
+  function hides(name) { return !!(ZS.productHides && ZS.productHides(name)); }
+  function smoothingHTML(name, s) {
+    var h = segFld(name + '.smoothing', 'Smoothing', [['standard', 'Standard'], ['classic', 'Classic']], s.smoothing);
+    if (s.smoothing === 'classic') {
+      h += (hides('classicSmoothing')
+          ? '<div class="xi-sub">This adapter has no Classic smoothing. You can type the numbers, but they are not copied.</div>'
+          : (ZS.helpHTML ? ZS.helpHTML('xi-classic-' + name, 'Classic smoothing', 'XIM APEX’s smoothing. Decay and Synch are XIM’s own numbers; Smooth’s scale is ours.') : '')) +
+        numFld(name + '.smooth', 'smooth', 'Smooth', 'higher is more smoothing') +
+        numFld(name + '.decay', 'decay', 'Decay', 'XIM APEX: 9.0') +
+        numFld(name + '.synch', 'synch', 'Synch', 'XIM: 8 = default, 16 = common, 32 = slow, 0 = off', 'ms');
+    } else {
+      h += numFld(name + '.precision', 'precision', 'Precision', 'fine aim: higher is smoother at low speed', '%') +
+        numFld(name + '.response', 'response', 'Response', 'fast aim: higher feels lighter at speed', '%') +
+        numFld(name + '.easing', 'easing', 'Easing', 'from rest: higher is a smoother start', '%') +
+        numFld(name + '.stability', 'stability', 'Stability', 'XIM shows Stability for motion aim only: for a mouse config, leave it as it is');
+    }
+    return h;
+  }
+  /* D189: Quantization per stance, XIM's two numbers and XIM's own tip */
+  function quantHTML(name, s) {
+    var q = s.quant || { on: false };
+    return segFld(name + '.quant.on', 'Quantization', [['off', 'Off'], ['on', 'On']], q.on ? 'on' : 'off',
+        hides('aimXim') ? 'This adapter has nothing like it, so it is not copied'
+          : 'To start, XIM suggests Magnitude 25 and Angle 25, adjusting one at a time') +
+      (q.on
+        ? numFld(name + '.quant.magnitude', 'quantMag', 'Magnitude', '', '%') + numFld(name + '.quant.angle', 'quantAngle', 'Angle', '', '%')
+        : '');
+  }
+  function curveHTML(name, s) {
+    var h = segFld(name + '.curve', 'Aim curve', [['linear', 'Linear'], ['custom', 'Custom']], s.curve,
+      'XIM’s default is Linear');
+    if (s.curve === 'custom' && window.ZSCURVE) {
+      h += (ZS.helpHTML ? ZS.helpHTML('xi-curve-' + name + '-how', 'Aim curve', 'Put the handles where your XIM curve has them (+ adds one): left is slow hand movement, right is fast.') : '') +
+        ZSCURVE.html({ id: 'xi-curve-' + name, ys: s.grid || ZSCURVE.straight(), label: (name === 'ads' ? 'Aim down sight' : 'Hip') + ' aim curve',
+          title: 'Curve Editor - Mouse : ' + (name === 'ads' ? 'ADS' : 'Hip'),
+          xName: 'Hand speed', yName: 'Turn speed', presets: true, straightLabel: 'Make it straight' });
+    }
+    return h;
+  }
+  function editHTML(p) {
+    var f = S.form;
+    var inh = X.INHERIT.filter(function (x) { return x.id === f.inherit; })[0] || X.INHERIT[0];
+    /* D285: one line on screen, the rest behind the "?" */
+    var h = '<p class="xi-lead">Copy your XIM settings in.</p>' +
+      (ZS.helpHTML ? ZS.helpHTML('xi-what', 'Copy your XIM settings in', 'Copy your XIM settings in. Paste your XIM MATRIX share code, or open your XIM app and type ' +
+      'its numbers here. You will see what changes before anything is saved.') : '') +
+      codeHTML() +
+      presetHTML() +
+      shotsHTML() +
+      '<div class="xi-grp">Your numbers</div>' +
+      '<div class="grp-card xi-card">' +
+        segFld('device', 'Your XIM', X.DEVICES.map(function (d) { return [d.id, d.name]; }), f.device) +
+        '<div class="fld"><div class="flab">Game<em>This config’s game.</em></div>' +
+          '<b>' + esc(gameName(p) || 'Not set') + '</b></div>' +
+        (ZS.helpHTML ? ZS.helpHTML('xi-game', 'Game', 'This config’s game. Copy from your XIM config for the same game.') : '') +
+      '</div>' +
+      '<div class="aimban hip"><b>Hip Aim</b><em>Your XIM’s Hip Aim settings.</em></div>' +
+      '<div class="grp-card xi-card">' +
+        numFld('hip.cm360', 'cm360', 'Sensitivity', 'centimetres for one full turn (cm/360)', 'cm/360') +
+        smoothingHTML('hip', f.hip) +
+        curveHTML('hip', f.hip) +
+        quantHTML('hip', f.hip) +
+      '</div>' +
+      '<div class="xi-grp">For both Hip and Aim Down Sight</div>' +
+      '<div class="grp-card xi-card">' +
+        numFld('yScale', 'yScale', 'Y Scale', 'up-and-down speed: 1.00 = the same as left-and-right') +
+        numFld('innerDz', 'innerDz', 'Inner dead zone', '', '%') +
+        numFld('outerDz', 'outerDz', 'Outer dead zone', '', '%') +
+        numFld('axialDz', 'axialDz', 'Axial dead zone', '', '%') +
+      '</div>' +
+      '<div class="aimban ads"><b>Aim Down Sight</b><em>Your XIM’s Aim Down Sight settings.</em></div>' +
+      '<div class="grp-card xi-card">' +
+        segFld('inherit', 'Settings inheritance', X.INHERIT.map(function (x) { return [x.id, x.name]; }), f.inherit, inh.line) +
+        (f.inherit !== 'all' ? numFld('ads.cm360', 'cm360', 'Sensitivity', 'centimetres for one full turn (cm/360)', 'cm/360') : '') +
+        (f.inherit === 'none' ? smoothingHTML('ads', f.ads) + curveHTML('ads', f.ads) + quantHTML('ads', f.ads) : '') +
+      '</div>' +
+      '<div class="xi-acts"><button type="button" class="btn primary" id="xi-preview">See what changes</button></div>';
+    return h;
+  }
+
+  /* The share code box: paste the whole thing the XIM app copies. Read at
+     once; the box is emptied, so the text is never kept. */
+  function codeHTML() {
+    var h = '<div class="xi-grp">Have a share code?</div><div class="grp-card xi-card">' +
+      '<label class="flab" for="xi-code">Paste your XIM MATRIX share code<em>Everything from ' +
+      '“&gt;&gt;&gt; XIM MATRIX” to “END COPY”.</em></label>' +
+      '<textarea class="xi-code" id="xi-code" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false" ' +
+        'placeholder="XMC:…:XMC"></textarea>' +
+      (ZS.helpHTML ? ZS.helpHTML('xi-code-how', 'Share code', 'Everything from “&gt;&gt;&gt; XIM MATRIX” to “END COPY”. Its numbers go into the form below; nothing is saved yet.') : '');
+    var c = S.code;
+    if (c) {
+      h += '<div class="note" role="status" id="xi-codemsg"><b>Read from your code' + (c.name ? ' “' + esc(c.name) + '”' : '') + ':</b> ' +
+        c.filled.length + ' setting' + (c.filled.length === 1 ? '' : 's') + ' put into the form below. Check each one against your XIM app.' +
+        '<ul class="xi-list">' + c.filled.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>';
+      if (c.inheritFrom === 'numbers') {
+        h += '<div class="xi-sub">Settings inheritance was worked out from the numbers in the code; check it.</div>';
+      }
+      if (c.check) {
+        h += '<div class="xi-sub">This code is from a newer XIM version than most we have seen, so check every number.</div>';
+      }
+      h += '</div>';
+      if (c.mismatch) {
+        h += '<div class="note warn" id="xi-codegame">' + esc(c.mismatch) + '</div>';
+      }
+      if (c.notCopied.length) {
+        h += '<div class="note warn" id="xi-codeskip"><b>Not copied, so this config keeps its own:</b><ul class="xi-list">' +
+          c.notCopied.map(function (n) { return '<li>' + esc(n.what + ' (' + n.given + '): ' + n.why) + '</li>'; }).join('') + '</ul></div>';
+      }
+      h += '<div id="xi-codenot">' + (ZS.helpHTML ? ZS.helpHTML('xi-codenot', 'What a share code does not fill', 'A share code’s ' + esc(c.notRead.join(', ')) +
+        ' are not read here. Type the ones this form asks for from your XIM app.') : '') + '</div>';
+    }
+    return h + '</div>';
+  }
+  /* Typical starting points: community values, and the screen says so */
+  function presetHTML() {
+    var cur = null;
+    X.PRESETS.forEach(function (p) { if (p.id === S.preset) { cur = p; } });
+    return '<div class="xi-grp">Or start from a typical setup</div><div class="grp-card xi-card">' +
+      (ZS.helpHTML ? ZS.helpHTML('xi-presets', 'Typical setups', esc(X.PRESET_NOTE)) : '') +
+      '<div class="xi-pre" role="group" aria-label="Typical starting points">' +
+        X.PRESETS.map(function (p) {
+          var on = p.id === S.preset;
+          return '<button type="button" class="btn ghost' + (on ? ' on' : '') + '" data-xpre="' + esc(p.id) + '" aria-pressed="' +
+            (on ? 'true' : 'false') + '">' + esc(p.name) + '<em>' + esc(p.games) + '</em></button>';
+        }).join('') +
+      '</div>' +
+      (cur ? '<div class="note" role="status" id="xi-premsg"><b>' + esc(cur.name) + '</b> is in the form below. ' + esc(cur.basis) +
+        ' Curve, dead zones and Quantization are left as they are.</div>' : '') +
+      '</div>';
+  }
+  /* "I have a screenshot": where in the XIM app each number lives */
+  function shotsHTML() {
+    var h = '<div class="grp-card xi-card"><button type="button" class="btn ghost" id="xi-shots" aria-expanded="' +
+      (S.shots ? 'true' : 'false') + '" aria-controls="xi-shotlist">I have a screenshot</button>';
+    if (S.shots) {
+      h += '<div id="xi-shotlist"><div class="xi-sub">' + esc(X.SCREENSHOT_NOTE) + '</div><dl class="xi-shots">' +
+        X.SCREENSHOT_HELP.map(function (s) { return '<dt>' + esc(s.where) + '</dt><dd>' + esc(s.read) + '</dd>'; }).join('') +
+        '</dl></div>';
+    }
+    return h + '</div>';
+  }
+
+  /* ═════════════════════════════════════════════════ step 2: preview ══ */
+  function rowHTML(r) {
+    return '<div class="xi-row xi-' + r.label + (r.changed ? '' : ' xi-nochange') + '">' +
+      '<div class="xi-rh"><b>' + esc(r.xim) + '</b><span class="xi-chip">' + esc(r.labelText) + '</span></div>' +
+      '<div class="xi-map">XIM: ' + esc(r.given) + '<span class="xi-arrow" aria-hidden="true">→</span>' +
+        'here: ' + esc(r.ours) + '</div>' +
+      (r.writes.length
+        ? '<div class="xi-now">Now: ' + esc(r.now) + '</div>'
+        : (r.label === 'none' ? '' : '<div class="xi-now">No change</div>')) +
+      /* D285: a row's note is its "?" */
+      (r.note ? '<div class="xi-note">' + (ZS.helpHTML
+        ? ZS.helpHTML('xi-note-' + String(r.xim).replace(/\W+/g, '-'), r.xim, esc(r.note)) : esc(r.note)) + '</div>' : '') +
+      '</div>';
+  }
+  function previewHTML(p) {
+    var pv = S.pv, cfg = (fullOf(p) || {}).name || (p && p.name) || 'this config';
+    var h = '<p class="xi-lead">Here is what changes in <b>' + esc(cfg) + '</b>.</p>' +
+      (ZS.helpHTML ? ZS.helpHTML('xi-pv', 'What changes', 'Here is what changes in <b>' + esc(cfg) + '</b>. Nothing is saved until you tap Apply.') : '');
+    if (pv.approx) {
+      h += '<div class="note warn"><b>' + esc(pv.approxText) + '</b> We have not measured ' + esc(gameName(p) || 'this game') +
+        ' yet, so the same numbers may turn a little faster or slower than on your XIM. ' +
+        'Translation ▸ Calibrate measures it.</div>';
+    }
+    var group = '';
+    pv.rows.forEach(function (r) {
+      if (r.group !== group) {
+        group = r.group;
+        h += '<div class="xi-grp">' + esc(group === 'Both' ? 'For both Hip and Aim Down Sight' : group) + '</div>';
+      }
+      h += rowHTML(r);
+    });
+    h += '<div class="xi-acts">' +
+      (pv.changed
+        ? '<button type="button" class="btn primary" id="xi-apply"' + (S.busy ? ' disabled' : '') + '>' +
+            esc(S.busy ? 'Applying…' : 'Apply ' + pv.changed + ' change' + (pv.changed === 1 ? '' : 's') + ' to this config') + '</button>'
+        : '<div class="note">Nothing to change: this config already has these numbers.</div>') +
+      '<button type="button" class="btn ghost" id="xi-back">Change the numbers</button></div>';
+    return h;
+  }
+
+  /* ════════════════════════════════════════════════════ step 3: done ══ */
+  function doneHTML() {
+    return '<div class="xi-acts">' +
+      (S.undo ? '<button type="button" class="btn ghost" id="xi-undo"' + (S.busy ? ' disabled' : '') + '>Undo</button>' : '') +
+      '<button type="button" class="btn ghost" id="xi-again">Back to the numbers</button></div>';
+  }
+
+  function sayHTML() {
+    var h = '';
+    if (S.share) {
+      h += '<div class="note warn xi-share" role="alert" id="xi-sharemsg">' + esc(X.SHARE_CODE_MESSAGE) +
+        '<div><button type="button" class="btn ghost" id="xi-shareok">OK</button></div></div>';
+    }
+    if (S.say) {
+      h += '<div class="note' + (S.say.kind === 'warn' ? ' warn' : '') + '" role="status" id="xi-say">' + esc(S.say.text) + '</div>';
+    }
+    return h;
+  }
+
+  function paint() {
+    var b = box();
+    if (!b) { return; }
+    b.innerHTML = sayHTML() +
+      (S.step === 'preview' && S.pv ? previewHTML(P) : S.step === 'done' ? doneHTML() : editHTML(P));
+    wire(b);
+  }
+
+  /* ═══════════════════════════════════════════════════════ actions ══ */
+  function stepBy(key, rangeKey, dir) {
+    var r = X.RANGES[rangeKey], n = X.parseNum(getF(key));
+    if (key === 'yScale') { n = X.readYScale(getF(key)).value; }
+    if (n === null) { n = r.min; }
+    n = Math.round((n + dir * r.step) * 10000) / 10000;
+    n = Math.max(r.min, Math.min(r.max, n));
+    setF(key, n);
+    return n;
+  }
+  /* one field's sentence, after it was typed or stepped */
+  function checkOne(key) {
+    var v = X.validate(S.form);
+    var had = S.errors[key] || '', now = v.errors[key] || '';
+    if (now) { S.errors[key] = now; } else { delete S.errors[key]; }
+    /* the outer zone's sentence depends on the inner one too */
+    if (key === 'innerDz') { if (v.errors.outerDz) { S.errors.outerDz = v.errors.outerDz; } else { delete S.errors.outerDz; } }
+    return had !== now;
+  }
+  function paintErr(key) {
+    var id = 'xi-' + key.replace(/\./g, '-');
+    var e = el(id + '-err'), inp = el(id), msg = S.errors[key] || '';
+    if (e) { e.textContent = msg; }
+    if (inp) {
+      if (msg) { inp.setAttribute('aria-invalid', 'true'); } else { inp.removeAttribute('aria-invalid'); }
+      var row = inp.closest ? inp.closest('.xi-fld') : null;
+      if (row) { row.classList.toggle('bad', !!msg); }
+    }
+  }
+  function showPreview() {
+    var pv = X.preview(S.form, { mt: mtOf(P), hides: hides });
+    if (!pv.ok) {
+      S.errors = pv.errors;
+      S.say = { kind: 'warn', text: pv.count === 1 ? 'One number needs fixing, shown in red below.'
+        : pv.count + ' numbers need fixing, shown in red below.' };
+      paint();
+      var first = box() && box().querySelector('[aria-invalid="true"]');
+      if (first && first.focus) { first.focus(); }
+      return;
+    }
+    S.errors = {}; S.say = null; S.pv = pv; S.step = 'preview';
+    paint();
+  }
+  function apply() {
+    if (!S.pv || S.busy) { return; }
+    if (!online() || !fullOf(P)) { if (ZS.toast) { ZS.toast('Your board is offline'); } return; }
+    var writes = S.pv.writes.slice();
+    var replaced = null;
+    S.busy = true; paint();
+    ZS.putProfile(P.id, function (f) { replaced = X.applyWrites(f, writes); }).then(function (j) {
+      S.busy = false;
+      if (!j || j.ok === false) {
+        S.say = { kind: 'warn', text: 'Nothing was changed: ' + ((j && (j.error || (j.errors && j.errors[0]))) || 'the adapter did not take it.') };
+        paint();
+        return;
+      }
+      S.undo = replaced;
+      S.step = 'done';
+      S.say = { kind: 'ok', text: 'Copied in: ' + writes.length + ' setting' + (writes.length === 1 ? '' : 's') +
+        ' changed. Tap Undo to put them all back.' };
+      paint();
+    }, function () {
+      S.busy = false;
+      S.say = { kind: 'warn', text: 'Nothing was changed: the adapter did not answer.' };
+      paint();
+    });
+  }
+  function undoIt() {
+    if (!S.undo || S.busy) { return; }
+    if (!online() || !fullOf(P)) { if (ZS.toast) { ZS.toast('Your board is offline'); } return; }
+    var list = S.undo;
+    S.busy = true; paint();
+    ZS.putProfile(P.id, function (f) { X.undo(f, list); }).then(function (j) {
+      S.busy = false;
+      if (!j || j.ok === false) {
+        S.say = { kind: 'warn', text: 'Undo did not save: ' + ((j && j.error) || 'the adapter did not take it.') + ' Try again.' };
+      } else {
+        S.undo = null;
+        S.say = { kind: 'ok', text: 'Put back. This config is as it was before you copied your XIM settings in.' };
+      }
+      paint();
+    }, function () { S.busy = false; paint(); });
+  }
+
+  /* A share code pasted into the code box or anywhere on the screen: read
+     it into the form (ZSXIM.fromShareCode). Only the REPORT is kept; the
+     text goes no further than this function. */
+  function onShareCode(text) {
+    var r = (typeof X.fromShareCode === 'function') ? X.fromShareCode(String(text || ''), mtOf(P)) : null;
+    S.step = 'edit'; S.pv = null; S.errors = {};
+    if (!r || (!r.ok && r.kind === 'missing')) {
+      S.share = true;
+      paint();
+      var m = el('xi-sharemsg');
+      if (m && m.scrollIntoView) { try { m.scrollIntoView({ block: 'nearest' }); } catch (e) { /* old webview */ } }
+      return;
+    }
+    if (!r.ok) {
+      S.code = null;
+      S.say = { kind: 'warn', text: r.message };
+      paint();
+      return;
+    }
+    S.form = r.form;
+    S.preset = null;
+    S.share = false;
+    S.say = null;
+    var rep = r.report, here = gameName(P);
+    rep.mismatch = (rep.game && here && rep.game.toLowerCase() !== String(here).toLowerCase())
+      ? 'This code was made for ' + rep.game + ', and this config is for ' + here + '. The numbers are still copied; ' +
+        'a sensitivity tuned for one game can feel different in another.'
+      : '';
+    S.code = rep;
+    paint();
+    var c = el('xi-codemsg');
+    if (c && c.scrollIntoView) { try { c.scrollIntoView({ block: 'nearest' }); } catch (e2) { /* old webview */ } }
+  }
+  function pastedText(e) {
+    var d = e && (e.clipboardData || window.clipboardData);
+    try { return d && d.getData ? String(d.getData('text') || d.getData('Text') || '') : ''; } catch (x) { return ''; }
+  }
+  function onPaste(e) {
+    if (!box()) { return; }
+    var t = pastedText(e);
+    if (X.looksLikeShareCode(t)) {
+      if (e.preventDefault) { e.preventDefault(); }
+      onShareCode(t);
+    }
+  }
+  /* the whole page, so a paste with nothing focused is caught too; it acts
+     only while this screen is the one on show */
+  document.addEventListener('paste', function (e) {
+    var b = box(), d = el('detail');
+    if (!b || (d && !d.classList.contains('open'))) { return; }
+    onPaste(e);
+  }, true);
+
+  function wire(b) {
+    function on(id, fn) { var x = el(id); if (x) { x.addEventListener('click', fn); } }
+    on('xi-preview', showPreview);
+    on('xi-apply', apply);
+    on('xi-back', function () { S.step = 'edit'; S.say = null; paint(); });
+    on('xi-again', function () { S.step = 'edit'; S.say = null; S.undo = null; S.form = X.defaults(mtOf(P)); paint(); });
+    on('xi-undo', undoIt);
+    on('xi-shareok', function () { S.share = false; paint(); });
+    on('xi-shots', function () { S.shots = !S.shots; paint(); var b2 = el('xi-shots'); if (b2 && b2.focus) { b2.focus(); } });
+
+    /* the code box: a paste is caught by the page-wide handler; anything
+       typed or dropped in is read once it holds a whole code, then emptied */
+    var box2 = el('xi-code');
+    if (box2) {
+      box2.addEventListener('input', function () {
+        var v = box2.value;
+        if (/XMC:[\s\S]*:XMC/.test(v)) { box2.value = ''; onShareCode(v); }
+      });
+    }
+
+    b.querySelectorAll('[data-xpre]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        X.applyPreset(S.form, btn.getAttribute('data-xpre'));
+        S.preset = btn.getAttribute('data-xpre');
+        S.code = null; S.say = null; S.errors = {};
+        paint();
+        var m = el('xi-premsg');
+        if (m && m.scrollIntoView) { try { m.scrollIntoView({ block: 'nearest' }); } catch (e) { /* old webview */ } }
+      });
+    });
+
+    b.querySelectorAll('[data-xseg]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-xseg'), v = btn.getAttribute('data-v');
+        if (key === 'device') { X.setDevice(S.form, v); }
+        else if (/\.quant\.on$/.test(key)) { getF(key.replace(/\.on$/, '')).on = v === 'on'; }
+        else if (/\.curve$/.test(key)) {
+          var st = S.form[key.split('.')[0]];
+          st.curve = v; st.curveFromConfig = false;
+          if (v === 'custom' && !st.grid && window.ZSCURVE) { st.grid = ZSCURVE.straight(); }
+        } else { setF(key, v); }
+        S.say = null;
+        paint();
+      });
+    });
+
+    b.querySelectorAll('input.xi-num').forEach(function (inp) {
+      var key = inp.getAttribute('data-xk');
+      inp.addEventListener('input', function () {
+        if (X.looksLikeShareCode(inp.value)) {   /* typed or dropped in: put the number back, read the code */
+          var t = inp.value;
+          inp.value = shown(getF(key));
+          onShareCode(t);
+          return;
+        }
+        setF(key, inp.value);
+      });
+      inp.addEventListener('change', function () { checkOne(key); paintErr(key); });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          inp.value = shown(stepBy(key, inp.getAttribute('data-xr'), e.key === 'ArrowUp' ? 1 : -1));
+          checkOne(key); paintErr(key);
+        } else if (e.key === 'Enter') { e.preventDefault(); checkOne(key); paintErr(key); }
+      });
+    });
+
+    /* − and +: a press steps at once, holding repeats (the kit's stepper
+       timing, 400 ms then every 115 ms); a keyboard click steps once */
+    b.querySelectorAll('[data-xstep]').forEach(function (btn) {
+      var stp = btn.parentNode, inp = stp.querySelector('input.xi-num');
+      if (!inp) { return; }
+      var key = inp.getAttribute('data-xk'), rk = inp.getAttribute('data-xr');
+      var dir = parseFloat(btn.getAttribute('data-xstep')) < 0 ? -1 : 1;
+      var t = null, iv = null;
+      function step() { inp.value = shown(stepBy(key, rk, dir)); checkOne(key); paintErr(key); }
+      function stop() { if (t) { clearTimeout(t); t = null; } if (iv) { clearInterval(iv); iv = null; } }
+      btn.addEventListener('pointerdown', function (e) {
+        if (btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (x) { /* old webview */ } }
+        step();
+        t = setTimeout(function () { iv = setInterval(step, 115); }, 400);
+      });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) { btn.addEventListener(n, stop); });
+      btn.addEventListener('click', function (e) { if (!e.detail) { step(); } });
+    });
+
+    if (window.ZSCURVE) {
+      ['hip', 'ads'].forEach(function (name) {
+        var wrap = b.querySelector('[data-cgwrap="xi-curve-' + name + '"]');
+        if (!wrap) { return; }
+        var st = S.form[name];
+        ZSCURVE.wire(wrap, {
+          ys: st.grid || ZSCURVE.straight(),
+          onCommit: function (ys) { st.grid = ys; st.curveFromConfig = false; },
+          onInput: function (ys) { st.grid = ys; st.curveFromConfig = false; }
+        });
+      });
+    }
+  }
+
+  /* ═══════════════════════════════════════════ the screen and its door ══ */
+  /* A tap on the door is a fresh visit (a new descriptor each time,
+     wireDoors), so it starts on this config's numbers; a redraw of the same
+     visit (redrawOpenScreen hands back the same descriptor) keeps what the
+     player has typed. */
+  var DESC = null;
+  function render(p, s) {
+    injectCss();
+    if (!S.form || S.pid !== (p && p.id) || (s && s !== DESC)) { reset(p); }
+    DESC = s || DESC;
+    P = p;
+    return { html: '<div id="xi"></div>', after: function (root) {
+      root.setAttribute('data-tint', 'aim');
+      paint();
+    } };
+  }
+
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.ximimport = render;
+
+  window.ZSXIMSCREEN = {
+    /* a fresh start, then the screen (the door calls ZS.openDetail itself;
+       this is for anything that wants the numbers cleared first) */
+    open: function (p) {
+      reset(p);
+      ZS.openDetail({ id: 'ximimport', lab: 'Copy from XIM' }, p);
+    },
+    /* for the tests */
+    state: function () { return S; },
+    reset: reset
+  };
+}());

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <!-- PLACEHOLDER (D215): the EXO Studio door's picture until the owner
+       supplies the artwork. Plain on purpose: the room's ground (#0a1416,
+       the ground phone.html gives this tile too), and a quiet outline of a
+       PC screen with a tracking box on it, in the room's cyan. -->
+  <rect width="240" height="240" fill="#0a1416"/>
+  <g fill="none" stroke="#5ccfd6" stroke-opacity=".6" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="40" y="58" width="160" height="104" rx="12"/>
+    <path d="M96 186 H144 M120 162 V186"/>
+    <path d="M100 92 H90 V102 M140 92 H150 V102 M100 128 H90 V118 M140 128 H150 V118"/>
+    <circle cx="120" cy="110" r="5"/>
+  </g>
+</svg>

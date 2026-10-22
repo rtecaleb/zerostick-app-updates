@@ -1,0 +1,180 @@
+# ZeroStick Calibration Dongle — the app's dongle screens
+
+This folder is the **ZeroStick Calibration Dongle** app: the screens for the
+dongle that ships with the DualSense Edge stick modules (connect over
+Bluetooth, calibrate the sticks, stick flex setup, Recoil & Aim "Script
+Edition", firmware updates) and the stick calibrator it opens, which also still
+talks to the **original WiFi calibrator** (ESP32-S2, "ZeroStick-Calibrator").
+
+## Where it came from
+
+Copied on 2026-10-10 (D264) from the ZeroStick phone app,
+`C:\Users\caleb\OneDrive\Documents\zerostick-app`, branch `master`, commit
+**2bba734** ("Full stick flex version + chip, release notes, rebuilt firmware
+images"): its `www/dongle.html`, `www/calibrator.html` and everything they load
+(`js/`, `css/`, `templates/`, `lang/`, `vendor/`, `webfonts/`, `assets/`,
+`fw/`, `logo.png`, `brand-nav.png`).
+
+**This folder is the source of truth from now on.** The phone app gets it
+through the EXO repo's `dashboard/tools/sync-mobile.js` (to
+`www/exo/dongle/`); its old `www/dongle.html` and `www/calibrator.html` are
+now redirects to the copy. Change the dongle here, never in the phone repo.
+
+The protocol is not defined here. It is the DSE Recoil Mod repo's
+`docs/CALIBRATION-DONGLE.md` (the dongle's Bluetooth service, the calibrator
+relay) and `docs/STICK-LINK.md` (Script Edition, stick flex), in
+`C:\$$ Caleb\CBart Buisness documents\RTE\DSE Recoil Mod`. The protocol code
+(`js/hid-ble.js`, `js/zs-fw.js`, `js/zs-scripts.js`) was moved unchanged
+except for its storage key names.
+
+## The isolation rule (the owner's)
+
+> "make sure when you merge the two you have the codes separated completely
+> so none interact with each other and can break one another ever."
+
+The dongle and the EXO app are served from the same folder (same origin) but
+are two apps:
+
+- **No shared file.** Nothing under `dongle/` loads a file outside it, and no
+  EXO page loads anything under it. The only links are the device list tile
+  (`devices.js`, `href: 'dongle/dongle.html'`) and the dongle's way back
+  (`../devices.html?pick=1`). The palette in `css/zs-dongle-theme.css` is a
+  COPY of the EXO's 8K flat tokens (`zs-flat.css`, D259), not a link, and
+  `js/zs-ble-cap.js` is a frozen copy of the EXO's Capacitor Bluetooth
+  polyfill (the calibrator page loads it inside the phone app).
+- **No shared global.** The two never define the same `window` name.
+- **No shared storage.** Every localStorage / sessionStorage key the dongle
+  uses starts `zsdongle:`. The EXO app never uses that prefix and its factory
+  reset (`/^zs[-.]/`) cannot match it. Neither side calls `clear()`, opens
+  IndexedDB or registers a service worker. `js/zs-dongle-storage.js` (loaded
+  first by both pages) moves the old phone app's un-prefixed keys
+  (`zsDongle`, `zsCalibratorLink`, `zsOtaSession:*`, `zsDongleSlotNames:*`,
+  the calibrator's `finetuneHistory`, `changes_*`, ...) into the prefix once,
+  so a phone that ran the old app keeps its remembered dongle, script names,
+  calibration history and an interrupted update.
+- **No shared Bluetooth connection.** Each app opens its own. The dongle
+  disconnects when you leave it for the device list (its back button, and the
+  calibrator's back key); inside the dongle, dongle.html -> calibrator.html
+  keeps the link on purpose (the calibrator adopts it, hid-ble.js). The EXO
+  app's link is its own (zs-ble.js). Inside the phone app both use the one
+  native Capacitor BLE plugin, but only one of the two pages is ever loaded,
+  and a page's plugin listeners die with it.
+
+`dashboard/tools/test-dongle-isolation.js` (run by `run-all.js`) fails the
+build if any of that is broken.
+
+## Platforms
+
+- **Desktop exe** (Edge `--app`): real Web Bluetooth. Served by
+  `dashboard/server.js` like every public file; `pkg` bundles `public/**/*`.
+  The WiFi calibrator: the exe joins `ZeroStick-Calibrator` ITSELF after a
+  tap on Connect (D273): `app-connect.js` calls the exe's own routes
+  `/zs/wifi/status|join|restore|location-settings` (`dashboard/src/wifi.js`:
+  netsh, the old desktop app's open profile + connect; networksetup on a
+  Mac; that one SSID only) and puts the PC back on its own network when the
+  person leaves. These are HTTP routes on the server that serves the page,
+  not files, so the isolation test allows exactly `/zs/wifi/<name>`. Opened
+  in a plain browser (no such routes), step 3 says to join the network in
+  the WiFi settings.
+- **Phone app** (Capacitor, `com.zerostick.calibrator`): `hid-ble.js` talks to
+  the native BLE plugin directly, so a remembered dongle reconnects silently.
+  The WiFi calibrator (the ZeroStick Calibrator, D276) is found with Search
+  and joined with the
+  `@falconeta/capacitor-wifi-connect` plugin and reaches `http://192.168.4.1`
+  (cleartext allowed for that address only, network_security_config).
+- **Testing without hardware:** `dongle.html?mock=1` (`js/zs-dongle-mock*.js`)
+  is a simulated dongle; `?mock=off` turns it off. `theme-shots.js --pages`
+  uses it for the screenshots.
+
+## The calibrator page's top bar and Connect screen (D273)
+
+`calibrator.html` starts with the dongle screens' top bar (`#zsbar`, the
+back key top left and "Calibrator"; `js/zs-cal-bar.js`): back goes to
+`dongle.html` when opened from the dongle hub (`?from=dongle`, the
+Bluetooth link kept), otherwise to the device list after letting go of a
+Bluetooth dongle and (exe) restoring the PC's WiFi. The floating bottom-left
+home / back buttons were removed. The Connect screen under it is
+`dongle.html`'s Connect view (photo, title, three numbered steps, note,
+docked Connect button, progress line, error cards), drawn by
+`js/app-connect.js` and styled by `css/zs-cal-connect.css` (rules copied from
+`zs-dongle.css`, scoped, because Bootstrap owns the bare elements here).
+`tools/test-calibrator-connect.js` covers it.
+
+## The WiFi calibrator (the store app's behaviour, kept)
+
+The calibrator in the Play Store today is **versionCode 1 / "1.0"**. The repo
+was never re-versioned after that upload, so the exact commit is not tagged;
+the upload happened on 2026-09-04 (the Play assets were committed at 15:36 and
+the release build output is dated 16:51), which matches **4b05111** ("Name the
+calibrator card..."), the last commit of that day. Between 4b05111 and 2bba734
+the WiFi path changed only by addition: `app-connect.js` asks once "which
+calibrator do you have" (or is told by the dongle screen), and with
+"wifi" chosen runs the store build's join / check `/info` / reconnect
+sequence byte for byte; `hid-proxy.js` uses Bluetooth only when the Bluetooth
+dongle is connected and otherwise the store build's `/hid/*` calls; the
+calibrator's WiFi hints are only hidden for Bluetooth. Nothing in the WiFi
+code was changed in this move. The board's firmware is never updated (owner
+rule), so the app side must keep speaking to it exactly like this.
+D273 redrew the screen and added the PC exe's join; what is said to the board
+did not change (the plugin's `connect({ssid, saveNetwork:true})`, `/info`
+must say `zerostick-calibrator`, the 4 s watchdog with three misses). The
+only new limit: a ping waits 4 s at most in a browser too, as the app's
+native request always did.
+
+## The ZeroStick Calibrator: Search -> pick -> connect -> straight in (D276)
+
+The WiFi calibrator is called the **ZeroStick Calibrator** everywhere a
+person reads it (device list tile, page title, Connect screen). Its WiFi
+name (SSID) is fixed in its never-updated firmware as
+`ZeroStick-Calibrator` (hyphen): `app-connect.js` keeps `WIFI_NAME` for
+joining and `SHOW_NAME` for showing.
+
+- **Android:** Search -> permission (one line why) -> `getSSIDs()` scan ->
+  a list of ONLY calibrators (others counted, never named) -> tap -> the
+  unchanged `connect()` -> `/info` -> in. None found: Search again or
+  "Join ZeroStick Calibrator anyway". The phone app's plugin patch
+  (`patches/@falconeta+capacitor-wifi-connect+8.0.0.patch`) returns the last
+  scan when Android throttles a new one (4 scans / 2 min).
+- **iPhone:** no app may list WiFi; Search goes straight to the system's
+  "Join ZeroStick-Calibrator?" prompt, then in.
+- **PC exe:** Search -> `GET /zs/wifi/scan` (netsh, read only, whitelist) ->
+  the same list -> the D273 join. A Mac joins directly.
+- **On open** nothing is joined: already on the calibrator = straight in,
+  otherwise the screen waits for Search. After the app joined once, a drop
+  rejoins by itself (the 4 s watchdog, three misses), as before.
+
+### Checklist with the ZeroStick Calibrator (owner, on a real phone)
+
+1. Plug the calibrator into the PS5 or a USB charger, controller into it;
+   wait for the blue light (it broadcasts the open network
+   `ZeroStick-Calibrator`).
+2. Open the ZeroStick app -> the device list -> tap **ZeroStick Calibrator**.
+3. "Connect your ZeroStick Calibrator": tap **Search**.
+   - Android: allow Location / Nearby devices when asked; the list shows ONE
+     row, **ZeroStick Calibrator**; tap it; accept the system's
+     "connect to ZeroStick-Calibrator" prompt if shown.
+   - iPhone: the system asks "Join ZeroStick-Calibrator?"; tap **Join**.
+4. "Checking the calibrator", "Connected", then the calibrator page opens by
+   itself (it checks `http://192.168.4.1/info` says `zerostick-calibrator`).
+5. Run a range and centre calibration on one stick, save it.
+6. Pull the calibrator's power a few seconds and plug it back: the app shows
+   the Connect screen and rejoins by itself (no new Search).
+7. Android: tap Search 5+ times quickly; it should still find it (the patch).
+   With the calibrator unplugged: "No calibrator found yet" + Join anyway.
+8. Tap the back key (top left): back on the device list.
+
+With the new Bluetooth dongle instead: on the calibrator screen tap
+**I have the new calibrator (it's all black)**.
+
+## Open items (not done in the move)
+
+- **Keep-awake during firmware updates**: `zs-fw.js` uses the browser
+  `navigator.wakeLock`; a native keep-awake plugin needs a package.json change
+  in the phone app, still open.
+- **Production signing key** for the dongle firmware images (`fw/`, Ed25519)
+  is still open on the DSE side. `zs-fw.js` checks size, sha256 and crc32
+  against `fw/manifest.json` (made by the DSE repo's `make_release.py`). The
+  phone app's `tools/sync-dse-fw.js` still copies release firmware into the
+  phone repo's old `www/fw/`; it must be pointed at THIS folder's `fw/`
+  (`dashboard/public/dongle/fw/`) so new images reach both apps.
+- The phone app's old `www/js/` copies are unused and can be deleted later.

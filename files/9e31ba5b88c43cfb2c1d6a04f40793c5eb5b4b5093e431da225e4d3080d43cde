@@ -1,0 +1,143 @@
+# Where the Overwatch catalog comes from
+
+Everything here was checked on **2026-10-10**. `catalog.json` is the two-kind
+form (`kinds`: Heroes, then their Weapons; `../README.md`), the same shape as
+Rainbow Six Siege's operators and guns (D125): the owner picks the hero he is
+playing, then that hero's own weapons. It carries a `review` line (D132): the
+app holds it off until the owner has checked it.
+
+**The game's name.** Blizzard's own patch notes are titled "Overwatch 2 Retail
+Patch Notes" up to December 2025 and "Overwatch Retail Patch Notes" from the
+Season 1 notes of 2026-02-10 on ([Dec 2025](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2025/12/),
+[Feb 2026](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/)),
+so the pack id is `overwatch` and "Overwatch 2" is an alias.
+
+**Pictures: none.** Every `image` is `null` (the owner's rule for this round:
+no official artwork fetched). The app shows the first letters of the hero's
+name, or the class code for a weapon. A picture added later must come from
+Blizzard's own hosts (`test-game-data.js` holds it to that).
+
+## What is in Overwatch today
+
+- **Season: "Reign of Talon - Season 5: A Grim Doctrine"**, live since
+  2026-10-06 (the [patch notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/),
+  "Overwatch Retail Patch Notes – October 6, 2026"). It added **Doctrine**
+  (Support) and **moved Sombra from Damage to Support** ("Moved from Damage to
+  Support role. Moved from Recon subrole to Tactician subrole."). The previous
+  catalog still had Sombra under Damage; fixed (`support.sombra`,
+  `support_weapons.machine_pistol`).
+- **Roster: 54 heroes**, every name spelt as on Blizzard's
+  [heroes page](https://overwatch.blizzard.com/en-us/heroes/), with each
+  hero's role read from that page's own role tags (`data-role`):
+  **15 Tank, 23 Damage, 16 Support**.
+- **When each recent hero arrived** (the `from` field), from Blizzard's monthly
+  patch-note pages:
+
+  | Hero | Season | Patch notes |
+  |---|---|---|
+  | Vendetta | Overwatch 2 Season 20, 2025-12-09 | [2025/12](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2025/12/) (her trial and balance notes; the 12-09 date also from press, e.g. esports.gg) |
+  | Anran, Domina, Emre, Jetpack Cat, Mizuki | Reign of Talon Season 1: Conquest, 2026-02-10 ("Added all 5 new heroes") | [2026/02](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/) |
+  | Sierra | Reign of Talon - Season 2: Summit, 2026-04-14 | [2026/04](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/04/) |
+  | Shion | Reign of Talon - Season 3: Into the Tiger's Den, 2026-06-16 | [2026/06](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/06/) |
+  | D.Mon | Reign of Talon - Season 4: Heroes of Busan, 2026-08-11 | [2026/08](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/) |
+  | Doctrine | Reign of Talon - Season 5: A Grim Doctrine, 2026-10-06 | [2026/10](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/) |
+
+  The older heroes' `from` (launch 2016 to Wuyang, Overwatch 2 Season 18,
+  2025) are the long-established release seasons; they were **not re-read**
+  from a source today.
+- **Sub-roles** (the format has no field for them), as the heroes page tags
+  them today. Tank: Bruiser, Initiator, Stalwart. Damage: Flanker, Recon,
+  Sharpshooter, Specialist. Support: Medic, Survivor, Tactician.
+
+## The weapons (66)
+
+Each hero's `loadout.weapons` lists the weapons the HUD can show for him: the
+primary weapon, and a second one only where the hero really swaps weapon or
+form. **All 54 hero pages on overwatch.blizzard.com were read on 2026-10-10**
+(every hero's first source is its page); every weapon name below is spelt
+as it appears there. The ten heroes with more than one:
+
+| Hero | Weapons |
+|---|---|
+| Bastion | Configuration: Recon, Configuration: Assault, Configuration: Artillery (the ultimate) |
+| D.Va | Fusion Cannons (in the mech), Light Gun (out of it) |
+| D.Mon | Plasma Saber, Portable Fusion Repeater, Fusion Repeater (the page's order; how they map to the HUD is unconfirmed, both marked `uncertain`) |
+| Genji | Shuriken, Dragonblade (the ultimate) |
+| Mercy | Caduceus Staff (beam, no ammo), Caduceus Blaster (ammo shows) |
+| Torbjörn | Rivet Gun, Forge Hammer |
+| Ramattra | Void Accelerator (the page: "(Omnic Form)"), Pummel ("(Nemesis Form)") |
+| Mauga | Incendiary Chaingun, Volatile Chaingun (both at once, two counters) |
+| Kiriko | Healing Ofuda, Kunai |
+| Lifeweaver | Healing Blossom, Thorn Volley |
+
+Notes from the check:
+
+- **Freja**: her page's ability list starts with Bola Shot and has no weapon
+  heading; "Revdraw Crossbow" is named in the same page's perk and Stadium
+  Power text as her automatic weapon, so it stays.
+- **Mauga**: his page's ability list has no weapons; "Incendiary Chaingun" is
+  named in its perk text. "Volatile Chaingun" is not on the page; it is named
+  in Blizzard's [December 2023 notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2023/12/),
+  and the [September 2026 notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/09/)
+  still tune his two Chainguns, so both stay.
+- **Jetpack Cat** (Biotic Pawjectiles, "mid-range projectile spread that heals
+  allies and damages enemies") and **Mizuki** (Spirit Glaive, "bouncing
+  projectile that damages enemies") are the first ability on each page, as a
+  weapon normally is; the previous `uncertain` notes are cleared. Guides
+  (mobalytics.gg, screenhype) also call Spirit Glaive his primary fire.
+- **Sombra**'s Season 5 rework keeps her Machine Pistol (on her page today).
+  **Roadhog** was reworked the same day and keeps the Scrap Gun (on his page).
+- The previous catalog cited gameluster.com, pcgamer.com and
+  windowscentral.com for D.Mon, Shion and Doctrine; those are replaced by
+  Blizzard's patch notes for the same season.
+
+**Marked `uncertain` (2):** D.Mon's Plasma Saber and Fusion Repeater: the page
+names both, but which of the three the HUD shows when is not known without a
+real frame.
+
+Ids: a hero's starts with his role (`tank.d_va`, `support.lucio`), a weapon's
+with its hero's role (`support_weapons.caduceus_blaster`). The weapons kind is
+called `hero_weapons` so the app says "weapon", not "gun".
+
+## HUD states
+
+From public guides and Blizzard's pages, **not checked on a real frame**.
+Positions are for the default HUD at 1080p; players can scale or hide HUD
+parts, so the player's own box matters.
+
+| State | What is on screen | What the Core could read |
+|---|---|---|
+| Hero select / hero swap | Full-screen hero gallery; the chosen hero's name in large text and their portrait | The hero, once, by its name or portrait; the cleanest moment to learn who is being played (also after every mid-match swap) |
+| In play | Hero portrait and health bar bottom-left; ability icons and ammo count bottom-right; ultimate meter bottom-centre; crosshair centre | The hero by its portrait or ability row (no name as text); the weapon only where its icon or ammo counter changes (the ten heroes above); ammo count as digits |
+| Scoped | Widowmaker's and Ana's scope overlay, Freja's Take Aim, Sojourn's charge; the HUD dims or is covered | That the player is scoped (the overlay itself); little else |
+| Ultimate active | Ability row changes (Genji's Dragonblade, Bastion's Artillery, Mercy's Valkyrie, D.Va's mech gone after Self-Destruct); some ultimates change the whole screen | That the ultimate is live, from the ultimate icon or the changed ability row |
+| Dead / kill cam | Kill cam replay from the killer's view, then a respawn timer; the HUD shown is the killer's | Nothing of the player's own: the Core must treat it as "not in play", or it will read the killer's hero |
+| Spectating / round transition | Assemble / setup timers, round-won banners | Nothing to act on |
+| Menus | Main menu, perk choice (mid-match), scoreboard (Tab), Stadium's Armory between rounds, settings | Nothing to act on; perk menu and scoreboard cover the HUD mid-match |
+
+**Font:** Blizzard's own italic display face, used for names on the select
+screen only.
+
+## Class: Rainbow-style
+
+Overwatch is **Rainbow-style** (character-picker driven, like Siege's
+operators): the Core is taught each hero's picture (the portrait or the
+ability row, D122), and the weapon's picture only for the ten heroes whose
+HUD changes with the weapon. Evidence: in play the HUD prints **no weapon
+name and no hero name** as text (only ammo digits and ability icons); every
+hero has a fixed, unique kit, so knowing the hero is knowing the weapon; the
+only screen with the hero's name as text is hero select, which is a
+character picker. Name-reading would have nothing to read in play, and the
+game is not a "pass" because the hero changes everything an AI Script needs.
+
+## Update the list when a season adds a hero
+
+1. Open the season's patch notes
+   (`https://overwatch.blizzard.com/en-us/news/patch-notes/live/<yyyy>/<mm>/`)
+   and the new hero's page on overwatch.blizzard.com/en-us/heroes/.
+2. Check each hero's role on the heroes page too: Sombra changed role in
+   Season 5, so a role can move. A hero who moves gets a new id in the new
+   role's group (only while nothing has shipped; after that, ids never change).
+3. Add the hero at the end of his role's group, with `loadout.weapons`, and
+   each weapon at the end of the role's weapon group with `usedBy` naming him.
+4. Set `asOf` and `season`, then run `node dashboard/tools/test-game-data.js`.

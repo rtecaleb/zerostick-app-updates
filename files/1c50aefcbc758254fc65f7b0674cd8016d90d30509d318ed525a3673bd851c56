@@ -1,0 +1,233 @@
+# Where the Black Ops II multiplayer weapon catalog comes from
+
+Everything here was read on **2026-09-23**. `catalog.json` in this folder is the
+list of every weapon a player can carry in Call of Duty: Black Ops II
+**multiplayer** (the 2012 game, with its DLC); this file says where every fact
+and every picture in it came from, and, because Activision's Black Ops II web
+pages are mostly gone, exactly which facts no Activision page still confirms.
+
+**Pictures: publisher pictures only (decision D116).** Every picture in
+`weapons/` is Activision's own image. Activision's Black Ops II site is offline,
+so each was downloaded from the Internet Archive's Wayback Machine copy of the
+file at its original callofduty.com address; the Pictures table gives that
+original address first and the archived copy after it. Eight of the nine are
+cut from **Activision's own screenshots of the game's Create-a-Class screen**
+(posted on the official Call of Duty community blog on 2012-12-13), so they are
+the game's own weapon renders, exactly as the owner's screen draws them; the
+ninth is the Peacekeeper art from Activision's Revolution DLC page. None came
+from a fan wiki, Fandom, a loadout site or an image search. They are
+Activision's copyright, used in the app to identify the weapon, the same risk
+the owner accepted in D116. Delete a `.png` and set that weapon's `image` to
+`null` and the app shows the class symbol instead; nothing else changes.
+
+## What is in Black Ops II multiplayer
+
+- **The 2012 game** (November 2012), with the launch arsenal below.
+- **One DLC weapon: the Peacekeeper SMG.** The Revolution DLC (January 29, 2013
+  on Xbox 360, February 28 on PlayStation 3 and PC) delivered "for the first
+  time ever, a bonus multiplayer weapon, the 'Peacekeeper'", which Activision
+  called "a one-time offering" (press releases below). The later DLC packs,
+  Uprising, Vengeance and Apocalypse, added maps and Zombies content; their
+  press releases name no multiplayer weapon (Vengeance's Ray Gun Mark II is a
+  Zombies weapon).
+- **Title Update 1.10 (September 10, 2026)** moved PlayStation multiplayer to
+  dedicated servers and patched PC compatibility; press reports of its notes
+  ([MP1st](https://mp1st.com/title-updates-and-patches/black-ops-2-update-1-10-1-010-released-september-10-includes-pc-version),
+  [TheSixthAxis](https://www.thesixthaxis.com/2026/09/11/black-ops-2-now-has-dedicated-servers-on-ps4-ps5/))
+  list no weapon change. No Activision page for it was found.
+- **Plutonium T6**, the community PC client the owner plays on, was not
+  checked: this is the game's own list. A modded server can add or change
+  weapons.
+
+Counts: **40 weapons in 8 classes**: Submachine Guns 7, Assault Rifles 9,
+Shotguns 4, Light Machine Guns 4, Sniper Rifles 4, Pistols 5, Launchers 3,
+Specials 4. 9 have an official picture.
+
+**Not in the list, on purpose:** Scorestreak weapons (Death Machine, War
+Machine), which come from a Scorestreak rather than a class; equipment (the
+Combat Axe is a Lethal); the default melee attack, which is a button press,
+not a weapon the player holds; and weapons found only in the campaign or in
+Zombies.
+
+## How the list is organised, and what is not confirmed
+
+- **Class names.** Activision's own Peacekeeper FAQ says the Peacekeeper
+  "resides in the Submachine Gun category"; the community references (below)
+  write the classes "Submachine Guns", "Assault Rifles", "Shotguns", "Light
+  Machine Guns", "Sniper Rifles", "Pistols", "Launchers" and "Special(s)", the
+  full words rather than the "SMGs" and "LMGs" of later games. The in-game
+  headings themselves were not seen on an official page.
+- **Class order: Submachine Guns, Assault Rifles, Shotguns, Light Machine Guns,
+  Sniper Rifles, then Pistols, Launchers, Specials.** Primary classes first,
+  then secondary, as the game's Create-a-Class splits them. **Submachine Guns
+  first is not confirmed** from any source: no page read gives Black Ops II's
+  own menu order, and it is taken from the order Treyarch's other Black Ops
+  games list their classes in. The owner's message listed Assault Rifles
+  first; if his screen does, swap the first two groups (the ids do not change).
+- **Specials.** In Create-a-Class the Assault Shield is the one primary
+  Special, and the Crossbow and the Ballistic Knife are the secondary Specials;
+  the game counts all of them, with the Combat Knife, as one class for the
+  Specials' Diamond camo (community references below). They are one group
+  here, the Assault Shield first, then the Crossbow and the Ballistic Knife in
+  unlock order, then the Combat Knife.
+- **The knife.** The only knife a player holds is the **Combat Knife**: a class
+  with no primary and no secondary weapon runs with it out, and so does a
+  player who plants the Assault Shield. It is not picked in Create-a-Class
+  (Activision's own Create-a-Class screenshots only show a "Personalize Knife"
+  button), so it is marked uncertain. The Ballistic Knife is a Special.
+- **Order inside a class**: by the player level that unlocks each weapon
+  (community references give the levels; the two weapons available from the
+  start, level 4, in the order they list them), the Peacekeeper last because
+  DLC. **The order on the in-game screen itself was not confirmed** from an
+  official page.
+
+## Names
+
+**Black Ops II draws weapon names in mixed case**, not in capitals as Black
+Ops 7 does: Activision's Create-a-Class screenshots show "Tac-45", "Mk 48" and
+"Skorpion EVO". So here capitalisation is part of the name.
+
+**Confirmed by Activision (10):**
+
+- Read off the game's own Create-a-Class screen in Activision's screenshots
+  (Pictures, below): **SWAT-556, SCAR-H, FHJ-18 AA, SMR, M27, Tac-45, Mk 48,
+  Skorpion EVO**. The same blog post's text writes "Mk 48" and "Swat-556"; the
+  screen writes SWAT-556, and the screen wins.
+- **Peacekeeper**: the Revolution DLC page, both Revolution press releases and
+  the Activision support FAQ.
+- **Assault Shield**: the Black Ops II multiplayer features page ("defending
+  your teammate with an assault shield", in running text).
+
+**From community references only (30)**, because no Activision page that
+still exists, or that the Wayback Machine kept, names them: MP7, PDW-57, Vector
+K10, MSMC, Chicom CQB, MTAR, Type 25, FAL OSW, M8A1, AN-94, Remington 870 MCS, S12, KSG,
+M1216, QBB LSW, LSAT, HAMR, SVU-AS, DSR 50, Ballista, XPR-50, Five-seven, B23R,
+Executioner, KAP-40, SMAW, RPG, Crossbow, Ballistic Knife, Combat Knife. Each is
+spelt as both the Call of Duty Wiki's Black Ops II weapon list and Gamer
+Guides' Black Ops II weapon pages spell it (the Combat Knife, which Gamer
+Guides does not list, as the wiki and the Steam guide do), except where they
+differ, which is marked uncertain (below) or noted here:
+
+| written | where | the catalog uses | because |
+|---|---|---|---|
+| FAL-DSW | Gamer Guides, primary weapons | FAL OSW | the Call of Duty Wiki and reprints of Treyarch's 2013 patch notes; "DSW" is a misreading of "OSW" |
+| TAC-45, MK 48 | Gamer Guides | Tac-45, Mk 48 | Activision's screenshots of the game |
+| Five-Seven | Gamer Guides | Five-seven | the Call of Duty Wiki (marked uncertain) |
+| Remington 870 MCS | the Call of Duty Wiki's page title, and the owner's screen (2026-09-24) | R870 MCS | Gamer Guides; the game's HUD reads REMINGTON 870 MCS |
+| QBB-LSW, PDW57 | reprints of Treyarch's 2013 patch notes (MP1st, GamingBolt) | QBB LSW, PDW-57 | both references; the reprints are loose throughout (they also write "SCAR" and "Riot Shield") |
+
+**What would settle the 30:** the owner's own screen, or Activision's archived
+Black Ops II manuals and its gamescom 2012 "multiplayer reveal" fact sheet,
+which are PDF files at callofduty.com addresses in the Wayback Machine
+(`.../cod-bo2/manuals/Manual_PC_EN.pdf`, `.../blackops2/gamescom/bo2-multiplayer-reveal.pdf`).
+They were not opened: this task downloads pictures only.
+
+## Uncertain
+
+- Resolved 2026-09-24 on the owner's screen: `shotguns.r870_mcs` is named REMINGTON 870 MCS in the game's HUD (it was listed as R870 MCS from Gamer Guides).
+- `light_machine_guns.qbb_lsw` (QBB LSW): Spelling: no Activision page found names it. Gamer Guides and the Call of Duty Wiki write 'QBB LSW'; reprints of Treyarch's 2013 patch notes write 'QBB-LSW'. Check the hyphen on the owner's screen.
+- `pistols.five_seven` (Five-seven): Capitalisation: no Activision page found names it. The Call of Duty Wiki writes 'Five-seven', Gamer Guides 'Five-Seven'. Black Ops II draws weapon names in mixed case (Activision's own Create-a-Class screenshots show 'Tac-45' and 'Mk 48'), so check the capital S on the owner's screen.
+- `specials.combat_knife` (Combat Knife): Not a Create-a-Class pick: it is the knife a player holds when the class has no primary or secondary weapon (and after planting the Assault Shield). Its name and its place among the Specials (it counts toward the Specials' Diamond camo) come from community references only; Activision's own Create-a-Class screenshots only show a 'Personalize Knife' button. Check the name on the owner's screen.
+
+## Community sites, used for what Activision no longer says
+
+Nothing was taken from these that an Activision page gives; they supply the
+names, classes and unlock levels no surviving Activision page states, and every
+item that relies on them lists them in its `sources`. No picture came from them.
+
+- [Call of Duty Wiki, "Call of Duty: Black Ops II"](https://callofduty.fandom.com/wiki/Call_of_Duty:_Black_Ops_II),
+  its weapons list (read through the Wayback Machine's 2026-09-07 copy, as the
+  live page refused the reader): every multiplayer weapon by class, the
+  Peacekeeper marked as Revolution DLC.
+- [Gamer Guides, Black Ops II primary weapons](https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/primary-weapons)
+  and [secondary weapons](https://www.gamerguides.com/call-of-duty-black-ops-ii/guide/multiplayer-guide/multiplayer-weapons/secondary-weapons):
+  each weapon's unlock level and in-game description, by class; the Assault
+  Shield under "Special" among the primaries, the Crossbow and Ballistic Knife
+  under "Special" among the secondaries.
+- [Call of Duty Wiki, "Assault Shield"](https://callofduty.fandom.com/wiki/Assault_Shield)
+  (2026-07-30 copy): "classified as a Special in the create-A-class section",
+  unlocked at level 34.
+- [Call of Duty Wiki, "Combat Knife"](https://callofduty.fandom.com/wiki/Combat_Knife)
+  (2026-09-03 copy): when a player holds it, and that it counts toward the
+  Specials' Diamond camo.
+- [Steam Community guide, "The complete camoflauge guide"](https://steamcommunity.com/sharedfiles/filedetails/?id=172521258):
+  the Specials class is the Assault Shield, Crossbow, Ballistic Knife and
+  Combat Knife.
+- [IMFDb, "Call of Duty: Black Ops II"](https://www.imfdb.org/wiki/Call_of_Duty:_Black_Ops_II):
+  cross-check only; it is organised by the real guns (the "S12" is its Saiga
+  12K, the "DSR 50" its DSR-50), and the game names it gives agree with the
+  list.
+
+## Official pages read
+
+The archived pages were read through the Wayback Machine; the link is to the
+archived copy, dated by its capture.
+
+| page | dated | what it gave |
+|---|---|---|
+| [Game with Devs: Favorite Classes and Playstyle (official Call of Duty community blog, archived 2013-12-26)](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2012-12-13 | Seven Treyarch developers' Pick 10 classes, each a screenshot of the game's Create-a-Class screen (on callofduty.com's image store): the names and renders of SWAT-556, SCAR-H (twice), FHJ-18 AA, SMR, M27, Tac-45, Mk 48 and Skorpion EVO; mixed-case names; the "Personalize Knife" button. |
+| [Revolution DLC page (callofduty.com/blackops2/dlc/dlc1-revolution, archived 2013-02-19)](https://web.archive.org/web/20130219191032/http://www.callofduty.com/blackops2/dlc/dlc1-revolution) | 2013 | "for the first time in a Call of Duty game, a brand new Multiplayer weapon"; "Peacekeeper SMG"; the Peacekeeper picture. |
+| [Revolution DLC Map Pack Announced (official community blog, archived 2014-07-19)](https://web.archive.org/web/20140719171211/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2013/01/08/revolution-dlc-map-pack-announced) | 2013-01-08 | The Revolution key art, "BONUS PEACEKEEPER SMG". |
+| [Call of Duty: Black Ops II Revolution Downloadable Content Pack Coming First, Exclusively to Xbox Live January 29th (Activision press release)](https://investor.activision.com/news-releases/news-release-details/call-dutyr-black-ops-ii-revolution-downloadable-content-pack) | 2013-01-08 | "for the First Time Ever, a Bonus Multiplayer Weapon", "the 'Peacekeeper.' This powerful SMG". Read through the Wayback Machine's 2021-01-23 copy; the live page refused the reader. |
+| [Call of Duty: Black Ops II Revolution DLC Map Pack Deploys Today First, Exclusively on Xbox Live (Activision press release)](https://investor.activision.com/news-releases/news-release-details/call-dutyr-black-ops-ii-revolution-dlc-map-pack-deploys-today) | 2013-01-29 | "the 'Peacekeeper,' a one-time offering of a new multiplayer weapon". Read the same way. |
+| [Uprising press release (Activision)](https://investor.activision.com/news-releases/news-release-details/activision-and-treyarch-set-deliver-one-its-most-creative) | 2013-04-04 | Four maps and a Zombies map; no multiplayer weapon. |
+| [Vengeance press release (Activision)](https://investor.activision.com/news-releases/news-release-details/activision-and-treyarch-reveal-call-dutyr-black-ops-ii-vengeance) | 2013-06-18 | Four maps and "Buried"; the Ray Gun Mark II is for "all other Call of Duty: Black Ops II Zombies maps"; no multiplayer weapon. |
+| [Apocalypse press releases (Activision)](https://investor.activision.com/news-releases/news-release-details/activision-and-treyarch-reveal-apocalypse-highly-anticipated), [available now](https://investor.activision.com/news-releases/news-release-details/call-dutyr-black-ops-ii-apocalypse-available-now-first-xbox-live) | 2013-08-08, 2013-08-27 | Four maps and "Origins"; Wonder Weapons for Zombies; no multiplayer weapon. |
+| [Peacekeeper FAQ (Activision Support)](https://support.activision.com/call-of-duty--black-ops-ii/articles/peacekeeper-faq) | undated | "it resides in the Submachine Gun category"; how DLC owners get it. |
+| [Create a Class Feature in Black Ops II Custom Classes (Activision Support)](https://support.activision.com/call-of-duty--black-ops-ii/articles/what-is-the-pick-10-feature-in-black-ops-ii) | undated | Pick 10: one Primary and one Secondary weapon; Overkill puts a second Primary in the Secondary slot. |
+| [Black Ops 2 multiplayer features (callofduty.com/blackops2/features/multiplayer, archived 2012-10-08)](https://web.archive.org/web/20121008074210/http://www.callofduty.com/blackops2/features/multiplayer) | 2012 | "defending your teammate with an assault shield"; the Pick 10 Create-a-Class. |
+
+Also searched, with nothing usable found: the rest of the archived official
+Black Ops II community blog (43 of its 45 archived posts, 2012 to 2014; two did
+not load), callofduty.com's archived Black Ops II pages and image store (about
+640 archived files: box art, maps, camo and DLC promotions, Zombies),
+activision.com's Black Ops II game page, Activision's press site, the Call of
+Duty Elite site, and treyarch.com. The camo and
+personalization-pack pictures show weapons only in part, under DLC camos.
+
+## Pictures
+
+All fetched on **2026-09-23**. The first address in each row is the picture's
+own, on Activision's site; "archived copy" is where it was downloaded from.
+"CaC render" is the game's own weapon render cut from Activision's screenshot of
+the Create-a-Class screen: it keeps that screen's dark panel as its background,
+and it is small (the whole screenshot is at most 1920 x 1080). The FHJ-18 AA and
+the Tac-45 were the Secondary weapon in their classes, drawn smaller than a
+Primary, so they are tiny (77 x 33 and 82 x 63); they are the only official
+pictures of those two, and can be deleted if too small to help.
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/bo2_skorpion_evo.png | Skorpion EVO | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Miles.jpg (archived copy: https://web.archive.org/web/20130928202902id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Miles.jpg) | CaC render, the Primary of the class "BEAST" | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_peacekeeper.png | Peacekeeper | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/dlc/peacekeeper-smg-background.png (archived copy: https://web.archive.org/web/20130124235400id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/dlc/peacekeeper-smg-background.png) | crop: DLC page art, the SMG side-on on a hexagon backdrop with an orange glow (see-through edges laid on black) | [page](https://web.archive.org/web/20130219191032/http://www.callofduty.com/blackops2/dlc/dlc1-revolution) | 2026-09-23 |
+| weapons/bo2_swat_556.png | SWAT-556 | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Caleb.jpg (archived copy: https://web.archive.org/web/20130928215459id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Caleb.jpg) | CaC render, the Primary of "Custom 5" | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_m27.png | M27 | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Geoffrey.jpg (archived copy: https://web.archive.org/web/20130928204347id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Geoffrey.jpg) | CaC render, the Primary of "Custom 1" | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_scar_h.png | SCAR-H | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_ThomasSchneider.jpg (archived copy: https://web.archive.org/web/20130928211016id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_ThomasSchneider.jpg) | CaC render, the Primary of "Custom 1"; the tip of the front sight is trimmed to leave out the screen's "PRIMARY" label (a smaller render of the same gun is in Pick10_AnthonyFlame.png) | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_smr.png | SMR | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Bunting.png (archived copy: https://web.archive.org/web/20130928210951id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Bunting.png) | CaC render, the Primary of "Custom 1" | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_mk_48.png | Mk 48 | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_MattScronce.png (archived copy: https://web.archive.org/web/20130928202619id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_MattScronce.png) | CaC render, the Primary of "Flag Capper"; the gun wears a camo in that class | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_tac_45.png | Tac-45 | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Geoffrey.jpg (archived copy: https://web.archive.org/web/20130928204347id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_Geoffrey.jpg) | CaC render, the Secondary of "Custom 1" (82 x 63) | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+| weapons/bo2_fhj_18_aa.png | FHJ-18 AA | http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_AnthonyFlame.png (archived copy: https://web.archive.org/web/20130928215842id_/http://www.callofduty.com/content/dam/atvi/callofduty/blackops2/cod-bo2/screenshots/Pick10_AnthonyFlame.png) | CaC render, the Secondary of "Sentinel" (77 x 33) | [page](https://web.archive.org/web/20131226081613/http://community.callofduty.com/community/call_of_duty/english/black_ops_2/blog/2012/12/13/game-with-devs-favorite-classes-and-playstyle) | 2026-09-23 |
+
+## No official picture (image: null)
+
+No Activision picture of these was found (see "Also searched" above). The app
+shows the class symbol until the owner trains the weapon from his own screen,
+which in Black Ops II's Create-a-Class shows the same kind of render as the
+pictures above.
+
+- MP7, PDW-57, Vector K10, MSMC, Chicom CQB (group `submachine_guns`)
+- MTAR, Type 25, FAL OSW, M8A1, AN-94 (group `assault_rifles`)
+- Remington 870 MCS, S12, KSG, M1216 (group `shotguns`)
+- QBB LSW, LSAT, HAMR (group `light_machine_guns`)
+- SVU-AS, DSR 50, Ballista, XPR-50 (group `sniper_rifles`)
+- Five-seven, B23R, Executioner, KAP-40 (group `pistols`)
+- SMAW, RPG (group `launchers`)
+- Assault Shield, Crossbow, Ballistic Knife, Combat Knife (group `specials`)
+
+## reference-frame.webp (D398)
+
+The Gun reader frame's example picture: one real frame of Black Ops II from
+the Core's own capture (ZeroStick Model Library, `frames/play/B23R/
+20260924_233148_core_full.jpg`), scaled to 960x540 and saved as WebP. Its box
+is `reference-frame.json`, the same box `recognition.json` suggests. The game
+picture belongs to its publisher, like the weapon pictures above.

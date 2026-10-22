@@ -1,0 +1,448 @@
+{
+  "zerostickGamePack": 1,
+  "id": "battlefield-6",
+  "name": "Battlefield 6",
+  "aliases": [
+    "BF6",
+    "Battlefield",
+    "REDSEC",
+    "Battlefield REDSEC"
+  ],
+  "version": 2,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": null,
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "battlefield-6",
+    "name": "Battlefield 6 (Linear)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4532 (BF6L, curves BF6L-ADS-P5.1 / BF6L-ADS-XS.1 / BF6L-Hip-P5.1 / BF6L-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 766, aiming 613 on PS5; Xbox Series hip 766, aiming 613 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Vertical Aim Ratio 100)."
+      },
+      {
+        "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Center and Axial Deadzone to 0 (GIMX BF1/BFV: 1-3/127))."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Soldier Aim Input Curve",
+        "value": "Linear"
+      },
+      {
+        "setting": "Infantry Aim Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Aim Ratio",
+        "value": "100.0"
+      },
+      {
+        "setting": "Infantry Zoom Aim Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Zoom Ratio",
+        "value": "100.0"
+      },
+      {
+        "setting": "Center Deadzone",
+        "value": "0"
+      },
+      {
+        "setting": "Axial Deadzone",
+        "value": "0"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.02,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 766,
+        "pitch": 766
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 766,
+          "pitch": 766
+        },
+        "xbox": {
+          "yaw": 766,
+          "pitch": 766
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 613,
+        "pitch": 613
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 613,
+          "pitch": 613
+        },
+        "xbox": {
+          "yaw": 613,
+          "pitch": 613
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "default",
+      "label": "Default curve",
+      "setting": "Soldier Aim Input Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "battlefield-6",
+        "name": "Battlefield 6 (Default curve)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4514 (BF6, curves BF6-ADS-P5.2 / BF6-ADS-XS.2 / BF6-Hip-P5.2 / BF6-Hip-XS.2). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 775, aiming 618 on PS5; Xbox Series hip 775, aiming 618 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Vertical Aim Ratio 100)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Center and Axial Deadzone to 0 (GIMX BF1/BFV: 1-3/127))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (GIMX BF1/BFV compensation exponent about 0.6, so about x^1.6). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Soldier Aim Input Curve",
+            "value": "Default"
+          },
+          {
+            "setting": "Infantry Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Aim Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Infantry Zoom Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Zoom Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Center Deadzone",
+            "value": "0"
+          },
+          {
+            "setting": "Axial Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 1.6
+          },
+          "turnRate": {
+            "yaw": 775,
+            "pitch": 775
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 775,
+              "pitch": 775
+            },
+            "xbox": {
+              "yaw": 775,
+              "pitch": 775
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 618,
+            "pitch": 618
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 618,
+              "pitch": 618
+            },
+            "xbox": {
+              "yaw": 618,
+              "pitch": 618
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "dynamic",
+      "label": "Dynamic",
+      "setting": "Soldier Aim Input Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "battlefield-6",
+        "name": "Battlefield 6 (Dynamic)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4531 (BF6D, curves BF6D-ADS-P5.1 / BF6D-ADS-XS.1 / BF6D-Hip-P5.1 / BF6D-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 767, aiming 613 on PS5; Xbox Series hip 766, aiming 613 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Vertical Aim Ratio 100)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Center and Axial Deadzone to 0 (GIMX BF1/BFV: 1-3/127))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (Dynamic = \"reverse S-curve\" (the game's tooltip); the points are a guess at that shape). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Soldier Aim Input Curve",
+            "value": "Dynamic"
+          },
+          {
+            "setting": "Infantry Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Aim Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Infantry Zoom Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Zoom Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Center Deadzone",
+            "value": "0"
+          },
+          {
+            "setting": "Axial Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.25,
+                0.18
+              ],
+              [
+                0.5,
+                0.33
+              ],
+              [
+                0.75,
+                0.55
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 767,
+            "pitch": 767
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 767,
+              "pitch": 767
+            },
+            "xbox": {
+              "yaw": 766,
+              "pitch": 766
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 613,
+            "pitch": 613
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 613,
+              "pitch": 613
+            },
+            "xbox": {
+              "yaw": 613,
+              "pitch": 613
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Soldier Aim Input Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "battlefield-6",
+        "name": "Battlefield 6 (Linear)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4532 (BF6L, curves BF6L-ADS-P5.1 / BF6L-ADS-XS.1 / BF6L-Hip-P5.1 / BF6L-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 766, aiming 613 on PS5; Xbox Series hip 766, aiming 613 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Vertical Aim Ratio 100)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Center and Axial Deadzone to 0 (GIMX BF1/BFV: 1-3/127))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Soldier Aim Input Curve",
+            "value": "Linear"
+          },
+          {
+            "setting": "Infantry Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Aim Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Infantry Zoom Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Zoom Ratio",
+            "value": "100.0"
+          },
+          {
+            "setting": "Center Deadzone",
+            "value": "0"
+          },
+          {
+            "setting": "Axial Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 766,
+            "pitch": 766
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 766,
+              "pitch": 766
+            },
+            "xbox": {
+              "yaw": 766,
+              "pitch": 766
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 613,
+            "pitch": 613
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 613,
+              "pitch": 613
+            },
+            "xbox": {
+              "yaw": 613,
+              "pitch": 613
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Battlefield 6 (Electronic Arts, Battlefield Studios). No pack picture yet: art is null, so the app draws our own banner. Its guns are in game-data/battlefield-6/. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/battlefield-6.json, and --remove takes it out.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Battlefield 6 are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Battlefield 6 comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Battlefield 6 comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

@@ -1,0 +1,786 @@
+/* zs-motion.js — springs and gestures (window.ZSM).
+ *
+ * ES5 ONLY. var / function / string concatenation. No arrow functions, no
+ * template literals, no let/const — same discipline as glyphs.js and marks.js.
+ * No dependencies and no CDN: the Windows build runs offline and a phone
+ * paired over Bluetooth LE has no route to the internet at all.
+ *
+ * ── Why a spring engine instead of CSS transitions ───────────────────────────
+ *
+ * A CSS transition cannot be grabbed. Once `transition: transform .26s ease`
+ * starts, the only things that can happen are "it finishes" or "it snaps".
+ * That is fine for a colour fade and wrong for anything a finger is touching,
+ * because the finger can come back. If you flick a sheet down and change your
+ * mind halfway, a transition has to either ignore you until it lands or jump.
+ *
+ * A spring has no duration. It has a position, a velocity and a target, and
+ * re-targeting it mid-flight is just... assigning a new target. It keeps the
+ * velocity it already had, so a reversal is continuous instead of a brick
+ * wall. That single property is why everything below is built on one.
+ *
+ * The parameters are Apple's two, not the physics triplet:
+ *
+ *   damping   1.0 = critically damped, settles with no overshoot (most UI)
+ *             0.8 = a little bounce (ONLY after a gesture carried momentum)
+ *   response  seconds-ish to reach the target. NOT a duration — the settle
+ *             time emerges from the maths; this just says "how eager".
+ *
+ * ── The four rules this file exists to enforce ───────────────────────────────
+ *
+ *   1. Animate from the PRESENTATION value. On interrupt we read where the
+ *      thing actually is on screen, never where it was logically headed.
+ *   2. Hand the finger's velocity to the spring at release, so there is no
+ *      seam between dragging and animating.
+ *   3. Choose the target from where the gesture is GOING (momentum
+ *      projection), not from where the finger happened to stop.
+ *   4. Resist at boundaries instead of stopping dead (rubber-banding).
+ *
+ * ── Accessibility ───────────────────────────────────────────────────────────
+ *
+ * Reduce Motion is checked on every animation start, not cached at load, so
+ * flipping the app's own switch takes effect immediately. When it is on,
+ * springs jump straight to the target and gestures still track 1:1 — the
+ * feedback survives, only the travel goes. That is what the setting means.
+ */
+(function () {
+  'use strict';
+
+  /* ── environment ──────────────────────────────────────────────────────── */
+
+  var mqReduce = null;
+  try {
+    mqReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  } catch (e) { mqReduce = null; }
+
+  /* Checked live. The app's own Ease of Access toggle sets body.a11y-motion,
+     and a user who turns it on mid-session must not have to reload to be
+     believed. */
+  function reduced() {
+    if (mqReduce && mqReduce.matches) { return true; }
+    var b = document.body;
+    return !!(b && b.classList && b.classList.contains('a11y-motion'));
+  }
+
+  /* ── one rAF loop for every spring in the app ─────────────────────────────
+     Each spring owning its own requestAnimationFrame means N callbacks per
+     frame and N chances to drift out of step. One driver keeps every animated
+     thing on the same clock, which is what makes two springs (a sheet and its
+     scrim) look like one movement. */
+
+  var live = [];
+  var rafId = 0;
+  var lastT = 0;
+
+  function frame(now) {
+    rafId = 0;
+    var dt = lastT ? (now - lastT) / 1000 : 1 / 60;
+    lastT = now;
+    /* A backgrounded tab returns with a vast dt that would fling every spring
+       across the screen. Clamp to ~4 frames; anything longer is not animation,
+       it is a resume, and settling instantly is the honest result. */
+    if (dt > 0.064) { dt = 0.064; }
+    if (dt <= 0) { dt = 1 / 60; }
+
+    var i;
+    for (i = live.length - 1; i >= 0; i--) {
+      var s = live[i];
+      if (!s._advance(dt)) { live.splice(i, 1); }
+    }
+    if (live.length) {
+      rafId = window.requestAnimationFrame(frame);
+    } else {
+      lastT = 0;
+    }
+  }
+
+  function wake(s) {
+    if (live.indexOf(s) === -1) { live.push(s); }
+    if (!rafId) {
+      lastT = 0;
+      rafId = window.requestAnimationFrame(frame);
+    }
+  }
+
+  /* ── the spring ───────────────────────────────────────────────────────────
+     Solved analytically per frame rather than integrated numerically. The
+     closed form is exact for any dt, which matters because a dropped frame on
+     a busy A7S-driven phone would otherwise inject energy that a numeric
+     integrator never gives back. */
+
+  function Spring(opts) {
+    opts = opts || {};
+    this.value = opts.from || 0;
+    this.velocity = opts.velocity || 0;
+    this.target = ('to' in opts) ? opts.to : this.value;
+    this.damping = opts.damping == null ? 1.0 : opts.damping;
+    this.response = opts.response == null ? 0.35 : opts.response;
+    this.restDelta = opts.restDelta == null ? 0.28 : opts.restDelta;
+    this.restSpeed = opts.restSpeed == null ? 6 : opts.restSpeed;
+    this.onUpdate = opts.onUpdate || null;
+    this.onRest = opts.onRest || null;
+    this._done = true;
+  }
+
+  /** Jump. No animation, no callbacks beyond the render. */
+  Spring.prototype.set = function (v) {
+    this.value = v;
+    this.target = v;
+    this.velocity = 0;
+    this._done = true;
+    this._render();
+    return this;
+  };
+
+  /**
+   * Re-target. THE important method.
+   *
+   * It never touches `value` — the spring carries on from exactly where it is
+   * on screen — and by default it never touches `velocity` either, so a
+   * reversal blends through zero instead of hard-cutting. Pass an explicit
+   * velocity only when handing off from a finger.
+   */
+  Spring.prototype.to = function (target, o) {
+    o = o || {};
+    this.target = target;
+    if (o.velocity != null) { this.velocity = o.velocity; }
+    if (o.damping != null) { this.damping = o.damping; }
+    if (o.response != null) { this.response = o.response; }
+    if (o.onRest !== undefined) { this.onRest = o.onRest; }
+
+    if (o.immediate || reduced()) {
+      this.value = target;
+      this.velocity = 0;
+      this._done = true;
+      this._render();
+      if (this.onRest) { this.onRest(); }
+      return this;
+    }
+    this._done = false;
+    wake(this);
+    return this;
+  };
+
+  Spring.prototype.stop = function () {
+    this._done = true;
+    this.velocity = 0;
+    var i = live.indexOf(this);
+    if (i > -1) { live.splice(i, 1); }
+    return this;
+  };
+
+  /** True while the spring is still moving. */
+  Spring.prototype.isAnimating = function () { return !this._done; };
+
+  Spring.prototype._render = function () {
+    if (this.onUpdate) { this.onUpdate(this.value, this); }
+  };
+
+  Spring.prototype._advance = function (dt) {
+    if (this._done) { return false; }
+
+    var w0 = (2 * Math.PI) / this.response;   /* natural frequency  */
+    var z = this.damping;                     /* damping ratio      */
+    var x0 = this.value - this.target;        /* displacement       */
+    var v0 = this.velocity;
+    var x, v, e;
+
+    if (z < 1) {                              /* under-damped: overshoots */
+      var wd = w0 * Math.sqrt(1 - z * z);
+      e = Math.exp(-z * w0 * dt);
+      var A = x0;
+      var B = (v0 + z * w0 * x0) / wd;
+      var c = Math.cos(wd * dt);
+      var s = Math.sin(wd * dt);
+      x = e * (A * c + B * s);
+      v = e * ((-z * w0) * (A * c + B * s) + wd * (B * c - A * s));
+    } else if (z === 1) {                     /* critically damped        */
+      e = Math.exp(-w0 * dt);
+      var k = v0 + w0 * x0;
+      x = e * (x0 + k * dt);
+      v = e * (k - w0 * (x0 + k * dt));
+    } else {                                  /* over-damped: crawls in   */
+      var r = w0 * Math.sqrt(z * z - 1);
+      var r1 = -z * w0 + r;
+      var r2 = -z * w0 - r;
+      var c2 = (v0 - r1 * x0) / (r2 - r1);
+      var c1 = x0 - c2;
+      var e1 = Math.exp(r1 * dt);
+      var e2 = Math.exp(r2 * dt);
+      x = c1 * e1 + c2 * e2;
+      v = c1 * r1 * e1 + c2 * r2 * e2;
+    }
+
+    this.value = this.target + x;
+    this.velocity = v;
+
+    /* Rest needs BOTH conditions. Position alone would stop a spring dead at
+       the exact moment it crosses the target at full speed — which is the
+       middle of a bounce, not the end of one. */
+    if (Math.abs(x) < this.restDelta && Math.abs(v) < this.restSpeed) {
+      this.value = this.target;
+      this.velocity = 0;
+      this._done = true;
+      this._render();
+      if (this.onRest) { this.onRest(); }
+      return false;
+    }
+    this._render();
+    return true;
+  };
+
+  /* ── momentum projection ──────────────────────────────────────────────────
+     Where a flick would come to rest if you let it coast. This is Apple's
+     exponential-decay form from the Designing Fluid Interfaces sample code —
+     NOT the textbook v²/(2a), which decelerates too aggressively and makes
+     every flick feel short. */
+
+  function project(velocity, decelerationRate) {
+    var d = decelerationRate == null ? 0.998 : decelerationRate;
+    return (velocity / 1000) * d / (1 - d);
+  }
+
+  /* ── rubber-banding ───────────────────────────────────────────────────────
+     Past a boundary the surface still follows the finger, just less and less.
+     A hard stop reads as "frozen / broken"; progressive resistance reads as
+     "responsive, but there is nothing more here". */
+
+  function rubberband(overshoot, dimension, constant) {
+    var c = constant == null ? 0.55 : constant;
+    if (!dimension) { return overshoot * c; }
+    return (overshoot * dimension * c) / (dimension + c * Math.abs(overshoot));
+  }
+
+  /* ── velocity tracking ────────────────────────────────────────────────────
+     The instantaneous delta between the last two pointermove events is far too
+     noisy to hand a spring — a single stalled frame reads as a stop, and the
+     flick dies. We keep a short history and measure across a window, which is
+     what makes a real throw feel like one. */
+
+  function Velo(windowMs) {
+    this.win = windowMs || 90;
+    this.samples = [];
+  }
+  Velo.prototype.clear = function () { this.samples = []; };
+  Velo.prototype.push = function (v, t) {
+    this.samples.push({ v: v, t: t });
+    var cut = t - this.win * 2;
+    while (this.samples.length > 2 && this.samples[0].t < cut) {
+      this.samples.shift();
+    }
+  };
+  /** px per second across the window; 0 if the finger has been still. */
+  Velo.prototype.get = function (now) {
+    var n = this.samples.length;
+    if (n < 2) { return 0; }
+    var last = this.samples[n - 1];
+    var t = now == null ? last.t : now;
+    var first = this.samples[0];
+    var i;
+    for (i = n - 1; i >= 0; i--) {
+      if (t - this.samples[i].t > this.win) { break; }
+      first = this.samples[i];
+    }
+    var dt = last.t - first.t;
+    if (dt <= 0) { return 0; }
+    /* A finger that stopped moving 120ms before lifting has NOT thrown
+       anything, even though the samples still hold the earlier motion. */
+    if (t - last.t > 100) { return 0; }
+    return ((last.v - first.v) / dt) * 1000;
+  };
+
+  /* ── helpers ──────────────────────────────────────────────────────────── */
+
+  function nearest(value, points) {
+    var best = points[0];
+    var bd = Math.abs(value - best);
+    var i, d;
+    for (i = 1; i < points.length; i++) {
+      d = Math.abs(value - points[i]);
+      if (d < bd) { bd = d; best = points[i]; }
+    }
+    return best;
+  }
+
+  function watchClass(el, cls, cb) {
+    if (!window.MutationObserver) { return null; }
+    var was = el.classList.contains(cls);
+    var mo = new window.MutationObserver(function () {
+      var now = el.classList.contains(cls);
+      if (now !== was) { was = now; cb(now); }
+    });
+    mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return mo;
+  }
+
+  /* A scrollable ancestor that is NOT at the top means the user is scrolling
+     content, not dragging the surface. Getting this wrong is the single most
+     annoying bug in a bottom sheet. */
+  function scrolledInside(from, stop) {
+    var n = from;
+    while (n && n !== stop && n.nodeType === 1) {
+      if (n.scrollHeight > n.clientHeight + 1 && n.scrollTop > 0) { return true; }
+      n = n.parentNode;
+    }
+    return false;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     BOTTOM SHEET
+
+     Drag it down to dismiss. Springs in and out. Interruptible at any point:
+     grab a sheet that is still animating open and it follows the finger from
+     wherever it is, with the velocity it already had.
+
+     The app keeps its existing API — sheetOpen()/sheetClose() toggling the
+     `open` class — because we observe that class rather than replacing the
+     functions. Every existing call site keeps working untouched, including
+     the ones in phone-sections.js and smart-actions.js.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  function attachSheet(wrap, opts) {
+    opts = opts || {};
+    if (!wrap || wrap._zsSheet) { return null; }
+    var sheet = wrap.querySelector(opts.sheetSelector || '.sheet');
+    var scrim = wrap.querySelector(opts.scrimSelector || '.scrim');
+    if (!sheet) { return null; }
+
+    /* The CSS transition would fight the spring for the same property. */
+    sheet.style.transition = 'none';
+    sheet.style.willChange = 'transform';
+    if (scrim) { scrim.style.transition = 'none'; }
+
+    var height = 1;                   /* refreshed on every open */
+    var dragging = false;
+    var startY = 0, startVal = 0, pid = null;
+    var velo = new Velo(90);
+    var openState = wrap.classList.contains('open');
+
+    function measure() {
+      height = Math.max(1, sheet.offsetHeight);
+    }
+
+    var spring = new Spring({
+      from: openState ? 0 : 1,        /* 0 = fully open, 1 = fully hidden */
+      damping: 0.82,                  /* a sheet is physical: slight bounce */
+      response: 0.30,
+      restDelta: 0.0016,
+      restSpeed: 0.04,
+      onUpdate: function (v) {
+        sheet.style.transform = 'translate3d(0,' + (v * height).toFixed(2) + 'px,0)';
+        if (scrim) { scrim.style.opacity = String(Math.max(0, 1 - v)); }
+      },
+      onRest: function () {
+        if (spring.target >= 1) {
+          /* Only now may it leave the layout. Clearing display any earlier
+             makes the exit invisible. */
+          wrap.style.display = '';
+          sheet.style.willChange = '';
+        }
+      }
+    });
+
+    function show() {
+      measure();
+      wrap.style.display = 'block';
+      sheet.style.willChange = 'transform';
+      /* From wherever it is: re-opening a sheet that is still sliding out
+         must catch it, not restart it from the bottom of the screen. */
+      spring.to(0, { damping: 0.82, response: 0.30 });
+    }
+
+    function hide() {
+      measure();
+      wrap.style.display = 'block';   /* hold it in the layout to animate out */
+      spring.to(1, { damping: 1.0, response: 0.26 });
+    }
+
+    watchClass(wrap, 'open', function (isOpen) {
+      openState = isOpen;
+      if (isOpen) { show(); } else { hide(); }
+    });
+
+    if (openState) { measure(); spring.set(0); } else { spring.set(1); }
+
+    /* ── the drag ── */
+    function onDown(e) {
+      if (!openState || e.button > 0) { return; }
+      if (scrolledInside(e.target, sheet)) { return; }
+      /* Never hijack a real control. A slider inside a sheet must get its own
+         pointer events, or the sheet eats every adjustment.
+         BUTTONS AND LINKS ARE ON THIS LIST FOR A MEASURED REASON (2026-08-18,
+         owner: "when you open sub menus this little x never works"). Below,
+         onDown calls sheet.setPointerCapture(), which retargets every later
+         pointer event to the SHEET — so the pointerup never lands on the
+         element that was pressed and the browser never synthesises a click.
+         Controls inside .sbody escaped it because scrolledInside() returns
+         early for them; the close button lives in the non-scrolling .shead,
+         so it alone was captured, and it alone appeared dead. The header is
+         still a drag handle — its title and its empty space are not
+         controls. */
+      if (e.target.closest && e.target.closest(
+            'input,select,textarea,button,a,[role="button"],[data-nodrag]')) {
+        return;
+      }
+      measure();
+      dragging = true;
+      pid = e.pointerId;
+      startY = e.clientY;
+      startVal = spring.value;
+      spring.stop();
+      velo.clear();
+      velo.push(e.clientY, e.timeStamp || Date.now());
+      try { sheet.setPointerCapture(pid); } catch (err) { /* not fatal */ }
+    }
+
+    function onMove(e) {
+      if (!dragging || e.pointerId !== pid) { return; }
+      var dy = e.clientY - startY;
+      var v = startVal + dy / height;
+      /* Upward past fully-open is a boundary: resist rather than stop. */
+      if (v < 0) { v = rubberband(v * height, height) / height; }
+      spring.value = v;
+      spring._render();
+      velo.push(e.clientY, e.timeStamp || Date.now());
+      if (e.cancelable) { e.preventDefault(); }
+    }
+
+    function onUp(e) {
+      if (!dragging || e.pointerId !== pid) { return; }
+      dragging = false;
+      try { sheet.releasePointerCapture(pid); } catch (err) { /* fine */ }
+      var vy = velo.get(e.timeStamp || Date.now());       /* px/s, + is down */
+
+      /* Where would this throw come to rest? Decide from THAT, not from where
+         the finger stopped — a short fast flick should dismiss even though it
+         barely moved, and a long slow drag back up should not. */
+      var restPx = spring.value * height + project(vy);
+      var rest = restPx / height;
+      var target = nearest(rest, [0, 1]);
+
+      /* Velocity SIGN wins over position when the throw is decisive: if you
+         are still moving down hard at release you meant "go", wherever your
+         finger happens to be. */
+      if (vy > 620) { target = 1; } else if (vy < -620) { target = 0; }
+
+      if (target >= 1) {
+        spring.to(1, { velocity: vy / height, damping: 1.0, response: 0.26 });
+        /* Tell the app, so its close callbacks and aria state run exactly as
+           if the close button had been pressed. */
+        if (opts.onDismiss) { opts.onDismiss(); }
+        else { wrap.classList.remove('open'); }
+      } else {
+        /* Settling back is a momentum interaction, so a touch of bounce is
+           correct here where it would be wrong on a menu that just faded in. */
+        spring.to(0, { velocity: vy / height, damping: 0.78, response: 0.34 });
+      }
+    }
+
+    sheet.addEventListener('pointerdown', onDown);
+    sheet.addEventListener('pointermove', onMove);
+    sheet.addEventListener('pointerup', onUp);
+    sheet.addEventListener('pointercancel', onUp);
+    window.addEventListener('resize', measure);
+
+    wrap._zsSheet = { spring: spring, measure: measure };
+    return wrap._zsSheet;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SLIDING PANEL
+
+     The editor and detail screens. Springs in from the right, and — new —
+     can be swiped back from the left edge, which is the gesture every phone
+     user already has in their hands.
+
+     Spatial consistency (§7): it enters from the right and it leaves to the
+     right. Always the same path, so "where did that go" never needs asking.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  function attachPanel(panel, opts) {
+    opts = opts || {};
+    if (!panel || panel._zsPanel) { return null; }
+
+    panel.style.transition = 'none';
+    var width = 1;
+    var openState = panel.classList.contains('open');
+    var dragging = false, pid = null, startX = 0, startVal = 0;
+    var velo = new Velo(90);
+
+    function measure() { width = Math.max(1, panel.offsetWidth); }
+
+    var spring = new Spring({
+      from: openState ? 0 : 1,
+      damping: 1.0,                   /* a screen push does NOT bounce */
+      response: 0.38,
+      restDelta: 0.0016,
+      restSpeed: 0.04,
+      onUpdate: function (v) {
+        panel.style.transform = 'translate3d(' + (v * 100).toFixed(3) + '%,0,0)';
+      },
+      onRest: function () {
+        panel.style.willChange = '';
+      }
+    });
+
+    watchClass(panel, 'open', function (isOpen) {
+      openState = isOpen;
+      measure();
+      panel.style.willChange = 'transform';
+      spring.to(isOpen ? 0 : 1, { damping: 1.0, response: 0.38 });
+    });
+
+    spring.set(openState ? 0 : 1);
+
+    /* Edge-swipe back. Only from the leading edge, and only far enough in
+       that it cannot be confused with using a control near the left margin. */
+    var EDGE = opts.edge == null ? 26 : opts.edge;
+
+    function onDown(e) {
+      if (!openState || e.button > 0) { return; }
+      var rect = panel.getBoundingClientRect();
+      if (e.clientX - rect.left > EDGE) { return; }
+      measure();
+      dragging = true;
+      pid = e.pointerId;
+      startX = e.clientX;
+      startVal = spring.value;
+      spring.stop();
+      velo.clear();
+      velo.push(e.clientX, e.timeStamp || Date.now());
+      try { panel.setPointerCapture(pid); } catch (err) { /* fine */ }
+    }
+
+    function onMove(e) {
+      if (!dragging || e.pointerId !== pid) { return; }
+      var dx = e.clientX - startX;
+      var v = startVal + dx / width;
+      if (v < 0) { v = rubberband(v * width, width) / width; }
+      spring.value = v;
+      spring._render();
+      velo.push(e.clientX, e.timeStamp || Date.now());
+      if (e.cancelable) { e.preventDefault(); }
+    }
+
+    function onUp(e) {
+      if (!dragging || e.pointerId !== pid) { return; }
+      dragging = false;
+      try { panel.releasePointerCapture(pid); } catch (err) { /* fine */ }
+      var vx = velo.get(e.timeStamp || Date.now());
+      var rest = (spring.value * width + project(vx)) / width;
+      var target = nearest(rest, [0, 1]);
+      if (vx > 520) { target = 1; } else if (vx < -520) { target = 0; }
+
+      if (target >= 1) {
+        spring.to(1, { velocity: vx / width, damping: 1.0, response: 0.30 });
+        if (opts.onBack) { opts.onBack(); } else { panel.classList.remove('open'); }
+        /* THE BACK KEY MAY SAY NO (M45). Leaving a config with unsaved
+           changes asks first (D257), and the panel stays open behind the
+           question. Its class never changed, so watchClass never called the
+           spring back, and the editor sat slid off-screen while still open.
+           Whatever the back key decided, the class says it, synchronously. */
+        if (panel.classList.contains('open')) {
+          spring.to(0, { damping: 1.0, response: 0.32 });
+        }
+      } else {
+        spring.to(0, { velocity: vx / width, damping: 1.0, response: 0.32 });
+      }
+    }
+
+    panel.addEventListener('pointerdown', onDown);
+    panel.addEventListener('pointermove', onMove);
+    panel.addEventListener('pointerup', onUp);
+    panel.addEventListener('pointercancel', onUp);
+    window.addEventListener('resize', measure);
+
+    /* `dragging` is read by the shell's swipeNav (11-detail-swipe.js): an
+       edge drag this panel claimed is this panel's alone, so one swipe can
+       never run two back handlers and skip a level (M45) */
+    panel._zsPanel = {
+      spring: spring, measure: measure,
+      get dragging() { return dragging; },
+      edge: EDGE
+    };
+    return panel._zsPanel;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     TOAST — springs up from the bottom edge it lives on, and can be flicked
+     away downward. Same path in and out (§7).
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  function attachToast(el, opts) {
+    opts = opts || {};
+    if (!el || el._zsToast) { return null; }
+    el.style.transition = 'none';
+
+    /* HOW FAR DOWN IS "GONE", MEASURED. This was a flat 90 - "matching the
+       old CSS", which was true while the toast always sat 14px off the
+       bottom. It is a resting OFFSET plus a HEIGHT now: HOME lifts the toast
+       so it clears the product mark, and the toast wraps to two lines on a
+       narrow phone, so any constant is wrong on some screen. Parked means
+       the whole box is below the glass - its own height, plus however far up
+       from the edge it rests, plus a hair so a sub-pixel row never shows.
+       Measured per transition rather than once at attach, because the lift
+       changes with the screen (see syncFootLift in phone.html) and a value
+       cached here would be the old screen's answer. */
+    function hiddenPx() {
+      var h = el.offsetHeight || 66;
+      var off = parseFloat(getComputedStyle(el).bottom);
+      if (!(off >= 0)) { off = 0; }        /* 'auto' while a sheet is open */
+      return h + off + 8;
+    }
+    var spring = new Spring({
+      from: el.classList.contains('show') ? 0 : hiddenPx(),
+      damping: 0.8, response: 0.34,
+      onUpdate: function (v) {
+        el.style.transform = 'translateX(-50%) translate3d(0,' + v.toFixed(2) + 'px,0)';
+      }
+    });
+    watchClass(el, 'show', function (on) {
+      spring.to(on ? 0 : hiddenPx(), on
+        ? { damping: 0.78, response: 0.34 }    /* arriving: a little life   */
+        : { damping: 1.0, response: 0.24 });   /* leaving: get out cleanly  */
+    });
+    spring.set(el.classList.contains('show') ? 0 : hiddenPx());
+    el._zsToast = { spring: spring };
+    return el._zsToast;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRESS — instant feedback, and cancel-by-dragging-away.
+
+     CSS :active already handles the dip. What CSS cannot do is let go when
+     the finger slides off the target and come BACK when it slides on again
+     (§10). On a phone that is the difference between "I can correct a
+     mis-press" and "the app fired something I did not mean".
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  function pressable(root) {
+    root = root || document;
+    if (root._zsPress) { return; }
+    root._zsPress = true;
+    var SEL = '.btn,.seg2 button,.subtabs button,#edtabs button,.ib,.pk,.pkr,' +
+      '.pbtn,.card,.tile,.cfg,.drow,.item,.newcfg,.addbtn,.hero .go,.stp button';
+
+    root.addEventListener('pointerdown', function (e) {
+      var t = e.target.closest ? e.target.closest(SEL) : null;
+      if (!t) { return; }
+      t.classList.add('zs-pressing');
+      var pid = e.pointerId;
+
+      function move(ev) {
+        if (ev.pointerId !== pid) { return; }
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var still = el && el.closest && el.closest(SEL) === t;
+        t.classList.toggle('zs-pressing', !!still);
+      }
+      function up(ev) {
+        if (ev.pointerId !== pid) { return; }
+        t.classList.remove('zs-pressing');
+        document.removeEventListener('pointermove', move, true);
+        document.removeEventListener('pointerup', up, true);
+        document.removeEventListener('pointercancel', up, true);
+      }
+      document.addEventListener('pointermove', move, true);
+      document.addEventListener('pointerup', up, true);
+      document.addEventListener('pointercancel', up, true);
+    }, true);
+  }
+
+  /* ── public surface ───────────────────────────────────────────────────── */
+
+  window.ZSM = {
+    Spring: Spring,
+    Velo: Velo,
+    spring: function (o) { return new Spring(o); },
+    project: project,
+    rubberband: rubberband,
+    nearest: nearest,
+    reduced: reduced,
+    attachSheet: attachSheet,
+    attachPanel: attachPanel,
+    attachToast: attachToast,
+    pressable: pressable,
+    /* Apple's shipped pairs, so call sites read as intent not as numbers. */
+    PRESET: {
+      ui:      { damping: 1.0, response: 0.35 },   /* default: no overshoot */
+      move:    { damping: 1.0, response: 0.40 },   /* reposition            */
+      sheet:   { damping: 0.8, response: 0.30 },   /* drawer                */
+      flick:   { damping: 0.8, response: 0.35 },   /* momentum carried in   */
+      snappy:  { damping: 1.0, response: 0.22 }
+    }
+  };
+
+  /* ── self-test ────────────────────────────────────────────────────────────
+     Same convention as marks.js / glyphs.js. These assert the maths, which is
+     the part that fails silently: a wrong projection constant does not throw,
+     it just makes every flick feel slightly dead. */
+  if (typeof window !== 'undefined') {
+    (function () {
+      var fail = [];
+      function ck(c, m) { if (!c) { fail.push(m); } }
+      function near(a, b, tol, m) {
+        if (Math.abs(a - b) > tol) { fail.push(m + ' (got ' + a + ', want ~' + b + ')'); }
+      }
+
+      /* Projection: Apple's own worked example — 1000 px/s at d=0.998 coasts
+         ~499px. The textbook v²/2a form gives a very different number, which
+         is exactly the mistake this guards against. */
+      near(project(1000, 0.998), 499, 1, 'project() is not the exponential-decay form');
+      near(project(0), 0, 1e-9, 'zero velocity must project nowhere');
+      ck(project(-500) < 0, 'projection must keep the sign of the throw');
+
+      /* Rubber-banding: resistance grows, so twice the pull is less than
+         twice the travel, and it never runs away. */
+      var r1 = rubberband(100, 800), r2 = rubberband(200, 800);
+      ck(r1 > 0 && r2 > r1, 'rubberband must still follow the finger');
+      ck(r2 < 2 * r1, 'rubberband must RESIST — 2x pull cannot give 2x travel');
+      ck(rubberband(100000, 800) < 800, 'rubberband must stay bounded');
+
+      /* A critically damped spring must never cross its target. That is the
+         entire definition of damping 1.0, and getting the analytic solve
+         wrong shows up here and nowhere else. */
+      var over = false, last = 0;
+      var s = new Spring({
+        from: 0, damping: 1.0, response: 0.3,
+        onUpdate: function (v) { if (v > 100.0001) { over = true; } last = v; }
+      });
+      s.target = 100; s._done = false;
+      var n = 0;
+      while (!s._done && n < 2000) { s._advance(1 / 60); n++; }
+      ck(!over, 'damping 1.0 overshot — the analytic solve is wrong');
+      ck(s._done, 'critically damped spring never came to rest');
+      near(last, 100, 0.5, 'spring did not settle on its target');
+
+      /* An under-damped spring MUST overshoot, or "bounce" is a lie. */
+      var over2 = false;
+      var s2 = new Spring({
+        from: 0, damping: 0.5, response: 0.3,
+        onUpdate: function (v) { if (v > 100.5) { over2 = true; } }
+      });
+      s2.target = 100; s2._done = false;
+      n = 0;
+      while (!s2._done && n < 4000) { s2._advance(1 / 60); n++; }
+      ck(over2, 'damping 0.5 did not overshoot');
+
+      /* Re-targeting must not teleport: the value immediately after .to() is
+         still the value that was on screen. This is rule 1. */
+      var s3 = new Spring({ from: 40, damping: 1, response: 0.3 });
+      s3.to(900);
+      ck(s3.value === 40, 're-target jumped instead of continuing from screen');
+
+      /* Velocity across a window, not between two events. */
+      var vt = new Velo(90);
+      vt.push(0, 1000); vt.push(10, 1016); vt.push(20, 1032); vt.push(30, 1048);
+      near(vt.get(1048), 625, 60, 'Velo.get() px/s looks wrong');
+      var vt2 = new Velo(90);
+      vt2.push(0, 1000); vt2.push(50, 1050);
+      ck(vt2.get(1400) === 0, 'a finger that stopped long ago must not throw');
+
+      ck(nearest(0.4, [0, 1]) === 0 && nearest(0.6, [0, 1]) === 1,
+        'nearest() picked the wrong snap point');
+
+      window.ZSM_SELFTEST_RESULT = { pass: fail.length === 0, failures: fail };
+    })();
+  }
+})();

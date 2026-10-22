@@ -1,0 +1,454 @@
+/* shell/13-wiring.js — ZS.wire: controls that remember, and controls that save.
+ *
+ * Generic wiring for switches, sliders, segments and steppers (local
+ * persistence, the keyboard), and the LIVE BINDING: a control marked with
+ * B(path, scale) (sections/01-kit.js) writes its value into the config on
+ * the adapter (bindCoerce, putProfileDebounced).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── generic control wiring (+ persistence, + keyboard) ────────── */
+  function labFor(el){
+    var f = el.closest('.fld'); var lab='';
+    if(f){ var fl=f.querySelector('.flab');
+      if(fl){ var n=fl.childNodes[0]; lab=((n&&n.textContent)||fl.textContent||'').trim(); } }
+    return lab;
+  }
+  function keyFor(ns, el){
+    var lab = labFor(el);
+    if(!lab) return null;
+    var scope = el.closest('[data-key]');            /* instance discriminator for repeated components */
+    return ns + '|' + (scope ? scope.dataset.key + '·' : '') + lab;
+  }
+  /* ── live binding: controls that actually reach the board ──────────
+     Any control may carry data-bind="deadZones.leftInner". saveV() then writes
+     that path into the config on the board, and loadV() reads it back, so the
+     screen shows what the BOARD holds rather than a local guess.
+
+     This exists because every control in the app used to stop at localStorage.
+     The board's pipeline had dead zones, curves, smoothing and Smart Actions
+     all implemented and validated — and no screen ever sent it a value. The
+     settings looked alive and changed nothing. One attribute now closes that
+     for every control type at once, instead of hand-wiring each screen.
+
+     Optional companions:
+       data-bindscale="0.01"   UI value x scale = board value (percent -> 0..1)
+       data-bindtype="num|bool|str"
+       data-bindmin/-max       clamp AFTER scaling, to the schema's own bounds
+       data-bindmap='{"Linear":"linear"}'   visible text -> stored enum      */
+  function bindPid(){ return editId || activeId; }
+  function bindSpec(el){
+    var n = el.closest && el.closest('[data-bind]');
+    if(!n) return null;
+    var mn = n.getAttribute('data-bindmin'), mx = n.getAttribute('data-bindmax');
+    return { path: n.getAttribute('data-bind'),
+             scale: parseFloat(n.getAttribute('data-bindscale')||'1') || 1,
+             type: n.getAttribute('data-bindtype') || 'num',
+             min: mn==null? null : parseFloat(mn),
+             max: mx==null? null : parseFloat(mx),
+             dp: n.getAttribute('data-binddp')==null ? null : parseInt(n.getAttribute('data-binddp'), 10),
+             mapRaw: n.getAttribute('data-bindmap') };
+  }
+  function bindMap(s){
+    if(!s.mapRaw) return null;
+    try{ return JSON.parse(s.mapRaw); }catch(e){ return null; }
+  }
+  function pathGet(obj, path){
+    var parts = String(path).split('.'), cur = obj;
+    for(var i=0;i<parts.length;i++){
+      if(cur==null || typeof cur!=='object') return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function pathSet(obj, path, v){
+    var parts = String(path).split('.'), cur = obj;
+    for(var i=0;i<parts.length-1;i++){
+      var k = parts[i];
+      if(cur[k]==null || typeof cur[k]!=='object') cur[k] = {};
+      cur = cur[k];
+    }
+    cur[parts[parts.length-1]] = v;
+  }
+  function bindCoerce(s, uiVal){
+    if(s.type==='bool') return uiVal==='1' || uiVal===true;
+    if(s.type==='str'){
+      var m = bindMap(s);
+      return (m && m[uiVal]!==undefined) ? m[uiVal] : String(uiVal);
+    }
+    var n = parseFloat(uiVal);
+    if(isNaN(n)) return undefined;
+    /* 'recip' (D164): the screen shows a number where HIGHER means MORE and
+       the field stores its reciprocal, scale / shown. The Aim page's Speed is
+       the one user: the player sees "Speed 29", the config keeps the cm of
+       mouse travel per full turn (1000 / 29 = 34.5) the translator needs,
+       and no unit is ever shown. 0 stays 0 (that field's own "off/inherit"). */
+    if(s.type==='recip'){
+      if(n <= 0) return 0;
+      n = s.scale / n;
+      if(s.min!=null) n = Math.max(s.min, n);
+      if(s.max!=null) n = Math.min(s.max, n);
+      return Math.round(n*100)/100;
+    }
+    n = n * s.scale;
+    if(s.min!=null) n = Math.max(s.min, n);
+    if(s.max!=null) n = Math.min(s.max, n);
+    /* the board validates whole documents; a long float from a division is
+       still valid but noisy in the stored JSON, so keep it readable. A dp
+       field (D191: Precision 67.5% is smoothing 0.64125) keeps six places,
+       so the percentage it shows is the one it stores. */
+    if(s.dp!=null) return Math.round(n*1e6)/1e6;
+    return Math.round(n*10000)/10000;
+  }
+  /* Bound edits made while the board is away.
+     bindWrite used to just return, leaving the value in localStorage only —
+     and loadV prefers the BOARD's value, so on reconnect the screen silently
+     snapped back to the old number with no toast and no retry. The edit was
+     gone. Hold them here (last write per path wins) and replay them the moment
+     the configs load again.
+     UNDER D257 THEY WAIT FOR SAVE LIKE EVERY OTHER SETTING (M7). An edit
+     made while a copy of the config is loaded is staged on that copy,
+     online or not, so the Save chip, the exit question and "exit without
+     saving" all see it. Only an edit made with NO copy loaded (an offline
+     boot) is held here, and when the copy arrives it joins the staged
+     queue (stagePendingBinds); it is never sent without Save. The replay
+     below is the harness's autosave path only. */
+  var pendingBinds = {};       /* pid -> { "curves.rightStick.gain": 2, ... } */
+  var pendingToastAt = 0;
+  function bindWrite(el, uiVal){
+    var s = bindSpec(el);
+    if(!s || !s.path) return;
+    var pid = bindPid();
+    var v = bindCoerce(s, uiVal);
+    if(v===undefined) return;
+    if(manualSave() && LIVE.full[pid]){
+      stageProfile(pid, function(f){ pathSet(f, s.path, v); });
+      return;
+    }
+    if(LIVE.online===false || !LIVE.full[pid]){
+      (pendingBinds[pid] || (pendingBinds[pid]={}))[s.path] = v;
+      if(Date.now()-pendingToastAt > 5000){
+        pendingToastAt = Date.now();
+        toast(manualSave() ? 'Board offline — kept here; press Save once it is back'
+                           : 'Board offline — kept here and sent when it reconnects');
+      }
+      if(manualSave()) paintSaveChips();
+      return;
+    }
+    putProfileDebounced(pid, function(f){ pathSet(f, s.path, v); });
+  }
+  /* D257: one config's held edits onto its staged queue (nothing is sent) */
+  function stagePendingBinds(pid){
+    var paths = pendingBinds[pid];
+    if(!paths || !LIVE.full[pid]) return 0;
+    var keys = Object.keys(paths);
+    delete pendingBinds[pid];
+    if(!keys.length) return 0;
+    stageProfile(pid, function(f){ keys.forEach(function(k){ pathSet(f, k, paths[k]); }); });
+    return keys.length;
+  }
+  function flushPendingBinds(){
+    var pids = Object.keys(pendingBinds), sent = 0, staged = 0;
+    if(manualSave()){
+      pids.forEach(function(pid){ staged += stagePendingBinds(pid); });
+      if(staged) toast(staged+' change'+(staged===1?'':'s')+' you made while the board was away '+
+                       (staged===1?'is':'are')+' waiting — press Save to send '+(staged===1?'it':'them'), {ms:6000});
+      return;
+    }
+    var runs = [];
+    pids.forEach(function(pid){
+      if(!LIVE.full[pid]) return;            /* config gone — nothing to merge into */
+      var paths = pendingBinds[pid];
+      delete pendingBinds[pid];
+      var keys = Object.keys(paths);
+      if(!keys.length) return;
+      runs.push(putProfile(pid, function(f){ keys.forEach(function(k){ pathSet(f, k, paths[k]); }); })
+        .then(function(j){
+          if(j && j.ok){ sent += keys.length; return; }
+          /* a replay the link lost goes back in the queue (M7), under
+             anything the player set since, rather than being dropped after
+             the toast below had already said it was sent */
+          var now = pendingBinds[pid] || (pendingBinds[pid] = {});
+          keys.forEach(function(k){ if(!(k in now)) now[k] = paths[k]; });
+        }, function(){}));
+    });
+    if(runs.length) Promise.all(runs).then(function(){
+      if(sent) toast('Sent '+sent+' change'+(sent===1?'':'s')+' you made while the board was away');
+    });
+  }
+  function bindRead(el){
+    var s = bindSpec(el);
+    if(!s || !s.path) return undefined;
+    var pid = bindPid();
+    var v;
+    var pend = pendingBinds[pid];
+    if(pend && pend[s.path]!==undefined){
+      v = pend[s.path];                      /* what the user set, not yet delivered */
+    } else {
+      var full = LIVE.full[pid];
+      if(!full) return undefined;
+      v = pathGet(full, s.path);
+    }
+    if(v===undefined || v===null) return undefined;
+    if(s.type==='bool') return v ? '1' : '0';
+    if(s.type==='str'){
+      var m = bindMap(s);
+      if(m){ for(var k in m){ if(m[k]===v) return k; } }
+      return String(v);
+    }
+    if(s.type==='recip'){
+      var rv = Number(v);
+      if(!isFinite(rv)) return undefined;
+      /* tenths: the Speed scale is 0-11 in steps of 0.1 (owner, 2026-10-01) */
+      return String(rv > 0 ? Math.round(s.scale / rv * 10) / 10 : 0);
+    }
+    var n = Number(v)/s.scale;
+    if(!isFinite(n)) return undefined;
+    /* data-binddp (D191): fixed decimals, as XIM shows "67.5" / "55.0" */
+    if(s.dp!=null && s.dp>=0) return n.toFixed(s.dp);
+    return String(Math.round(n*100)/100);
+  }
+
+  function saveV(ns, el, v){
+    var k=keyFor(ns,el);
+    if(k){ STORE.vals[k]=v; persist(); }
+    bindWrite(el, v);                 /* always — even when there is no label */
+  }
+  /* the board wins over the local cache: a bound control shows the truth */
+  function loadV(ns, el){
+    var b = bindRead(el);
+    if(b!==undefined) return b;
+    var k=keyFor(ns,el); return k? STORE.vals[k] : undefined;
+  }
+
+  function wire(root, ns){
+    ns = ns || root.dataset.ns || '';
+    /* any screen may draw a config's photo; none of them may show a broken
+       image when the board is away */
+    wireArt(root);
+
+    /* toggles — whole row tappable */
+    root.querySelectorAll('.sw').forEach(function(el){
+      if(el.dataset.nosave!=='1'){ var v=loadV(ns,el); if(v==='1') el.classList.add('on'); if(v==='0') el.classList.remove('on'); }
+      el.setAttribute('role','switch');
+      el.setAttribute('aria-checked', el.classList.contains('on')?'true':'false');
+      function flip(){ el.classList.toggle('on');
+        el.setAttribute('aria-checked', el.classList.contains('on')?'true':'false');
+        if(el.dataset.nosave!=='1') saveV(ns, el, el.classList.contains('on')?'1':'0'); }
+      var row = el.closest('.fld');
+      if(row){ row.classList.add('tapper');
+        row.addEventListener('click', function(e){
+          if(e.target.closest('select,input,button,.stp,.sc,.sw')) return;
+          /* click the switch itself rather than flipping it here — otherwise
+             a row tap skips every other listener on it (the kill switch and
+             the PS5 master are exactly that: listeners that call the board) */
+          el.dispatchEvent(new MouseEvent('click', {bubbles:false}));
+        });
+      }
+      var lab0 = labFor(el); if(lab0 && !el.getAttribute('aria-label')) el.setAttribute('aria-label', lab0);
+      el.addEventListener('click', flip); kb(el);
+    });
+
+    /* sliders (data-nosave: the section owns this value — usually because it
+       is re-derived from the board on every render, and the local cache would
+       otherwise show a number the board does not hold) */
+    root.querySelectorAll('input.rng').forEach(function(el){
+      var nosave = el.dataset.nosave==='1';
+      if(!nosave){ var v=loadV(ns,el); if(v!=null && v!=='') el.value=v; }
+      var f = el.closest('.fld'); var rv = f && f.querySelector('.rv'); var u = el.dataset.unit || '';
+      /* data-div: the readout is value ÷ div, for a control whose real domain
+         runs below one of its own units (see slider() in phone-sections.js).
+         Trailing zeros are trimmed, so 250 ÷ 10 prints "25", not "25.0". */
+      var dv = Number(el.dataset.div) || 1;
+      var lab=labFor(el); if(lab && !el.getAttribute('aria-label')) el.setAttribute('aria-label', lab);
+      function shown(){
+        if(dv <= 1) return el.value;
+        return String(+((Number(el.value) || 0) / dv).toFixed(String(dv).length - 1));
+      }
+      /* A divided slider's own value is NOT what the screen says — the thumb
+         holds 1 where the label reads "0.1%". aria-valuetext is the one way
+         to tell a screen reader what a range really means, so it says the
+         same thing the sighted readout does. Only for divided sliders: on
+         every other one the raw value already IS the readout. */
+      function upd(){
+        if(rv) rv.textContent = shown() + u;
+        if(dv > 1) el.setAttribute('aria-valuetext', shown() + u);
+      }
+      el.addEventListener('input', function(){ upd(); if(!nosave) saveV(ns, el, el.value); }); upd();
+    });
+
+    /* segmented (honours data-nosave for state-driven segs) */
+    root.querySelectorAll('.seg2').forEach(function(seg){
+      var nosave = seg.dataset.nosave==='1';
+      if(!nosave){ var v=loadV(ns,seg);
+        if(v!=null){ seg.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x.textContent===v); }); } }
+      function syncAria(){ seg.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.classList.contains('on')?'true':'false'); }); }
+      seg.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click', function(){
+          seg.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+          syncAria();
+          if(!nosave) saveV(ns, seg, b.textContent);
+        });
+      });
+      syncAria();
+    });
+
+    /* sub-tab bars: selection semantics only (sections manage their own state) */
+    root.querySelectorAll('.subtabs button').forEach(function(b){
+      b.setAttribute('aria-pressed', b.classList.contains('on')?'true':'false');
+    });
+
+    /* steppers — hold-to-repeat + tap-to-type */
+    root.querySelectorAll('.stp').forEach(function(stp){
+      var sv = stp.querySelector('.sv'); if(!sv) return;
+      /* data-nosave on the .sv, matching input.rng's own flag above: the
+         SECTION owns this value because it is re-derived from the board on
+         every render. Without the guard loadV() restores the local cache over
+         the board-derived number — the screen then shows a value the board
+         does not hold, and the very next nudge writes that stale value back.
+         The release-timing control on the Screen Assist tab is the first call
+         site; every stepper that came before passes no flag and keeps the
+         local-cache behaviour it always had, byte for byte. */
+      var stpNosave = sv.dataset.nosave === '1';
+      var saved = stpNosave ? null : loadV(ns, sv);
+      if(saved!=null && saved!=='') sv.textContent = saved;
+      function clampSet(v, stepped){
+        var mn = sv.dataset.min!=null ? parseFloat(sv.dataset.min) : -1e9;
+        var mx = sv.dataset.max!=null ? parseFloat(sv.dataset.max) :  1e9;
+        /* data-gapmin: the value space is {min} ∪ [gapmin..max] — min is a
+           switch ("off"/"inherit"), not a small size. A step out of the gap
+           coming from min lands on data-suggest (the sensible starting value);
+           a step into the gap from above lands back on min. A typed value in
+           the gap snaps up to gapmin. */
+        var gap = sv.dataset.gapmin!=null ? parseFloat(sv.dataset.gapmin) : null;
+        if(gap!=null && v>mn && v<gap){
+          if(stepped){
+            var prev = parseFloat(sv.textContent||'0');
+            v = prev<=mn ? parseFloat(sv.dataset.suggest||String(gap)) : mn;
+          } else v = gap;
+        }
+        /* data-detent: a magnet value (e.g. 1.00 on a ratio stepper). Any
+           value landing within data-detentsnap of it — typed or stepped —
+           snaps exactly onto it, so "back to normal" is reachable from any
+           off-grid value. The snap radius should be under half the step so
+           ordinary steps away from the detent are never pulled back. */
+        var det = sv.dataset.detent!=null ? parseFloat(sv.dataset.detent) : null;
+        if(det!=null && Math.abs(v-det) <
+           (sv.dataset.detentsnap!=null ? parseFloat(sv.dataset.detentsnap) : 0.025)) v = det;
+        v = Math.max(mn, Math.min(mx, v));
+        var dp = sv.getAttribute('data-binddp');
+        sv.textContent = dp!=null ? v.toFixed(parseInt(dp, 10)) : String(Math.round(v*100)/100);
+        if(!stpNosave) saveV(ns, sv, sv.textContent);
+        sv.dispatchEvent(new CustomEvent('zsstep',{bubbles:true}));
+      }
+      var stpLab = labFor(sv);
+      stp.querySelectorAll('button').forEach(function(b){
+        var t=null, iv=null, reps=0;
+        var dir = parseFloat(b.dataset.d||'1')<0 ? 'decrease' : 'increase';
+        b.setAttribute('aria-label', dir + (stpLab?' '+stpLab:''));
+        function step(mult){ clampSet(parseFloat(sv.textContent||'0') + parseFloat(b.dataset.d||'1')*(mult||1), true); }
+        /* A hold that never hears its release must not run forever (the
+           owner, 2026-10-20: Scale X ran to 2000 and kept pulling back there).
+           Any release anywhere, the window losing focus, the button leaving
+           the page, or 6 s of repeating ends it. */
+        var t0=0;
+        function stop(){ if(t){clearTimeout(t);t=null;} if(iv){clearInterval(iv);iv=null;}
+          if(typeof document.removeEventListener==='function'){
+            document.removeEventListener('pointerup', stop, true);
+            document.removeEventListener('pointercancel', stop, true); }
+          if(typeof window.removeEventListener==='function') window.removeEventListener('blur', stop); }
+        b.addEventListener('pointerdown', function(ev){
+          if(b.setPointerCapture) try{ b.setPointerCapture(ev.pointerId); }catch(e){}
+          stop(); reps=0; step(); t0=performance.now();
+          if(typeof document.addEventListener==='function'){
+            document.addEventListener('pointerup', stop, true);
+            document.addEventListener('pointercancel', stop, true); }
+          if(typeof window.addEventListener==='function') window.addEventListener('blur', stop);
+          var spd = STORE.vals['global/global|Hold-repeat speed'];
+          var ivms = spd==='Fast'?70 : spd==='Slow'?190 : 115;
+          t=setTimeout(function(){
+            var t1=performance.now(), applied=0;
+            iv=setInterval(function(){           /* elapsed-based: robust to timer throttling */
+              if(!b.isConnected || performance.now()-t0 > 6000){ stop(); return; }
+              var due=Math.floor((performance.now()-t1)/ivms);
+              while(applied<due){ applied++; step(applied>14?5:1); }
+            }, ivms);
+          }, 400);
+        });
+        ['pointerup','pointercancel','lostpointercapture'].forEach(function(evn){ b.addEventListener(evn, stop); });
+        b.addEventListener('click', function(e){ e.preventDefault(); });
+        b.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); step(); } });
+      });
+      sv.setAttribute('aria-label','edit '+(stpLab||'value')); kb(sv);
+      sv.addEventListener('click', function(){
+        if(stp.querySelector('.svedit')) return;
+        var inp=document.createElement('input'); inp.type='number'; inp.className='svedit';
+        inp.setAttribute('aria-label','type '+(stpLab||'value'));
+        inp.value=parseFloat(sv.textContent||'0'); sv.style.display='none';
+        sv.parentNode.insertBefore(inp, sv); inp.focus(); inp.select();
+        var committed=false;
+        function commit(cancel){ if(committed) return; committed=true;
+          var v=parseFloat(inp.value); sv.style.display='';
+          if(inp.parentNode) inp.parentNode.removeChild(inp);
+          if(!cancel && !isNaN(v)) clampSet(v); }
+        inp.addEventListener('blur', function(){ commit(); });
+        inp.addEventListener('keydown', function(e){
+          if(e.key==='Enter'){ e.preventDefault(); commit(); }
+          if(e.key==='Escape'){ commit(true); } });
+      });
+    });
+
+    /* selects */
+    root.querySelectorAll('select.sel').forEach(function(el){
+      var lab=labFor(el); if(lab && !el.getAttribute('aria-label')) el.setAttribute('aria-label', lab);
+      if(el.dataset.nosave==='1') return;
+      var v=loadV(ns,el);
+      if(v!=null){ for(var i=0;i<el.options.length;i++){ if(el.options[i].text===v){ el.selectedIndex=i; break; } } }
+      el.addEventListener('change', function(){ saveV(ns, el, el.options[el.selectedIndex].text); });
+    });
+
+    /* text inputs */
+    root.querySelectorAll('input.txt').forEach(function(el){
+      var lab=labFor(el); if(lab && !el.getAttribute('aria-label')) el.setAttribute('aria-label', lab);
+      if(el.dataset.nosave==='1') return;
+      var v=loadV(ns,el); if(v!=null) el.value=v;
+      el.addEventListener('input', function(){ saveV(ns, el, el.value); });
+    });
+
+    /* colour swatches */
+    root.querySelectorAll('.swatches').forEach(function(sw){
+      /* Rows that own their selection opt out: this generic handler stores a
+         single index under ns|swatch, so two swatch rows on one screen would
+         steal each other's highlight. */
+      if(sw.hasAttribute('data-selfmanaged')) return;
+      var k=ns+'|swatch';
+      var saved=STORE.vals[k];
+      var list=sw.querySelectorAll('.sc');
+      if(saved!=null && list[saved]){ list.forEach(function(x){x.classList.remove('on');}); list[saved].classList.add('on'); }
+      function aria(){ list.forEach(function(x){ x.setAttribute('aria-pressed', x.classList.contains('on')?'true':'false'); }); }
+      list.forEach(function(s,i){
+        s.setAttribute('aria-label','colour '+(s.dataset.c||s.style.background||i+1));
+        s.addEventListener('click', function(){ list.forEach(function(x){ x.classList.toggle('on', x===s); });
+          aria(); STORE.vals[k]=i; persist(); });
+        kb(s);
+      });
+      aria();
+    });
+
+    /* accordions */
+    root.querySelectorAll('.acc>.ah').forEach(function(h){
+      function aria(){ h.setAttribute('aria-expanded', h.parentElement.classList.contains('open')?'true':'false'); }
+      h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); aria(); }); kb(h); aria();
+    });
+
+    /* misc keyboard access + tile selection semantics */
+    root.querySelectorAll('.addbtn,.tile,.card[data-scen],.drow,.lrow[data-edit]').forEach(function(el){ kb(el); });
+    root.querySelectorAll('.tile').forEach(function(t){ t.setAttribute('aria-pressed', t.classList.contains('on')?'true':'false'); });
+    paintLiveDots(root);   /* a ● must never claim "saves to your board" offline */
+  }
+

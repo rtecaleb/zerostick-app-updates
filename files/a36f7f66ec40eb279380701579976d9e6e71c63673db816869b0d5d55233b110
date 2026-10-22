@@ -1,0 +1,553 @@
+/* sections/24-wizard.js — the New Config wizard (R['new'], D115, D120, D125).
+ *
+ * Four steps: the game (a pack or scratch, with search), where it plays
+ * (PLAY_FROM), mouse or controller (D289; a mouse player is then asked the
+ * DPI, with "Measure it now" = the D183 sheet, then the game's frame rate
+ * when its pack has a translator rate), then a name and a colour. Ends in ZS.newConfigDoc + ZS.addProfile (phone.html).
+ *
+ * Screens (window.RENDERERS):  R.new
+ * Tests:                      test-wizard-fps.js, test-wizard-search.js, test-game-packs.js, test-input-type.js, test-mouse-dpi.js, test-device-dpi.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('wizard', function (SEC) {
+  /* from the files before this one */
+  var btn = SEC.btn, card = SEC.card, esc = SEC.esc, note = SEC.note, R = SEC.R,
+      helpHTML = SEC.helpHTML,
+      sh = SEC.sh, ZS = SEC.ZS, PLAY_FROM = SEC.PLAY_FROM, playHidden = SEC.playHidden, playSoon = SEC.playSoon,
+      consolePic = SEC.consolePic,
+      gamePickerHtml = SEC.gamePickerHtml, packGet = SEC.packGet,
+      syncGameSections = SEC.syncGameSections,
+      packPrepare = SEC.packPrepare, wireGamePicker = SEC.wireGamePicker,
+      colCarHTML = SEC.colCarHTML, colCarName = SEC.colCarName,
+      ovColorList = SEC.ovColorList, PLAY_PRESENTS = SEC.PLAY_PRESENTS,
+      wireColCar = SEC.wireColCar;
+  /* from files after this one, bound once every file has run (never used
+     while this file is loading) */
+  var findFieldHTML, findWire;
+  ZS_SECTIONS.after(function () {
+    findFieldHTML = SEC.findFieldHTML;
+    findWire = SEC.findWire;
+  });
+
+  /* ── New Config wizard ────────────────────────────────────────────
+     FOUR STEPS, in the order D115 set: the GAME (a pack, or the scratch
+     door), WHERE IT PLAYS (the Connection Method's own rows), HOW YOU PLAY,
+     then a NAME AND A COLOUR. The game leads because it is now the decision
+     the whole config is made from, and because the pack decides what the
+     next two steps can honestly say ("tuned for Controller"). Only the game
+     is locked: the platform, the input and the colour stay editable on the
+     Overview, and the wizard says so.
+
+     THE COLOUR JOINED THE LAST STEP IN D120 (the owner, 2026-09-23: "make
+     sure they get to choose the colour for the profile, as the final EXO
+     will have an onboard LED light"). It sits beside the name because the
+     Overview already keeps the two on one card, and it is the Overview's own
+     carousel (colCarHTML), not a second picker. It used to be assigned from
+     a six-colour list the player never saw, written to the list mark only:
+     the adapter's light never heard of it. Now it is lighting.color in the
+     config itself (ZS.newConfigDoc), which a Core carries in its D103
+     LIGHTING section and shows on its onboard light.
+
+     WZ is MODULE-LEVEL state, the P_ORDER pattern: devbar.js calls
+     ZS.redrawOpenScreen() whenever the connected pad's family changes, which
+     re-enters openDetail() and re-runs this renderer — a closure `st` was
+     wiped back to step 1 by exactly the pad you plugged in to make the
+     config FOR. ＋ New config (R.profiles) clears WZ so a fresh entry starts
+     clean; a successful create clears it too. */
+  var WZ = null;
+  /* ── D289: MOUSE OR CONTROLLER, THEN THE DPI ─────────────────────────
+     The owner, 2026-10-13: "when someone makes a config ask if they will
+     use a mouse or controller and if mouse ask them their DPI, and if they
+     don't know it have like a how to measure DPI, and recommend anything
+     above 3200, then do the measurement test we made". This brings back the
+     question D237 had taken out, as TWO answers (Mouse, Controller), with
+     what is plugged in already picked. A controller player is asked nothing
+     more (controller-first: no DPI, no sensitivity). A mouse player gets one
+     more page, "What's your mouse DPI?": ZS_DPI's shared picker (presets, a
+     number, "3200 or higher recommended", a one-line amber note under 3200,
+     never a block), "How to find your DPI" behind a "?", and "Measure it
+     now", the D183 sheet. Skip is always there; nothing is made before
+     Create, so a skip or a closed sheet leaves no half-made config. */
+  /* the numbers the steps show: step 3.5 (the DPI) is part of step 3 */
+  var WZ_STEPS = 4;
+  /* ── THE GAME'S FRAME RATE (step 3.6, the owner 2026-10-19) ──────────
+     "Well it's an option — ask while making the game config, but default
+     to 120." Sync to game (mouseTranslation.syncHz, Aim > Translation) has
+     to match the rate the game reads the stick, and Call of Duty on a
+     current console usually runs at 120. A MOUSE player whose game has a
+     translator rate (the pack's aimModel.stickHz) is asked once, after the
+     DPI: two big answers, 120 FPS and 60 FPS, the game's own rate already
+     picked, and "Not sure" takes that. A controller player is never asked
+     (syncHz is the mouse translator's), nor is a game with no translator
+     (scratch, NBA 2K): there is nothing to sync. */
+  function wzPackHz(pk){
+    /* owner 2026-10-19: "default to 120" - every game with a translator
+       starts on 120; 60 is one tap away */
+    var hz = pk && pk.aimModel && +pk.aimModel.stickHz;
+    return hz > 0 ? 120 : 0;
+  }
+  var WZ_FPS_HELP = 'Pick the frame rate your game runs at <b>on your console</b>. Choose '+
+    '<b>120 FPS</b> if you play in 120 Hz or performance mode (most Call of Duty games on '+
+    'PS5 and Xbox Series do). Choose <b>60 FPS</b> otherwise. If you are not sure, keep the one '+
+    'already picked: it is this game’s usual rate. It sets <b>Sync to game</b>, which '+
+    'you can change any time in Aim, Translation.';
+  function wzDpiValid(v){ var n = parseInt(String(v == null ? '' : v).replace(/[^0-9]/g, ''), 10);
+    return (n >= 100 && n <= 32000) ? n : 0; }
+  function wzStepNo(step){ return step >= 4 ? 4 : Math.floor(step); }
+  function wzMouse(st){ return st.how === 'mouse'; }
+  /* a Mouse answer is Joystick + Mouse when a pad AND a mouse are plugged
+     in, else Mouse + Keyboard (D237's rule for what is plugged in) */
+  function wzMouseInput(){
+    var d = ZS.detectedInput && ZS.detectedInput();
+    return d === 'stick_mouse' ? 'stick_mouse' : 'mnk';
+  }
+  function wzDetectedHow(){
+    var d = ZS.detectedInput && ZS.detectedInput();
+    return !d ? '' : (d === 'controller' ? 'controller' : 'mouse');
+  }
+  /* a list of its own (helpPoints would cut at each "?") */
+  var WZ_DPI_HOW = '<ul class="qhlist">'+
+    '<li><b>Your mouse’s software</b> shows it: Logitech G HUB, Razer Synapse, SteelSeries GG, '+
+      'Corsair iCUE and the others list it on the mouse’s page (often as a few levels; use the one '+
+      'you play on).</li>'+
+    '<li><b>The box or the maker’s web page</b> if it has no software. “Up to 16,000 DPI” is the '+
+      'most it can do, not what it is set to.</li>'+
+    '<li><b>Measure it now</b>, below, with your mouse plugged into the Core: the Core sets it for '+
+      'you, or counts a slide along a ruler, a bank card or your phone.</li></ul>';
+  function wzDpiPage(st){
+    var v = window.ZS_DPI ? ZS_DPI.validDpi(st.dpi) : 0;
+    return '<div class="grp-card" style="margin-top:8px" id="wz-dpicard">'+
+      /* D290: the owner's mouse heads the page the question is about */
+      '<div class="wz-dpipic"><img class="cpic mkbpic" src="brand/devices/mouse-256.webp" width="56" height="56" '+
+        'alt="" aria-hidden="true"></div>'+
+      '<div class="fld col">'+
+        '<div class="flab">Mouse DPI<em>How many steps your mouse counts per inch.</em></div>'+
+        '<div style="margin-top:10px">'+
+        (window.ZS_DPI ? ZS_DPI.pickerHTML('wz-dpi', st.dpi)
+          : '<input class="txt" id="wz-dpi-val" data-nosave="1" inputmode="numeric" value="'+esc(st.dpi || '')+
+            '" placeholder="e.g. 3200" aria-label="Mouse DPI">')+
+        '</div>'+
+        (st.dpiWords && v
+          ? '<div class="stat" id="wz-dpifound" style="margin-top:6px"><span>'+esc(st.dpiWords)+'</span><b>'+
+              esc(v)+' DPI</b></div>'
+          : '')+
+      '</div>'+
+      '<div class="fld col" id="wz-dpiidk"><div class="flab">I don’t know my DPI</div>'+
+        helpHTML('wz-dpihow', 'How to find your DPI', WZ_DPI_HOW)+
+        (window.ZS_DPI ? btn('Measure it now', null, 'wz-dpimeasure') : '')+
+      '</div></div>'+
+      '<div id="wz-dpibad">'+(st.dpiBad ? note('A DPI is a number from 100 to 32,000.', 'warn', true) : '')+'</div>'+
+      btn('Next ›', 'primary', 'wz-dpinext')+
+      btn('Skip, I’ll set it later', 'ghost', 'wz-dpiskip');
+  }
+  var WZ_SHOWN = 0;     /* the step last drawn, for the scroll rule in render() */
+  var WZ_COLOUR_WHY = 'your adapter’s light shows this colour while this config is playing';
+  /* The colour step 4 opens on: the first colour on the carousel's list that
+     no config lights yet, so a player who taps straight through still ends
+     up with configs that look different. "Lights" is read from each
+     config's own lighting.color, because that is what the adapter shows,
+     and the shipped blue counts as taken: a config that never chose a
+     colour still lights blue. Offline, the list mark stands in. With every
+     colour taken it cycles, as the old hidden list did. */
+  function wzFreeColour(){
+    var list = ovColorList(), used = {}, i;
+    ZS.PROFILES.forEach(function(p){
+      var full = ZS.live.full[p.id];
+      var lc = full && full.lighting && full.lighting.color;
+      var hex = (typeof lc==='string' && /^[0-9a-fA-F]{6}$/.test(lc)) ? lc : String(p.color||'').replace('#','');
+      used[hex.toLowerCase()] = true;
+    });
+    for(i=0;i<list.length;i++) if(!used[list[i].v]) return list[i].v;
+    return list[ZS.PROFILES.length % list.length].v;
+  }
+  R['new'] = function(){
+    /* pack: '' not chosen yet, 'scratch', or a pack id. play: an index into
+       PLAY_FROM, -1 not chosen yet. */
+    /* color: '' until step 4 first draws, then the six hex digits chosen.
+       q: the words typed in step 1's game search (D125), kept here so the
+       pad-family redraw keeps them and a fresh entry starts empty. */
+    var st = WZ || (WZ = { step:1, pack:'', play:-1, input:null, how:'', dpi:'', dpiWords:'', dpiBad:false,
+                            name:'', named:false, color:'', q:'', fps:0 });
+    function chosen(){ return (st.pack && st.pack !== 'scratch') ? packGet(st.pack) : null; }
+    function gameName(){ var pk = chosen(); return pk ? pk.name : ''; }
+    function playRow(){ return PLAY_FROM[st.play] || null; }
+    /* the frame rate: asked only of a mouse player whose game has a
+       translator rate; the answer, else the game's own */
+    function fpsAsked(){ return wzMouse(st) && !!wzPackHz(chosen()); }
+    function fpsNow(){ return st.fps || wzPackHz(chosen()); }
+    function afterDpi(){ return fpsAsked() ? 3.6 : 4; }
+    /* THE STEP RAIL. Measured, step 1 of this wizard was the emptiest screen
+       in the product — 53.3% of the viewport one flat #06080c, four painted
+       surfaces, no primary, no red, and the loudest thing on it was the back
+       button. The FIRST thing a new owner ever does was the blankest thing we
+       ship. The rail is the cheapest honest fill available: it is the wizard's
+       own state, it is already stated in words by the note under it (so this
+       is a second channel, never the only one), and it gives the top of the
+       screen a solid ion mark that says "you are here". */
+    function rail(step){
+      var out = '<div class="wzrail" aria-hidden="true">';
+      /* D289: four steps again - the game, where it plays, mouse or
+         controller (its DPI page is part of step 3), the name */
+      var at = wzStepNo(step);
+      for(var i=1;i<=WZ_STEPS;i++){
+        var cls = i<at ? 'done' : (i===at ? 'now' : '');
+        out += '<span class="wzpip'+(cls?' '+cls:'')+'">'+(i<at?'✓':i)+'</span>';
+        if(i<WZ_STEPS) out += '<i class="wzbar'+(i<at?' done':'')+'"></i>';
+      }
+      return out+'</div>';
+    }
+    /* THE FAMILY COLOUR IS THE ROW, NOT A BADGE ON IT. Full-width rows: a 4px
+       family edge, a family wash that fades across the row, and the mark
+       kept solid at the left. The hue is the FAMILY hue (docs/DESIGN.md:
+       blue = PlayStation, green = Xbox, violet = keyboard & mouse), the same
+       meaning it carries on every config row, so a colour learned here is
+       worth something on the next screen. `fam` picks the colour and `mk`
+       the badge: a PS4 row is PlayStation blue under the PlayStation badge.
+       Tap still advances: the tile IS the commit. */
+    function tiles(items, sel){
+      return '<div class="wzrows">'+
+        items.map(function(it){
+          /* the tile's own text names the platform right below it, so the
+             mark is decorative here */
+          /* the owner's console logo when the row has one, else the badge */
+          var mk = it.pic || (window.ZSMARK ? ZSMARK.badge(it.mk || it.a, {size:40, decorative:true}) : '');
+          return '<div class="tile fam'+(it.sub?' has-sub':'')+(sel===it.v?' on':'')+'" data-fam="'+esc(it.a)+
+            '" data-v="'+esc(it.v)+'"><div class="tart">'+mk+'</div>'+
+            '<div style="font-weight:600;margin-top:6px">'+esc(it.t)+'</div>'+
+            /* D399: a row's small second line (the PS5 row's dongle), the
+               strong secondary ink, between the name and the description */
+            (it.sub ? '<div class="wzsub" style="color:var(--zs-ink-2,var(--muted));font-size:12px;font-weight:500;margin-top:1px">'+esc(it.sub)+'</div>' : '')+
+            '<div style="color:var(--muted);font-size:12px;margin-top:2px">'+esc(it.d)+'</div>'+
+            '<span class="wzgo" aria-hidden="true">›</span></div>';
+        }).join('')+'</div>';
+    }
+    /* the Connection Method's own rows (PLAY_FROM), minus any the product on
+       the other end has not got (a Core has no Remote Play). The words under
+       each are the panel's own "presents as" line. Never a second list. */
+    function playItems(){
+      var out = [];
+      PLAY_FROM.forEach(function(o, i){
+        /* D286: a row the adapter can only set up (Remote Play on a Core)
+           is not a way to make a config play; its setup is on Overview */
+        if(playHidden(i) || playSoon(i)) return;
+        var fam = (o.platform==='ps5' || o.platform==='ps4') ? 'ps5' : o.platform;
+        out.push({ v:String(i), a:fam, mk:o.platform, t:o.t, sub:o.sub||'', d:(PLAY_PRESENTS[i] || '')+(o.notRec ? ' '+o.notRec+'.' : ''), pic: consolePic ? consolePic(o, 40) : '' });
+      });
+      return out;
+    }
+    /* What the chosen pack's settings are, in words, for the input picked
+       (or about to be). Honest in both directions: a tuned block says what
+       it was tuned from, an untuned one says it is not. */
+    function settingsLine(input){
+      var pk = chosen();
+      if(!pk) return 'ZeroStick’s starting settings';
+      var b = pk.inputs && pk.inputs[input];
+      return (b && b.calibrated === true)
+        ? 'Tuned for '+pk.name
+        : 'Starting settings, not tuned for '+pk.name+' yet';
+    }
+    /* WHAT YOU HAVE ALREADY CHOSEN, printed under the choice you are making.
+       Each line carries its family badge, so the colour picked stays
+       visible for the rest of the flow. */
+    function sofar(){
+      var rows = [];
+      if(st.step>1) rows.push(['Game', gameName() || 'None, started from scratch', '']);
+      if(st.step>2 && playRow()) rows.push(['Plays on', playRow().t, playRow().platform]);
+      if(st.step>3 && st.how) rows.push(['Plays with', wzMouse(st) ? 'Mouse' : 'Controller', '']);
+      if(!rows.length) return '';
+      return sh('Chosen so far')+card(rows.map(function(r){
+        var mk = (r[2] && window.ZSMARK)
+          ? '<span class="gly-deco" aria-hidden="true" style="margin-right:6px">'+
+            ZSMARK.badge(r[2], {size:16, decorative:true})+'</span>' : '';
+        return '<div class="stat"><span>'+esc(r[0])+'</span><b>'+mk+esc(r[1])+'</b></div>';
+      }).join(''));
+    }
+    function render(root){
+      var h=rail(st.step);
+      if(st.step===1){
+        /* THE GAME, stated as permanent AT choice time, first-time-user
+           plain. The board never validates against this list: it stores one
+           bounded string and latches it. */
+        /* D285: one line, the rest behind the "?" */
+        h += note('Step 1 of 4: pick the <b>game</b> this config is for.')+
+          helpHTML('wz-game', 'Step 1 of 4', 'Step 1 of 4: pick the <b>game</b> this config is for. It sets the config '+
+            'up for that game, and <b>this choice is permanent</b>: to play a different game '+
+            'later, you make a new config. Then: where it plays, what you play with, and a <b>name</b>. '+
+            'Nothing is created until the last step. '+
+            /* D300: why most games are greyed, behind the "?" */
+            /* D394: three statuses */
+            'Only games under <b>Ready to use</b> can be chosen: <b>Call of Duty: Black Ops II</b> '+
+            'is the first. <b>Calibration done \u00b7 AI scripts waiting</b> means the game\u2019s aim '+
+            'speeds are in, but its AI scripts are not; <b>Not started</b> means neither. '+
+            'A config you already made for another game shows its game\u2019s status too: '+
+            'it keeps playing on your device, and it opens here once its game is ready.')+
+          /* THE SEARCH (D125): the Configs list's own field and filter
+             (findFieldHTML, findWire), on the rows it filters. It hides
+             game tiles only; Start from scratch carries no data-g and is
+             never hidden, and the empty state says it is still there. */
+          findFieldHTML({ id:'wzsearch', value:st.q, placeholder:'Search games',
+                          label:'Search the games by name' })+
+          '<div class="note cfgnone" id="wznone" hidden style="display:none"></div>'+
+          gamePickerHtml(st.pack, 'create');
+      } else if(st.step===2){
+        h += note('Step 2 of 4: where does it <b>play</b>? You can change this later on the '+
+                  'Overview.')+
+          tiles(playItems(), st.play>=0 ? String(st.play) : null)+
+          sofar();
+      } else if(st.step===3){
+        /* D289: two answers, the owner's words. What is plugged in is
+           already picked (D237) and says so; a tap is the commit. */
+        var det = wzDetectedHow(), sel3 = st.how || det || null;
+        var pk3 = chosen();
+        var tuned3 = function(v){ var b = pk3 && pk3.inputs && pk3.inputs[v];
+          return (b && b.calibrated===true) ? ' · tuned for '+pk3.name : ''; };
+        /* D290: the two answers wear the devices' own pictures: the owner's
+           mouse, and the pad that is plugged in (the Xbox one otherwise, as
+           devbar.js picks for any pad that is not Sony's) */
+        var padPic3 = (ZS.devicePicFor && ZS.userDevices)
+          ? (ZS.userDevices(ZS.devices).filter(function(d){ return d.kind === 'gamepad'; }).map(ZS.devicePicFor)[0] || '') : '';
+        var tpic = function(src, cls){
+          return '<img class="cpic'+(cls ? ' '+cls : '')+'" src="'+esc(src)+'" width="40" height="40" alt="" aria-hidden="true">';
+        };
+        h += note('Step 3 of 4: will you play with a <b>mouse</b> or a <b>controller</b>? '+
+                  'You can change this later in Device.')+
+          tiles([
+            {v:'mouse', a:'mnk', t:'Mouse', pic: tpic('brand/devices/mouse-256.webp', 'mkbpic'),
+              d:'mouse and keyboard, or a mouse with a joystick'+
+              (det==='mouse' ? ' · plugged in now' : '')+tuned3(wzMouseInput())},
+            {v:'controller', a:'controller', t:'Controller', pic: tpic(padPic3 || 'brand/devices/dev-xbox.png', ''),
+              d:'a gamepad in your hands'+
+              (det==='controller' ? ' · plugged in now' : '')+tuned3('controller')}
+          ], sel3)+
+          sofar();
+      } else if(st.step===3.5){
+        /* D289: a mouse player's DPI, asked once, here */
+        h += note('Step 3 of 4: what’s your mouse <b>DPI</b>?')+
+          wzDpiPage(st)+
+          sofar();
+      } else if(st.step===3.6){
+        /* the frame rate: one question, two big answers, the game's rate picked */
+        var dflt = wzPackHz(chosen());
+        h += note('Step 3 of 4: what <b>frame rate</b> does the game run at?')+
+          helpHTML('wz-fps', 'Game frame rate', WZ_FPS_HELP)+
+          tiles([120, 60].map(function(v){
+            return { v:'fps'+v, a:'mnk', t:v+' FPS',
+              pic:'<span class="wzfps" aria-hidden="true" style="display:flex;align-items:center;'+
+                'justify-content:center;width:40px;height:40px;font-weight:700;font-size:16px">'+v+'</span>',
+              d:(v === 120 ? '120 Hz or performance mode' : 'the standard mode')+
+                (v === dflt ? ' · this game’s usual' : '') };
+          }), 'fps'+fpsNow())+
+          btn('Not sure · use '+dflt+' FPS','ghost','wz-fpsunsure')+
+          sofar();
+      } else {
+        var pk4 = chosen(), row = playRow();
+        var nActs = pk4 ? (pk4.smartActions || []).length : 0;
+        var nOff = pk4 ? (pk4.smartActions || []).filter(function(r){ return r && r.enabled===false; }).length : 0;
+        if(!st.color) st.color = wzFreeColour();
+        h += note('Step 4 of 4: name it, and choose its colour. You can change the colour '+
+                  'later on the Overview.')+
+          '<div class="grp-card" style="margin-top:8px"><div class="fld col"><div class="flab">Config name</div>'+
+          '<input class="txt wz-name" data-nosave="1" style="margin-top:10px" value="'+esc(st.name)+
+          '" placeholder="'+esc(gameName() || 'e.g. Ranked')+'"></div>'+
+          /* THE OVERVIEW'S CAROUSEL, not a second picker (D120), and the
+             sentence says what the colour is FOR in plain words */
+          '<div class="fld col wz-colour"><div class="flab">Colour</div>'+
+            '<div style="text-align:center">'+colCarHTML('wz-colcar', '#'+st.color)+
+            '<div class="ovcol-name" id="wz-colname">'+esc(colCarName('#'+st.color)+' · '+WZ_COLOUR_WHY)+
+            '</div></div></div></div>'+
+          card('<div class="stat"><span>Game</span><b>'+
+              (gameName() ? esc(gameName()) : 'None, started from scratch')+'</b></div>'+
+            '<div class="stat"><span>Plays on</span><b>'+
+              (window.ZSMARK && row
+                ? '<span class="gly-deco" aria-hidden="true" style="margin-right:6px">'+
+                  ZSMARK.badge(ZS.markKey({platform:row.platform, input:st.input}),
+                               {size:16, decorative:true})+'</span>'
+                : '')+
+              esc(row ? row.t : '')+'</b></div>'+
+            /* from ZS.INP, never a two-way ternary: the summary is the last
+               thing a user reads before Create, and it must name the type
+               they actually picked */
+            '<div class="stat"><span>Input</span><b>'+esc(ZS.INP[st.input]||st.input)+'</b></div>'+
+            /* D289: the DPI the mouse step took, or that it was skipped */
+            (ZS.inputShows(st.input, 'mouse')
+              ? '<div class="stat" id="wz-sumdpi"><span>Mouse DPI</span><b>'+
+                  (wzDpiValid(st.dpi) ? esc(wzDpiValid(st.dpi))+' DPI' : 'Not set yet, set it in Device')+'</b></div>'
+              : '')+
+            /* the frame rate the mouse step took (owner, 2026-10-19) */
+            (ZS.inputShows(st.input, 'mouse') && fpsAsked()
+              ? '<div class="stat" id="wz-sumfps"><span>Game frame rate</span><b>'+fpsNow()+' FPS</b></div>'
+              : '')+
+            '<div class="stat"><span>Aim settings</span><b>'+esc(settingsLine(st.input))+'</b></div>'+
+            (nActs
+              ? '<div class="stat"><span>Scripts</span><b>'+nActs+' ready'+
+                (nOff===nActs ? ', switched off until you turn them on' : '')+'</b></div>'
+              : ''))+
+          btn('✓ Create config','primary','wz-create');
+      }
+      if(st.step>1) h += btn('‹ Back','ghost','wz-back');
+      /* A redraw while somebody is typing in the game search (the
+         pad-family redraw) puts the hand back where it was, caret and all.
+         Only then: the field never takes focus by itself. */
+      var ae0 = root.ownerDocument ? root.ownerDocument.activeElement : null;
+      var caret = (ae0 && ae0.id === 'wzsearch') ? (ae0.selectionStart || 0) : -1;
+      root.innerHTML = h;
+      /* A NEW STEP STARTS AT ITS TOP. The game list is eleven tiles and the
+         scratch door, so the tap that picks Rocket League or scratch is made
+         a screen and a half down, and #dbody kept that offset: step 2 opened
+         with its own "Step 2 of 4" line and first row scrolled out of sight.
+         A redraw of the SAME step (the pad-family redraw) keeps its place. */
+      if(WZ_SHOWN !== st.step){ root.scrollTop = 0; WZ_SHOWN = st.step; }
+      ZS.wire(root, 'global/new');
+      var nm=root.querySelector('.wz-name');
+      if(nm) nm.addEventListener('input', function(){ st.name=nm.value; st.named=true; });
+      /* D289: the DPI page. The picker reports every change into the
+         wizard's own state (nothing is written before Create); Measure it
+         now is the D183 sheet, and what it finds comes back here. A closed
+         sheet changes nothing. */
+      if(st.step===3.5){
+        if(window.ZS_DPI) ZS_DPI.wirePicker(root, 'wz-dpi', function(v, how, raw){
+          st.dpi = v ? String(v) : String(raw == null ? '' : raw).replace(/[^0-9]/g, '').slice(0, 5);
+          st.dpiWords = '';
+          var fnd = root.querySelector('#wz-dpifound');
+          if(fnd) fnd.parentNode.removeChild(fnd);
+          if(st.dpiBad && (v || !st.dpi)){ st.dpiBad = false; var bd = root.querySelector('#wz-dpibad'); if(bd) bd.innerHTML = ''; }
+        });
+        else {
+          var dpf = root.querySelector('#wz-dpi-val');
+          if(dpf) dpf.addEventListener('input', function(){ st.dpi = String(dpf.value || '').replace(/[^0-9]/g, '').slice(0, 5); });
+        }
+        var wzms = root.querySelector('#wz-dpimeasure');
+        if(wzms) wzms.addEventListener('click', function(){
+          ZS_DPI.open({ start:'auto', current: wzDpiValid(st.dpi) || null, onDone: function(d, how, words){
+            st.dpi = String(d); st.dpiWords = words || ''; st.dpiBad = false; render(root);
+          } });
+        });
+        var wzn = root.querySelector('#wz-dpinext');
+        if(wzn) wzn.addEventListener('click', function(){
+          /* empty is a skip; a number that is not a DPI is said, once */
+          if(st.dpi && !wzDpiValid(st.dpi)){ st.dpiBad = true; render(root); return; }
+          st.dpiBad = false; st.step = afterDpi(); render(root);
+        });
+        var wzk = root.querySelector('#wz-dpiskip');
+        if(wzk) wzk.addEventListener('click', function(){
+          st.dpi = ''; st.dpiWords = ''; st.dpiBad = false; st.step = afterDpi(); render(root);
+        });
+      }
+      /* the colour is only REMEMBERED here; Create writes it into the new
+         config (ZS.addProfile -> newConfigDoc), so nothing is sent before
+         the player says so */
+      var wcc = root.querySelector('#wz-colcar');
+      if(wcc) wireColCar(wcc, '#'+st.color, function(c){
+        st.color = String(c.v).toLowerCase();
+        var cn = root.querySelector('#wz-colname');
+        if(cn) cn.textContent = c.t+' · '+WZ_COLOUR_WHY;
+      });
+      /* platform/input tiles only — the game tiles carry data-g / data-gnone
+         and belong to the picker's own delegated handler below */
+      root.querySelectorAll('.tile').forEach(function(t){
+        if(t.dataset.v === undefined) return;
+        t.addEventListener('click', function(){
+          /* D237: what you play with is what is plugged in (Controller
+             when nothing is), so the wizard goes straight to the name */
+          if(st.step===2){ st.play = parseInt(t.dataset.v, 10); st.step = 3; }
+          /* the frame rate (owner, 2026-10-19): a tap is the commit */
+          else if(st.step===3.6){ st.fps = t.dataset.v === 'fps60' ? 60 : 120; st.step = 4; }
+          /* D289: Controller goes straight to the name, no DPI; Mouse asks it */
+          else if(st.step===3){
+            st.how = t.dataset.v === 'mouse' ? 'mouse' : 'controller';
+            st.input = st.how === 'mouse' ? wzMouseInput() : 'controller';
+            st.step = st.how === 'mouse' ? 3.5 : 4;
+          }
+          render(root);
+        });
+      });
+      if(st.step===1){
+        var wzFind = findWire(root, { id:'wzsearch', rows:'.tile[data-g]', none:'wznone',
+          get: function(){ return st.q; }, set: function(v){ st.q = v; },
+          /* D300 amended: a section ("Games", "Coming soon") the search
+             emptied goes, header and all */
+          after: function(){ syncGameSections(root); },
+          noneText: function(q){
+            return 'No games match "'+q+'". The search looks at each game’s name and the '+
+              'other names it goes by. If yours is not here, “start from scratch” below '+
+              'is always there.';
+          },
+          say: function(shown, total, q){
+            return shown < 0 ? 'Showing all '+total+' games'
+              : shown ? shown+(shown===1 ? ' game matches' : ' games match')
+              : 'No games match '+q+'. Start from scratch is still there.';
+          } });
+        wireGamePicker(root, 'create', st.pack, function(pk){
+          if((pk ? pk.id : 'scratch') !== st.pack) st.fps = 0;
+          st.pack = pk ? pk.id : 'scratch';
+          st.step = 2;
+          render(root);
+        }, function(){ wzFind(false); });
+        if(caret >= 0){
+          var sfw = root.querySelector('#wzsearch');
+          if(sfw){ try{ sfw.focus(); sfw.setSelectionRange(caret, caret); }catch(x){} }
+        }
+      }
+      var unsure=root.querySelector('#wz-fpsunsure');
+      if(unsure) unsure.addEventListener('click', function(){
+        st.fps = wzPackHz(chosen()); st.step = 4; render(root);
+      });
+      var back=root.querySelector('#wz-back');
+      if(back) back.addEventListener('click', function(){
+        st.step = st.step===4 ? (fpsAsked() ? 3.6 : wzMouse(st) ? 3.5 : 3) : st.step===3.6 ? 3.5
+                : st.step===3.5 ? 3 : Math.max(1, st.step-1);
+        render(root);
+      });
+      var create=root.querySelector('#wz-create');
+      if(create) create.addEventListener('click', function(){
+        var pk = chosen(), row = playRow() || PLAY_FROM[PLAY_FROM.length-1];
+        var name=(st.name||'').trim()||gameName()||'New config';
+        var id=(name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,24)||'config')
+               +'-'+Math.random().toString(36).slice(2,6);
+        var input = st.input || 'controller';
+        /* D289: an answer that is not what is plugged in right now is a
+           choice by hand, so the D237 auto-follow does not undo it the
+           moment the config opens (nothing plugged in: it follows) */
+        var det = ZS.detectedInput && ZS.detectedInput();
+        var byHand = !!(det && det !== input);
+        /* the frame rate answer is Sync to game; written only when asked */
+        var syncHz = (ZS.inputShows(input, 'mouse') && fpsAsked()) ? fpsNow() : 0;
+        var prep0 = packPrepare(pk, input,
+                          ZS.inputShows(input, 'mouse') && wzDpiValid(st.dpi) ? { dpi: wzDpiValid(st.dpi) } : null);
+        create.disabled=true; create.textContent='Creating…';
+        ZS.addProfile({ id:id, name:name, platform:row.platform, backend:row.backend, input:input,
+                        game:gameName(), pack: pk ? pk.id : 'scratch',
+                        /* the player's colour (D120): newConfigDoc writes
+                           it to lighting.color, the field the adapter reads */
+                        color:'#'+(st.color || wzFreeColour()),
+                        /* the pack's turn, after the template and the
+                           wizard's own choices (ZS.newConfigDoc) */
+                        prepare: function(full, small){
+                          prep0(full, small);
+                          if(byHand) full.inputAuto = false;
+                          if(syncHz) (full.mouseTranslation || (full.mouseTranslation = {})).syncHz = syncHz;
+                        } },
+          function(ok){
+            if(ok){
+              WZ = null;      /* the wizard is done; the next entry starts clean */
+              ZS.closeDetail();
+              ZS.openEditor(id);
+              ZS.toast('"'+name+'" created'+(ZS.live.online?' on the board':''));
+            } else { create.disabled=false; create.textContent='✓ Create config'; }
+          });
+      });
+    }
+    return { html:'', after:function(root){ render(root); } };
+  };
+
+  /* the Configs list's "New config" door starts the wizard clean
+     (25-profiles.js). WZ is this file's own; this is the one way in. */
+  function wzReset(){ WZ = null; }
+
+  /* what the other screen files use from this one */
+  SEC.wzReset = wzReset;
+});

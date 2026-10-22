@@ -1,0 +1,409 @@
+/* zs-demo-agent.js — a pretend EXO for the developer preview (window.ZSDEMO).
+ *
+ * ES5 ONLY, same discipline as zs-ble.js: Promises, no arrow functions, no
+ * template literals, no let/const.
+ *
+ * Owner, 2026-10-12: "when i bypass ... it should fake as if its connected and
+ * say connected ... bring over all my profiles too from the pc build for now
+ * and act like its connected with a controller."
+ *
+ * ── What it is ───────────────────────────────────────────────────────────────
+ *
+ * The phone app reaches the board through /agent/* URLs, and zs-ble.js proves
+ * the trick: shim window.fetch and every screen follows without knowing. This
+ * file answers those URLs from demo/board.json — a capture of Caleb's own board
+ * (tools/capture-fixture.js, the same file the headless suites render against,
+ * copied beside this one) — so the app is fully ONLINE: his configs, the active
+ * one, and a DualSense, a mouse and a keyboard plugged in.
+ *
+ * Its answers mirror tools/app-harness.js makeAgent() for the routes a person
+ * reaches by browsing: the profile list and documents, activate, create,
+ * save, delete, and the output switches whose state the app reads back.
+ *
+ * ── It is a CORE ─────────────────────────────────────────────────────────────
+ *
+ * Owner, 2026-09-23: only the Core is ever shown to him, never the A7S. When
+ * the demo file carries the Core's own captures (sync-mobile --owner-data),
+ * /status is the Core's (product "core", its profile format), the list is the
+ * Core's, and each config is served from its real stored blob in 4096-byte
+ * pieces (GET /profiles/<id>/zsp[/<i>]), as zs_api.c does, so the app reads
+ * configs through its real ZSCOPY path. Saves come back the same way (PUT
+ * /profiles/<id>/zsp, whole or in pieces) and the new blob is what the next
+ * read returns.
+ *
+ * ── What it is NOT ───────────────────────────────────────────────────────────
+ *
+ * Nothing leaves the phone. Edits live in memory and are gone on the next
+ * launch, on purpose: a preview that quietly remembered would drift from the
+ * real board and be believed. Reached only from the Bluetooth gate's
+ * "Preview without connecting", which exists only after the hidden 10-tap
+ * unlock (D271), so a customer never meets it.
+ */
+(function () {
+  'use strict';
+
+  var PREFIX = '/agent';
+  var state = null;
+  var installed = false;
+  var loading = null;
+  var KEY = 'zs-demo';     /* sessionStorage: this launch is a preview */
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function jsonResponse(obj, status) {
+    return new Response(JSON.stringify(obj), {
+      status: status || 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /* ── the Core's stored blob (D103 container) ─────────────────────────── */
+  function fromB64(b) {
+    var bin = atob(b), out = new Uint8Array(bin.length), i;
+    for (i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
+    return out;
+  }
+  function toB64(u8) {
+    var s = '', i;
+    for (i = 0; i < u8.length; i += 0x8000) {
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    }
+    return btoa(s);
+  }
+  function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+  function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+  function sectionOf(b, type) {          /* tools/app-harness.js sectionOf */
+    var hb = u16(b, 6), count = u16(b, 12), i, e;
+    for (i = 0; i < count; i++) {
+      e = hb + i * 12;
+      if (u16(b, e) === type) { return { off: u32(b, e + 4), len: u32(b, e + 8) }; }
+    }
+    return null;
+  }
+  function crcHex(b) { return ('0000000' + u32(b, b.length - 4).toString(16)).slice(-8); }
+  var PIECE = 4096;
+  function blobInfo(id, b) {
+    var src = sectionOf(b, 0x00F0);
+    return { ok: true, encoding: 'zsp-chunks', data: { id: id, bytes: b.length, crc32: crcHex(b),
+      chunk: PIECE, chunks: Math.ceil(b.length / PIECE), revision: u32(b, 16),
+      source: { bytes: src ? src.len : 0 } } };
+  }
+  function blobPiece(id, b, i) {
+    var chunks = Math.ceil(b.length / PIECE);
+    if (i >= chunks) { return { ok: false, error: 'That config has no piece ' + i + '.' }; }
+    var piece = b.subarray(i * PIECE, Math.min(b.length, (i + 1) * PIECE));
+    return { ok: true, data: { id: id, index: i, offset: i * PIECE, bytes: piece.length,
+      crc32: crcHex(b), b64: toB64(piece) } };
+  }
+  /* a saved blob carries its document as a gzipped SOURCE sidecar (section
+     0x00F0); read it so the list row has the config's name */
+  function gunzip(u8) {
+    if (window.ZSFRAME && window.ZSFRAME.gunzip) { return Promise.resolve(window.ZSFRAME.gunzip(u8)); }
+    if (typeof DecompressionStream === 'undefined') { return Promise.reject(new Error('no gunzip')); }
+    var ds = new DecompressionStream('gzip');
+    return new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer()
+      .then(function (ab) { return new Uint8Array(ab); });
+  }
+  function keepBlob(id, b) {
+    state.blobs[id] = b;
+    var src = sectionOf(b, 0x00F0);
+    var docP = src ? gunzip(b.subarray(src.off, src.off + src.len)).then(function (raw) {
+      return JSON.parse(new TextDecoder().decode(raw));
+    }) : Promise.resolve(null);
+    return docP.then(null, function () { return null; }).then(function (doc) {
+      if (doc) { state.profiles[id] = doc; }
+      if (state.order.indexOf(id) < 0) { state.order.push(id); }
+      if (state.rows) {
+        var row = null, i;
+        for (i = 0; i < state.rows.length; i++) { if (state.rows[i].id === id) { row = state.rows[i]; } }
+        if (!row) { row = { id: id, description: '', lastModified: null, active: false }; state.rows.push(row); }
+        var d = state.profiles[id] || {};
+        row.name = d.name || row.name || id;
+        if (d.console) { row.console = d.console; }
+        if (d.inputType) { row.inputType = d.inputType; }
+        row.bytes = b.length;
+        row.storedBytes = Math.ceil(b.length / PIECE) * PIECE;
+        row.contentRevision = u32(b, 16);
+      }
+      return { ok: true, data: { id: id } };
+    });
+  }
+  /* PUT /profiles/<id>/zsp: whole ({zsp}) or in pieces ({zsp, offset, total,
+     crc32}), each piece answered {ok, received, total} until the last */
+  function putBlob(id, body) {
+    var raw = fromB64(String((body && body.zsp) || ''));
+    if (!body || body.offset === undefined) { return keepBlob(id, raw); }
+    if (body.offset === 0) { state.partial[id] = { total: body.total, bufs: [], got: 0 }; }
+    var part = state.partial[id];
+    if (!part || body.offset !== part.got) {
+      delete state.partial[id];
+      return Promise.resolve({ ok: false, error: 'The Core expected the piece at byte ' +
+        (part ? part.got : 0) + ' and was sent one at ' + body.offset + '. Start the save again.' });
+    }
+    part.bufs.push(raw);
+    part.got += raw.length;
+    if (part.got < part.total) { return Promise.resolve({ ok: true, received: part.got, total: part.total }); }
+    delete state.partial[id];
+    var all = new Uint8Array(part.got), at = 0, j;
+    for (j = 0; j < part.bufs.length; j++) { all.set(part.bufs[j], at); at += part.bufs[j].length; }
+    return keepBlob(id, all);
+  }
+
+  function list() {
+    if (state.rows) {
+      return state.rows.filter(function (r) { return state.order.indexOf(r.id) >= 0; })
+        .map(function (r) { var o = clone(r); o.active = r.id === state.activeId; return o; });
+    }
+    return state.order.map(function (id) {
+      var p = state.profiles[id] || {};
+      return { id: id, name: p.name, description: p.description || '',
+        lastModified: p.lastModified || '', active: id === state.activeId };
+    });
+  }
+
+  /* ── the Core's Wi-Fi (D343) ──────────────────────────────────────
+     The same behaviour as tools/lib/fake-wifi.js, in ES5: four networks,
+     a join that settles after two reads of /status, "test1234" (or an open
+     network) connects, anything else fails "wrong password". The password
+     is compared and dropped, never kept. A scan answers at once (D342
+     amended): "scanning":true for the first ask and the next, the list
+     on the second poll, kept until ?fresh=1 starts a new one. */
+  var WIFI_NETS = [
+    { ssid: 'Barton Home', rssi: -48, secure: true },
+    { ssid: 'Barton Home 5G', rssi: -61, secure: true },
+    { ssid: 'Coffee Shop Guest', rssi: -70, secure: false },
+    { ssid: 'NETGEAR-42', rssi: -79, secure: true }
+  ];
+  function wifiOff() { return { state: 'off', ssid: '', rssi: null, ip: '', reason: '' }; }
+  function wifiStatus() {
+    var p = state.wifiPending;
+    if (p && --p.left <= 0) {
+      state.wifiPending = null;
+      state.wifi = p.ok
+        ? { state: 'connected', ssid: p.ssid, rssi: p.rssi, ip: '192.168.4.120', reason: '' }
+        : { state: 'failed', ssid: p.ssid, rssi: null, ip: '', reason: 'wrong password' };
+    }
+    var out = clone(state.wifi);
+    out.scanning = state.wifiScanLeft >= 0;
+    return out;
+  }
+  function wifiRoute(method, p, body, url) {
+    if (p === '/wifi/scan' && method === 'GET') {
+      var fresh = /[?&]fresh=1(&|$)/.test(String(url || ''));
+      if (state.wifiScanLeft >= 0) {
+        if (--state.wifiScanLeft <= 0) { state.wifiScanLeft = -1; state.wifiList = clone(WIFI_NETS); }
+      } else if (fresh || !state.wifiList) {
+        state.wifiScanLeft = 2;
+      }
+      var sd = { networks: state.wifiList ? clone(state.wifiList) : [] };
+      if (state.wifiList) { sd.ageMs = state.wifiScanLeft >= 0 ? 3000 : 0; }
+      sd.scanning = state.wifiScanLeft >= 0;
+      return { ok: true, data: sd };
+    }
+    if (p === '/wifi/join' && method === 'POST') {
+      var ssid = body && typeof body.ssid === 'string' ? body.ssid : '';
+      if (!ssid) { return { ok: false, error: 'ssid required' }; }
+      var net = null, i;
+      for (i = 0; i < WIFI_NETS.length; i++) { if (WIFI_NETS[i].ssid === ssid) { net = WIFI_NETS[i]; } }
+      var good = (net && net.secure === false) || (body && body.password === 'test1234');
+      state.wifiPending = { ssid: ssid, ok: !!good, rssi: net ? net.rssi : -66, left: 2 };
+      state.wifi = { state: 'connecting', ssid: ssid, rssi: null, ip: '', reason: '' };
+      return { ok: true, data: { state: 'connecting' } };
+    }
+    if (p === '/wifi/forget' && method === 'POST') {
+      state.wifiPending = null;
+      state.wifi = wifiOff();
+      return { ok: true, data: { state: 'off' } };
+    }
+    return null;
+  }
+
+  function statusDoc(out) {
+    var a = state.profiles[state.activeId];
+    out.data.activeProfile = a
+      ? { id: state.activeId, name: a.name, console: a.console || (out.data.activeProfile || {}).console }
+      : null;
+    out.data.outputEnabled = state.live.outputEnabled;
+    out.data.ps5Enabled = state.live.ps5Enabled;
+    if (out.data.profiles && typeof out.data.profiles === 'object') {
+      out.data.profiles.count = state.order.length;
+      if (out.data.profiles.configs !== undefined) { out.data.profiles.configs = state.order.length; }
+    }
+    /* the capture was taken over USB; on the phone this preview stands in
+       for the Bluetooth link, so the device card should say Bluetooth */
+    if (out.data.transport && /[?&]ble=1/.test(location.search)) { out.data.transport = 'ble'; }
+    out.data.demo = true;
+    out.data.wifi = wifiStatus();
+    return out;
+  }
+
+  function handle(method, url, body) {
+    var qs = url.indexOf('?');
+    var p = qs < 0 ? url : url.slice(0, qs);
+    var m, id;
+
+    var wr = wifiRoute(method, p, body, url);
+    if (wr) { return wr; }
+    if (p === '/profiles' && method === 'GET') {
+      var lr = { ok: true, data: list() };
+      if (state.listRead) { lr.read = state.listRead; lr.total = lr.data.length; }
+      return lr;
+    }
+    var zp = /^\/profiles\/([^/]+)\/zsp(?:\/(\d+))?$/.exec(p);
+    if (zp) {
+      id = decodeURIComponent(zp[1]);
+      if (method === 'PUT') { return putBlob(id, body); }
+      var b = state.blobs[id];
+      if (!b) { return { ok: false, error: 'no such profile: ' + id }; }
+      return zp[2] === undefined ? blobInfo(id, b) : blobPiece(id, b, Number(zp[2]));
+    }
+    if (p === '/profiles' && method === 'POST') {
+      if (!body || !body.id) { return { ok: false, errors: ['id required'] }; }
+      state.profiles[body.id] = body;
+      if (state.order.indexOf(body.id) < 0) { state.order.push(body.id); }
+      return { ok: true, data: { id: body.id } };
+    }
+    m = /^\/profiles\/([^/]+)(\/activate)?$/.exec(p);
+    if (m) {
+      id = decodeURIComponent(m[1]);
+      if (m[2]) { state.activeId = id; return { ok: true, data: { id: id } }; }
+      if (method === 'GET') {
+        return state.profiles[id] ? { ok: true, data: clone(state.profiles[id]) }
+                                  : { ok: false, error: 'no such profile' };
+      }
+      if (method === 'PUT') {
+        state.profiles[id] = body;
+        if (state.order.indexOf(id) < 0) { state.order.push(id); }
+        return { ok: true, data: { id: id } };
+      }
+      if (method === 'DELETE') {
+        delete state.profiles[id];
+        delete state.blobs[id];
+        state.order = state.order.filter(function (x) { return x !== id; });
+        if (state.activeId === id) { state.activeId = state.order[0] || null; }
+        return { ok: true, data: { id: id } };
+      }
+    }
+    /* the switches the app re-reads from /status after writing: answering ok
+       without moving the state would show every toggle snapping back */
+    if (p === '/output/enabled' && method === 'POST') {
+      state.live.outputEnabled = !!(body && body.enabled);
+      return { ok: true, data: { enabled: state.live.outputEnabled } };
+    }
+    if (p === '/ps5/enabled' && method === 'POST') {
+      state.live.ps5Enabled = !!(body && body.enabled);
+      return { ok: true, data: { enabled: state.live.ps5Enabled } };
+    }
+    if (state.endpoints[p] !== undefined && method === 'GET') {
+      var out = clone(state.endpoints[p]);
+      /* owner, 2026-10-13: "the AI Scripts card isn't on the home screen on
+         my iPhone". HOME draws it from /output/live's weapon block, which a
+         capture of the board taken with no game running does not have; the
+         preview is a Core reading BO2, so it says what such a Core says. */
+      if (p === '/output/live' && out && out.data && !out.data.weapon) {
+        out.data.weapon = { loaded: true, active: 'PDW-57', noWeapon: false };
+      }
+      return (p === '/status' && out && out.data) ? statusDoc(out) : out;
+    }
+    /* Anything else that WRITES is taken and kept nowhere, so a control that
+       saves says saved instead of erroring in a preview. A GET the capture
+       never recorded is refused in the board's own words, which every screen
+       already handles. */
+    if (method !== 'GET') { return { ok: true, data: {} }; }
+    return { ok: false, error: 'unknown route: ' + method + ' /api/v1' + p };
+  }
+
+  function installShim() {
+    if (installed) { return; }
+    installed = true;
+    var real = window.fetch ? window.fetch.bind(window) : null;
+    window.fetch = function (input, init) {
+      var url = (typeof input === 'string') ? input : (input && input.url) || '';
+      var isAgent = url.indexOf(PREFIX + '/') === 0 ||
+        url.indexOf(location.origin + PREFIX + '/') === 0;
+      if (!isAgent || !loading) {
+        return real ? real(input, init) : Promise.reject(new Error('fetch is unavailable'));
+      }
+      var path = url.replace(location.origin, '').slice(PREFIX.length);
+      var opt = init || {};
+      var body = null;
+      if (opt.body) { try { body = JSON.parse(opt.body); } catch (e) { body = null; } }
+      /* the app's first calls land while the capture is still loading:
+         they wait for it rather than seeing an empty board */
+      return loading.then(function () {
+        return Promise.resolve(handle((opt.method || 'GET').toUpperCase(), path, body))
+          .then(function (out) { return jsonResponse(out, 200); });
+      }, function () {
+        return jsonResponse({ ok: false, error: 'device-agent unreachable (demo data missing)' }, 502);
+      });
+    };
+  }
+
+  /* Load the capture and start answering. Resolves once the app can be
+     shown; rejects with a sentence if the capture is missing. */
+  function start() {
+    if (loading) { return loading; }
+    loading = fetch('demo/board.json', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) { throw new Error('The demo board file is missing from this build.'); }
+      return r.json();
+    }).then(function (fx) {
+      var st = (fx.endpoints && fx.endpoints['/status'] && fx.endpoints['/status'].data) || {};
+      state = {
+        profiles: clone(fx.profiles || {}),
+        order: (fx.profileOrder || []).slice(),
+        activeId: fx.activeId || (fx.profileOrder || [])[0] || null,
+        endpoints: fx.endpoints || {},
+        live: { outputEnabled: st.outputEnabled !== false, ps5Enabled: !!st.ps5Enabled },
+        rows: fx.list && fx.list.rows ? clone(fx.list.rows) : null,
+        listRead: (fx.list && fx.list.read) || '',
+        blobs: {},
+        partial: {},
+        wifi: wifiOff(),
+        wifiPending: null,
+        wifiScanLeft: -1,
+        wifiList: null
+      };
+      var k;
+      for (k in (fx.blobs || {})) {
+        if (Object.prototype.hasOwnProperty.call(fx.blobs, k)) { state.blobs[k] = fromB64(fx.blobs[k]); }
+      }
+    });
+    installShim();
+    return loading;
+  }
+
+  /* Does the demo file exist in this build? (A store build is synced
+     without --owner-data, so it has none, and preview opens offline.) */
+  function available() {
+    return fetch('demo/board.json', { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) { return r.ok; }, function () { return false; });
+  }
+
+  /* Begin a preview: reload this page with the demo running from the very
+     first request. The app reads its config list once, at boot; a demo
+     started after boot left the built-in samples on screen until the next
+     8-second poll, and that poll pauses whenever the page is hidden. */
+  function begin() {
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) { return false; }
+    location.reload();
+    return true;
+  }
+
+  /* Loaded BEFORE the app's own scripts (phone.html puts this tag ahead of
+     shell/01-boot.js), so when this launch is a preview the shim is in place
+     before the first /agent call. Only under ?ble=1 and only with the D271
+     unlock; sessionStorage ends with the app, so a relaunch is a normal
+     launch again. */
+  try {
+    if (/[?&]ble=1/.test(location.search) &&
+        sessionStorage.getItem(KEY) === '1' &&
+        localStorage.getItem('zs-exo-dev') === '1') { start(); }
+  } catch (e) { /* storage blocked: no preview, a normal launch */ }
+
+  window.ZSDEMO = {
+    start: start,
+    begin: begin,
+    available: available,
+    active: function () { return !!loading; }
+  };
+})();

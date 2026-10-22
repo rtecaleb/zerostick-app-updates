@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "made": "mock",
+  "signing_key": {
+    "name": "mock-key",
+    "key_id": "0000mock0000mock",
+    "production": false
+  },
+  "images": [
+    {
+      "product": "dongle",
+      "file": "zs_dongle_ota_mock.signed.bin",
+      "version": "0.9.1",
+      "chip": "CH592F",
+      "chip_id": "0x92",
+      "size": 49248,
+      "sha256": "880630c499ff8a8a33b0d1f1624874f1241e2bec785a884ed859ad22e0b52f44",
+      "crc32": "49841fff",
+      "phone_ops": "0x30-0x34",
+      "notes": "Simulated 0.9.1: steadier stick flex link and faster calibration."
+    },
+    {
+      "product": "flex",
+      "file": "zs_flex_ota_mock.signed.bin",
+      "version": "1.0.1",
+      "chip": "CH592D",
+      "chip_id": "0x92",
+      "size": 41056,
+      "sha256": "038f0e327a1e1c66deed2866c67021a90c67d1a99cde44674bf6e97d062551d4",
+      "crc32": "5b740201",
+      "phone_ops": "0x38-0x3C",
+      "notes": "Simulated 1.0.1: smoother aim circles and a quicker setup."
+    }
+  ]
+}

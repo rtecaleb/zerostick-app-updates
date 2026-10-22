@@ -1,0 +1,1025 @@
+/* smart-actions/19-submenu.js — THE SUB-MENU IS A PANEL (D81).
+ *
+ * The panel a button opens into, the two list screens, simple mode (this button sends another).
+ *
+ * Tests: test-smart-actions.js, test-smart-list.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('submenu', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var armConfirm = SEC.armConfirm, arr = SEC.arr, btn = SEC.btn, clone = SEC.clone,
+      emitSource = SEC.emitSource, esc = SEC.esc, intOf = SEC.intOf,
+      isPadSource = SEC.isPadSource, kbRow = SEC.kbRow, note = SEC.note, SA = SEC.SA,
+      saFor = SEC.saFor, saveAll = SEC.saveAll, screenLive = SEC.screenLive,
+      srcClass = SEC.srcClass, srcName = SEC.srcName, tgtName = SEC.tgtName,
+      VIEW = SEC.VIEW, ZS = SEC.ZS, ensureCaps = SEC.ensureCaps, oneLiner = SEC.oneLiner,
+      deadNote = SEC.deadNote, firedNote = SEC.firedNote, injectCSS = SEC.injectCSS,
+      syncBadge = SEC.syncBadge, tabsHTML = SEC.tabsHTML, smartMapHTML = SEC.smartMapHTML,
+      openWorkshop = SEC.openWorkshop, wireSmartMap = SEC.wireSmartMap,
+      repeatBadge = SEC.repeatBadge, openTargetPane = SEC.openTargetPane,
+      sheetPaint = SEC.sheetPaint, openRecordSheet = SEC.openRecordSheet,
+      heroTplIndex = SEC.heroTplIndex, openTemplate = SEC.openTemplate,
+      templatesHTML = SEC.templatesHTML, hookFamily = SEC.hookFamily,
+      startPoll = SEC.startPoll, bindsLive = SEC.bindsLive, bindsOf = SEC.bindsOf,
+      dropBinding = SEC.dropBinding, findPlain = SEC.findPlain, inputsFor = SEC.inputsFor,
+      packLayout = SEC.packLayout, putBinding = SEC.putBinding, rowFor = SEC.rowFor,
+      rowName = SEC.rowName, srcShown = SEC.srcShown, usePackLayout = SEC.usePackLayout,
+      wireDeck = SEC.wireDeck, inputScreenHTML = SEC.inputScreenHTML,
+      inputsHTML = SEC.inputsHTML, openInput = SEC.openInput,
+      openEditorSheet = SEC.openEditorSheet, sheetIsOpen = SEC.sheetIsOpen,
+      nsOf = SEC.nsOf, openBehaveSheet = SEC.openBehaveSheet, setTitles = SEC.setTitles,
+      smartListFold = SEC.smartListFold;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var enterSmart, leaveSmart, pasteFlow, retrigger, wireSmart;
+  ZS_SMART_PARTS.after(function () {
+    enterSmart = SEC.enterSmart;
+    leaveSmart = SEC.leaveSmart;
+    pasteFlow = SEC.pasteFlow;
+    retrigger = SEC.retrigger;
+    wireSmart = SEC.wireSmart;
+  });
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE SUB-MENU IS A PANEL (D81)
+     ══════════════════════════════════════════════════════════════════
+
+     Owner (2026-09-05, after D78–D80): "once you turn a button into a
+     smart action it removes this entire part of the button, like the top
+     part, and only shows the smart action part. My other issue is this
+     sub menu is a different page — make the sub menu pop up on the same
+     page and slightly skinnier so you still see the old page behind it."
+     XIM Matrix's binding pop-up, on the screenshots that drove D78/D79.
+
+     So a row's sub-menu is no longer drawn INTO #dbody in place of the
+     list. The list stays where it is (dimmed under a scrim; its title and
+     back key untouched) and the sub-menu opens as its own modal panel —
+     #samodal, a sibling of the kit's #sheetwrap declared just before it,
+     so the When / Tag / ⋯ step sheets the editor opens still land ABOVE
+     the panel. It is deliberately NOT ZS.sheetOpen: the editor mode opens
+     the kit's sheet on top of this panel, and one host cannot be both.
+
+     Manners, the kit's own: role=dialog + aria-modal; focus moves to the
+     input's name on open and returns to the row that opened it on close;
+     Tab is trapped inside; Escape, the × and the scrim close it; #detail
+     and the device bar go inert behind it and the body's scroll is locked.
+     It survives a redraw of the screen under it — enter() keeps its state
+     while it is open — and re-reads the profile every time it paints.
+
+     THE SMART-BUTTON RULE (the first half of the ask). Once a button has a
+     Smart Action, its sub-menu IS the editor: draw() opens such a button
+     straight into smart mode, and the plain "Choose what it should send"
+     deck and the old "Sequences on this button" list are never drawn for
+     it. Several sequences on one button: the editor's "1 of N ›". Delete
+     the last one and the panel drops back to plain mode. The Smart
+     Actions Editor door stays on plain-mode buttons only (D79). */
+  var PANEL_ID = 'samodal';
+  VIEW.panelOpener = null;      /* the row that opened it — focus goes back there */
+  VIEW.panelPid = null;         /* which config the open panel is about */
+  /* ...and WHICH ROOM's state it belongs to (D125). A weapon's room keeps
+     its state under 'pid|auto:<item>' (saForScope), so looking it up by the
+     config id alone found the Smart Actions tab's state instead: the x
+     then reset the wrong room and left the weapon's stuck on its input
+     screen, to reopen the panel on the next repaint. */
+  var panelSkey = null;
+  var panelP = null;           /* …and the profile object draw() was given */
+  var panelNs = null;          /* the screen namespace it was opened over */
+  var lastBehind = null;       /* the last HTML drawn into #dbody, so a no-op repaint is skipped */
+  function panelEl() { return document.getElementById(PANEL_ID); }
+  function panelBody() { return document.getElementById('sapbody'); }
+  function panelIsOpen() { var m = panelEl(); return !!(m && m.classList.contains('open')); }
+
+  /* the host, made once: the scrim, the dialog, its body. Inserted before
+     the kit's sheet host so the sheet stacks above it at the same
+     z-index; the keys live on the panel itself so they only ever see a
+     key pressed INSIDE it — with a sheet open above, focus is in the
+     sheet and neither fires (the kit's own Escape closes the sheet). */
+  function panelHost() {
+    var m = panelEl();
+    if (m) return m;
+    m = document.createElement('div');
+    m.className = 'samodal'; m.id = PANEL_ID;
+    m.setAttribute('aria-hidden', 'true');
+    m.innerHTML = '<div class="sapscrim" id="sap-scrim"></div>' +
+      '<div class="sapanel" id="sapanel" role="dialog" aria-modal="true" aria-labelledby="sap-title" tabindex="-1">' +
+      '<div class="sapbody" id="sapbody"></div></div>';
+    var sw = document.getElementById('sheetwrap');
+    var host = (sw && sw.parentNode) ? sw.parentNode : (document.querySelector('.screen') || document.body);
+    if (sw && sw.parentNode === host) host.insertBefore(m, sw); else host.appendChild(m);
+    m.querySelector('#sap-scrim').addEventListener('click', function () { panelDismiss(); });
+    m.addEventListener('keydown', function (e) {
+      if (!m.classList.contains('open') || sheetIsOpen()) return;
+      if (e.key === 'Escape') { e.preventDefault(); panelDismiss(); return; }
+      if (e.key !== 'Tab') return;
+      /* THE TRAP — the kit's, scoped to the panel: Tab past the last
+         control wraps to the first, and Shift-Tab the other way */
+      var f = panelFocusables(), cur = document.activeElement, idx = -1, i;
+      if (!f.length) { e.preventDefault(); return; }
+      for (i = 0; i < f.length; i++) if (f[i] === cur) idx = i;
+      if (e.shiftKey) {
+        if (idx <= 0) { e.preventDefault(); try { f[f.length - 1].focus(); } catch (x) {} }
+      } else if (idx < 0 || idx === f.length - 1) {
+        e.preventDefault(); try { f[0].focus(); } catch (x) {}
+      }
+    });
+    /* the screen under it went away or became another section (a deep
+       link, a swipe back the scrim did not catch): the panel goes with it
+       rather than float over a screen it is not about. A safety net the
+       node harness cannot see — it has no MutationObserver. */
+    if (typeof MutationObserver === 'function') {
+      try {
+        var mo = new MutationObserver(function () {
+          if (!m.classList.contains('open')) return;
+          if (screenLive(panelNs)) return;
+          var S = panelSkey ? SA[panelSkey] : null;
+          if (S && S.screen === 'input') {
+            S.screen = S.home; S.draft = null; S.editIdx = -1; S.mode = 'simple';
+            S.unsaved = false; S.xf = null; S.pendingRow = null;
+          }
+          panelShut(VIEW.lastRoot);
+        });
+        var dt = document.getElementById('detail'), db = document.getElementById('dbody');
+        if (dt) mo.observe(dt, { attributes: true, attributeFilter: ['class'] });
+        if (db) mo.observe(db, { attributes: true, attributeFilter: ['data-ns'] });
+      } catch (e) { /* observer optional */ }
+    }
+    return m;
+  }
+  function panelFocusables() {
+    var pn = document.getElementById('sapanel'), out = [], L, i, el;
+    if (!pn) return out;
+    L = pn.querySelectorAll('button,[href],input,select,textarea,[tabindex]');
+    for (i = 0; i < L.length; i++) {
+      el = L[i];
+      if (el.disabled) continue;
+      if (el.getAttribute('tabindex') === '-1') continue;       /* the name, an off-page tile */
+      if (el.getAttribute('aria-hidden') === 'true') continue;
+      if (el.closest && el.closest('[aria-hidden="true"]')) continue;
+      out.push(el);
+    }
+    return out;
+  }
+  /* what is behind the panel is neither operable nor in the tab order
+     while it is up (WCAG 2.4.3 / 2.4.11) — the kit's rule for its sheet.
+     Re-asserted on every paint, because the kit's own syncInert() clears
+     #detail's flag whenever a sheet closes. */
+  function panelLock(on) {
+    var dt = document.getElementById('detail'), db = document.getElementById('devbar');
+    try { if (dt) dt.inert = !!on; } catch (e) {}
+    try { if (db) db.inert = !!on; } catch (e) {}
+    if (document.body && document.body.classList) document.body.classList.toggle('sap-lock', !!on);
+  }
+  /* the control that has focus, as something a repaint can find again:
+     ids are stable across paints; the deck's and the box's tiles are
+     keyed by what they are */
+  function focusKeyOf(el) {
+    if (!el || !el.getAttribute) return null;
+    if (el.id) return '#' + el.id;
+    var ks = ['data-tile', 'data-gt', 'data-cat', 'data-page', 'data-d', 'data-fol'], i, v;
+    for (i = 0; i < ks.length; i++) {
+      v = el.getAttribute(ks[i]);
+      if (v != null) return '[' + ks[i] + '="' + String(v).replace(/"/g, '') + '"]';
+    }
+    return null;
+  }
+  /* paint the panel from the model — the input's screen, plain or editor
+     mode — opening it if it was shut. Every paint re-reads the profile
+     (rowFor → the live bindings and S.actions), so the redraw of the
+     screen under it lands here with fresh rows and the panel stays up. */
+  function panelDraw(root, p, S, row, ns) {
+    var m = panelHost(), body = panelBody(), pn = document.getElementById('sapanel');
+    var wasOpen = m.classList.contains('open');
+    var ae = document.activeElement;
+    var keyFocus = (wasOpen && ae && m.contains(ae)) ? focusKeyOf(ae) : null;
+    if (!wasOpen && !VIEW.panelOpener && ae && root && root.contains && root.contains(ae)) VIEW.panelOpener = ae;
+    var keyNow = p.id + '|' + S.inputSrc + '|' + S.mode;
+    var keep = (wasOpen && body.dataset.sakey === keyNow) ? body.scrollTop : 0;
+    body.innerHTML = inputScreenHTML(p, S, row);
+    /* the kit's wiring (the stepper's zsstep, the switches) over the
+       panel's body, exactly as it ran over #dbody when the sub-menu lived
+       there */
+    ZS.wire(body, ns);
+    body.dataset.sakey = keyNow;
+    body.scrollTop = keep;
+    VIEW.panelPid = p.id; panelP = p; panelNs = ns; panelSkey = S.skey || p.id;
+    if (!wasOpen) {
+      m.classList.add('open');
+      m.setAttribute('aria-hidden', 'false');
+    }
+    panelLock(true);
+    if (S.mode === 'smart') wireSmart(root, p, S, row);
+    else wireSimple(root, p, S, row);
+    var x = body.querySelector('#sap-close');
+    if (x) x.addEventListener('click', function () { panelDismiss(); });
+    /* focus: the input's name on open (the first thing spoken is what the
+       panel is about), else back onto the control that had it before the
+       repaint, else the dialog itself so Tab and Escape keep working from
+       inside. Focus that was elsewhere (a sheet above) is left alone. */
+    var tgt = null;
+    if (!wasOpen) tgt = body.querySelector('#sap-title');
+    else if (keyFocus) tgt = body.querySelector(keyFocus);
+    if (!tgt && (!wasOpen || keyFocus)) tgt = pn;
+    if (tgt && tgt.focus) { try { tgt.focus(); } catch (e) {} }
+  }
+  /* the ×, the scrim, Escape: leave the sub-menu. The edits are already on
+     the board (D79), so this only closes — the old back key's job. */
+  function panelDismiss() {
+    var S = panelSkey ? SA[panelSkey] : null;
+    var p = panelP || (VIEW.panelPid && typeof ZS.prof === 'function' ? ZS.prof(VIEW.panelPid) : null);
+    if (!S || !p) { panelShut(VIEW.lastRoot); return; }
+    /* New Smart Action's seed, closed untouched: backing out adds nothing
+       (D125), but it is SAID, with the one tap that adds it after all, so
+       a player who thought the box was the action is never left looking
+       at a list without it (D127) */
+    /* a new script's box starts EMPTY (owner, 2026-10-07): one closed with
+       nothing in it has nothing to add, so it closes quietly — the board
+       refuses a stepless action, and "Add it" would be a lie */
+    var unmade = (S.screen === 'input' && S.fresh && S.editIdx < 0 && S.draft &&
+                  S.draft.steps && S.draft.steps.length) ? clone(S.draft) : null;
+    if (S.screen === 'input') {
+      if (S.unsaved) ZS.toast('That sequence had changes that were never saved');
+      S.screen = S.home; S.draft = null; S.editIdx = -1;
+      S.mode = 'simple'; S.unsaved = false; S.xf = null; S.pendingRow = null;
+      S.fresh = false;
+    }
+    var at = VIEW.lastRoot || document.getElementById('dbody');
+    draw(at, p);
+    if (unmade) {
+      var ns0 = nsOf(at, p);
+      ZS.toast('Not added: it was closed before anything in it changed.', {
+        ms: 8000, action: 'Add it', onAction: function () {
+          unmade.edited = true;
+          S.actions.push(unmade);
+          saveAll(p, S);
+          /* repaint only if the same room is still the one on screen */
+          if (screenLive(ns0) && saFor(p) === S) draw(at, p);
+        }
+      });
+    }
+  }
+  /* shut, and hand focus back to the row that opened it — the list may
+     have been repainted since, so the same INPUT's row is found again
+     first, then the very node, then nothing (never the top of the page) */
+  function panelShut(root) {
+    var m = panelEl();
+    if (!m) return;
+    if (!m.classList.contains('open')) { panelLock(false); return; }
+    m.classList.remove('open');
+    m.setAttribute('aria-hidden', 'true');
+    panelLock(false);
+    var back = VIEW.panelOpener, to = null, src;
+    VIEW.panelOpener = null; VIEW.panelPid = null; panelP = null; panelNs = null; panelSkey = null;
+    if (back && back.getAttribute && root && root.querySelector) {
+      src = back.getAttribute('data-src');
+      if (src) to = root.querySelector('.inrow[data-src="' + String(src).replace(/"/g, '') + '"]');
+    }
+    if (!to && back && document.contains(back)) to = back;
+    if (to && to.focus) { try { to.focus(); } catch (e) {} }
+    var body = panelBody();
+    if (body) { body.innerHTML = ''; body.dataset.sakey = ''; }
+  }
+
+  function draw(root, p) {
+    if (!root) return;
+    VIEW.lastRoot = root;
+    injectCSS();
+    var S = saFor(p);
+    var ns = nsOf(root, p);
+    var h, row = null;
+
+    if (S.screen === 'input') {
+      row = rowFor(p, S, S.inputSrc);
+      /* a control picked from "Add a button" has no binding and no sequence
+         yet, so the join has nothing to build a row from — carry the stub
+         until the first write gives it one */
+      if (!row && S.pendingRow && S.pendingRow.source === S.inputSrc) row = S.pendingRow;
+      /* the input type changed while this screen was pushed (Overview's
+         selector, or the board's own poll bringing another client's change):
+         a row this config no longer shows must not stay open and editable.
+         Except a Smart Action opened from the Smart Actions room, which the
+         input type does not gate (D127): Smart mappings lists it, so the
+         tap that opens it must not be turned away here. */
+      /* D128: nor the one New Smart Action is building, which has no action
+         yet: RT picked in a Mouse + Keyboard config is "whatever you have
+         bound to RT", a control the input type hides and the engine starts
+         from the bound click (sa-mnk.js). */
+      /* Audit M18: nor a Script opened by name from Mappings' own Scripts
+         card (D240), which lists every Script on the config, hidden-type
+         ones included: its row looked tappable and did nothing. */
+      var openedScript = S.editIdx >= 0 && !!S.draft && row && row.acts.some(function (pr) { return pr.i === S.editIdx; });
+      if (row && row.source && !srcShown(p, row.source) && !openedScript &&
+          !(S.home !== 'inputs' && (row.acts.length || (S.fresh && row === S.pendingRow)))) row = null;
+      /* the input vanished (its binding was removed on another screen, its
+         device was unplugged): fall back rather than draw a screen about
+         nothing */
+      if (!row) { S.screen = S.home; S.draft = null; S.editIdx = -1; S.mode = 'simple'; }
+    }
+    if (S.screen === 'input') {
+      if ((S.mode === 'sequence' || S.mode === 'smart') && !S.draft) S.mode = 'simple';
+      /* XIM'S RULE (D81): once a button has a Smart Action its sub-menu IS
+         the editor, so it opens straight into smart mode. Only plain mode
+         is promoted: the sequence SHEET (S.mode 'sequence', the Smart
+         Actions screen's own door) holds its draft and is left alone. */
+      /* In a weapon's room (D122) a button has no plain mode: remapping it
+         there would change the config for every weapon, so a button with no
+         sequence yet opens on a fresh one instead. */
+      /* D244: except on Mappings, where a button is only ever its mapping;
+         its Scripts open from the Scripts card */
+      if (S.mode === 'simple' && ((row.acts.length && (S.home !== 'inputs' || window.ZS_MAPPINGS_SCRIPTS)) || S.scope)) enterSmart(p, S, row);
+    }
+
+    /* THE SCREEN UNDER THE PANEL (D81). #dbody always holds the HOME
+       screen — the Mappings list, or the Smart Actions tab — and the
+       sub-menu, when one input is open, is the panel painted after it
+       and outside it. The chrome (title, back key) is the home screen's
+       throughout; the panel's × is its own way out. */
+    var behind = S.screen === 'input' ? S.home : S.screen;
+    if (behind === 'inputs') {
+      h = inputsHTML(p, S);
+      ZS.setDetail(null);
+      /* the owner calls this screen Mappings (D79); the menu door agrees */
+      setTitles('Mappings', '‹ ' + p.name);
+    } else {
+      h = (S.scope && S.scope.headHTML ? S.scope.headHTML(p) : '') +
+        tabsHTML(S) + (behind === 'templates' ? templatesHTML(S, p) : smartMapHTML(S, p));
+      S.smartTab = behind;
+      /* back from an input screen returns to the TAB you came from, not
+         whichever one this screen opened on */
+      if (S.home !== 'inputs') S.home = behind;
+      if (S.scope) {
+        ZS.setDetail({ title: S.scope.title, back: S.scope.back, onBack: S.scope.onBack });
+        setTitles(S.scope.title, S.scope.back);
+      } else {
+        ZS.setDetail(null);
+        setTitles('Advanced Script Maker', '‹ ' + p.name);
+      }
+    }
+
+    /* Editing a step redraws the whole screen, and throwing the scroll back to
+       the top every time makes a six-step sequence a fight. Keep the position
+       whenever it is the SAME screen being redrawn — and with the panel up,
+       every edit in it repaints the list under it too: when nothing about
+       the list changed, the repaint is skipped outright, so the list never
+       churns under the scrim. A body the host has wiped (openDetail paints
+       '' before after()) is always drawn. */
+    var keyNow = behind;
+    var same = root.dataset.sakey === keyNow && !!root.firstChild && lastBehind === h;
+    if (!same) {
+      var keep = (root.dataset.sakey === keyNow) ? root.scrollTop : 0;
+      root.innerHTML = h;
+      /* the existing renderer idiom, and the required one: openDetail wires the
+         body once, so a screen that replaces its own HTML must re-wire it */
+      ZS.wire(root, ns);
+      root.dataset.sakey = keyNow;
+      root.scrollTop = keep;
+      lastBehind = h;
+
+      root.querySelectorAll('.subtabs button').forEach(function (b) {
+        b.addEventListener('click', function () { S.screen = b.dataset.tab; draw(root, p); });
+      });
+
+      /* the template cards open the same sheet wherever they are drawn */
+      root.querySelectorAll('[data-tpl]').forEach(function (c) {
+        function go(e) {
+          if (e && e.target && e.target.closest && e.target.closest('.qhrow, .qhfold')) return;
+          openTemplate(root, p, S, +c.dataset.tpl);
+        }
+        c.addEventListener('click', go); kbRow(c, go);
+      });
+      if (behind === 'templates') {
+        /* the filter chips AND the per-family "Show all 9 in Firing" key are
+           the same control: both set the filter, so the second one teaches the
+           first instead of being a second mechanism */
+        root.querySelectorAll('[data-fam]').forEach(function (b) {
+          b.addEventListener('click', function () { S.tplFam = b.dataset.fam; draw(root, p); });
+        });
+        root.querySelectorAll('[data-feat]').forEach(function (c) {
+          function go(e) {
+            /* D280: a featured card may carry a "?" (helpHTML); opening it
+               must not add the Script */
+            if (e && e.target && e.target.closest && e.target.closest('.qhrow, .qhfold')) return;
+            SEC.openFeatured(root, p, S, +c.dataset.feat);
+          }
+          c.addEventListener('click', go); kbRow(c, go);
+        });
+        var hero = root.querySelector('#sa-hero');
+        if (hero) hero.addEventListener('click', function () {
+          var hi = heroTplIndex(S, p);
+          if (hi >= 0) openTemplate(root, p, S, hi);
+        });
+      }
+
+      /* Ready-made's "Record your own" (the hero when every preset is
+         added, and the foot line): land on Smart mappings with the Record
+         sheet up (D85) */
+      ['sa-create-go', 'sa-create-go2'].forEach(function (id) {
+        var d = root.querySelector('#' + id);
+        if (d) d.addEventListener('click', function () {
+          S.screen = 'index'; draw(root, p);
+          openRecordSheet(root, p, S);
+        });
+      });
+      if (behind === 'inputs' || behind === 'index') wireList(root, p, S, ns);
+      if (behind === 'index') wireSmartMap(root, p, S);
+      if (S.scope && S.scope.wireHead) S.scope.wireHead(root, p);
+    }
+
+    /* the owner, 2026-10-20: a Script made in the Anti-Recoil Lab opens back
+       in the Lab, on its model (Tune), never the editor's technical options */
+    var labD = S.draft;
+    if (S.screen === 'input' && S.mode === 'smart' && labD && labD.fromTemplate === 'recoil-workshop' &&
+        labD.recoil && typeof labD.recoil === 'object' && S.editIdx != null && S.editIdx >= 0 &&
+        SEC.openWorkshop && window.ZS_RECOIL) {
+      var labIdx = S.editIdx;
+      S.screen = S.home || 'index'; S.draft = null; S.editIdx = -1;
+      S.mode = 'simple'; S.unsaved = false; S.xf = null; S.fresh = false;
+      panelShut(root);
+      SEC.openWorkshop(root, p, S, labIdx, true);
+      return;
+    }
+    /* the panel: painted while one input is open, shut otherwise */
+    if (S.screen === 'input') panelDraw(root, p, S, row, ns);
+    else panelShut(root);
+
+    startPoll(p, S, root);
+    hookFamily(p, root);
+    ensureCaps(p, root);
+
+    /* THE EDITOR IS A SHEET, and this is the one place it opens. Every route
+       into authoring — a list row, the pad picture, "Build a sequence", a
+       paste, a template's Add — sets S.draft and calls draw(), so none of
+       them has to know the sheet exists. It opens ABOVE the panel (D81).
+
+       THE POLL RULE. draw() repaints the screen BEHIND the sheet and must
+       never repaint the sheet body: a full repaint would reset the pager,
+       the selection and the caret. S.sheetEditor is what says the sheet is
+       already up, so the ~500 ms poll and a capability change land here and
+       stop. Only paintRunning()'s surgical updates get inside. */
+    if (S.screen === 'input' && S.mode === 'sequence' && S.draft && !S.sheetEditor) {
+      openEditorSheet(root, p, S, row);
+    }
+  }
+
+  /* ── the two list screens ─────────────────────────────────────────
+     Buttons and "Everything you have" are two doors into the same room, so
+     they share every listener: a row tap opens THAT input's screen, and an
+     on/off switch writes without leaving. */
+  function wireList(root, p, S, ns) {
+    var model = inputsFor(p, S);
+    var flat = model.rows.concat(model.orphans);
+
+    function openFromEl(el, e) {
+      if (e && e.target && e.target.closest && e.target.closest('[data-en]')) return;
+      /* the row's "!" chip (D70) opens its own fold, never the panel; the
+         fix shortcuts inside the fold still go where their words point */
+      if (e && e.target && e.target.closest && e.target.closest('.wh') &&
+          !e.target.closest('[data-fix],[data-fadoor]')) return;
+      /* the gate-fault advice names Fire & Aim — that phrase IS the door.
+         Checked before anything else so the tap goes where the words point,
+         not into the editor. */
+      if (e && e.target && e.target.closest && e.target.closest('[data-fadoor]')) {
+        ZS.openDetail({ id: 'roles', lab: 'Fire & Aim' }, p);
+        return;
+      }
+      var fix = e && e.target && e.target.closest && e.target.closest('[data-fix]');
+      var act = el.dataset.act != null ? +el.dataset.act : -1;
+      var row = null;
+      if (el.dataset.row != null && +el.dataset.row >= 0) row = flat[+el.dataset.row];
+      if (!row && act >= 0 && S.actions[act]) row = rowFor(p, S, emitSource(p, S.actions[act].trigger) || '');
+      if (!row) return;
+      VIEW.panelOpener = el;                 /* focus comes back here when the panel shuts (D81) */
+      /* a Smart mappings row is ONE action (D127): the panel opens in the
+         editor on exactly that one, not on the button's first */
+      var sact = el.dataset.sact != null ? +el.dataset.sact : -1;
+      /* D280: a Script on no key yet opens as the Script it is (its
+         Activation chip and Done), not as a row of a button it has not got */
+      if (sact < 0 && act >= 0 && S.actions[act] && S.actions[act].trigger &&
+          S.actions[act].trigger.unbound) sact = act;
+      if (sact >= 0 && S.actions[sact]) {
+        S.inputSrc = row.source; S.screen = 'input'; S.page = 0;
+        enterSmart(p, S, row, sact);
+        draw(root, p);
+      } else openInput(root, p, S, row, act >= 0 ? act : null);
+      /* One tap from "this will never fire" to choosing a button that will.
+         Opening the editor and leaving them to hunt for the trigger row is not
+         a fix, it is a scavenger hunt. */
+      if (fix) retrigger(root, p, S);
+    }
+
+    /* D256: a Rapid fire row's speed slider. It writes the two step times
+       (the pull and the gap, the same length) and never opens the row. */
+    root.querySelectorAll('input[data-turbo]').forEach(function (r) {
+      var ai = +r.getAttribute('data-turbo');
+      ['click', 'pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+        r.addEventListener(ev, function (e) { e.stopPropagation(); });
+      });
+      r.addEventListener('input', function () {
+        var out = root.querySelector('[data-turbov="' + ai + '"]');
+        if (out) out.textContent = r.value + ' taps/s';
+      });
+      r.addEventListener('change', function () {
+        var a = S.actions[ai];
+        if (!a || !Array.isArray(a.steps) || a.steps.length < 2) return;
+        var ms = Math.max(15, Math.min(300, Math.round(1000 / (2 * (+r.value || 12)))));
+        a.steps[0].ms = ms;
+        /* D231: the wait after a timed press counts from the press's START,
+           so a gap as long as the pull is a wait of twice it (the template's
+           own 40/40 reads back as 40/80); `ms` here sent a gap of 0 */
+        a.steps[1].ms = 2 * ms;
+        /* edited, or toBoardOrRaw sends the untouched raw copy back and the
+           Core keeps the old speed while this row shows the new one (audit
+           M15) - the same mark smartSave and the on/off switch set */
+        a.edited = true;
+        saveAll(p, S);
+      });
+    });
+    /* D270: the aim Ready-mades' Strength slider. It writes the stick % of
+       every stick step (the booster's eight, Anti-recoil's one) and never
+       opens the row; it saves at once like the switch (D257). */
+    root.querySelectorAll('input[data-strength]').forEach(function (r) {
+      var ai = +r.getAttribute('data-strength');
+      ['click', 'pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+        r.addEventListener(ev, function (e) { e.stopPropagation(); });
+      });
+      r.addEventListener('input', function () {
+        var out = root.querySelector('[data-strengthv="' + ai + '"]');
+        if (out) out.textContent = r.value + '%';
+      });
+      r.addEventListener('change', function () {
+        var a = S.actions[ai], id = SEC.strengthOf ? SEC.strengthOf(a) : null;
+        if (!id) return;
+        var k = SEC.STRENGTH[id];
+        var pct = Math.max(k.min, Math.min(k.max, Math.round(+r.value || k.min)));
+        a.steps.forEach(function (s) { s.dist = pct / 100; });
+        a.edited = true;
+        saveAll(p, S);
+      });
+    });
+    /* D256: a Script just added from Featured - its row, in view and lit */
+    if (S.flashAct != null) {
+      var fa = S.flashAct;
+      S.flashAct = null;
+      var frow = root.querySelector('.inrow[data-sact="' + fa + '"]');
+      /* D281: a folded Scripts list opens to show the row it just gained */
+      var fcard = root.querySelector('#sa-smartmap');
+      if (frow && fcard && fcard.classList.contains('sacoll') && fcard.contains(frow)) {
+        fcard.classList.remove('sacoll');
+        var fhd = root.querySelector('#sa-smarthd');
+        if (fhd) fhd.setAttribute('aria-expanded', 'true');
+        smartListFold(false);
+      }
+      if (frow) {
+        try { frow.scrollIntoView({ block: 'center' }); } catch (x) {}
+        frow.classList.add('saflash');
+        setTimeout(function () { frow.classList.remove('saflash'); }, 1800);
+      }
+    }
+    /* D255: View script - open the Scripts card, bring that Script's row
+       into view and light it up for a moment. The row tap underneath is
+       the mapping's own; this key never opens it. */
+    root.querySelectorAll('[data-viewscript]').forEach(function (b) {
+      function view(e) {
+        if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
+        var hd = root.querySelector('#sa-scripthd');
+        var card = hd && hd.parentNode;
+        if (card && card.classList.contains('sacoll')) {
+          card.classList.remove('sacoll');
+          hd.setAttribute('aria-expanded', 'true');
+          S.scriptsOpen = true;
+        }
+        var line = root.querySelector('.sascripts .seqline[data-act="' + b.getAttribute('data-viewscript') + '"]');
+        if (!line) return;
+        try { line.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (x) { try { line.scrollIntoView(); } catch (y) {} }
+        line.classList.remove('saflash');
+        void line.offsetWidth;
+        line.classList.add('saflash');
+        setTimeout(function () { line.classList.remove('saflash'); }, 1800);
+        try { line.focus({ preventScroll: true }); } catch (x) {}
+      }
+      b.addEventListener('click', view);
+      b.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') view(e);
+      });
+    });
+    root.querySelectorAll('.inrow, .seqline').forEach(function (el) {
+      function go(e) {
+        if (e && e.target && e.target.closest && e.target.closest('[data-viewscript]')) return;
+        /* D288: the Turn assist row opens its key picker, the one its
+           Activation chip opens (D280's retrigger) */
+        /* D291: a binding moved off its key gets a new one */
+        if (el.hasAttribute('data-loosebind')) {
+          VIEW.panelOpener = el;
+          attachLoose(root, p, S, +el.getAttribute('data-loosebind'));
+          return;
+        }
+        if (el.hasAttribute('data-tarow')) {
+          VIEW.panelOpener = el;
+          SEC.openOnKeyPicker(root, p, S, +el.getAttribute('data-tarow'));
+          return;
+        }
+        openFromEl(el, e);
+      }
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        /* Enter on the row's "!" chip is the chip's own key: leave the
+           native activation alone (kbRow's preventDefault would eat it) */
+        if (e.target && e.target !== el && e.target.closest && e.target.closest('.wh')) return;
+        e.preventDefault(); go(e);
+      });
+    });
+    /* D240: Bindings and Scripts open and close in place (no repaint) */
+    [['#sa-bindhd', 'bindClosed', true], ['#sa-scripthd', 'scriptsOpen', false]].forEach(function (f) {
+      var hd = root.querySelector(f[0]);
+      if (!hd) return;
+      var card = hd.parentNode;
+      function flip() {
+        var closed = !card.classList.contains('sacoll');
+        card.classList.toggle('sacoll', closed);
+        hd.setAttribute('aria-expanded', closed ? 'false' : 'true');
+        S[f[1]] = f[2] ? closed : !closed;
+      }
+      hd.addEventListener('click', flip);
+      kbRow(hd, flip);
+    });
+    /* D281: the Scripts room's list folds in place too. Its title row is a
+       real <button>, so Enter and Space are the browser's own; the fold is
+       this viewer's (localStorage), not the config's. */
+    (function () {
+      var hd = root.querySelector('#sa-smarthd');
+      if (!hd) return;
+      var card = hd.parentNode;
+      hd.addEventListener('click', function () {
+        var closed = !card.classList.contains('sacoll');
+        card.classList.toggle('sacoll', closed);
+        hd.setAttribute('aria-expanded', closed ? 'false' : 'true');
+        smartListFold(closed);
+      });
+    })();
+    /* D238: the two halves, and the key that goes back to them */
+    root.querySelectorAll('[data-mapview]').forEach(function (b) {
+      b.addEventListener('click', function () { S.mapView = b.dataset.mapview || null; draw(root, p); });
+    });
+    /* D238: the live pad picture follows what is pressed (one subscription
+       for the app's life; it repaints only #sa-live, and only on a change) */
+    /* D243: Mappings with the pad on screen wears the ZS8K look, page and all */
+    root.classList.add('zkaim');      /* D250: every screen */
+    var liveHost = root.querySelector('#sa-live');
+    if (liveHost && window.ZSDSLIVE) ZSDSLIVE.mount(liveHost);
+    if (!VIEW.liveSub && ZS.onLiveInput && window.ZSDSLIVE) {
+      VIEW.liveSub = true;
+      ZS.onLiveInput(function () { ZSDSLIVE.update(document.getElementById('sa-live')); });
+    }
+    /* D287: the keyboard drawing. A key opens that key's own mapping, the
+       screen Add a button opens for it (a stub row when nothing is on it
+       yet); held keys light from the same feed (ZS.liveHeld) */
+    var kbHost = root.querySelector('#sa-kbd');
+    if (kbHost && window.ZSKBD) {
+      ZSKBD.wire(kbHost, function (code, el) {
+        var row = rowFor(p, S, code);
+        if (!row) {
+          row = { source: code, actSrc: code, neutral: '', defTarget: '',
+                  kind: srcClass(code), seeded: false, binds: [], plainBind: null,
+                  chordBinds: [], acts: [], orphan: false };
+          S.pendingRow = row;
+        }
+        VIEW.panelOpener = el;
+        openInput(root, p, S, row, null);
+      });
+    }
+    if (!VIEW.kbdSub && ZS.onLiveInput && window.ZSKBD) {
+      VIEW.kbdSub = true;
+      ZS.onLiveInput(function () { ZSKBD.paint(document.getElementById('sa-kbd')); });
+    }
+    /* the Shift Layers door under the shift-layer note (inputsHTML) */
+    var shiftDoor = root.querySelector('#sa-shiftdoor');
+    if (shiftDoor) {
+      var goShift = function () { ZS.openDetail({ id: 'modifiers', lab: 'Shift Layers' }, p); };
+      shiftDoor.addEventListener('click', goShift); kbRow(shiftDoor, goShift);
+    }
+    /* the game's own layout (inputsHTML). It replaces every plain binding,
+       so it asks first, in words that say what will happen. */
+    var packDoor = root.querySelector('#sa-packlayout');
+    if (packDoor) {
+      var goPack = function () {
+        var gl = packLayout(p);
+        if (!gl) return;
+        var body = sheetPaint('Use ' + gl.game + '’s layout?',
+          note('Your bindings become the game’s own buttons (' + gl.list.length +
+               ' of them). Shift layers stay as they are. You can change any button afterwards.') +
+          btn('Use it', 'primary', 'sa-packyes') + btn('Cancel', null, 'sa-packno'));
+        var yes = body.querySelector('#sa-packyes'), no = body.querySelector('#sa-packno');
+        if (no) no.addEventListener('click', function () { ZS.sheetClose(); });
+        if (yes) yes.addEventListener('click', function () {
+          yes.disabled = true;
+          usePackLayout(p, gl, function () {
+            ZS.sheetClose();
+            if (typeof ZS.redrawOpenScreen === 'function') ZS.redrawOpenScreen();
+          });
+        });
+      };
+      packDoor.addEventListener('click', goPack); kbRow(packDoor, goPack);
+    }
+    /* the Smart Actions door that replaced the bottom sequence listing
+       (screen-map §4) — same openDetail idiom as the shift door above */
+    var seqDoor = root.querySelector('#sa-seqdoor');
+    if (seqDoor) {
+      var goSeqs = function () { ZS.openDetail({ id: 'smart', lab: 'Advanced Script Maker' }, p); };
+      seqDoor.addEventListener('click', goSeqs); kbRow(seqDoor, goSeqs);
+    }
+
+    root.querySelectorAll('[data-en]').forEach(function (sw) {
+      /* the switch's own Enter/Space never reaches the row (whose key opens it) */
+      sw.addEventListener('keydown', function (e) { e.stopPropagation(); });
+      sw.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var i = +sw.dataset.en, a = S.actions[i];
+        if (!a) return;
+        /* D280 (2026-10-13 audit): a Script on no key cannot run, and the
+           save would send it switched off, so the switch used to snap back
+           without a word. Switching it on asks for its key instead; picking
+           one switches it on, cancelling leaves it off. */
+        if (sw.classList.contains('on') && a.trigger && a.trigger.unbound) {
+          sw.classList.remove('on');
+          sw.setAttribute('aria-checked', 'false');
+          SEC.openOnKeyPicker(root, p, S, i);
+          return;
+        }
+        a.enabled = sw.classList.contains('on');   /* wire() flipped it already */
+        a.edited = true;
+        saveAll(p, S);
+        var line = sw.closest('.lrow'), src = line && line.querySelector('.src');
+        /* a Scripts row (.inrow, one action): dim it, say "off", keep the rest */
+        if (line && line.classList.contains('inrow')) {
+          line.classList.toggle('saoffrow', !a.enabled);
+          var nm = line.querySelector('.intn');
+          if (nm) {
+            var notSavedTag = !!nm.querySelector('.sanotsaved');
+            nm.innerHTML = esc(a.name || 'Untitled Script') +
+              (a.enabled ? '' : ' <span class="tag saoff">off</span>') +
+              (notSavedTag ? ' <span class="tag saoff sanotsaved">not saved</span>' : '');
+          }
+          var lab = (line.getAttribute('aria-label') || '').replace(' Switched off.', '');
+          if (!a.enabled) lab = lab.replace(' Tap to change it.', ' Switched off. Tap to change it.');
+          line.setAttribute('aria-label', lab);
+          return;
+        }
+        /* repaint just this line — a full re-render would throw away the
+           scroll position and the focus ring. The strip is a SIBLING of .src
+           and nothing in it changes with the switch, so it survives. */
+        var dead = deadNote(a, p, S), rb = repeatBadge(a);
+        if (src) {
+          /* the Buttons list draws a sequence as "▸▸ Name"; the index tab
+             draws it as a plain named row — repaint whichever this is */
+          var isSeq = line.classList.contains('seqline');
+          src.innerHTML = (isSeq ? '▸▸ ' : '') + esc(a.name || 'Untitled sequence') +
+            (isSeq ? '<span class="sarep" aria-hidden="true">' + rb.mark + '</span>' : '') +
+            syncBadge(a, p, S) + SEC.descQH(a, p) +
+            firedNote(a, p, S) + dead;
+        }
+        /* switching a sequence back ON has to bring its "will not fire"
+           notice back with it, not quietly drop it */
+        if (line) line.classList[dead ? 'add' : 'remove']('sabroken');
+      });
+    });
+
+    var imp = root.querySelector('#sa-import');
+    if (imp) imp.addEventListener('click', function () { pasteFlow(root, p, S, null); });
+
+    var addI = root.querySelector('#sa-addinput');
+    if (addI) addI.addEventListener('click', function () {
+      /* three answers, not two — ZS.srcPickKind() gives a Joystick + Mouse
+         config the pad sheet AND the keyboard/mouse sheet */
+      var kind = ZS.srcPickKind(p);
+      ZS.pickButton({ kind: kind, p: p, title: 'Which button do you want to change?', capture: true })
+        .then(function (v) {
+          if (!v || !v.source) return;
+          var row = rowFor(p, S, v.source);
+          if (!row) {
+            /* a source with no binding and no sequence has no row yet; give it
+               a temporary one so its screen can create the binding */
+            row = { source: v.source, actSrc: v.source, neutral: '', defTarget: '',
+                    kind: srcClass(v.source), seeded: false, binds: [], plainBind: null,
+                    chordBinds: [], acts: [], orphan: false };
+            S.pendingRow = row;
+          }
+          openInput(root, p, S, row, null);
+        });
+    });
+
+    /* the controller picture doubles as a tap-map into the same screen */
+    var pad = root.querySelector('.padviz');
+    if (pad) {
+      if (bindsLive(p) && p.id === ZS.activeId && typeof ZS.livePad === 'function') ZS.livePad(root);
+      var BTN_TO_CODE = {
+        south: 'BTN_SOUTH', east: 'BTN_EAST', west: 'BTN_WEST', north: 'BTN_NORTH',
+        l1: 'BTN_TL', r1: 'BTN_TR', l3: 'BTN_THUMBL', r3: 'BTN_THUMBR',
+        dpad_up: 'BTN_DPAD_UP', dpad_down: 'BTN_DPAD_DOWN',
+        dpad_left: 'BTN_DPAD_LEFT', dpad_right: 'BTN_DPAD_RIGHT'
+      };
+      pad.querySelectorAll('.pad-btn').forEach(function (el) {
+        var code = BTN_TO_CODE[el.dataset.b];
+        if (!code) return;
+        var row = rowFor(p, S, code);
+        if (!row) return;
+        el.style.cursor = 'pointer';
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', rowName(row) + ' — tap to change what it does');
+        function go() { openInput(root, p, S, row, null); }
+        el.addEventListener('click', go);
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+        });
+      });
+    }
+  }
+
+  /* D291: an unattached binding (moved off X for Turn assist) gets a key.
+     The picker is Add a button's; a key that already does something here
+     (a binding, a shift layer, a Script: keyTaken, the seed's own rule) is
+     refused with a word, never overwritten. Written like any Mappings
+     change (writeBinds: staged for Save). */
+  function attachLoose(root, p, S, k) {
+    var full = ZS.live && ZS.live.full && ZS.live.full[p.id];
+    var b = arr(full && full.unattachedBindings)[k];
+    if (!b) return;
+    var want = JSON.stringify(b);
+    var nm = tgtName(b.target, p);
+    /* it lived on a key, so the keys are always offered (a Controller
+       config's picker gets the keyboard half too) */
+    var kind = ZS.srcPickKind(p);
+    if (kind === 'source-pad') kind = 'source-both';
+    ZS.pickButton({ kind: kind, p: p, capture: true, page: 'Keyboard',
+                    title: 'Which key should press ' + nm + '?' })
+      .then(function (v) {
+        if (!v || !v.source) return;
+        var now = ZS.live.full[p.id] || full;
+        if (SEC.keyTaken && SEC.keyTaken(now, v.source)) {
+          ZS.toast(srcName(v.source) + ' already does something here. Pick another key, or change that one first');
+          return;
+        }
+        SEC.writeBinds(p, function (f) {
+          var L = arr(f.unattachedBindings).slice(), at = -1, i;
+          for (i = 0; i < L.length; i++) if (JSON.stringify(L[i]) === want) { at = i; break; }
+          if (at < 0) return;
+          var nb = JSON.parse(want);
+          nb.source = v.source;
+          L.splice(at, 1);
+          if (L.length) f.unattachedBindings = L; else delete f.unattachedBindings;
+          if (!Array.isArray(f.bindings)) f.bindings = [];
+          f.bindings.push(nb);
+        }, nm + ' is on ' + srcName(v.source), function () {
+          if (typeof ZS.redrawOpenScreen === 'function') ZS.redrawOpenScreen();
+          else draw(root, p);
+        });
+      });
+  }
+
+  /* ── simple mode: this button sends another button ─────────────── */
+  /* `root` is #dbody (the screen under the panel, what draw() repaints);
+     the sub-menu's own controls are in the PANEL's body (D81), so every
+     query here goes to `host` */
+  function wireSimple(root, p, S, row) {
+    var host = panelBody() || root;
+    function setTarget(code) {
+      putBinding(p, row, function (list, bi) { list[bi].target = code; },
+                 rowName(row) + ' now does ' + tgtName(code, p), function () { draw(root, p); });
+    }
+    /* plain mode: a deck tap REPLACES what the button sends (D78). The
+       editor mode's deck appends a step instead — wireSmart. */
+    host.querySelectorAll('[data-gt]').forEach(function (b) {
+      b.addEventListener('click', function () { setTarget(b.dataset.gt); });
+    });
+    /* the quick grid's own deck — S.gridPage, not S.page, which belongs to
+       the editor palette; a repaint after a tap lands where you were */
+    wireDeck(host, 'sa-sgrid', intOf(S.gridPage, 0), function (i) { S.gridPage = i; });
+    /* ONE HEIGHT ACROSS THE SIX PAGES (D81): the panel is as tall as its
+       content, so the deck is held at its tallest page — paging from the
+       pad to the mouse must not bob the panel's bottom edge. offsetHeight
+       is 0 in the node harness, and 0 means "leave it to CSS". */
+    var deck = host.querySelector('#sa-sgrid');
+    if (deck) {
+      var tallest = 0;
+      deck.querySelectorAll('.sabpage').forEach(function (pg) { tallest = Math.max(tallest, pg.offsetHeight || 0); });
+      if (tallest > 0) deck.style.minHeight = tallest + 'px';
+    }
+    var more = host.querySelector('#sa-gmore');
+    if (more) more.addEventListener('click', function () {
+      openTargetPane(p, setTarget, function () { ZS.sheetClose(); });
+    });
+    var tb = host.querySelector('#sa-tgt');
+    if (tb) tb.addEventListener('click', function () {
+      openTargetPane(p, setTarget, function () { ZS.sheetClose(); });
+    });
+    /* THE DOOR (D79): the sub-menu transforms in place — the same panel,
+       the same head, the body below it becomes the editor. No navigation.
+       Drawn on a plain-mode button only: a button that already has a
+       Smart Action opens in the editor (D81). */
+    var sm = host.querySelector('#sa-smarted');
+    if (sm) sm.addEventListener('click', function () { enterSmart(p, S, row); draw(root, p); });
+    var rws = host.querySelector('#sa-recoilws');
+    if (rws) rws.addEventListener('click', function () { openWorkshop(root, p, S, -1); });
+    wireInputCommon(root, p, S, row);
+
+    /* a sequence listed here (none are, since D81 — kept for the row the
+       Smart Actions screen's sheet mode still draws behind it) opens in
+       the SAME in-place editor, never the sheet */
+    host.querySelectorAll('.seqline').forEach(function (el) {
+      function go(e) {
+        if (e && e.target && e.target.closest && e.target.closest('[data-en]')) return;
+        enterSmart(p, S, row, +el.dataset.act);
+        draw(root, p);
+      }
+      el.addEventListener('click', go); kbRow(el, go);
+    });
+    host.querySelectorAll('[data-en]').forEach(function (sw) {
+      sw.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var a = S.actions[+sw.dataset.en];
+        if (!a) return;
+        if (sw.classList.contains('on') && a.trigger && a.trigger.unbound) {
+          sw.classList.remove('on');         /* D280 (audit): as wireList's */
+          sw.setAttribute('aria-checked', 'false');
+          SEC.openOnKeyPicker(root, p, S, +sw.dataset.en);
+          return;
+        }
+        a.enabled = sw.classList.contains('on');
+        a.edited = true;
+        saveAll(p, S);
+      });
+    });
+  }
+
+  /* the head's three controls, in BOTH modes: move the binding to another
+     key, the Behaves pill, and "✕ Delete Binding" */
+  function wireInputCommon(root, p, S, row) {
+    var host = panelBody() || root;
+    /* D280: a Script's Activation picture changes the key that starts it */
+    var rt = host.querySelector('#sa-retrig');
+    if (rt) rt.addEventListener('click', function () { retrigger(root, p, S); });
+    /* move the binding to another physical key/button, keeping its job */
+    var mv = host.querySelector('#sa-move');
+    if (mv) mv.addEventListener('click', function () {
+      var kind = isPadSource(row.source) ? 'source-pad' : 'source-mnk';
+      ZS.pickButton({ kind: kind, p: p, capture: true,
+        title: 'Which ' + (kind === 'source-pad' ? 'button' : 'key') +
+               ' should do this instead?' })
+        .then(function (v) {
+          if (!v || !v.source || v.source === row.source) return;
+          /* one key, one plain binding: refuse a move onto a key that
+             already has one, and say which job is in the way */
+          var list = bindsLive(p) ? arr((ZS.live.full[p.id] || {}).bindings)
+                                  : bindsOf(p);
+          var clash = findPlain(list, v.source);
+          if (clash >= 0) {
+            ZS.toast(srcName(v.source) + ' already does ' +
+                     tgtName(list[clash].target || '', p) +
+                     ' — change or remove that one first');
+            return;
+          }
+          putBinding(p, row, function (l, bi) { l[bi].source = v.source; },
+                     rowName(row) + '’s job moved to ' + srcName(v.source),
+                     function (ok) {
+                       /* the sequence being edited belongs to the OLD
+                          button (its trigger is that control), so the
+                          editor closes rather than follow a binding it is
+                          not about */
+                       if (ok) { if (S.mode === 'smart') leaveSmart(S); S.inputSrc = v.source; draw(root, p); }
+                     });
+        });
+    });
+    var beh = host.querySelector('#sa-behave');
+    if (beh) beh.addEventListener('click', function () { openBehaveSheet(root, p, S, row); });
+
+    /* D344: Unbind - the button's plain binding becomes target "none"
+       (created if it had none), so the Core sends nothing for it */
+    var unbind = host.querySelector('#sa-unbind');
+    if (unbind) unbind.addEventListener('click', function () {
+      putBinding(p, row, function (list, bi) {
+        list[bi].target = 'none';
+        list[bi].mode = 'hold';
+        delete list[bi].holdTarget;
+        delete list[bi].tapTargetMs;
+      }, rowName(row) + ' is not bound now: it sends nothing', function () { draw(root, p); });
+    });
+    var reset = host.querySelector('#sa-reset');
+    if (reset) armConfirm(reset, function () {
+      /* the sentence goes with the write, so a staged reset says to press
+         Save and a refused one says nothing it did not do (audit m24) */
+      dropBinding(p, row, function () { draw(root, p); }, rowName(row) + ' is back to normal');
+    });
+  }
+
+  /* what the other parts use from this one */
+  SEC.draw = draw;
+  SEC.panelBody = panelBody;
+  SEC.panelDismiss = panelDismiss;
+  SEC.panelIsOpen = panelIsOpen;
+  SEC.wireInputCommon = wireInputCommon;
+});

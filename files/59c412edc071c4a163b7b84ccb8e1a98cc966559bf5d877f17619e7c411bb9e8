@@ -1,0 +1,297 @@
+/* zs-ble-cap.js — Web Bluetooth, inside the ZeroStick mobile app.
+ *
+ * ES5 ONLY, like every module here.
+ *
+ * ── Why this file exists ──────────────────────────────────────────────────
+ *
+ * zs-ble.js talks to the adapter through navigator.bluetooth — the Web
+ * Bluetooth API — and that API does not exist inside a Capacitor WebView:
+ * Android's WebView never had it, and iOS has no browser engine that does.
+ * The mobile app (a Capacitor project) has a NATIVE Bluetooth plugin instead,
+ * @capacitor-community/bluetooth-le, which reaches CoreBluetooth on iPhone and
+ * the Android stack directly. This file puts a navigator.bluetooth in front of
+ * that plugin that answers exactly the calls zs-ble.js makes, and nothing
+ * else — so zs-ble.js, the fetch shim, the gate in phone.html and the ~800 KB
+ * of screens behind them run on a phone unchanged. That is the same trick
+ * zs-ble.js plays on window.fetch, one layer down.
+ *
+ * It is loaded ONLY inside the app (phone.html document.writes the tag when
+ * window.Capacitor is a native platform) and never by the desktop exe or a
+ * browser, both of which either have the real API or are told truthfully that
+ * they do not.
+ *
+ * ── What is mirrored, and from where ─────────────────────────────────────
+ *
+ * The raw plugin (window.Capacitor.Plugins.BluetoothLe) is what a plain-HTML
+ * app can reach; the plugin's TypeScript BleClient is an ES module for
+ * bundlers and is not used. The raw contract, read from the plugin's own
+ * bleClient.js so this file agrees with it byte for byte:
+ *
+ *   requestDevice({services, optionalServices})  -> {deviceId, name}   (native chooser)
+ *   connect({deviceId})                          -> void
+ *   disconnect({deviceId})                       -> void
+ *   read({deviceId, service, characteristic})    -> {value: "hex string"}
+ *   write(...same + value: "hex string")         -> void   (with response)
+ *   startNotifications({deviceId, service, characteristic}) -> void
+ *   addListener('notification|<deviceId>|<service>|<characteristic>', fn({value}))
+ *   addListener('disconnected|<deviceId>', fn)
+ *   createBond({deviceId})  (Android only; iOS pairs on first encrypted access)
+ *
+ * Values cross the bridge as HEX STRINGS on native ("0a1b2c"); DataViews
+ * only exist on this side. The conversions below are the plugin's own,
+ * re-implemented in ES5.
+ *
+ * ── Pairing ──────────────────────────────────────────────────────────────
+ *
+ * Every characteristic on the board is encrypt-* (gatt.py), so the first
+ * read or write needs a bond. iOS raises the pairing sheet by itself. On
+ * Android the stack usually starts bonding when an encrypted characteristic
+ * refuses, but not always and not quickly, so connect() asks for the bond
+ * explicitly and ignores "already bonded". The board must be pairable at
+ * that moment — zs-ble sets Discoverable + Pairable together.
+ */
+(function () {
+  'use strict';
+  if (typeof window === 'undefined') { return; }
+  var cap = window.Capacitor;
+  if (!cap || !cap.Plugins || !cap.Plugins.BluetoothLe) { return; }
+  if (navigator.bluetooth && !navigator.bluetooth.__zsCap) { return; } /* a real one exists */
+
+  var BLE = cap.Plugins.BluetoothLe;
+  var platform = (cap.getPlatform && cap.getPlatform()) || 'unknown';
+
+  /* ── hex <-> DataView, the plugin's own conversions ───────────────────── */
+  function hexToDataView(hex) {
+    var bytes = [], i, c, isEmpty = 1, buffer = 0;
+    hex = String(hex || '');
+    for (i = 0; i < hex.length; i++) {
+      c = hex.charCodeAt(i);
+      if ((c > 47 && c < 58) || (c > 64 && c < 71) || (c > 96 && c < 103)) {
+        buffer = (buffer << 4) ^ ((c > 64 ? c + 9 : c) & 15);
+        if ((isEmpty ^= 1)) { bytes.push(buffer & 0xff); }
+      }
+    }
+    return new DataView(new Uint8Array(bytes).buffer);
+  }
+  function toUint8(value) {
+    if (value instanceof Uint8Array) { return value; }
+    if (value instanceof ArrayBuffer) { return new Uint8Array(value); }
+    if (value && value.buffer) {
+      return new Uint8Array(value.buffer, value.byteOffset || 0, value.byteLength);
+    }
+    return new Uint8Array(0);
+  }
+  function toHex(value) {
+    var u = toUint8(value), out = '', i, s;
+    for (i = 0; i < u.length; i++) {
+      s = u[i].toString(16);
+      out += (s.length === 1 ? '0' : '') + s;
+    }
+    return out;
+  }
+
+  /* ── a tiny EventTarget, because the real one is not constructible on
+        every WebView this may run in ─────────────────────────────────── */
+  function Emitter() { this._l = {}; }
+  Emitter.prototype.addEventListener = function (type, fn) {
+    (this._l[type] = this._l[type] || []).push(fn);
+  };
+  Emitter.prototype.removeEventListener = function (type, fn) {
+    var a = this._l[type] || [], i = a.indexOf(fn);
+    if (i >= 0) { a.splice(i, 1); }
+  };
+  Emitter.prototype.dispatch = function (type, ev) {
+    var a = (this._l[type] || []).slice(), i;
+    ev = ev || {};
+    ev.type = type;
+    if (!ev.target) { ev.target = this; }
+    for (i = 0; i < a.length; i++) {
+      try { a[i].call(this, ev); } catch (e) { /* one bad listener must not stop the rest */ }
+    }
+  };
+
+  /* ── characteristic ──────────────────────────────────────────────────── */
+  function Characteristic(service, uuid) {
+    Emitter.call(this);
+    this.service = service;
+    this.uuid = uuid;
+    this.value = null;
+    this._notifying = false;
+    this._handle = null;
+  }
+  Characteristic.prototype = Object.create(Emitter.prototype);
+  Characteristic.prototype.readValue = function () {
+    var self = this;
+    return BLE.read({
+      deviceId: self.service.device.id, service: self.service.uuid, characteristic: self.uuid
+    }).then(function (r) {
+      self.value = hexToDataView(r && r.value);
+      return self.value;
+    });
+  };
+  Characteristic.prototype.writeValueWithResponse = function (data) {
+    return BLE.write({
+      deviceId: this.service.device.id, service: this.service.uuid,
+      characteristic: this.uuid, value: toHex(data)
+    });
+  };
+  Characteristic.prototype.writeValue = Characteristic.prototype.writeValueWithResponse;
+  Characteristic.prototype.writeValueWithoutResponse = function (data) {
+    return BLE.writeWithoutResponse({
+      deviceId: this.service.device.id, service: this.service.uuid,
+      characteristic: this.uuid, value: toHex(data)
+    });
+  };
+  Characteristic.prototype.startNotifications = function () {
+    var self = this;
+    if (self._notifying) { return Promise.resolve(self); }
+    var key = 'notification|' + self.service.device.id + '|' + self.service.uuid + '|' + self.uuid;
+    return Promise.resolve(BLE.addListener(key, function (ev) {
+      /* the same shape the browser delivers: event.target.value is a DataView */
+      self.value = hexToDataView(ev && ev.value);
+      self.dispatch('characteristicvaluechanged', { target: self });
+    })).then(function (handle) {
+      self._handle = handle;
+      return BLE.startNotifications({
+        deviceId: self.service.device.id, service: self.service.uuid, characteristic: self.uuid
+      });
+    }).then(function () {
+      self._notifying = true;
+      return self;
+    });
+  };
+  Characteristic.prototype.stopNotifications = function () {
+    var self = this;
+    self._notifying = false;
+    if (self._handle && self._handle.remove) { try { self._handle.remove(); } catch (e) { /* gone */ } }
+    self._handle = null;
+    return BLE.stopNotifications({
+      deviceId: self.service.device.id, service: self.service.uuid, characteristic: self.uuid
+    }).then(function () { return self; });
+  };
+
+  /* ── service ─────────────────────────────────────────────────────────── */
+  function Service(device, uuid) { this.device = device; this.uuid = uuid; this._chars = {}; }
+  Service.prototype.getCharacteristic = function (uuid) {
+    uuid = String(uuid).toLowerCase();
+    if (!this._chars[uuid]) { this._chars[uuid] = new Characteristic(this, uuid); }
+    return Promise.resolve(this._chars[uuid]);
+  };
+
+  /* ── GATT server ─────────────────────────────────────────────────────── */
+  function Gatt(device) { this.device = device; this.connected = false; this._services = {}; }
+  /* The plugin's listeners are keyed by device and characteristic, NOT by
+     the objects this file makes, so a listener left behind keeps firing for
+     the next session on the same board (M42: after a drop and a Connect,
+     every notification was delivered twice, once through the dead
+     Characteristic, and every multi-frame reply arrived garbled). So a
+     disconnect takes off every plugin listener this device added. */
+  Gatt.prototype._dropListeners = function () {
+    var d = this.device, u, c, ch;
+    if (d._discHandle && d._discHandle.remove) {
+      try { d._discHandle.remove(); } catch (e) { /* gone */ }
+    }
+    d._discHandle = null;
+    for (u in this._services) {
+      if (!Object.prototype.hasOwnProperty.call(this._services, u)) { continue; }
+      for (c in this._services[u]._chars) {
+        if (!Object.prototype.hasOwnProperty.call(this._services[u]._chars, c)) { continue; }
+        ch = this._services[u]._chars[c];
+        if (ch._handle && ch._handle.remove) {
+          try { ch._handle.remove(); } catch (e) { /* gone */ }
+        }
+        ch._handle = null;
+        ch._notifying = false;
+      }
+    }
+  };
+  Gatt.prototype.connect = function () {
+    var self = this, id = self.device.id;
+    var key = 'disconnected|' + id;
+    /* a second connect on the same device object must not stack listeners */
+    self._dropListeners();
+    return Promise.resolve(BLE.addListener(key, function () {
+      self.connected = false;
+      self._dropListeners();
+      self.device.dispatch('gattserverdisconnected', { target: self.device });
+    })).then(function (handle) {
+      self.device._discHandle = handle;
+      return BLE.connect({ deviceId: id, timeout: 15000 });
+    }).then(function () {
+      self.connected = true;
+      /* Android: ask for the bond up front (see the header). "Already
+         bonded" and "not supported" both reject harmlessly. */
+      if (platform === 'android' && BLE.createBond) {
+        return BLE.createBond({ deviceId: id, timeout: 30000 }).then(function () { return self; },
+                                                                     function () { return self; });
+      }
+      return self;
+    });
+  };
+  Gatt.prototype.disconnect = function () {
+    var self = this;
+    self.connected = false;
+    BLE.disconnect({ deviceId: self.device.id }).then(function () {}, function () {});
+  };
+  Gatt.prototype.getPrimaryService = function (uuid) {
+    uuid = String(uuid).toLowerCase();
+    if (!this._services[uuid]) { this._services[uuid] = new Service(this.device, uuid); }
+    return Promise.resolve(this._services[uuid]);
+  };
+
+  /* ── device ──────────────────────────────────────────────────────────── */
+  function Device(raw) {
+    Emitter.call(this);
+    this.id = raw.deviceId;
+    this.name = raw.name || raw.localName || '';
+    this.gatt = new Gatt(this);
+  }
+  Device.prototype = Object.create(Emitter.prototype);
+
+  /* ── navigator.bluetooth ─────────────────────────────────────────────── */
+  var ready = null;
+  function init() {
+    if (!ready) {
+      /* androidNeverForLocation: the app scans for OUR service only, never to
+         locate the phone, so Android 12+ asks for the Bluetooth permissions
+         alone (BLUETOOTH_SCAN with neverForLocation in the manifest). */
+      ready = Promise.resolve(BLE.initialize({ androidNeverForLocation: true }));
+    }
+    return ready;
+  }
+
+  navigator.bluetooth = {
+    __zsCap: true,
+    requestDevice: function (options) {
+      options = options || {};
+      var q = {};
+      if (options.filters) {
+        /* zs-ble.js filters on our service UUID; the plugin takes a flat list */
+        var svcs = [];
+        options.filters.forEach(function (f) {
+          (f.services || []).forEach(function (s) { svcs.push(String(s).toLowerCase()); });
+        });
+        if (svcs.length) { q.services = svcs; }
+      }
+      if (options.optionalServices) {
+        q.optionalServices = options.optionalServices.map(function (s) { return String(s).toLowerCase(); });
+      }
+      return init().then(function () {
+        return BLE.requestDevice(q);
+      }).then(function (raw) {
+        if (!raw || !raw.deviceId) {
+          /* the same name the browser throws when the chooser is dismissed,
+             so zs-ble.js's explain() reads it as a cancel, not a fault */
+          var err = new Error('User cancelled the requestDevice() chooser.');
+          err.name = 'NotFoundError';
+          throw err;
+        }
+        return new Device(raw);
+      });
+    },
+    getAvailability: function () {
+      return init().then(function () { return BLE.isEnabled(); })
+        .then(function (r) { return !!(r && r.value); }, function () { return false; });
+    }
+  };
+})();

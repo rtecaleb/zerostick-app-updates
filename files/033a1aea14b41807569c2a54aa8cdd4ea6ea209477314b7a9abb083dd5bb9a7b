@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <!-- PLACEHOLDER (D215): the Legacy Devices door's picture until the owner
+       supplies the artwork. Plain on purpose: the room's ground (#15100c,
+       the ground phone.html gives this tile too), and a quiet outline of a
+       small script device with its screen, in the room's bolt orange. No
+       other company's device, name or logo (D76). -->
+  <rect width="240" height="240" fill="#15100c"/>
+  <g fill="none" stroke="#ff9457" stroke-opacity=".55" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="48" y="70" width="144" height="100" rx="22"/>
+    <rect x="72" y="92" width="64" height="40" rx="6"/>
+    <circle cx="164" cy="104" r="7"/>
+    <circle cx="164" cy="132" r="7"/>
+    <path d="M78 150 H130"/>
+  </g>
+</svg>

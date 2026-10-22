@@ -1,0 +1,50 @@
+{
+  "zerostickGamePack": 1,
+  "id": "cod-mw3",
+  "name": "Call of Duty: Modern Warfare III",
+  "aliases": [
+    "Modern Warfare III",
+    "Modern Warfare 3",
+    "Call of Duty: Modern Warfare 3",
+    "MW3",
+    "MWIII",
+    "COD MW3"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "cod-mw3.png",
+    "tall": "cod-mw3-tall.png"
+  },
+  "aimPreset": "cod",
+  "notes": "Modern Warfare III (2023), Steam app 3595270. The aim preset is Match Your Game's Call of Duty row, which is a hand-picked starting point and not a measurement, so it is offered, never applied. Slide cancel and Aim without holding it come switched off.",
+  "smartActions": [
+    {
+      "template": "slidecancel",
+      "enabled": false
+    },
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Call of Duty: Modern Warfare III are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "No measured mouse turn rates for Call of Duty: Modern Warfare III are in the repo yet. This block sets nothing, so a mouse config starts on the same neutral mouse settings every new config gets.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "Nothing has been measured for Call of Duty: Modern Warfare III with a stick in one hand and a mouse in the other. This block sets nothing: the neutral settings every new config gets.",
+      "config": {}
+    }
+  }
+}

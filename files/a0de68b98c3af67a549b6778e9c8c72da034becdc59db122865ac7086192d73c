@@ -1,0 +1,492 @@
+/* sa-mnk.js - Smart Actions for a mouse-and-keyboard player (D128).
+
+   The owner, on the Core: "in Smart Actions when I'm picking the key to
+   activate in mouse mode, you don't say just left click etc, you show
+   controller buttons because that is the binding, and in the controller
+   buttons maybe show a little picture of the mouse button that controller
+   button is bound to, to help. But if someone does left click and not RT
+   (let's say RT is bound to left click), the action should output a
+   keyboard/mouse left click, not the RT, unless the RT is selected."
+
+   So, in a config played with a mouse, this file answers three questions
+   the rest of the Smart Actions editor asks it at call time:
+
+     WHICH BUTTON STARTS IT. The New Smart Action picker offers the player's
+     real inputs first (the mouse, then the keyboard) and the controller
+     buttons second, each wearing a small picture of the key or mouse button
+     the config binds to it. sections() builds those pages for the ordinary
+     picker sheet (phone-sections.js pickButton), so the sheet, its deck and
+     its press-to-bind are the ones every other picker uses.
+
+     WHAT EACH CHOICE MEANS, which has to match the Core's engine exactly
+     (firmware/lite-p4/components/zs_actions/zs_actions.c zs_act_feed_key):
+       * a key, a mouse button or a pad button is matched EXACTLY. An action
+         on BTN_LEFT starts when the mouse's own left button goes down, and
+         never because something bound to RT did;
+       * lt and rt are the one exception the engine makes: an action on rt
+         starts on a pad's pull past 60% AND on any control whose binding
+         drives rt+. So "RT" means whatever you have bound to RT, by the
+         engine's own rule, and is saved as rt;
+       * any other pad button has no such rule, so in a Mouse + Keyboard
+         config "A" is saved as FOLLOWING A (trigger.follow), which the app
+         resolves to the key bound to A (boundTo, via smart-actions.js
+         emitSource) when it saves and again after every rebind. The corner
+         picture is that key, which is why it is only drawn where pressing
+         it really starts the action.
+
+     WHAT A STEP PRESSES. A pad button reaches every identity that is a pad.
+     A key or a click reaches a computer only through the Core's keyboard-
+     and-mouse USB identity (D114): never the Xbox 360 or the DualSense
+     identity, and never a console. So keys are offered as step outputs only
+     on a Core, only in a config with a mouse, and always under a sentence
+     that says whether they will arrive (keysNoteHTML). A new action started
+     from a mouse button presses that same click when a click can arrive,
+     and otherwise what the button is bound to, and says which.
+
+   ES5 only (var, function, string concatenation), loaded after
+   smart-actions.js, and everything that reaches innerHTML goes through
+   ZS.esc. Nothing here writes a config: it builds pickers and sentences,
+   and seeds a draft the editor then saves the ordinary way. */
+(function () {
+  'use strict';
+  if (!window.ZS) return;
+  var ZS = window.ZS;
+
+  function esc(s) { return ZS.esc(s); }
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function arr(v) { return Object.prototype.toString.call(v) === '[object Array]' ? v : []; }
+  function base(t) { return String(t == null ? '' : t).replace(/[+-]$/, ''); }
+
+  /* ── which config, which product ─────────────────────────────── */
+
+  function isCore() { return typeof ZS.productId === 'function' && ZS.productId() === 'core'; }
+  /* ZS.inputShows is the ONE definition of what an input type shows
+     (phone.html); nothing here keeps a second list of input types. */
+  function hasMouse(p) { return !!p && ZS.inputShows(p.input, 'mouse'); }
+  function hasPad(p) { return !!p && ZS.inputShows(p.input, 'controller'); }
+  var CONSOLE_WORDS = { ps5: 'PlayStation 5', ps4: 'PlayStation 4', xbox: 'Xbox' };
+  function onConsole(p) { return !!p && has(CONSOLE_WORDS, p.platform); }
+
+  /* The picker kind New Smart Action opens. A config without a mouse keeps
+     the ordinary source picker it always had. */
+  function pickKind(p) {
+    if (!hasMouse(p)) return ZS.srcPickKind(p);
+    return hasPad(p) ? 'trigger-both' : 'trigger-mnk';
+  }
+  function ownsKind(kind) { return kind === 'trigger-mnk' || kind === 'trigger-both'; }
+
+  /* ── what the config binds ───────────────────────────────────── */
+
+  /* The board's copy of the bindings, which is also the one emitSource reads,
+     so a corner picture and the source an action is saved with can never be
+     two different answers. */
+  function binds(p) {
+    var full = p && ZS.live && ZS.live.full && ZS.live.full[p.id];
+    return full ? arr(full.bindings) : [];
+  }
+
+  /* The first key or mouse button this config binds plainly (no shift
+     layer) to `target`, among the sources its input type shows. That is
+     "whatever you have bound to RT" right now. '' when nothing is. */
+  function boundTo(p, target) {
+    var want = base(target), list = binds(p), i;
+    for (i = 0; i < list.length; i++) {
+      var b = list[i] || {};
+      if (typeof b.source !== 'string' || !b.source) continue;
+      if (b.chord && arr(b.chord).length) continue;
+      if (base(b.target) !== want) continue;
+      var cls = ZS.srcDeviceClass(b.source);
+      if ((cls === 'mouse' || cls === 'keyboard') && ZS.inputShowsSource(p.input, b.source)) {
+        return b.source;
+      }
+    }
+    return '';
+  }
+
+  /* ── names and pictures for a key or a mouse button ──────────── */
+
+  var MOUSE_WORDS = {
+    BTN_LEFT: 'Left click', BTN_RIGHT: 'Right click', BTN_MIDDLE: 'Middle click',
+    BTN_SIDE: 'Mouse button 4', BTN_EXTRA: 'Mouse button 5',
+    BTN_WHEEL_UP: 'Wheel up', BTN_WHEEL_DOWN: 'Wheel down'
+  };
+  var KEY_WORDS = {
+    KEY_SPACE: 'Space', KEY_LEFTSHIFT: 'Shift', KEY_RIGHTSHIFT: 'Right Shift',
+    KEY_LEFTCTRL: 'Ctrl', KEY_RIGHTCTRL: 'Right Ctrl', KEY_LEFTALT: 'Alt',
+    KEY_RIGHTALT: 'Right Alt', KEY_TAB: 'Tab', KEY_ESC: 'Esc', KEY_ENTER: 'Enter',
+    KEY_CAPSLOCK: 'Caps Lock', KEY_BACKSPACE: 'Backspace', KEY_LEFTMETA: 'Windows',
+    KEY_UP: 'Up arrow', KEY_DOWN: 'Down arrow', KEY_LEFT: 'Left arrow', KEY_RIGHT: 'Right arrow'
+  };
+  function nameOf(code) {
+    var c = String(code || '');
+    if (has(MOUSE_WORDS, c)) return MOUSE_WORDS[c];
+    if (has(KEY_WORDS, c)) return KEY_WORDS[c];
+    if (c.indexOf('KEY_') === 0) {
+      var k = c.slice(4);
+      return k.length === 1 ? k : k.charAt(0) + k.slice(1).toLowerCase();
+    }
+    return c;
+  }
+  /* keycaps.js draws every key and every mouse button the app names (a mouse
+     with the button lit); the wheel has no keycap, so it is the middle
+     button's mouse. */
+  function artOf(code) {
+    var c = String(code || ''), K = window.ZSKEYS;
+    if (c === 'BTN_WHEEL_UP' || c === 'BTN_WHEEL_DOWN') c = 'BTN_MIDDLE';
+    var svg = K && K.svg ? K.svg(c) : '';
+    if (svg) return svg;
+    return typeof ZS.btnArt === 'function' ? ZS.btnArt(c.indexOf('KEY_') === 0
+      ? (nameOf(c).length <= 2 ? 'key:' : 'wkey:') + nameOf(c) : 'm-mid') : '';
+  }
+
+  /* ── the trigger picker's pages ──────────────────────────────── */
+
+  /* The mouse, drawn from the ordinary source picker's own mouse section so
+     the pictures are the ones every other picker shows, with the words a
+     person says for each button, and the wheel, which the Core's input
+     already turns into a press (zs_hid_report.c) and the engine matches like
+     any button. */
+  var MOUSE_ORDER = ['BTN_LEFT', 'BTN_RIGHT', 'BTN_MIDDLE', 'BTN_SIDE', 'BTN_EXTRA'];
+  var MOUSE_TILE = { BTN_LEFT: 'Left click', BTN_RIGHT: 'Right click', BTN_MIDDLE: 'Middle',
+    BTN_SIDE: 'M4', BTN_EXTRA: 'M5' };
+  function mouseItems(baseSecs) {
+    var byCode = {}, out = [], i, j;
+    for (i = 0; i < baseSecs.length; i++) {
+      if (baseSecs[i].pg !== 'Mouse') continue;
+      for (j = 0; j < baseSecs[i].items.length; j++) {
+        var it = baseSecs[i].items[j];
+        if (it && it.v && it.v.source) byCode[it.v.source] = it;
+      }
+    }
+    /* Every tile is the keycap set's own mouse with that button lit (the
+       side buttons included, which the source picker drew as words), all
+       one width so the page reads as one mouse and not a mix of sizes. The
+       picked value keeps the source picker's own glyph name. */
+    for (i = 0; i < MOUSE_ORDER.length; i++) {
+      var c = MOUSE_ORDER[i], was = byCode[c];
+      out.push({ g: artOf(c), lab: MOUSE_TILE[c], showLab: true, wide: true,
+                 aria: MOUSE_WORDS[c] + ', the mouse button itself',
+                 v: { kind: 'source', source: c, g: was ? was.v.g : '' } });
+    }
+    /* The two wheel notches are the same mouse, so the way the wheel turns
+       rides in the corner as an arrow; the caption says it in words. */
+    out.push({ g: artOf('BTN_WHEEL_UP'), lab: 'Wheel up', showLab: true, wide: true,
+               hint: '<b class="pkarrow">↑</b>',
+               aria: 'Wheel up, one notch of the mouse wheel',
+               v: { kind: 'source', source: 'BTN_WHEEL_UP', g: 'm-mid' } });
+    out.push({ g: artOf('BTN_WHEEL_DOWN'), lab: 'Wheel down', showLab: true, wide: true,
+               hint: '<b class="pkarrow">↓</b>',
+               aria: 'Wheel down, one notch of the mouse wheel',
+               v: { kind: 'source', source: 'BTN_WHEEL_DOWN', g: 'm-mid' } });
+    return out;
+  }
+
+  /* One controller tile, re-meant. In a Mouse + Keyboard config every tile
+     is "whatever you have bound to it": rt / lt by the engine's own rule, any
+     other button by following it. In Joystick + Mouse the pad is really in
+     the player's hands, so a tile is that button on the pad, and only the two
+     triggers also answer a bound key, which is exactly where the corner
+     picture goes. */
+  function padTile(p, it, mnk, famLab) {
+    var v = it.v || {}, tgt = v.target || '', src = v.source || '', trig = '';
+    if (tgt === 'lt+' || tgt === 'rt+') trig = base(tgt);
+    if (src === 'BTN_TL2') trig = 'lt';
+    if (src === 'BTN_TR2') trig = 'rt';
+    var tBase = trig || base(tgt), key = (mnk || trig) ? boundTo(p, trig ? trig + '+' : tBase) : '';
+    var nv;
+    if (trig) nv = { kind: 'bound', source: trig, target: trig + '+', g: v.g };
+    else if (mnk) nv = { kind: 'bound', follow: tBase, target: tBase, source: key || '', g: v.g };
+    else nv = v;
+    var name = famLab || it.aria || it.lab;
+    var aria = key ? name + ', bound to ' + nameOf(key)
+                   : (mnk ? name + ', nothing is bound to it yet' : name);
+    /* In a Mouse + Keyboard config the tile is an OUTPUT (what the key sends
+       the console), so it wears the config's console family, drawn by the
+       same glyphs.js call the step palette's Pad page uses: RT here and RT
+       there are one picture. The pad in the player's hands is Joystick +
+       Mouse's, and there the tile is left as the source picker drew it. */
+    var g = it.g, Z = window.ZSG;
+    if (mnk && tgt && Z && typeof Z.outGlyph === 'function') {
+      g = Z.outGlyph(tgt, (p.platform === 'ps5' || p.platform === 'ps4') ? 'ps' : 'xb') || g;
+    }
+    return { g: g, lab: it.lab, showLab: true, aria: aria,
+             hint: key ? artOf(key) : '', hintSay: key ? nameOf(key) : '',
+             dim: mnk && !key && !trig, v: nv };
+  }
+
+  /* The sentence under each page's first header: what a tap on that page
+     MEANS, in the terms the owner used ("Left click: your mouse button
+     itself" against "RT: whatever you have bound to RT"). */
+  function mouseNote() {
+    return '<b>Left click</b> here is your mouse button itself, and so is every button on this page.';
+  }
+  function keyNote() {
+    return 'A key here is that key itself.';
+  }
+  function padNote(p, mnk, rtLab, ltLab) {
+    var rt = boundTo(p, 'rt+'), lab = esc(rtLab || 'RT'), lt = esc(ltLab || 'LT');
+    var now = rt ? ' <b>' + lab + '</b> is <b>' + esc(nameOf(rt)) + '</b> now.' : '';
+    if (mnk) {
+      return 'Each button here means <b>whatever you have bound to it</b>, pictured in its corner.' + now;
+    }
+    return 'A button here is that button on your controller. <b>' + lt + '</b> and <b>' + lab +
+      '</b> also answer whatever you have bound to them.' + now;
+  }
+
+  /* The picker's sections for a trigger-mnk or trigger-both sheet. `baseOf`
+     is phone-sections.js's own pickSections, handed in so the keyboard, the
+     mouse pictures and the pad tiles are that file's and never a second copy
+     of them. The order is the owner's: the real inputs first. */
+  function sections(kind, p, baseOf) {
+    var mnk = kind === 'trigger-mnk';
+    css();
+    var kb = baseOf('source-mnk', p), out = [], i;
+    out.push({ h: 'Mouse', pg: 'Mouse', note: mouseNote(), items: mouseItems(kb) });
+    var firstKey = true;
+    for (i = 0; i < kb.length; i++) {
+      if (kb[i].pg !== 'Keyboard') continue;
+      out.push({ h: kb[i].h, pg: 'Keyboard', note: firstKey ? keyNote() : '', items: kb[i].items });
+      firstKey = false;
+    }
+    var pad = baseOf(mnk ? 'trigger' : 'source-pad', p), rtLab = '', ltLab = '', j;
+    for (i = 0; i < pad.length; i++) {
+      for (j = 0; j < pad[i].items.length; j++) {
+        var v = pad[i].items[j].v || {};
+        if (v.target === 'rt+' || v.source === 'BTN_TR2') rtLab = pad[i].items[j].lab;
+        if (v.target === 'lt+' || v.source === 'BTN_TL2') ltLab = pad[i].items[j].lab;
+      }
+    }
+    for (i = 0; i < pad.length; i++) {
+      var items = [];
+      for (j = 0; j < pad[i].items.length; j++) items.push(padTile(p, pad[i].items[j], mnk));
+      out.push({ h: pad[i].h, pg: 'Controller', note: i === 0 ? padNote(p, mnk, rtLab, ltLab) : '',
+                 items: items });
+    }
+    return out;
+  }
+
+  /* The panel's head for a row New Smart Action opened on lt or rt in a
+     config that hides the pad: the trigger's OUTPUT name for this config's
+     console and what that means right now ("whatever you have bound to RT:
+     Left click"), rather than the pad-in-hand's "R2 pulled on your pad".
+     null for every other row, which keeps its own words. */
+  function rowWords(p, row) {
+    var src = row && row.source;
+    if ((src !== 'lt' && src !== 'rt') || !p || hasPad(p)) return null;
+    var Z = window.ZSG, fam = (p.platform === 'ps5' || p.platform === 'ps4') ? 'ps' : 'xb';
+    var name = Z && typeof Z.outLabel === 'function' ? Z.outLabel(src + '+', fam) : src.toUpperCase();
+    var art = Z && typeof Z.outGlyph === 'function' ? Z.outGlyph(src + '+', fam) : '';
+    var key = boundTo(p, src + '+');
+    /* short enough for the head's one line at a phone's width */
+    return { name: name, art: art, cap: 'whatever is bound to it' +
+      (key ? ', now ' + nameOf(key) : ', and nothing is yet') };
+  }
+
+  /* ── can a key or a click arrive ─────────────────────────────── */
+
+  var IDENTITY_WORDS = { xbox360: 'an Xbox 360 controller', dualsense: 'a DualSense controller',
+    kbm: 'a keyboard and mouse' };
+
+  /* true: a key sent now reaches a computer. false: it cannot (a pad
+     identity, the RP2040's console path, or a console config). null: the
+     adapter has not said (offline, or a firmware without keySink). Only ever
+     true on a Core. */
+  function keysArrive(p) {
+    if (!isCore() || onConsole(p) || !firmwareKeySteps()) return false;
+    var st = ZS.live && ZS.live.online !== false ? ZS.live.status : null;
+    var ks = st && st.keySink;
+    if (!ks || typeof ks.active !== 'boolean') return null;
+    return ks.active;
+  }
+  function identityWords() {
+    var st = ZS.live && ZS.live.status, ks = st && st.keySink;
+    var id = ks && typeof ks.identity === 'string' ? ks.identity : '';
+    return has(IDENTITY_WORDS, id) ? IDENTITY_WORDS[id] : 'a controller';
+  }
+  /* Keys and clicks are offered as step outputs only where they can mean
+     something: a Core (the A7S has no path that sends a key from a step),
+     in a config played with a mouse. */
+  function keysOffered(p) { return isCore() && hasMouse(p) && firmwareKeySteps(); }
+  /* NEGOTIATE, THEN VERIFY (D103 section 4). The Core says in /status how
+     many keys one step may carry (profileFormat.caps.keysPerStep, D128). A
+     Core that does not say runs a firmware from before key steps, which
+     would step over the key slots and press the pad half alone, so it is
+     offered no key output and a key step is an error, never a silent drop. */
+  function firmwareKeySteps() {
+    var st = ZS.live && ZS.live.status, pf = st && st.profileFormat, c = pf && pf.caps;
+    return !!c && typeof c.keysPerStep === 'number' && c.keysPerStep > 0;
+  }
+
+  /* The one sentence, said where the player picks a key or a click. */
+  function keysSentence(p) {
+    if (onConsole(p)) {
+      return { warn: true, text: 'This config is for a <b>' + esc(CONSOLE_WORDS[p.platform]) +
+        '</b>. A console gets a controller from this adapter, so a key or a click here ' +
+        'cannot arrive there. Pad buttons can.' };
+    }
+    var k = keysArrive(p);
+    if (k === true) {
+      return { warn: false, text: 'Keys and clicks arrive: this adapter is <b>a keyboard and ' +
+        'mouse</b> to your computer. While it is, pad buttons do not.' };
+    }
+    if (k === false) {
+      return { warn: true, text: 'This adapter is <b>' + esc(identityWords()) + '</b> to your ' +
+        'computer, so a key or a click here will not arrive. Only its keyboard-and-mouse ' +
+        'build carries them. Pad buttons arrive.' };
+    }
+    return { warn: false, text: 'A key or a click here arrives only when this adapter is a ' +
+      'keyboard and mouse to a computer. Pad buttons arrive on any controller.' };
+  }
+  /* Drawn in full, never folded into the "!" chip (D70's third argument):
+     it is the answer to the page the player just opened, and a click that
+     cannot arrive must be said before it is picked, not after. */
+  function keysNoteHTML(p) {
+    var s = keysSentence(p);
+    css();
+    return '<div class="note samnk-out' + (s.warn ? ' warn' : '') + '" role="note">' +
+      s.text + '</div>';
+  }
+
+  /* ── a step that presses a key ───────────────────────────────── */
+
+  /* Names a step may press as a key or a click: common/hid_keys.py's
+     vocabulary, which zs-profile-encode.js keeps as HID_KEY_NAMES. */
+  function isKeyOutput(code) {
+    var E = window.ZSPROFILE;
+    if (E && typeof E.isKbmTarget === 'function') return E.isKbmTarget(code);
+    var c = String(code || '');
+    return /^KEY_[A-Z0-9]+$/.test(c) || has(MOUSE_TILE, c);
+  }
+
+  /* smart-actions.js problems() asks this for a step target it does not know.
+     null: not a key at all (its own sentence stands). '': a key, and fine.
+     {level, msg}: a key the player must hear about. */
+  function stepKeyProblem(p, code, n) {
+    if (!isKeyOutput(code)) return null;
+    var what = 'Step ' + n + ' presses ' + nameOf(code);
+    if (!isCore()) {
+      return { level: 'error', msg: what + ', and only the ZeroStick Core can send a key or ' +
+        'a click from a Script. Pick a pad button instead.' };
+    }
+    if (!firmwareKeySteps()) {
+      return { level: 'error', msg: what + ', and this adapter’s firmware is older than ' +
+        'Scripts that press keys, so it would press nothing. Update it, or pick a pad button.' };
+    }
+    if (onConsole(p)) {
+      return { level: 'warn', msg: what + ', which cannot arrive on a ' +
+        CONSOLE_WORDS[p.platform] + ': a console gets a controller from this adapter.' };
+    }
+    if (keysArrive(p) === false) {
+      return { level: 'warn', msg: what + ', which will not arrive: this adapter is ' +
+        identityWords() + ' to your computer. It arrives when the adapter is built as a ' +
+        'keyboard and mouse.' };
+    }
+    return '';
+  }
+
+  /* ── the first step of a new action ──────────────────────────── */
+
+  /* New Smart Action has just made its seed from the row the player picked
+     (smart-actions.js smartSeed: the trigger is the row's own control and
+     the step is what that control is BOUND to). This makes the seed mean
+     exactly what was picked:
+       * a controller tile in a mouse config: rt / lt is saved as itself and
+         pulls itself; any other button follows that button and presses it;
+       * a mouse button or a key, on a Core in a PC config whose adapter can
+         send a key: the step presses that same click or key, not what it is
+         bound to (the owner: "the action should output a keyboard/mouse
+         left click, not the RT, unless the RT is selected");
+       * anywhere else the bound seed stands, and a toast says why, because a
+         click on a pad identity or a console would be a step that never
+         arrives. */
+  /* opts.empty (New Script since 2026-10-07, the owner: "in the script
+     window it should be empty by default"): only the TRIGGER is made to
+     mean what was picked; no step is seeded, and so no toast about a step
+     either — the palette's own Mouse / Keys note says whether a click can
+     arrive before one is tapped. */
+  function seed(p, v, a, opts) {
+    if (!v || !a || !a.trigger) return;
+    var empty = !!(opts && opts.empty);
+    if (v.kind === 'bound') {
+      if (v.source === 'rt' || v.source === 'lt') {
+        a.trigger.src = v.source;
+        a.trigger.follow = null;
+        if (!empty) a.steps = [{ k: 'trig', t: [v.source + '+'], ms: 120, keep: false }];
+      } else if (v.follow) {
+        a.trigger.src = null;
+        a.trigger.follow = v.follow;
+        if (!empty) a.steps = [{ k: 'tap', t: [v.follow], ms: 80 }];
+      }
+      return;
+    }
+    if (empty) return;
+    var src = String(v.source || '');
+    if (!hasMouse(p) || !isKeyOutput(src)) return;
+    if (!isCore() || !firmwareKeySteps()) return;
+    if (!onConsole(p) && keysArrive(p) === true) {
+      a.steps = [{ k: 'tap', t: [src], ms: 80 }];
+      return;
+    }
+    if (typeof ZS.toast !== 'function') return;
+    var click = ZS.srcDeviceClass(src) === 'mouse' ? 'a click' : 'a key';
+    var via = onConsole(p) ? 'on a console' : 'through ' + identityWords();
+    var bound = boundTarget(p, src), Z = window.ZSG;
+    var fam = (p.platform === 'ps5' || p.platform === 'ps4') ? 'ps' : 'xb';
+    var said = bound && Z && typeof Z.outLabel === 'function' ? Z.outLabel(bound, fam) : bound;
+    ZS.toast(said
+      ? nameOf(src) + ' starts it and presses ' + said + ', what it is bound to: ' + click +
+        ' cannot arrive ' + via + '.'
+      : nameOf(src) + ' starts it, and its step presses a pad button: ' + click +
+        ' cannot arrive ' + via + '.');
+  }
+  /* What a physical key or mouse button is plainly bound to in this config,
+     '' when nothing is: the pad output New Smart Action seeded from it. */
+  function boundTarget(p, src) {
+    var list = binds(p), i;
+    for (i = 0; i < list.length; i++) {
+      var b = list[i] || {};
+      if (b.source === src && !(b.chord && arr(b.chord).length) && typeof b.target === 'string') {
+        return b.target;
+      }
+    }
+    return '';
+  }
+
+  /* ── the picker's own few rules of style ─────────────────────── */
+
+  /* The corner picture is a sticker ON the tile: the bound key's own keycap
+     at a third of the tile, in the keyboard-and-mouse family colour
+     (DESIGN.md: --purple means keyboard & mouse), so it reads as "this is
+     your key" and never as a second button. The meaning line sits under the
+     page's header in the muted caption face. A tile with nothing bound is
+     dimmed, never hidden: a plugged-in pad's own button still starts it. */
+  var cssDone = false;
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'samnk-css';
+    s.textContent =
+      '.note.samnk-out{font-size:12.5px;line-height:1.45;margin:0 0 10px}' +
+      '.pk .pkhint{position:absolute;top:-7px;right:-7px;width:27px;height:27px;' +
+        'border-radius:8px;background:var(--panel2,#1b2230);border:1.5px solid var(--purple,#a371f7);' +
+        'display:flex;align-items:center;justify-content:center;padding:2px;box-sizing:border-box;' +
+        'pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.45)}' +
+      '.pk .pkhint svg{width:21px!important;height:21px!important}' +
+      '.pk .pkhint .pkarrow{font-size:14px;line-height:1;color:var(--text)}' +
+      '.pk.pkdim{opacity:.55}' +
+      '.pknote{font-size:12px;line-height:1.4;color:var(--muted);margin:-2px 2px 10px;' +
+        'letter-spacing:var(--tr-caption,.004em)}' +
+      '.pknote b{color:var(--text)}' +
+      '.samnk-out{margin:0 0 10px;font-size:12.5px;line-height:1.4}';
+    document.head.appendChild(s);
+  }
+
+  window.ZS_SA_MNK = {
+    pickKind: pickKind, ownsKind: ownsKind, sections: sections, css: css,
+    boundTo: boundTo, nameOf: nameOf, artOf: artOf, rowWords: rowWords,
+    keysArrive: keysArrive, keysOffered: keysOffered, keysSentence: keysSentence,
+    keysNoteHTML: keysNoteHTML, isKeyOutput: isKeyOutput, stepKeyProblem: stepKeyProblem,
+    seed: seed
+  };
+})();

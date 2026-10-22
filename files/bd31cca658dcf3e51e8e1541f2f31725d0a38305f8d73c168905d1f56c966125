@@ -1,0 +1,42 @@
+# Weapon-class pictures (D339)
+
+One picture per weapon CLASS, shown in AI Scripts (auto-actions.js) on every
+game's class heading only. A weapon's row never shows it (a row shows its own
+gun or its class code). The same picture is used for every game (the owner, 2026-10-14: "even
+if it's Apex Legends show an AR from Call of Duty").
+
+**Nothing new was downloaded.** Each file is a copy of a weapon picture the app
+already ships in `game-data/cod-warzone/weapons/`, cropped to the weapon,
+scaled to fit 240 x 100 pixels and saved as a 128-colour PNG
+(scratch script, not kept: PIL crop to alpha, LANCZOS thumbnail, FASTOCTREE
+quantize). The provenance is the source file's own row in
+`game-data/cod-warzone/SOURCES.md`: Activision's artwork from
+imgs.callofduty.com, used only to identify the weapon (D116, the same accepted
+risk). These pictures live in the app only; no image bytes go to the Core.
+
+| File | Class codes it stands for | Copied from | Weapon |
+|---|---|---|---|
+| assault-rifle.png | AR (Assault Rifles, Carbines, Rifles) | game-data/cod-warzone/weapons/mw2_m4.png | M4 (Modern Warfare II) |
+| battle-rifle.png | BR (Battle Rifles) | game-data/cod-warzone/weapons/mw2_lachmann_762.png | Lachmann-762 (Modern Warfare II) |
+| smg.png | SMG | game-data/cod-warzone/weapons/mw2_lachmann_sub.png | Lachmann Sub (Modern Warfare II) |
+| lmg.png | LMG (and Heavy Weapons) | game-data/cod-warzone/weapons/mw2_rpk.png | RPK (Modern Warfare II) |
+| marksman.png | MR (Marksman Rifles, DMRs) | game-data/cod-warzone/weapons/bo6_svd.png | SVD (Black Ops 6) |
+| sniper.png | SR (Sniper Rifles) | game-data/cod-warzone/weapons/mw2_mcpr_300.png | MCPR-300 (Modern Warfare II) |
+| shotgun.png | SG (Shotguns, Slug Shotguns) | game-data/cod-warzone/weapons/mw3_lockwood_680.png | Lockwood 680 (Modern Warfare III) |
+| pistol.png | PI (Pistols, Handguns, Sidearms, Machine Pistols, Revolvers, Hand Cannons) | game-data/cod-warzone/weapons/bo7_1911.png | 1911 (Black Ops 7) |
+| launcher.png | LN (Launchers), EX (Explosives) | game-data/cod-warzone/weapons/mw2_rpg_7.png | RPG-7 (Modern Warfare II) |
+| melee.png | ME (Melee) | game-data/cod-warzone/weapons/bo6_knife.png | Knife (Black Ops 6) |
+| crossbow.png | XB (Crossbows) | game-data/cod-warzone/weapons/mw2_crossbow.png | Crossbow (Modern Warfare II) |
+
+## Classes left as words
+
+Bows (Fortnite's only bow pictures sit on a coloured card, not a cut-out),
+Shields, Special, Items, Gadget weapons, Agent weapons, and every group that is
+not a weapon class (operators, legends, heroes, agents, modes) keep their
+short code chip.
+
+Why the Fortnite Pump Shotgun is not the shotgun picture, though the owner
+offered it: every Fortnite picture in `game-data/fortnite/weapons/` is a
+rarity card with an orange or blue background, so on a class heading it reads
+as a box, not a gun. All eleven pictures are transparent cut-outs, so they sit
+on the same pool of light in both themes.

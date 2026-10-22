@@ -1,0 +1,135 @@
+/* ZS Pad Calibrator - local additions on top of the stock
+ * dualshock-tools app. Loaded after app.js.
+ *
+ * Auto-save: a switch above "Save changes permanently". When ON, any
+ * change the app marks as unsaved (finished center/range calibration,
+ * finetune save, restored calibration) is flashed to the pad
+ * automatically as soon as no modal is open - the exact same code path
+ * as clicking the green button. State persists in localStorage.
+ */
+(function () {
+  "use strict";
+
+  var KEY = "zsAutoSaveEnabled";
+
+  function stored() {
+    try { return localStorage.getItem(KEY) === "1"; }
+    catch (e) { return false; }
+  }
+
+  var pending = false;
+
+  window.__zsAutoSave = {
+    enabled: stored(),
+    schedule: function () {
+      if (pending) return;
+      pending = true;
+      poll();
+    },
+  };
+
+  function poll() {
+    if (!window.__zsAutoSave.enabled) { pending = false; return; }
+    var btn = document.getElementById("savechanges");
+    if (!btn || btn.disabled) { pending = false; return; }
+    // wait until every modal (calibration wizard, finetune, ...) closed
+    if (document.querySelector(".modal.show")) {
+      setTimeout(poll, 400);
+      return;
+    }
+    // small settle delay, then run the real save flow
+    setTimeout(function () {
+      pending = false;
+      var b = document.getElementById("savechanges");
+      if (!window.__zsAutoSave.enabled || !b || b.disabled) return;
+      if (document.querySelector(".modal.show")) {
+        window.__zsAutoSave.schedule();
+        return;
+      }
+      try { window.flash_all_changes(); }
+      catch (e) { console.error("auto-save failed:", e); }
+    }, 600);
+  }
+
+  function init() {
+    var sw = document.getElementById("zsAutoSaveSwitch");
+    if (!sw) return;
+    sw.checked = window.__zsAutoSave.enabled;
+    sw.addEventListener("change", function () {
+      window.__zsAutoSave.enabled = sw.checked;
+      try { localStorage.setItem(KEY, sw.checked ? "1" : "0"); }
+      catch (e) { /* private mode */ }
+      if (sw.checked) window.__zsAutoSave.schedule();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+  /* ---- pad-button hotkeys ----
+   * Circle -> quick center calibration
+   * Cross  -> done / save
+   * Range and finetune open only from the app's buttons (owner, 2026-10-21).
+   * Rising-edge only, ignored while any modal is open, 1.2s cooldown.
+   * Byte layout: shape buttons are data byte 4 (DS4) / 7 (DS5) --
+   * +1 here because the tap receives the report WITH its id byte.
+   */
+  var lastButtons = 0;
+  var lastFire = 0;
+
+  function visible(el) {
+    return !!(el && el.offsetParent !== null);
+  }
+
+  window.__zsInputTap = function (full, productId) {
+    var idx = (productId === 0x05C4 || productId === 0x09CC) ? 5 : 8;
+    if (!full || full.length <= idx || full[0] !== 0x01) return;
+    var b = full[idx];
+    var rising = b & ~lastButtons;
+    lastButtons = b;
+    if (!(rising & 0xF0)) return;
+    var now = Date.now();
+    if (now - lastFire < 1200) return;
+    try {
+      if (rising & 0x20) {                       // Cross = okay/confirm
+        var mods = document.querySelectorAll(".modal.show");
+        if (mods.length) {
+          // topmost modal's Done/confirm button
+          var m = mods[mods.length - 1];
+          var btn = m.querySelector(
+            "#calibNext, #range-done-btn, #finetune-done-btn");
+          if (!btn) {
+            var cands = m.querySelectorAll(
+              ".modal-footer .btn-primary, " +
+              ".modal-footer .btn-outline-primary");
+            btn = cands.length ? cands[cands.length - 1] : null;
+          }
+          if (btn && !btn.disabled && visible(btn)) {
+            lastFire = now;
+            btn.click();
+          }
+        } else {
+          // home screen: save changes permanently (when unlocked)
+          var save = document.getElementById("savechanges");
+          if (save && !save.disabled && visible(save)) {
+            lastFire = now;
+            save.click();
+          }
+        }
+        return;
+      }
+      // Circle only launches from the home screen - never while a modal is up
+      if (document.querySelector(".modal.show")) return;
+      if (!visible(document.getElementById("mainmenu"))) return;
+      if (rising & 0x40) {                // Circle = quick center
+        lastFire = now;
+        window.zs_quick_center();
+      }
+    } catch (e) {
+      console.error("pad hotkey:", e);
+    }
+  };
+})();

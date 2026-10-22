@@ -1,0 +1,586 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ZeroStick EXO — the design language.
+
+   Loaded AFTER each page's own <style>, so what lives here is deliberately
+   ADDITIVE: materials, the type scale, elevation, press behaviour, the
+   accessibility fallbacks. The colour palette itself stays in each page's
+   :root, because those pages also carry token overrides (body.zs-oled,
+   body.a11y-contrast) that must keep winning the cascade — if this file
+   redeclared :root it would out-rank them and silently kill OLED mode.
+
+   WHY THE ACCENT IS NOT BLUE ANY MORE
+   -----------------------------------
+   The app shipped with --accent equal to --blue (#58a6ff). That one value was
+   doing two unrelated jobs: "this is the interactive colour of the product"
+   AND "this config belongs to the PlayStation family". So a PS5 badge and an
+   active tab were indistinguishable, and the whole app read as the default
+   dark-theme blue that every developer tool on earth uses.
+
+   Ion Cyan (#6f9bff) takes over the UI-accent job. The console families keep
+   their meanings untouched: blue = PlayStation, green = Xbox, purple =
+   keyboard & mouse. Nothing semantic moved; the product just stopped
+   borrowing its identity from its own PS5 badge.
+
+   Cyan also happens to be the right accessibility choice here. On this near
+   black ground it lands around 10:1 against the panel colour, well past AA
+   for body text and past AAA for large text — and this is a product whose
+   entire purpose is lowering the effort of using it.
+
+   MOTION LIVES IN JS, NOT HERE
+   ----------------------------
+   Anything a finger can touch is driven by springs in zs-motion.js, because a
+   CSS transition cannot be grabbed and reversed mid-flight. The curves below
+   are only for the non-gestural things — colour, opacity, a chevron rotating.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── brand ───────────────────────────────────────────────────────────── */
+  --zs-ion:        #6f9bff;   /* Ion Cyan — the product's interactive colour */
+  --zs-ion-ink:    #041a2e;   /* text ON ion; near-black teal, ~12:1        */
+  --zs-ion-wash:   rgba(111, 155, 255, .13);
+  --zs-ion-edge:   rgba(111, 155, 255, .42);
+  --zs-ion-glow:   rgba(111, 155, 255, .30);
+
+  /* The premium/CV tier is the GRADIENT, not a flat colour — flat violet is
+     already spoken for by keyboard & mouse. A gradient cannot be confused
+     with a device family badge, which is exactly why it can mean "paid". */
+  --zs-grad:       linear-gradient(135deg, #6f9bff 0%, #6f9bff 52%, #a371f7 100%);
+  --zs-grad-soft:  linear-gradient(135deg, rgba(111, 155, 255,.16), rgba(163,113,247,.16));
+
+  /* ── materials (apple-design §12) ────────────────────────────────────────
+     Chrome is a translucent layer that content scrolls UNDER, not an opaque
+     strip that eats a fixed band of a 390px-tall screen. Two weights only:
+     `thin` for small floating chips, `thick` for structural chrome. Bigger
+     surface ⇒ heavier blur ⇒ reads as a thicker piece of glass. */
+  --mat-thin:      saturate(180%) blur(14px);
+  --mat-thick:     saturate(180%) blur(28px);
+  --mat-scrim:     rgba(3, 5, 9, .58);
+
+  /* ── elevation ───────────────────────────────────────────────────────────
+     Shadow carries the same information as blur weight: how far off the page
+     a surface is floating. The top hairline is light catching the edge of the
+     material — it is what stops glass looking like flat translucent paint. */
+  --el-1: 0 1px 2px rgba(0,0,0,.34);
+  --el-2: 0 4px 14px rgba(0,0,0,.40);
+  --el-3: 0 12px 34px rgba(0,0,0,.50);
+  --el-4: 0 24px 64px rgba(0,0,0,.62);
+  --edge-lit: inset 0 1px 0 rgba(255,255,255,.07);
+
+  /* The chrome's glass, as tokens (D185) so a theme can re-tint it. These
+     are the exact values the rules below used to spell out; zs-light.css
+     gives each a light value. Bar = app bar + panel headers, dock = the
+     device bar, fade = the boundary under a bar, rim = a glass edge. */
+  --mat-bar-a:   rgba(20, 27, 38, .78);  --mat-bar-b:   rgba(11, 14, 19, .66);
+  --mat-fade:    rgba(8, 11, 17, .55);   --mat-fade-0:  rgba(8, 11, 17, 0);
+  --mat-dock-a:  rgba(8, 11, 17, .70);   --mat-dock-b:  rgba(8, 11, 17, .94);
+  --mat-dock-rim: rgba(255, 255, 255, .06);
+  --mat-dock-shadow: 0 -8px 26px rgba(0, 0, 0, .42);
+  --mat-sheet-a: rgba(23, 31, 43, .90);  --mat-sheet-b: rgba(15, 21, 30, .96);
+  --mat-rim:     rgba(255, 255, 255, .09);
+  --mat-grabber: rgba(255, 255, 255, .22);
+  --mat-toast:   rgba(29, 37, 48, .82);
+
+  /* ── motion (non-gestural only) ──────────────────────────────────────────
+     Gesture-driven motion is spring-driven in zs-motion.js. These curves are
+     for colour, opacity and small rotations, where a fixed duration is fine
+     because there is no finger to hand velocity back to. */
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);      /* decelerate, no bounce */
+  --ease-inout:  cubic-bezier(.65, 0, .35, 1);      /* symmetric, reversible */
+  --t-press:     90ms;
+  --t-quick:     170ms;
+  --t-calm:      260ms;
+
+  /* ── type (apple-design §15) ─────────────────────────────────────────────
+     Tracking is SIZE-SPECIFIC. One letter-spacing for the whole app is wrong
+     somewhere by definition: big text needs negative tracking because letters
+     drift apart as they grow, small text needs a touch of positive to stay
+     legible. These are the five sizes this app actually uses. */
+  --tr-display: -.028em;
+  --tr-title:   -.016em;
+  --tr-body:     0;
+  --tr-caption:  .004em;
+  --tr-label:    .085em;   /* the uppercase section headers */
+
+  --lh-display: 1.06;      /* leading tightens as size grows */
+  --lh-title:   1.24;
+  --lh-body:    1.5;
+}
+
+/* System font first: it already ships optical sizing, tracking tables and
+   legibility tuning that no webfont we could bundle would beat — and it costs
+   zero bytes on a device that may be pairing over Bluetooth. */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: var(--tr-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers that change in place must not reflow the row they live in. Every
+   live readout in this app is a number that updates many times a second. */
+.rv, .stat b, .sv, .dvb-meta b, .smval, .mono,
+[data-live], .stp .sv { font-variant-numeric: tabular-nums; }
+
+
+/* ══ 1. TYPE SCALE ════════════════════════════════════════════════════════
+   Applied to the classes that already exist, so no markup changes. Hierarchy
+   is built from weight + size + leading as a SET, never size alone. */
+
+.appbar h1, .phead h2 { letter-spacing: var(--tr-title); line-height: var(--lh-title); }
+.hero .nm             { letter-spacing: var(--tr-title); line-height: var(--lh-title); }
+.cfg .cn .name        { letter-spacing: var(--tr-title); }
+.aimph b, .smval      { letter-spacing: var(--tr-title); }
+
+/* The uppercase group headers. Uppercase without generous tracking reads as a
+   solid block; this is the one place a big positive value is correct. */
+.grp, .sh, .pkh { letter-spacing: var(--tr-label); }
+
+/* Small print gets a hair of positive tracking so it stays readable at 12px
+   over a translucent surface, where the background is moving underneath. */
+.flab em, .cd, .hint, .psub, .smsub, .smcap, .dvb-meta i {
+  letter-spacing: var(--tr-caption);
+}
+
+
+/* ══ 2. MATERIALS ═════════════════════════════════════════════════════════
+   The app bar and the device bar become glass. Content scrolls under them
+   rather than being walled off by an opaque strip — on an 800px phone screen
+   that is real estate we cannot afford to spend twice. */
+
+.appbar, .phead {
+  background: linear-gradient(180deg, var(--mat-bar-a), var(--mat-bar-b));
+  -webkit-backdrop-filter: var(--mat-thick);
+  backdrop-filter: var(--mat-thick);
+  box-shadow: var(--edge-lit);
+  /* No 1px bottom rule — §12 says fade the boundary, don't draw it. The
+     ::after below is that fade, and it only exists where chrome actually
+     overlaps content. */
+  border-bottom: none;
+  position: relative;
+  z-index: 8;
+}
+.appbar::after, .phead::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--mat-fade), var(--mat-fade-0));
+}
+
+/* The always-on device bar is the heaviest piece of chrome in the app: it
+   floats over live content permanently, so it gets the thickest material and
+   the strongest lit edge. */
+.devbar {
+  background: linear-gradient(180deg, var(--mat-dock-a), var(--mat-dock-b));
+  -webkit-backdrop-filter: var(--mat-thick);
+  backdrop-filter: var(--mat-thick);
+  border-top: 1px solid var(--mat-dock-rim);
+  box-shadow: var(--mat-dock-shadow);
+}
+
+/* Bottom sheets: big surface ⇒ thick glass ⇒ deep shadow. */
+.sheet {
+  background: linear-gradient(180deg, var(--mat-sheet-a), var(--mat-sheet-b));
+  -webkit-backdrop-filter: var(--mat-thick);
+  backdrop-filter: var(--mat-thick);
+  box-shadow: var(--el-4), var(--edge-lit);
+  border-color: var(--mat-rim);
+}
+/* The grabber. It is not decoration — it is the affordance that says "this
+   surface is draggable", which is now true (zs-motion.js). */
+.sheet .shead::before {
+  content: ""; position: absolute; top: 7px; left: 50%;
+  transform: translateX(-50%);
+  width: 38px; height: 4px; border-radius: 99px;
+  background: var(--mat-grabber);
+}
+.sheet .shead { position: relative; padding-top: 18px; }
+
+.sheetwrap .scrim { background: var(--mat-scrim); }
+
+/* Toasts are small floating chips: thin material, not thick. */
+.toast {
+  background: var(--mat-toast);
+  -webkit-backdrop-filter: var(--mat-thin);
+  backdrop-filter: var(--mat-thin);
+  box-shadow: var(--el-3), var(--edge-lit);
+  border-color: var(--mat-rim);
+  letter-spacing: var(--tr-body);
+}
+
+/* Never stack one light translucent surface on another — legibility collapses
+   (§12). Inside a sheet, controls go SOLID rather than adding a second pane
+   of glass on top of the first. */
+.sheet .pk, .sheet .pkr, .sheet .grp-card, .sheet .btn {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+
+/* ══ 3. PRESS — feedback belongs on pointer-down ══════════════════════════
+   §1: the moment feedback waits for touch-up, directness "falls off a cliff".
+   Everything tappable in this app now dips on press and releases on the
+   settle curve. Scale, not colour, because scale reads at any contrast and
+   survives high-contrast mode. */
+
+.btn, .seg2 button, .subtabs button, #edtabs button, .ib, .pk, .pkr, .pbtn,
+.card, .tile, .cfg, .drow, .item, .newcfg, .addbtn, .hero .go, .stp button,
+.sc, .mechpill, .mechcurve, .dvb-chip, .sheet .shead .sclose {
+  transition: transform var(--t-press) var(--ease-settle),
+              background-color var(--t-quick) var(--ease-settle),
+              border-color var(--t-quick) var(--ease-settle),
+              box-shadow var(--t-quick) var(--ease-settle);
+  will-change: transform;
+}
+/* :active AND .zs-pressing. They are not redundant — :active is what the
+   browser gives us for free, and .zs-pressing is what zs-motion.js maintains
+   so the press RELEASES when the finger slides off the target and comes BACK
+   when it slides on again (§10, cancel-by-dragging-away). CSS alone cannot
+   express that, and on a phone it is the difference between being able to
+   correct a mis-press and firing something you did not mean. */
+.btn:active, .seg2 button:active, .subtabs button:active, #edtabs button:active,
+.pk:active, .pkr:active, .pbtn:active, .card:active, .tile:active,
+.newcfg:active, .addbtn:active, .hero .go:active, .mechpill:active,
+.mechcurve:active, .dvb-chip:active,
+.btn.zs-pressing, .seg2 button.zs-pressing, .subtabs button.zs-pressing,
+#edtabs button.zs-pressing, .pk.zs-pressing, .pkr.zs-pressing,
+.pbtn.zs-pressing, .card.zs-pressing, .tile.zs-pressing,
+.newcfg.zs-pressing, .addbtn.zs-pressing, .hero .go.zs-pressing {
+  transform: scale(.972);
+}
+/* Rows are wide, so a uniform scale would visibly lift their edges off the
+   screen gutter. They dip less. */
+.cfg:active, .drow:active, .item:active,
+.cfg.zs-pressing, .drow.zs-pressing, .item.zs-pressing { transform: scale(.988); }
+/* Small square controls can take a deeper press — the travel is what makes a
+   34px target feel physical. */
+.ib:active, .stp button:active, .sc:active, .sheet .shead .sclose:active,
+.ib.zs-pressing, .stp button.zs-pressing { transform: scale(.90); }
+
+/* A pressed primary button should not also brighten — doubling the signal
+   makes it read as two events. */
+.btn.primary:active { filter: none; }
+
+
+/* ══ 4. THE ION ACCENT, APPLIED ═══════════════════════════════════════════
+   These selectors already existed; they just used to be blue. */
+
+.btn.primary, .seg2 button.on, .subtabs button.on, #edtabs button.on {
+  background: var(--accent);
+  color: var(--accent-ink, #041a2e);
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px var(--zs-ion-glow), var(--edge-lit);
+  font-weight: 650;
+}
+.btn.primary:active, .seg2 button.on:active,
+.subtabs button.on:active, #edtabs button.on:active {
+  box-shadow: 0 1px 4px var(--zs-ion-glow);
+}
+
+/* Focus rings are cyan and generous. Keyboard users and switch-access users
+   are first-class here, not an afterthought. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--zs-ion-wash);
+}
+
+/* The live/active hero gets elevation only.
+   Its left edge is DELIBERATELY not ours to style: phone.html sets it inline
+   to the active config's console family colour (blue = PlayStation, green =
+   Xbox), so the stripe answers "which console is live" at a glance. A brand
+   gradient there would look better and mean nothing — the first draft of this
+   file painted over it, which is exactly the trade this project should never
+   make. Decoration does not get to overwrite a signal. */
+.hero { box-shadow: var(--el-2), var(--edge-lit); }
+
+/* Progress and range fills carry the gradient — they are the two places a
+   value is being *expressed* rather than merely labelled. */
+.prog > i { background: var(--zs-grad); }
+
+/* Toggles: the knob is the moving part, so it gets the glow. */
+.sw.on { background: var(--zs-ion-wash); border-color: var(--accent); }
+.sw.on::after { background: var(--accent); box-shadow: 0 0 10px var(--zs-ion-glow); }
+.sw::after { box-shadow: var(--el-1); }
+
+input[type=range].rng::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px var(--zs-ion-glow);
+}
+
+
+/* ══ 5. THE CV / AI TIER ══════════════════════════════════════════════════
+   Screen Assist is the subscription tier. It gets the gradient so it is
+   visibly the premium surface, and so it can never be mistaken for a console
+   family badge. Add class `zs-tier` to any surface that belongs to it. */
+
+.zs-tier {
+  position: relative;
+  border-color: transparent !important;
+  background-image: linear-gradient(var(--panel), var(--panel)), var(--zs-grad);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+.zs-tier-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: var(--tr-caption);
+  color: #04121f; background: var(--zs-grad);
+  box-shadow: 0 1px 6px rgba(111, 155, 255, .35);
+}
+
+
+/* ══ 5a. THE LOCKUP ═══════════════════════════════════════════════════════
+   Two-tone: the reticle carries the accent, the word carries the text colour.
+   The crosshair is what the product DOES — it is the half worth colouring,
+   and a wordmark in the accent would just look like a link. */
+
+.appbar h1 .brandmark { height: 26px; width: auto; max-width: 100%; display: block; }
+.brandmark .zs-m { fill: var(--accent); }
+.brandmark .zs-w { fill: var(--text); }
+
+/* Where the surface cannot be trusted to be dark (high contrast, reduced
+   transparency, print) the mark goes single-tone rather than risking a cyan
+   that no longer has the contrast it was chosen for. */
+@media (prefers-contrast: more) {
+  .brandmark .zs-m, .brandmark .zs-w { fill: var(--text); }
+}
+body.a11y-contrast .brandmark .zs-m,
+body.a11y-contrast .brandmark .zs-w { fill: var(--text); }
+
+
+/* ══ 5b. THE RETICLE ══════════════════════════════════════════════════════
+   The crosshair from the logo, doing work. This is the app's spinner, its
+   "looking for a target" state and its "locked on" state — which is a much
+   better fit for an aim-assist product than a borrowed generic spinner, and
+   it costs one element.
+
+   Every state is legible WITHOUT colour (§16): idle is dim and still,
+   scanning rotates, locked closes the ring and lights the centre dot. A user
+   who cannot distinguish cyan from grey still sees three different things. */
+
+.zs-ret { display: block; color: var(--muted); }
+.zs-ret circle, .zs-ret path { transition: opacity var(--t-quick) var(--ease-settle); }
+.zs-ret-dot { opacity: 0; }
+
+/* idle — present, but plainly not doing anything */
+.zs-ret-idle { opacity: .45; }
+.zs-ret-idle .zs-ret-inner { opacity: .5; }
+
+/* scanning — the ring hunts, the inner ring counter-rotates so the two read
+   as independent mechanisms rather than one rigid wheel */
+.zs-ret-scanning { color: var(--accent); }
+.zs-ret-scanning .zs-ret-ring  { animation: zs-ret-spin 2.4s linear infinite; transform-origin: 50% 50%; }
+.zs-ret-scanning .zs-ret-inner { animation: zs-ret-spin 3.6s linear infinite reverse; transform-origin: 50% 50%; }
+.zs-ret-scanning .zs-ret-cross { opacity: .55; }
+
+/* locked — ring solid, crosshair full strength, centre dot lit. The dot
+   appearing is the moment of acquisition, so it gets the only bit of
+   overshoot in the whole component. */
+.zs-ret-locked { color: var(--accent); }
+.zs-ret-locked .zs-ret-ring  { stroke-dasharray: none !important; }
+.zs-ret-locked .zs-ret-inner { stroke-dasharray: none !important; opacity: .45; }
+.zs-ret-locked .zs-ret-dot   { opacity: 1; animation: zs-ret-lock .34s var(--ease-settle); }
+.zs-ret-locked { filter: drop-shadow(0 0 5px var(--zs-ion-glow)); }
+
+@keyframes zs-ret-spin { to { transform: rotate(360deg); } }
+@keyframes zs-ret-lock {
+  0%   { transform: scale(2.6); opacity: 0; }
+  60%  { transform: scale(.86); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Reduce Motion: a spinning reticle is exactly the vestibular trigger the
+   setting exists to remove. Keep the SIGNAL — swap rotation for a calm pulse
+   in place, which conveys "still working" without anything travelling. */
+@media (prefers-reduced-motion: reduce) {
+  .zs-ret-scanning .zs-ret-ring,
+  .zs-ret-scanning .zs-ret-inner { animation: none; }
+  .zs-ret-scanning { animation: zs-ret-breathe 2s ease-in-out infinite; }
+  .zs-ret-locked .zs-ret-dot { animation: none; }
+}
+body.a11y-motion .zs-ret-scanning .zs-ret-ring,
+body.a11y-motion .zs-ret-scanning .zs-ret-inner { animation: none !important; }
+@keyframes zs-ret-breathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
+
+/* ══ 6. SCROLL EDGES, NOT DIVIDERS ════════════════════════════════════════
+   §12: fade where content meets floating chrome instead of drawing a rule.
+   Only the scroll containers that actually sit under chrome get this. */
+
+.home, .menu, .dbody { scroll-behavior: smooth; overscroll-behavior-y: contain; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home, .menu, .dbody { scroll-behavior: auto; }
+}
+
+
+/* ══ 7. ACCESSIBILITY (apple-design §14) ══════════════════════════════════
+   Three independent signals, each honoured on its own terms. Reduced motion
+   is NOT no-feedback — it is a gentler, non-vestibular equivalent, so the
+   press dip survives as an opacity change and only the travel goes away. */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:active, .seg2 button:active, .subtabs button:active,
+  #edtabs button:active, .pk:active, .pkr:active, .pbtn:active,
+  .card:active, .tile:active, .cfg:active, .drow:active, .item:active,
+  .ib:active, .stp button:active, .newcfg:active, .addbtn:active,
+  .hero .go:active, .mechpill:active, .mechcurve:active, .dvb-chip:active,
+  .zs-pressing {
+    transform: none !important;
+    opacity: .62;              /* the feedback stays; only the travel goes */
+  }
+}
+body.a11y-motion .zs-pressing { transform: none !important; opacity: .62; }
+
+/* Transparency off ⇒ frost the glass into solid panels. Blur is the first
+   thing to go: it is the expensive part and the part that hurts legibility
+   for the people who asked for this. */
+@media (prefers-reduced-transparency: reduce) {
+  .appbar, .phead, .devbar, .sheet, .toast {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .appbar, .phead { background: var(--panel); }
+  .devbar         { background: var(--bg); border-top: 1px solid var(--line); }
+  .sheet          { background: var(--panel); }
+  .toast          { background: var(--panel2); }
+  .appbar::after, .phead::after { display: none; }
+}
+
+/* More contrast ⇒ near-solid surfaces with defined borders, and the hairlines
+   that were doing subtle work get promoted to real lines. */
+@media (prefers-contrast: more) {
+  .appbar, .phead, .devbar, .sheet, .toast {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--bg);
+    border: 1px solid var(--text);
+  }
+  .grp-card, .card, .cfg, .drow, .hero, .tile { border-color: var(--muted); }
+  :focus-visible { outline-width: 3px; }
+}
+
+/* The app's own Reduce Motion switch (body.a11y-motion) must beat everything,
+   including the springs — zs-motion.js reads this class and jumps to target
+   instead of animating. This block covers the CSS half. */
+body.a11y-motion *,
+body.a11y-motion *::before,
+body.a11y-motion *::after {
+  transition: none !important;
+  animation: none !important;
+}
+body.a11y-motion .btn:active,
+body.a11y-motion .card:active,
+body.a11y-motion .cfg:active,
+body.a11y-motion .item:active { transform: none; opacity: .62; }
+
+
+/* ══ 7b. FULL-BLEED APP MODE ══════════════════════════════════════════════
+   phone.html draws a phone: a bezel, a notch and a caption, because it was
+   built as a preview on a desktop screen. On an actual phone that bezel is a
+   picture of a phone inside a phone, and it costs ~80px of the only screen
+   there is.
+
+   body.zs-app strips the frame and fills the viewport. It is the SAME markup
+   and the same renderers — nothing is duplicated and no feature is dropped,
+   which is why this is a class and not a second copy of the app.
+
+   100dvh, not 100vh: on mobile Safari and Chrome the URL bar collapses on
+   scroll, and vh is measured against the LARGER viewport, so a 100vh app is
+   permanently a bar's-height too tall and the bottom of the device bar sits
+   off-screen. dvh tracks the visible height. */
+
+body.zs-app { padding: 0; gap: 0; background: var(--bg); }
+body.zs-app .cap { display: none; }
+body.zs-app .phone {
+  width: 100%; max-width: none;
+  height: 100vh; height: 100dvh; max-height: none;
+  border-radius: 0; padding: 0; box-shadow: none;
+}
+body.zs-app .screen { border-radius: 0; }
+body.zs-app .notch { display: none; }
+body.zs-app .devbar { border-radius: 0; }
+/* The desktop exe opens this same mode in an Edge app window (desktop.js:
+   ?app=1, --window-size=430,930). Dragged wide, a phone layout stretched to
+   1,280px is not an app — so the app stays a phone-width column, centred on
+   the dark ground. On a real phone the column IS the viewport and this
+   changes nothing. */
+body.zs-app .phone { max-width: 520px; margin: 0 auto; }
+/* Desktop Edge draws classic 15-17px scrollbars inside every scroller; on a
+   393px phone window that is 4% of the width taken from every list, and it
+   is what a phone never shows. Wheel and drag still scroll. */
+body.zs-app *::-webkit-scrollbar { width: 0; height: 0; }
+body.zs-app * { scrollbar-width: none; }
+
+/* Safe areas. Without these the app bar sits under the notch and the device
+   bar under the home indicator — on the exact hardware this mode exists for. */
+body.zs-app .appbar,
+body.zs-app .phead { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+body.zs-app .devbar { padding-bottom: calc(11px + env(safe-area-inset-bottom, 0px)); }
+/* a toast that sits at the top while a sheet is open clears the notch too,
+   and nothing hides under a camera hole in landscape */
+body.zs-app .screen:has(#sheetwrap.open) .toast { top: calc(12px + env(safe-area-inset-top, 0px)); }
+body.zs-app .appbar { padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+body.zs-app .phead { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+body.zs-app .home,
+body.zs-app .menu,
+body.zs-app .dbody { padding-bottom: calc(26px + var(--dvb-h) + env(safe-area-inset-bottom, 0px)); }
+
+
+/* ══ 7c. THE BLUETOOTH GATE ═══════════════════════════════════════════════
+   Shown over the app until a link exists. It is a full cover rather than a
+   banner on purpose: with no adapter connected every control below it would
+   be lying about what it is attached to. */
+
+.zs-gate {
+  position: absolute; inset: 0; z-index: 90;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 18px; padding: 30px 26px;
+  text-align: center; background: var(--bg);
+}
+.zs-gate[hidden] { display: none; }
+.zs-gate .zs-gate-mark { color: var(--accent); margin-bottom: 2px; }
+.zs-gate h2 {
+  margin: 0; font-size: 21px; letter-spacing: var(--tr-title);
+  line-height: var(--lh-title);
+}
+.zs-gate p {
+  margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55;
+  max-width: 30ch;
+}
+.zs-gate .zs-gate-btn {
+  margin-top: 6px; min-width: 210px; padding: 15px 22px;
+  border: none; border-radius: 14px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+  font: inherit; font-size: 15px; font-weight: 700;
+  letter-spacing: var(--tr-caption);
+  box-shadow: 0 4px 18px var(--zs-ion-glow);
+  transition: transform var(--t-press) var(--ease-settle);
+}
+.zs-gate .zs-gate-btn:active { transform: scale(.97); }
+.zs-gate .zs-gate-btn[disabled] { opacity: .55; box-shadow: none; }
+.zs-gate .zs-gate-alt {
+  border: none; background: none; color: var(--accent);
+  font: inherit; font-size: 13.5px; cursor: pointer; padding: 10px;
+  text-decoration: underline;
+}
+/* The failure text is the most important text on this screen, so it is not
+   grey-on-grey. Amber, not red: "your browser cannot" is a fact to act on,
+   not an error someone caused. */
+.zs-gate .zs-gate-why {
+  color: var(--amber); font-size: 13.5px; line-height: 1.55; max-width: 34ch;
+}
+.zs-gate .zs-gate-foot { color: var(--muted); font-size: 12px; max-width: 32ch; }
+
+
+/* ══ 8. OLED ══════════════════════════════════════════════════════════════
+   True black saves power on an OLED phone, but pure-black chrome with a blur
+   behind it looks like a hole in the screen. Keep a whisper of lift. */
+body.zs-oled .appbar, body.zs-oled .phead {
+  background: linear-gradient(180deg, rgba(14, 18, 25, .82), rgba(0, 0, 0, .70));
+}
+body.zs-oled .devbar { background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,.96)); }
+body.zs-oled .sheet  { background: linear-gradient(180deg, rgba(12,16,22,.94), rgba(0,0,0,.97)); }

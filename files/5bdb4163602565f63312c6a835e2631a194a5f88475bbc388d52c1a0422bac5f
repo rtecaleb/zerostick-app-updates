@@ -1,0 +1,49 @@
+// zs-cal-bar.js - the calibrator page's back key, top left (D273).
+//
+// calibrator.html carries the dongle screens' top bar (#zsbar: the 56 px
+// back key with a chevron and the title "Calibrator", css/zs-cal-connect.css).
+// It replaced the two floating bottom-left buttons (zs-home-fab.js and
+// zs-back-to-dongle.js, owner 2026-10-10: "that Android home button on the
+// bottom"). Where back goes is what those two did:
+//
+//   opened from the dongle hub (?from=dongle) -> dongle.html, and the
+//     Bluetooth link is KEPT (the dongle screen adopts it again);
+//   otherwise -> the device list, ../devices.html?pick=1 (?app=1 kept when the
+//     exe opened the page with it), after letting go of a Bluetooth dongle so
+//     the next page starts with the radio free, and - in the PC exe - after
+//     putting the PC back on its own WiFi (app-connect.js, ZSCALWIFI.leave).
+//
+// Never waits long: whatever happens, the page moves on within 6 s. ES5.
+(function () {
+  "use strict";
+  function target() {
+    var q = window.location.search || "";
+    if (/[?&]from=dongle(&|$)/.test(q)) return "dongle.html";
+    return "../devices.html?pick=1" + (/[?&]app=1(&|$)/.test(q) ? "&app=1" : "");
+  }
+  function back() {
+    var to = target();
+    if (to === "dongle.html") { window.location.href = to; return; }
+    var done = false;
+    function go() { if (done) { return; } done = true; window.location.href = to; }
+    setTimeout(go, 6000);
+    var waits = [];
+    var B = window.ZSHIDBLE;
+    try { if (B && B.isConnected && B.isConnected()) waits.push(B.disconnect()); } catch (e) { /* go anyway */ }
+    var W = window.ZSCALWIFI;
+    try { if (W && W.leave) waits.push(W.leave()); } catch (e) { /* go anyway */ }
+    if (!waits.length) { go(); return; }
+    var left = waits.length;
+    function one() { if (--left <= 0) go(); }
+    for (var i = 0; i < waits.length; i++) Promise.resolve(waits[i]).then(one, one);
+  }
+  function wire() {
+    var b = document.getElementById("zsback");
+    if (!b) return;
+    b.setAttribute("aria-label", target() === "dongle.html" ? "Back to the dongle" : "Back to devices");
+    b.addEventListener("click", back);
+  }
+  window.ZSCALBAR = { target: target, back: back };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+})();

@@ -1,0 +1,122 @@
+/* sections/03-stick-modes.js — the controller stick modes (D184, D186).
+ *
+ * Native / EXO Linear / Custom per stick: stickChoiceOf reads it, stickChoiceWrite
+ * writes stick.mode and stick.left|right {mode, grid, points}. The Aim page's
+ * stick pages and Match Your Game call these. Profile: stick.* -> STICKFEEL
+ * 0x0032 (zs-profile-encode.js writeStickFeel) -> zs_engine.c stick_feel().
+ *
+ * Also offers on ZS:          ZS.stickChoiceOf, ZS.stickChoiceName
+ * Tests:                      test-stick-modes.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('stick-modes', function (SEC) {
+  /* from the files before this one */
+  var ZS = SEC.ZS;
+
+  /* ── Why Native exists (it was "Native vs Tuned"; D186 below) ──────
+     The design hole this closes, in Caleb's words: "there is no clear default
+     sensitivity for getting normal feel." He was right, and it was arithmetic,
+     not taste. EVERY pad input went through the dead zone, the curve and the
+     smoothing filter even when the user only wanted their controller to behave
+     like their controller — and with the shipped defaults that is not 1:1.
+     Measured through the real pipeline: push the stick to 0.50 and the console
+     receives 0.457; 0.25 arrives as 0.185. So there was no baseline anywhere in
+     the product to judge a sensitivity number against, and "100%" was just a
+     number in the middle of a slider.
+
+     Native is that baseline. In native the board applies the rest cut and the
+     gain and nothing else, and gain 1.0 is exact identity — so 100% IS the
+     player's own pad, provably, and 150% is one and a half times something they
+     can feel. */
+  /* ── D186: ONE stick mode per stick ──────────────────────────────
+     The owner merged the two overlapping switches (2026-10-01): the old
+     Native / Tuned carousel in the ••• fold and D184's Native | EXO Linear |
+     Custom on the card. One control now, D184's names:
+       Native      the old Native and D184's Native: the rest cut and
+                   Sensitivity, nothing else. The default.
+       EXO Linear  D184's: the game's measured stick inverted (needs a
+                   calibrated translator; greyed until there is one).
+       Custom      the player's own shaping. On a measured game it is D184's
+                   Custom (EXO Linear plus the 7-point grid); without one it is
+                   the old Tuned stick (curve, deadzones, smoothing on top of
+                   the game), so it always works. Smoothing, the steadying for
+                   a shaky hand, and the deadzones live here either way.
+     STORED AS TWO FIELDS, ALWAYS WRITTEN TOGETHER (stickChoiceWrite):
+       stick.left.mode / stick.right.mode  native | exoLinear | custom
+       stick.mode                          tuned if either stick is Custom,
+                                           else native
+     READ BACK (stickChoiceOf), the same rule the Core's engine applies
+     (zs_engine.c, D186): a config that names no D184 mode for either stick
+     is every config saved before D184, so stick.mode decides both sticks
+     (native -> Native, tuned -> Custom); otherwise each stick is its own
+     mode. The engine decides per stick the same way, so what this screen
+     says is what the Core runs. */
+  function stickChoiceOf(full, side){
+    var s = (full && full.stick && typeof full.stick==='object') ? full.stick : {};
+    function named(sd){
+      var m = (s[sd] && typeof s[sd]==='object') ? s[sd].mode : null;
+      return (m==='exoLinear' || m==='custom') ? m : null;
+    }
+    if(named('left') || named('right')) return named(side) || 'native';
+    return s.mode==='native' ? 'native' : 'custom';
+  }
+  /* the D184 half (EXO Linear, the per-stick modes, the grid) is a Core
+     feature: an EXO's agent has no stick-mode stage (PRODUCTS), so on an
+     EXO the one control is Native | Custom over stick.mode alone */
+  function stickModesCore(){ return !(ZS.productHides && ZS.productHides('stickModes')); }
+  var STICK_CHOICE_NAME = { native:'Native', exoLinear:'EXO Linear', custom:'Custom' };
+  function stickChoiceWrite(f, side, choice){
+    if(!f.stick || typeof f.stick!=='object') f.stick = {};
+    var before = stickChoiceOf(f, side);
+    if(!stickModesCore()){
+      f.stick.mode = choice==='custom' ? 'tuned' : 'native';
+    } else {
+      var cur = { left: stickChoiceOf(f, 'left'), right: stickChoiceOf(f, 'right') };
+      cur[side] = choice;
+      ['left','right'].forEach(function(sd){
+        if(!f.stick[sd] || typeof f.stick[sd]!=='object') f.stick[sd] = {};
+        var st = f.stick[sd];
+        st.mode = cur[sd];
+        /* Custom always carries its curve, so the Core has the drawn one
+           the moment this game is measured (a straight one to begin with,
+           which IS EXO Linear's feel) */
+        if(cur[sd]==='custom' && window.ZSCURVE){
+          if(!ZSCURVE.gridOf(st.grid)) st.grid = ZSCURVE.straight();
+          st.points = ZSCURVE.sample(st.grid);
+        }
+      });
+      f.stick.mode = (cur.left==='custom' || cur.right==='custom') ? 'tuned' : 'native';
+    }
+    if(typeof f.stick.restZone !== 'number') f.stick.restZone = 0.05;
+    /* Native means native. A gain left over from a Custom session is the
+       one shaping number Native still reads, so leaving Custom for Native
+       with it at 200% would hand back a stick that is emphatically NOT the
+       player's controller. That stick's gain goes back to the baseline
+       (Sensitivity for the aim stick, Movement speed for the walking one;
+       on an EXO, where one switch is both sticks, both), and the toast says
+       so: a reset nobody is told about is a setting that vanished. */
+    var reset = [];
+    if(choice==='native' && before==='custom'){
+      if(!f.curves) f.curves = {};
+      (stickModesCore() ? [side] : ['left','right']).forEach(function(sd){
+        var k = sd==='left' ? 'leftStick' : 'rightStick';
+        if(!f.curves[k]) f.curves[k] = {type:'linear', strength:1.0, points:[]};
+        if(f.curves[k].gain!==1.0) reset.push(sd==='left' ? 'Movement speed' : 'Sensitivity');
+        f.curves[k].gain = 1.0;
+      });
+    }
+    return { before: before, reset: reset };
+  }
+  ZS.stickChoiceOf = stickChoiceOf;
+  ZS.stickChoiceName = function(c){ return STICK_CHOICE_NAME[c] || 'Native'; };
+
+  /* what the other screen files use from this one */
+  SEC.STICK_CHOICE_NAME = STICK_CHOICE_NAME;
+  SEC.stickChoiceOf = stickChoiceOf;
+  SEC.stickChoiceWrite = stickChoiceWrite;
+  SEC.stickModesCore = stickModesCore;
+});

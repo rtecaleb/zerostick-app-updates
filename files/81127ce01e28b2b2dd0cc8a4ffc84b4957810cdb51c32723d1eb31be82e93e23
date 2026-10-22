@@ -1,0 +1,406 @@
+/* sections/13b-measure.js — Measure this game: the Core measures the game's
+ * stick curve by itself (D397).
+ *
+ * The card sits in the Translation tab's Calibration group, above Velocity
+ * calibration. The Core drives the right stick through a sweep (the dead
+ * zone, about a dozen stick positions both ways, up and down, a diagonal,
+ * and the same aiming down sights), watches the turn through the capture
+ * card (components/zs_calib/zs_turnmeter.c, an optical turn meter) and fits
+ * the game's translator (zs_measure_fit.c). Same routes as Calibrate:
+ * POST /calibrate/start {mode:"measure", id, name, date, console, settings,
+ * ads}, GET /calibrate/status (mode "measure"), GET /calibrate/model,
+ * POST /calibrate/cancel. Any deliberate touch on the controller, mouse or
+ * keyboard stops it at once (main/zs_run_calib.c posttick).
+ *
+ * "Use this translator" writes mouseTranslation.resolvedAimModel through
+ * ZSAIMMODEL.resolve (the old one kept as previousAimModel, so Restore is
+ * one tap) and keeps the measured model per game and console in the app's
+ * store, ZS.store.vals['aimMeasured|<pack>|<console family>']: from then on
+ * 12-translation.js trModelOf prefers it over the pack's model (published
+ * settings and XIM's tables, D394: estimates of this player's game).
+ *
+ * "Copy for the ZeroStick team" copies {zerostickMeasured: 1, pack, console,
+ * settings, date, aimModel}: the owner collects these by hand (no upload,
+ * nothing leaves the phone by itself) and adds one to the game's preset with
+ * tools/set-pack-aim-model.js <pack> - (it unwraps aimModel).
+ *
+ * Firmware: main/zs_run_calib.c, main/zs_run_measure_adapt.c,
+ * components/zs_calib/zs_measure*.c. Fixture: fixtures/core-measure.json
+ * (test_measure.c --write). Tests: test-measure-game.js.
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('measure', function (SEC) {
+  /* from the files before this one */
+  var esc = SEC.esc, note = SEC.note, ZS = SEC.ZS, helpHTML = SEC.helpHTML,
+      copyText = SEC.copyText, calParked = SEC.calParked, calParkedHTML = SEC.calParkedHTML;
+
+  /* the Core's phases (zs_measure.c zs_ms_phase_word), in plain words */
+  var MS_PHASE = {
+    ready: 'Getting ready', settle: 'Watching the picture hold still',
+    look: 'Finding the floor and the sky', level: 'Levelling the view',
+    zone: 'Finding the dead zone', scale: 'Timing a full turn',
+    curve: 'Turning at each stick position', pitch: 'Looking up and down',
+    diag: 'Checking the dead zone’s shape', ads: 'Aiming down sights',
+    finish: 'Letting go', done: 'Working out the numbers'
+  };
+  var MS_INTRO = 'Your Core works out how this game turns, by itself.';
+  var MS_HELP = 'Your Core moves the right stick by itself and watches the picture through your capture card. '+
+    'It finds the dead zone, how fast the view turns at about a dozen stick positions, how fast it looks up and down, '+
+    'and the same while aiming down sights. From that it builds this game’s translator, so your mouse turns '+
+    'the view exactly as far as your hand. '+
+    'It never presses fire. Touching the controller, mouse or keyboard stops it at once. '+
+    'Run it again if you change your in-game sensitivity, dead zone or aim curve.';
+  var MS_STOP_HOW = 'Touch the controller, mouse or keyboard to stop it, or tap Stop.';
+  var MS_TEAM_HELP = 'Copies this measurement for the ZeroStick team. Nothing is sent by itself: '+
+    'paste it in a message to the team and it can become this game’s preset for everyone.';
+
+  function msKey(packId, platform){
+    var fam = (window.ZSAIMMODEL && ZSAIMMODEL.consoleFamily) ? ZSAIMMODEL.consoleFamily(platform) : '';
+    return 'aimMeasured|'+packId+'|'+(fam || 'any');
+  }
+  /* the measured translator kept for this game and console, or null */
+  function msStored(packId, platform){
+    var vals = ZS.store && ZS.store.vals;
+    var v = vals ? vals[msKey(packId, platform)] : null;
+    if(!v || typeof v !== 'object' || !v.model || !window.ZSAIMMODEL) return null;
+    return ZSAIMMODEL.validate(v.model).length ? null : v;
+  }
+  function msPhase(d){
+    var w = MS_PHASE[d.phase] || 'Measuring';
+    if(d.kind === 'curve' || d.kind === 'fast') w = 'Turning at '+Math.round(Math.abs(d.rx || 0) * 100)+'% stick';
+    if(d.kind === 'pitch') w = 'Looking '+((d.ry || 0) > 0 ? 'up' : 'down')+' at '+Math.round(Math.abs(d.ry || 0) * 100)+'% stick';
+    return (d.group === 1 && d.phase !== 'finish' ? 'Aiming down sights: ' : '')+w;
+  }
+  function msBar(frac){
+    var pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+    return '<div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+
+      '" style="height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 6px">'+
+      '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:4px;'+
+      'transition:width .5s"></div></div>';
+  }
+  function msClock(ms){
+    var s = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(s / 60)+':'+('0'+(s % 60)).slice(-2);
+  }
+  function msNum(v, dp){ var n = Number(v); return isFinite(n) ? n.toFixed(dp || 0) : '–'; }
+
+  /* THE RESULT'S PICTURE: turn speed (deg/s) against stick (0..100 %).
+     The measured points (dots), the fitted translator (the line the Core
+     will follow), and the translator in use now (dashed), so the player
+     sees what changes. Colours are the palette's tokens (DESIGN.md). */
+  function msCurveSVG(r, now){
+    var W = 320, H = 180, L = 40, Rr = 10, T = 10, Bm = 26;
+    var pw = W - L - Rr, ph = H - T - Bm;
+    var top = Math.max(r.yaw || 0, now && now.yaw || 0, 1);
+    function X(s){ return (L + s * pw).toFixed(1); }
+    function Y(v){ return (T + ph - Math.min(1, v / top) * ph).toFixed(1); }
+    function line(pts){ return pts.map(function(q, i){ return (i ? 'L' : 'M')+X(q[0])+' '+Y(q[1]); }).join(' '); }
+    var dz = Number(r.deadzone) || 0, fit = [[0, 0], [dz, 0]];
+    (r.curve || []).forEach(function(c){ fit.push([dz + c[0] * (1 - dz), c[1] * r.yaw]); });
+    fit.push([1, r.yaw]);
+    var nowPath = '';
+    if(now && now.r){
+      var np = [];
+      for(var i = 0; i <= 40; i++){
+        var t = window.ZSAIMMODEL.dpsOfStick(now.r, false, 0, i / 40);
+        if(t) np.push([i / 40, t.yaw]);
+      }
+      if(np.length) nowPath = '<path d="'+line(np)+'" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>';
+    }
+    var dots = (r.points || []).filter(function(q){ return q[3] === 0 && q[1] > 0; }).map(function(q){
+      return '<circle cx="'+X(q[0])+'" cy="'+Y(q[1])+'" r="3" fill="var(--accent)"/>';
+    }).join('');
+    var grid = [0.25, 0.5, 0.75, 1].map(function(f){
+      return '<line x1="'+L+'" x2="'+(W - Rr)+'" y1="'+Y(top * f)+'" y2="'+Y(top * f)+'" stroke="var(--line)" stroke-width="1"/>';
+    }).join('');
+    return '<svg id="ms-curve" viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Turn speed at each stick position: '+
+        'measured points and the new translator'+(nowPath ? ', and the one in use now' : '')+'" style="display:block;max-width:420px;margin:6px 0">'+
+      grid+
+      '<line x1="'+L+'" x2="'+(W - Rr)+'" y1="'+(T + ph)+'" y2="'+(T + ph)+'" stroke="var(--muted)" stroke-width="1"/>'+
+      nowPath+
+      '<path d="'+line(fit)+'" fill="none" stroke="var(--accent)" stroke-width="2"/>'+dots+
+      '<text x="'+(L - 4)+'" y="'+(Number(Y(top)) + 4)+'" text-anchor="end" font-size="10" fill="var(--muted)">'+Math.round(top)+'</text>'+
+      '<text x="'+(L - 4)+'" y="'+(T + ph)+'" text-anchor="end" font-size="10" fill="var(--muted)">0</text>'+
+      '<text x="'+(L + 4)+'" y="'+(T + 12)+'" font-size="10" fill="var(--muted)">turn, °/s</text>'+
+      '<text x="'+L+'" y="'+(H - 8)+'" font-size="10" fill="var(--muted)">0%</text>'+
+      '<text x="'+(W - Rr)+'" y="'+(H - 8)+'" text-anchor="end" font-size="10" fill="var(--muted)">100% stick</text>'+
+      '</svg>'+
+      '<div class="xsub" style="margin:0 0 6px">'+
+        '<span style="color:var(--accent)">●</span> measured &nbsp; <span style="color:var(--accent)">—</span> new translator'+
+        (nowPath ? ' &nbsp; <span style="color:var(--muted)">- -</span> in use now' : '')+'</div>';
+  }
+
+  function msWire(root, p, found){
+    var box = root.querySelector('#tr-measure');
+    if(!box) return;
+    var timer = null, lastState = null, misses = 0;
+    var pack = (found && found.pack) || ((window.ZSPACKS && ZSPACKS.ofConfig) ? ZSPACKS.ofConfig(p) : null);
+    var packId = pack ? (pack.id || 'game') : 'game';
+    var gameName = pack ? pack.name : 'This game';
+    function settingsText(){
+      var m = pack && pack.aimModel;
+      var rows = (m && Array.isArray(m.gameSettings)) ? m.gameSettings : [];
+      return rows.map(function(g){ return String(g.setting)+' '+String(g.value); }).join(', ').slice(0, 95);
+    }
+    function alive(){ return document.body.contains(box); }
+    function later(ms){ clearTimeout(timer); timer = setTimeout(poll, ms); }
+    function btn(id, cls, text, off){
+      return '<button class="btn '+cls+'" id="'+id+'" style="margin-top:10px"'+(off ? ' disabled' : '')+'>'+esc(text)+'</button>';
+    }
+    function on(id, fn){ var b = box.querySelector('#'+id); if(b) b.addEventListener('click', fn); }
+    function line(t, id, top){
+      return '<div class="xsub"'+(id ? ' id="'+id+'"' : '')+' style="margin:'+(top ? '10px' : '0')+' 0 6px">'+t+'</div>';
+    }
+    function cur(){
+      var full = (ZS.live.online !== false ? ZS.live.full[p.id] : null) || {};
+      return full.mouseTranslation || {};
+    }
+    function steps(){
+      return '<ol class="ms-steps" style="margin:8px 0 2px;padding:0 0 0 20px;font-size:13px;line-height:1.5;color:var(--text)">'+
+        '<li style="margin:0 0 6px">Open a private match or the firing range, on your own.</li>'+
+        '<li style="margin:0 0 6px">Stand in an open spot with things to see all round you, not facing a wall.</li>'+
+        '<li style="margin:0 0 6px">Take aim assist off in the game for now.</li>'+
+        '<li style="margin:0">Tap Start, then put the controller down. Any touch stops it.</li></ol>';
+    }
+    function idle(extra, off){
+      if(calParked && calParked()){
+        box.innerHTML = line(esc(MS_INTRO))+helpHTML('ms-what', 'Measure this game', MS_HELP)+
+          calParkedHTML().replace('id="cal-parked"', 'id="ms-parked"');
+        return;
+      }
+      box.innerHTML = line(esc(MS_INTRO)+' About two minutes.')+
+        helpHTML('ms-what', 'Measure this game', MS_HELP)+
+        steps()+(extra || '')+btn('ms-start', off ? 'ghost' : 'primary', 'Start', !!off);
+      on('ms-start', start);
+    }
+    /* the owner's 3 second countdown (as Calibrate's): every key off while
+       it counts; leaving the screen during it starts nothing */
+    function start(e){
+      var b = (e && e.currentTarget) || box.querySelector('#ms-start');
+      [].forEach.call(box.querySelectorAll('button.btn'), function(x){ x.disabled = true; });
+      var n = 3;
+      function tick(){
+        if(!alive()) return;
+        if(n > 0){
+          if(b) b.textContent = 'Hands off… '+n;
+          n--;
+          setTimeout(tick, 1000);
+          return;
+        }
+        if(b) b.textContent = 'Starting…';
+        go();
+      }
+      tick();
+    }
+    function go(){
+      ZS.api('/calibrate/start', 'POST', {
+        mode: 'measure', id: packId, name: gameName+' (measured on your Core)',
+        date: new Date().toISOString().slice(0, 10), console: String(p.platform || ''),
+        settings: settingsText(), ads: true
+      }).then(function(j){
+        if(!alive()) return;
+        if(!j || !j.ok){
+          var e = (j && j.error) || 'Your Core did not start measuring. Try again.';
+          if(/"calibrate" or "kick"|"velocity"/.test(e)) e = 'Update your Core to measure games.';
+          idle(note(esc(e), 'warn', true));
+          return;
+        }
+        render(j);
+        later(600);
+      });
+    }
+    /* the translator in use now, for the picture's dashed line */
+    function nowModel(){
+      var r = cur().resolvedAimModel;
+      if(r && typeof r === 'object' && window.ZSAIMMODEL && ZSAIMMODEL.usable(r)){
+        var t = ZSAIMMODEL.dpsOfStick(r, false, 0, 1);
+        return { r: r, yaw: t ? t.yaw : 0 };
+      }
+      return null;
+    }
+    function rows(r){
+      function row(label, v, id){
+        return '<div class="stat"'+(id ? ' id="'+id+'"' : '')+'><span>'+esc(label)+'</span><b>'+v+'</b></div>';
+      }
+      var a = r.ads || {};
+      var shape = { radial: 'round', axial: 'square', mixed: 'round and square' }[r.shape];
+      return row('Dead zone', msNum((r.deadzone || 0) * 100, 1)+'%'+(shape ? ' ('+shape+')' : ''), 'ms-dz')+
+        row('Full stick', msNum(r.yaw)+' °/s', 'ms-yaw')+
+        row('Up and down', msNum(r.pitch)+' °/s', 'ms-pitch')+
+        (a.measured ? row('Aiming, full stick', msNum(a.yaw)+' °/s', 'ms-ads') : '')+
+        (r.ramp && r.ramp.present ? row('Turn boost', '×'+msNum(r.ramp.gain, 2)+' after '+msNum(r.ramp.delayMs)+' ms', 'ms-ramp') : '')+
+        (r.hfov > 0 ? row('Field of view', msNum(r.hfov)+'°', 'ms-fov') : '');
+    }
+    function applied(model){
+      var mt = cur();
+      return !!(window.ZSAIMMODEL && model && ZSAIMMODEL.isActive(model, mt, p.platform));
+    }
+    function useIt(){
+      var b = box.querySelector('#ms-use');
+      if(b){ b.disabled = true; b.textContent = 'Saving…'; }
+      ZS.api('/calibrate/model').then(function(j){
+        if(!alive()) return;
+        var m = j && j.ok ? j.data : null;
+        var errs = (m && window.ZSAIMMODEL) ? ZSAIMMODEL.validate(m) : ['no model'];
+        if(errs.length){
+          if(b){ b.disabled = false; b.textContent = 'Use this translator'; }
+          ZS.toast && ZS.toast('Your Core’s translator was not usable. Measure again.');
+          return;
+        }
+        /* kept for this game and console: trModelOf prefers it over an
+           estimate from now on */
+        if(ZS.store && ZS.store.vals){
+          ZS.store.vals[msKey(packId, p.platform)] = { model: m, date: new Date().toISOString().slice(0, 10),
+            console: String(p.platform || ''), settings: settingsText() };
+          if(ZS.persistStore) ZS.persistStore();
+        }
+        ZS.putProfileDebounced(p.id, function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          var rm = ZSAIMMODEL.resolve(m, f.mouseTranslation, p.platform);
+          if(!rm) return;
+          var was = f.mouseTranslation.resolvedAimModel;
+          f.mouseTranslation.previousAimModel = (was && typeof was === 'object') ? was : 'standard';
+          f.mouseTranslation.resolvedAimModel = rm;
+        });
+        ZS.toast && ZS.toast('Measured translator on');
+        setTimeout(function(){ if(ZS.redrawOpenScreen) ZS.redrawOpenScreen(); }, 900);
+      });
+    }
+    function copyTeam(d){
+      ZS.api('/calibrate/model').then(function(j){
+        var m = j && j.ok ? j.data : null;
+        if(!m){ ZS.toast && ZS.toast('Your Core no longer has this measurement. Measure again.'); return; }
+        var r = d.result || {};
+        copyText(JSON.stringify({ zerostickMeasured: 1, pack: packId, console: r.console || String(p.platform || ''),
+          settings: r.settings || settingsText(), date: new Date().toISOString().slice(0, 10), aimModel: m }, null, 2),
+          'Copied. Paste it in a message to the ZeroStick team.');
+      });
+    }
+    function done(d){
+      var r = d.result || {};
+      /* already in use (the one kept for this game is this run's, and the
+         config runs it): said, and Use goes */
+      var kept = msStored(packId, p.platform);
+      var km = kept && kept.model && kept.model.hip;
+      var ky = km && km.turnRate ? Number(km.turnRate.yaw) : NaN;
+      var inUse = !!kept && Math.abs(ky - Number(r.yaw)) < 0.6 && applied(kept.model);
+      box.innerHTML =
+        '<div class="stat"><span>Measured. Every check passed.</span><b class="ok">✓</b></div>'+
+        msCurveSVG(r, nowModel())+
+        rows(r)+
+        (inUse ? '<div class="stat" id="ms-on"><span>This translator is on</span><b class="ok">✓ In use</b></div>'
+          : btn('ms-use', 'primary', 'Use this translator'))+
+        btn('ms-team', 'ghost', 'Copy for the ZeroStick team')+
+        helpHTML('ms-team-what', 'Copy for the ZeroStick team', MS_TEAM_HELP)+
+        btn('ms-again', 'ghost', 'Measure again');
+      on('ms-use', useIt);
+      on('ms-team', function(){ copyTeam(d); });
+      on('ms-again', start);
+    }
+    function rejected(d){
+      var failed = d.state === 'failed';
+      var probs = Array.isArray(d.problems) && d.problems.length ? d.problems
+        : [d.fitWhy || d.why || 'The measurement did not finish.'];
+      box.innerHTML =
+        '<div class="stat"><span>'+(failed ? 'It stopped before the end' : 'This measurement can’t be used')+'</span>'+
+          '<b style="color:var(--amber)">Not saved</b></div>'+
+        (failed && d.why ? line(esc(d.why)) : '')+
+        note(esc(failed ? 'Check your capture card shows the game, then try again. Nothing was changed.'
+          : 'Something moved or blocked the view. Stand in an open spot on your own, don’t touch the controller, '+
+            'and try again. Nothing was changed.'), 'warn', true)+
+        (failed ? '' : helpHTML('ms-why', 'What your Core saw', probs.map(esc).join(' ')))+
+        btn('ms-again', 'primary', 'Measure again');
+      on('ms-again', start);
+    }
+    function cancelRun(){
+      var b = box.querySelector('#ms-cancel');
+      if(b){ b.disabled = true; b.textContent = 'Stopping…'; }
+      ZS.api('/calibrate/cancel', 'POST', {}).then(function(){ later(200); });
+    }
+    function lostReply(j){
+      if(!j) return true;
+      var e = String(j.error || (j.errors && j.errors[0]) || '');
+      return ZS.live.online === false || /unreachable|timed? ?out|usb request failed|no answer|abort/i.test(e);
+    }
+    function waiting(){
+      misses++;
+      if(lastState !== 'running'){
+        idle(line(esc(ZS.live.online === false ? 'Your Core isn’t connected. Connect it to measure.'
+          : 'No answer from your Core just now. Asking again…'), 'ms-wait', true), true);
+        later(Math.min(1000 * misses, 5000));
+        return;
+      }
+      if(!box.querySelector('#ms-wait')){
+        box.innerHTML = '<div class="stat"><span>Measuring</span><b>…</b></div>'+line('', 'ms-wait')+
+          line(esc(MS_STOP_HOW))+btn('ms-cancel', 'ghost', 'Stop');
+        on('ms-cancel', cancelRun);
+      }
+      var w = box.querySelector('#ms-wait');
+      if(w) w.textContent = 'No answer from your Core just now. Asking again…';
+      later(Math.min(1000 * misses, 5000));
+    }
+    function render(j){
+      if(!j || !j.ok){
+        if(lastState === 'running' || lostReply(j)){ waiting(); return; }
+        box.innerHTML = line('This Core can’t measure games yet. Update its firmware to use it.');
+        return;
+      }
+      misses = 0;
+      var d = j.data || {};
+      /* the other calibrations' runs are their cards' (one session) */
+      if(d.mode !== 'measure'){
+        lastState = null;
+        if(d.state === 'running'){
+          idle(line('Another calibration is running. Start is ready again when it finishes.', '', true), true);
+          later(2000);
+        } else idle('');
+        return;
+      }
+      lastState = d.state || null;
+      if(d.state === 'running'){
+        var left = d.totalMs > 0 ? d.totalMs - (d.doneMs || 0) : 0;
+        box.innerHTML =
+          '<div class="stat"><span style="flex:1;min-width:0" id="ms-phase">'+esc(msPhase(d))+'</span>'+
+            (d.totalMs > 0 ? '<b id="ms-left" style="flex:none">'+(left > 1500 ? 'About '+msClock(left)+' left' : 'Almost done')+'</b>' : '')+
+          '</div>'+
+          msBar(d.totalMs ? (d.doneMs || 0) / d.totalMs : 0)+
+          line('Your Core is moving the stick. Fire is never pressed.')+
+          line(esc(MS_STOP_HOW))+
+          btn('ms-cancel', 'ghost', 'Stop');
+        on('ms-cancel', cancelRun);
+        return;
+      }
+      if(d.state === 'done' && d.fitOk){ done(d); return; }
+      if(d.state === 'done' && !d.fitOk && d.fitWhy){ rejected(d); return; }
+      if(d.state === 'done'){
+        box.innerHTML = '<div class="stat"><span>Working out the numbers</span><b>…</b></div>';
+        later(800);
+        return;
+      }
+      if(d.state === 'failed'){ rejected(d); return; }
+      if(d.state === 'cancelled'){
+        idle(note(esc(/touched/.test(d.why || '') ? 'Stopped: the controller, mouse or keyboard was touched. Nothing was changed.'
+          : 'Stopped. Nothing was changed.')));
+        return;
+      }
+      idle('');
+    }
+    function poll(){
+      if(!alive()){ clearTimeout(timer); return; }
+      ZS.api('/calibrate/status').then(function(j){
+        if(!alive()) return;
+        render(j);
+        if(j && j.ok && j.data && j.data.state === 'running' && j.data.mode === 'measure') later(600);
+      });
+    }
+    poll();
+  }
+
+  /* what the other screen files use from this one */
+  SEC.msWire = msWire;
+  SEC.msStored = msStored;
+});
