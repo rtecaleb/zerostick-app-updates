@@ -1,0 +1,30 @@
+// Floating "home" button on the calibrator screen - the way back to
+// the ZeroStick device selector (index.html). iPhones have no system
+// back button, so the page carries its own.
+(function () {
+  "use strict";
+  function add() {
+    var b = document.createElement("button");
+    b.setAttribute("aria-label", "Back to devices");
+    b.style.cssText =
+      "position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);" +
+      "z-index:100001;width:46px;height:46px;border-radius:50%;border:1px solid " +
+      "rgba(111,155,255,.42);background:rgba(18,24,36,.92);color:#e9edf3;" +
+      "box-shadow:0 4px 14px rgba(0,0,0,.4);display:grid;place-items:center;" +
+      "font-size:20px;-webkit-tap-highlight-color:transparent;";
+    b.innerHTML =
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="#e9edf3" stroke-width="2" stroke-linecap="round" ' +
+      'stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/>' +
+      '<path d="M6 10v9h12v-9"/></svg>';
+    b.addEventListener("click", function () {
+      window.location.href = "index.html";
+    });
+    document.body.appendChild(b);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", add);
+  } else {
+    add();
+  }
+})();

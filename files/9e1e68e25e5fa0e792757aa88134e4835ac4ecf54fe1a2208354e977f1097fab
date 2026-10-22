@@ -1,0 +1,17 @@
+/* zs-dongle-mock-loader.js — loads the simulated dongle (js/zs-dongle-mock.js)
+ * ONLY when the page was opened with ?mock=1 (desktop testing). The choice
+ * sticks for this browser tab so the next page keeps it; ?mock=off clears
+ * it. Must be a plain <script> placed BEFORE js/hid-ble.js. ES5.
+ */
+(function () {
+  'use strict';
+  var s = location.search, on = false;
+  try {
+    if (/[?&]mock=off\b/.test(s)) { sessionStorage.removeItem('zsMock'); sessionStorage.removeItem('zsMockOpts'); }
+    else if (/[?&]mock=1\b/.test(s)) { sessionStorage.setItem('zsMock', '1'); }
+    on = sessionStorage.getItem('zsMock') === '1';
+  } catch (e) {
+    on = /[?&]mock=1\b/.test(s);
+  }
+  if (on) { document.write('<script src="js/zs-dongle-mock.js"><\/script>'); }
+})();

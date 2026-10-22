@@ -1,0 +1,234 @@
+# Where the Rust weapon catalog comes from
+
+Everything here was read on **2026-10-21**. `catalog.json` is the single-kind
+form (`kind: "weapons"`, Warzone's shape). The game is **Rust Console Edition**
+(PlayStation and Xbox), because the EXO is a console adapter; where it differs
+from Rust on PC is said below.
+
+**Two publishers.** Facepunch Studios makes Rust. Rust Console Edition is
+published and developed by **Double Eleven** with Facepunch, and its official
+site is [rust.double11.com](https://rust.double11.com/), whose
+[news page](https://rust.double11.com/news) holds every console patch note and
+dev blog since 2021 (164 posts, all read through the site's own JSON feed,
+`https://rust.double11.com/news?format=json`, on 2026-10-21).
+
+**Pictures: publisher artwork only (decision D116).** Every picture in
+`weapons/` is Facepunch's own inventory icon for the item, downloaded from
+Facepunch's file server `files.facepunch.com` at
+`https://files.facepunch.com/rust/item/<item shortname>_512.png`. That is the
+picture Facepunch's own wiki shows on each item's page (for example
+[wiki.facepunch.com/rust/item/rifle.ak](https://wiki.facepunch.com/rust/item/rifle.ak)
+embeds `https://files.facepunch.com/rust/item/rifle.ak_512.png`). Each 512 x
+512 RGBA icon was cropped to the weapon (transparent border removed, 4 px kept)
+and scaled to fit 480 x 300, transparency kept. None came from a fan wiki,
+Fandom, RustLabs, a loadout site or an image search, and none is generated.
+They are Facepunch's copyright, used in the app to identify the weapon, the
+same risk the owner accepted in D116. Delete a `.png` and set that weapon's
+`image` to `null` and the app shows the class symbol instead.
+
+The icons are the PC game's icons. Rust Console Edition uses the same item
+art (Double Eleven's notes repeatedly bring console models and effects in line
+"to match the Steam version"), but no console page shows an icon, so this is
+not confirmed for every item.
+
+## What is in Rust Console Edition today
+
+- **Current update: 1.16**, live since 2026-09-23
+  ([Dev Blog #55 - 1.16 Patch Notes](https://rust.double11.com/news/dev-blog-55)).
+  Neither 1.16 nor [Halloween 2026](https://rust.double11.com/news/halloween-2026)
+  (2026-10-15 to 2026-11-05) names a new weapon. The Halloween post says "Grab
+  a stake" and mentions limited-time gear; Facepunch's PC Weapons category has
+  a Vampire Stake, but no console page names it, so it is not in the catalog.
+- Rust has **no seasons**: the catalog's `season` is the update live on the
+  day it was checked.
+- **57 weapons in 12 groups, 56 with a Facepunch picture.**
+
+### Names
+
+Names are the game's own item names, as Facepunch's wiki prints them on each
+item's page (`https://wiki.facepunch.com/rust/item/<shortname>`; the item
+pages are Facepunch's, generated from the game's item data: description, item
+ID, craft cost). Every item's `sources` lists that page and the Double Eleven
+console posts that name it. Where the two spell it differently, the catalog
+uses Facepunch's item name and keeps Double Eleven's as an alias:
+
+| console notes say | catalog uses | alias kept |
+|---|---|---|
+| Nail Gun / Nail gun | Nailgun | Nail Gun |
+| Handmade LMG (Patch Notes 1.90) | HMLMG (and later console notes) | Handmade LMG |
+| MP5 | MP5A4 | MP5 |
+| Military Flame Thrower | Military Flame Thrower (no Facepunch page) | Military Flamethrower |
+| Flamethrower | Flame Thrower | Flamethrower |
+
+Two weapons have **no Facepunch wiki page**, so their names come from Double
+Eleven's console notes alone: **Blunderbuss** and **Military Flame Thrower**.
+
+### `from` (when it reached the console)
+
+Only where a Double Eleven post says a weapon was added:
+
+| Weapon | `from` | Source |
+|---|---|---|
+| Combat Knife | Update 1.20 Devastation Unleashed (2021-11-25) | ["New Item: Combat Knife."](https://rust.double11.com/news/update-120-patch-notes-devastation-unleashed) |
+| Multiple Grenade Launcher | Update 1.30 Offshore Blowout (2022-02-24) | [1.30 notes](https://rust.double11.com/news/update-130-patch-notes), [Dev Blog #4](https://rust.double11.com/news/dev-blog-4-offshore-blowout) |
+| Paddle | Update 1.40 Deadly Catch (2022-05-26) | ["New weapon: Paddle"](https://rust.double11.com/news/update-140-patch-notes-deadly-catch) |
+| L96 Rifle | Update 1.50 Oceanbound (2022-08-25) | ["Added L96 Rifle"](https://rust.double11.com/news/update-150-patch-notes-oceanbound) |
+| Sickle, Butcher Knife, Pitchfork | Halloween event 2022 (2022-10-20) | ["Halloween Weapons"](https://rust.double11.com/news/update-154-patch-notes) |
+| Speargun | Update 1.80 Horsepocalypse (2023-08-31) | ["New weapon - The Speargun."](https://rust.double11.com/news/patch-180) |
+| Prototype 17, HMLMG, M4 Shotgun, Molotov Cocktail, Flashbang | Update 1.90 Underground Assault (2024-02-29) | [1.90 notes](https://rust.double11.com/news/a-hrefhttpsrustdouble11comnewspatch-notes-188patch-notes-1a90) |
+| Snowball Gun, Candy Cane Club | Christmas event 2024 (2024-12-12) | [Dev Blog #34](https://rust.double11.com/news/dev-blog-34) |
+| Homing Missile Launcher | Update 1.02 (2025-06-24) | [Patch Notes 1.02](https://rust.double11.com/news/um91od77n9xmig6bgl6uargekidm8h) first names it; [Dev Blog #40](https://rust.double11.com/news/dev-blog-40) (2025-06-26) calls it "a new craftable weapon" |
+| Handmade SMG, High Caliber Revolver, SKS, Minigun, Military Flame Thrower | Update 1.7 (2025-10-30) | ["Added five new weapons"](https://rust.double11.com/news/patch-notes-17), [Dev Blog #44](https://rust.double11.com/news/dev-blog-44) |
+
+Every other weapon is `from: null`: it was in the game before the first news
+post that mentions it, and no post says when it arrived. (Patch numbers
+restarted at 1.02 with the June 2025 new-generation release, so "1.7"
+(2025) is later than "1.90" (2024).)
+
+## How the list is organised
+
+**Rust has no weapon classes.** The game puts every weapon in one crafting
+and inventory category, **Weapons** (Facepunch's wiki lists the same game
+categories: Weapons, Construction, Items, Resources, Attire, Tools, Medical,
+Food, Ammo, Traps, Components, Electrical, Fun, Misc). So the groups are ours,
+named from the words Facepunch's own item descriptions use ("semi automatic
+rifle", "machine gun", "Shotgun", "pistol", "grenade launcher", "bow",
+"melee weapon", "grenade"), in the order guns, launchers, bows, special,
+melee, grenades. The group ids are chosen so the app shows the right class
+picture (`marksman_rifles` for the semi-automatic rifles; `lmgs` for the
+machine guns).
+
+- **Assault Rifles:** Assault Rifle, LR-300 Assault Rifle.
+- **Semi-Automatic Rifles** (id `marksman_rifles`): Semi-Automatic Rifle, M39
+  Rifle, SKS (all three described by Facepunch as semi automatic rifles).
+- **Sniper Rifles:** Bolt Action Rifle, L96 Rifle (Double Eleven's Dev Blog #7
+  calls the L96 "This sniper").
+- **SMGs:** Handmade SMG, Custom SMG, Thompson, MP5A4.
+- **Machine Guns** (id `lmgs`): M249, HMLMG, Minigun.
+- **Shotguns:** Waterpipe, Double Barrel, Pump, Spas-12, M4, Blunderbuss.
+- **Pistols:** Eoka Pistol, Nailgun, Revolver, Semi-Automatic Pistol, Python
+  Revolver, M92 Pistol, Prototype 17, High Caliber Revolver.
+- **Launchers:** Rocket Launcher, Multiple Grenade Launcher, Homing Missile
+  Launcher.
+- **Bows:** Hunting Bow, Crossbow, Compound Bow.
+- **Special:** Flame Thrower, Military Flame Thrower, Speargun (fires only
+  underwater), Snowball Gun (Christmas only).
+- **Melee:** the melee weapons in Facepunch's Weapons category. Hatchets,
+  pickaxes, the Rock, Torch, Salvaged Axe/Icepick/Hammer, Chainsaw and
+  Jackhammer hit too, but the game files them under **Tools**, so they are
+  left out.
+- **Grenades:** F1 Grenade, Beancan Grenade, Molotov Cocktail, Flashbang (all
+  in the Weapons category). Satchel Charge, Timed Explosive Charge and Smoke
+  Grenade are in **Tools** and left out.
+
+**`fireMode`** is set only where Facepunch's item text or name says it:
+"machine rifle"/"machine gun"/"automatic firearm" = `auto`; "semi
+automatic"/"Semi-Automatic" = `semi`; Bolt Action = `bolt`; Pump = `pump`;
+Prototype 17 "built-in 3 round burst fire mode" = `burst`. The rest (Nailgun,
+LR-300, L96,
+Waterpipe, Double Barrel, Eoka, Revolver, Python, High Caliber Revolver,
+launchers but the MGL, bows) are left unset rather than guessed.
+
+**Rarity: none.** Rust weapons have no rarity tiers or colours, so there is no
+`tiers`.
+
+## Console versus PC
+
+Rust on PC (Facepunch) is ahead of the console edition. **In Facepunch's PC
+Weapons category but not named on any Double Eleven page, so left out:**
+Mini Crossbow, Blow Pipe, Boomerang, Ballista, Mounted Ballista, Catapult,
+Battering Ram, Siege Tower, Paintball Gun, Bee Grenade, Vampire Stake, Skinning
+Knife, Water Gun and Water Pistol (the console Sunburn Pack sells "water guns",
+a toy). PC's "M16A2" has an icon on Facepunch's server (`m16a2_512.png`) but no
+item page and no console mention, so it is left out too.
+
+**Kept but marked `uncertain`, because Facepunch lists them and no console
+page names them:** Wooden Spear, Machete, Salvaged Sword, Longsword, Mace.
+They are long-standing PC melee weapons, so they are probably on console, but
+nothing official read here says so. Also uncertain: **M92 Pistol** (Double
+Eleven names it only as a Tunnel Dweller's weapon, Dev Blog #54), **Salvaged
+Cleaver** (the console note says only "cleaver"), **Blunderbuss** (first
+named on console in a 2026-02-26 fix; arrival date unknown) and the event-only
+weapons (Snowball Gun, Candy Cane Club, Sickle, Butcher Knife, Pitchfork).
+
+**Skins are not weapons.** "RPG Launcher" ([RPG DLC](https://rust.double11.com/store/rpg-launcher)),
+"Space LR-300", "Huntsman Bolt Action Rifle", "Oni Rocket Launcher" and the
+like are console store skins of the weapons here, not separate items. PC-only
+item variants (Ice, Jungle, Diver and Medieval Assault Rifles) are not in the
+console notes and are left out.
+
+## What is not checked
+
+- How the console HUD shows the held weapon (its name or only its icon in the
+  belt) is not checked on a real frame; that is the `review` on the catalog.
+- The pictures are PC icons, assumed to match the console item art.
+
+## Gaps: weapons with no publisher picture
+
+| Weapon | Why |
+|---|---|
+| Military Flame Thrower | Facepunch's wiki has no page for it and no icon was found on `files.facepunch.com` under the shortnames tried (`militaryflamethrower`, `flamethrower.military`, `military.flamethrower` and seven others, all 404 on 2026-10-21). `image` is `null`. |
+
+## Pictures
+
+Every row: the file, the weapon, the picture's own source on Facepunch's
+server, and the Facepunch item page that shows it. All fetched 2026-10-21.
+
+| file | weapon | picture (source URL) | shown on | size | fetched |
+|---|---|---|---|---|---|
+| weapons/assault_rifle.png | Assault Rifle | https://files.facepunch.com/rust/item/rifle.ak_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.ak) | 335 x 300 | 2026-10-21 |
+| weapons/lr_300_assault_rifle.png | LR-300 Assault Rifle | https://files.facepunch.com/rust/item/rifle.lr300_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.lr300) | 305 x 300 | 2026-10-21 |
+| weapons/semi_automatic_rifle.png | Semi-Automatic Rifle | https://files.facepunch.com/rust/item/rifle.semiauto_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.semiauto) | 328 x 300 | 2026-10-21 |
+| weapons/m39_rifle.png | M39 Rifle | https://files.facepunch.com/rust/item/rifle.m39_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.m39) | 286 x 300 | 2026-10-21 |
+| weapons/sks.png | SKS | https://files.facepunch.com/rust/item/rifle.sks_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.sks) | 308 x 300 | 2026-10-21 |
+| weapons/bolt_action_rifle.png | Bolt Action Rifle | https://files.facepunch.com/rust/item/rifle.bolt_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.bolt) | 317 x 300 | 2026-10-21 |
+| weapons/l96_rifle.png | L96 Rifle | https://files.facepunch.com/rust/item/rifle.l96_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rifle.l96) | 325 x 300 | 2026-10-21 |
+| weapons/handmade_smg.png | Handmade SMG | https://files.facepunch.com/rust/item/t1_smg_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/t1_smg) | 281 x 300 | 2026-10-21 |
+| weapons/custom_smg.png | Custom SMG | https://files.facepunch.com/rust/item/smg.2_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/smg.2) | 293 x 300 | 2026-10-21 |
+| weapons/thompson.png | Thompson | https://files.facepunch.com/rust/item/smg.thompson_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/smg.thompson) | 293 x 300 | 2026-10-21 |
+| weapons/mp5a4.png | MP5A4 | https://files.facepunch.com/rust/item/smg.mp5_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/smg.mp5) | 309 x 300 | 2026-10-21 |
+| weapons/m249.png | M249 | https://files.facepunch.com/rust/item/lmg.m249_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/lmg.m249) | 338 x 300 | 2026-10-21 |
+| weapons/hmlmg.png | HMLMG | https://files.facepunch.com/rust/item/hmlmg_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/hmlmg) | 330 x 300 | 2026-10-21 |
+| weapons/minigun.png | Minigun | https://files.facepunch.com/rust/item/minigun_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/minigun) | 282 x 300 | 2026-10-21 |
+| weapons/waterpipe_shotgun.png | Waterpipe Shotgun | https://files.facepunch.com/rust/item/shotgun.waterpipe_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/shotgun.waterpipe) | 258 x 300 | 2026-10-21 |
+| weapons/double_barrel_shotgun.png | Double Barrel Shotgun | https://files.facepunch.com/rust/item/shotgun.double_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/shotgun.double) | 323 x 300 | 2026-10-21 |
+| weapons/pump_shotgun.png | Pump Shotgun | https://files.facepunch.com/rust/item/shotgun.pump_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/shotgun.pump) | 295 x 300 | 2026-10-21 |
+| weapons/spas_12_shotgun.png | Spas-12 Shotgun | https://files.facepunch.com/rust/item/shotgun.spas12_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/shotgun.spas12) | 327 x 300 | 2026-10-21 |
+| weapons/m4_shotgun.png | M4 Shotgun | https://files.facepunch.com/rust/item/shotgun.m4_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/shotgun.m4) | 339 x 300 | 2026-10-21 |
+| weapons/blunderbuss.png | Blunderbuss | https://files.facepunch.com/rust/item/blunderbuss_512.png | - | 308 x 300 | 2026-10-21 |
+| weapons/eoka_pistol.png | Eoka Pistol | https://files.facepunch.com/rust/item/pistol.eoka_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.eoka) | 345 x 300 | 2026-10-21 |
+| weapons/nailgun.png | Nailgun | https://files.facepunch.com/rust/item/pistol.nailgun_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.nailgun) | 308 x 300 | 2026-10-21 |
+| weapons/revolver.png | Revolver | https://files.facepunch.com/rust/item/pistol.revolver_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.revolver) | 262 x 300 | 2026-10-21 |
+| weapons/semi_automatic_pistol.png | Semi-Automatic Pistol | https://files.facepunch.com/rust/item/pistol.semiauto_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.semiauto) | 257 x 300 | 2026-10-21 |
+| weapons/python_revolver.png | Python Revolver | https://files.facepunch.com/rust/item/pistol.python_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.python) | 274 x 300 | 2026-10-21 |
+| weapons/m92_pistol.png | M92 Pistol | https://files.facepunch.com/rust/item/pistol.m92_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.m92) | 224 x 300 | 2026-10-21 |
+| weapons/prototype_17.png | Prototype 17 | https://files.facepunch.com/rust/item/pistol.prototype17_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pistol.prototype17) | 250 x 300 | 2026-10-21 |
+| weapons/high_caliber_revolver.png | High Caliber Revolver | https://files.facepunch.com/rust/item/revolver.hc_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/revolver.hc) | 256 x 300 | 2026-10-21 |
+| weapons/rocket_launcher.png | Rocket Launcher | https://files.facepunch.com/rust/item/rocket.launcher_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/rocket.launcher) | 314 x 300 | 2026-10-21 |
+| weapons/multiple_grenade_launcher.png | Multiple Grenade Launcher | https://files.facepunch.com/rust/item/multiplegrenadelauncher_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/multiplegrenadelauncher) | 384 x 300 | 2026-10-21 |
+| weapons/homing_missile_launcher.png | Homing Missile Launcher | https://files.facepunch.com/rust/item/homingmissile.launcher_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/homingmissile.launcher) | 316 x 300 | 2026-10-21 |
+| weapons/hunting_bow.png | Hunting Bow | https://files.facepunch.com/rust/item/bow.hunting_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/bow.hunting) | 280 x 300 | 2026-10-21 |
+| weapons/crossbow.png | Crossbow | https://files.facepunch.com/rust/item/crossbow_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/crossbow) | 339 x 300 | 2026-10-21 |
+| weapons/compound_bow.png | Compound Bow | https://files.facepunch.com/rust/item/bow.compound_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/bow.compound) | 314 x 300 | 2026-10-21 |
+| weapons/flame_thrower.png | Flame Thrower | https://files.facepunch.com/rust/item/flamethrower_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/flamethrower) | 318 x 300 | 2026-10-21 |
+| weapons/speargun.png | Speargun | https://files.facepunch.com/rust/item/speargun_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/speargun) | 289 x 300 | 2026-10-21 |
+| weapons/snowball_gun.png | Snowball Gun | https://files.facepunch.com/rust/item/snowballgun_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/snowballgun) | 480 x 285 | 2026-10-21 |
+| weapons/combat_knife.png | Combat Knife | https://files.facepunch.com/rust/item/knife.combat_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/knife.combat) | 312 x 300 | 2026-10-21 |
+| weapons/bone_knife.png | Bone Knife | https://files.facepunch.com/rust/item/knife.bone_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/knife.bone) | 309 x 300 | 2026-10-21 |
+| weapons/bone_club.png | Bone Club | https://files.facepunch.com/rust/item/bone.club_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/bone.club) | 296 x 300 | 2026-10-21 |
+| weapons/wooden_spear.png | Wooden Spear | https://files.facepunch.com/rust/item/spear.wooden_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/spear.wooden) | 288 x 300 | 2026-10-21 |
+| weapons/stone_spear.png | Stone Spear | https://files.facepunch.com/rust/item/spear.stone_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/spear.stone) | 290 x 300 | 2026-10-21 |
+| weapons/machete.png | Machete | https://files.facepunch.com/rust/item/machete_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/machete) | 296 x 300 | 2026-10-21 |
+| weapons/salvaged_sword.png | Salvaged Sword | https://files.facepunch.com/rust/item/salvaged.sword_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/salvaged.sword) | 300 x 300 | 2026-10-21 |
+| weapons/salvaged_cleaver.png | Salvaged Cleaver | https://files.facepunch.com/rust/item/salvaged.cleaver_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/salvaged.cleaver) | 302 x 300 | 2026-10-21 |
+| weapons/longsword.png | Longsword | https://files.facepunch.com/rust/item/longsword_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/longsword) | 284 x 300 | 2026-10-21 |
+| weapons/mace.png | Mace | https://files.facepunch.com/rust/item/mace_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/mace) | 300 x 300 | 2026-10-21 |
+| weapons/paddle.png | Paddle | https://files.facepunch.com/rust/item/paddle_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/paddle) | 247 x 300 | 2026-10-21 |
+| weapons/sickle.png | Sickle | https://files.facepunch.com/rust/item/sickle_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/sickle) | 189 x 300 | 2026-10-21 |
+| weapons/butcher_knife.png | Butcher Knife | https://files.facepunch.com/rust/item/knife.butcher_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/knife.butcher) | 317 x 300 | 2026-10-21 |
+| weapons/pitchfork.png | Pitchfork | https://files.facepunch.com/rust/item/pitchfork_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/pitchfork) | 300 x 300 | 2026-10-21 |
+| weapons/candy_cane_club.png | Candy Cane Club | https://files.facepunch.com/rust/item/candycaneclub_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/candycaneclub) | 204 x 300 | 2026-10-21 |
+| weapons/f1_grenade.png | F1 Grenade | https://files.facepunch.com/rust/item/grenade.f1_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/grenade.f1) | 295 x 300 | 2026-10-21 |
+| weapons/beancan_grenade.png | Beancan Grenade | https://files.facepunch.com/rust/item/grenade.beancan_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/grenade.beancan) | 330 x 300 | 2026-10-21 |
+| weapons/molotov_cocktail.png | Molotov Cocktail | https://files.facepunch.com/rust/item/grenade.molotov_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/grenade.molotov) | 176 x 300 | 2026-10-21 |
+| weapons/flashbang.png | Flashbang | https://files.facepunch.com/rust/item/grenade.flashbang_512.png | [Facepunch wiki](https://wiki.facepunch.com/rust/item/grenade.flashbang) | 232 x 300 | 2026-10-21 |

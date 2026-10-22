@@ -1,0 +1,272 @@
+# Where the Battlefield 6 catalog comes from
+
+The list was first read on **2026-10-10** (checked a second time that day
+against EA's own pages) and brought up to Season 5, with pictures, on
+**2026-10-21**. `catalog.json` is the single-kind form
+(`kind: "weapons"`, Warzone's shape): Battlefield 6 is not built around
+characters. Its four classes (Assault, Engineer, Support, Recon) each have a
+signature weapon class under closed-weapon rules, but most playlists let any
+class carry any gun, and the class shows only as a small icon in the squad
+list, so the guns are the list.
+
+**Pictures: publisher artwork only (decision D116).** Every picture in
+`weapons/` is EA's own image, downloaded on 2026-10-21 from EA's image server
+drop-assets.ea.com as used by the ea.com/games/battlefield news pages, converted
+to PNG, cropped to the weapon and scaled to at most 480 x 300 pixels. None came
+from a fan wiki, Fandom, a loadout site or an image search. They are EA's
+copyright, used in the app to identify the weapon, the same risk the owner
+accepted in D116. Delete a `.png` and set that weapon's `image` to `null` and
+the app shows the class symbol instead. 31 of the 84 items have one; the rest
+are listed under "No official picture" below.
+
+## What is in Battlefield 6 today
+
+- **Season 5, "Siege of Vegas"**, live since **2026-10-13** with Game
+  Update 2.1.1.0 ([EA's 2.1.1.0 notes](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-game-update-2-1-1-0),
+  dated 2026-10-12, read 2026-10-21; [EA's Season 5 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-season-5-roadmap)).
+  Its four guns are in the catalog, each at the end of its group:
+  **Mk 24** (Assault Rifle), **RSPR** (SMG; the notes call it a Personal
+  Defence Weapon), **Z84M** (LMG; "belt-fed", so `fireMode` auto like the
+  other belt-fed LMGs) and **ELR-40** (bolt-action Sniper Rifle). The Dead
+  Space event's DS-23 Pulse Rifle (from 2026-10-20) is a Battle Pickup and,
+  like Season 1's, is left out. EA's Loadout Creation page still says
+  "Recently Updated for Season 4" and does not list the Season 5 guns yet.
+- Before it, **Season 4**, whose third and last phase was **Tidal Strike**
+  (from 2026-09-15). The season's phases were Pacific Front (2026-07-21), Top Gun
+  (2026-08-18) and Tidal Strike ([EA's Season 4 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know),
+  [EA's Tidal Strike guide](https://www.ea.com/games/battlefield/redsec/news/battlefield-season-4-update-event-guide)).
+  `season` is now "Season 5: Siege of Vegas".
+- **84 items in 10 groups**: Assault Rifles 12, Carbines 9, SMGs 11, LMGs 11,
+  DMRs 6, Sniper Rifles 7, Shotguns 4, Sidearms 7, Gadget weapons 11 (the
+  launchers and the SS26, which replace the gun in the player's hands and the
+  HUD's weapon panel), Melee 6.
+
+### The names: EA's own weapon list
+
+EA's [Loadout Creation and Weapon Classes](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes)
+page ("Recently Updated for Season 4", 2026-07-21) lists every gun by class
+with its unlock. It is the first source of every gun and sidearm, and its
+spelling wins. It settled every name the first pass had marked uncertain:
+
+| Was uncertain | EA writes | Other spellings seen |
+|---|---|---|
+| NVO-228E | NVO-228E | NVO-228 (beta lists) |
+| M277 | M277 (Career Rank 11) | M227 |
+| SOR-300SC | SOR-300SC | SOR-300C (EA's own Season 1 roadmap) |
+| BROD 3 | BROD 3 (also EA's Season 4 roadmap, "Carbine Rifle") | BRD 3, BREN 3 |
+| Mini Scout | Mini Scout (also EA's Season 1 roadmap) | Mini Fix |
+| GRT-CPS | GRT-CPS (also EA's Season 2 roadmap) | CRT-CPS |
+| M357 Trait | M357 TRAIT | M327 Trait (EA's Season 1 roadmap) |
+| SL9 | SL9, under SMG | - |
+| Interdictor | Interdictor, Sniper Rifle, "Available During Season 4 Event" (Top Gun) | - |
+| VZ.61 | vz. 61, under Secondary (EA's Season 2 roadmap: "NEW SIDEARM: VZ.61", a machine pistol) | VZ.61 |
+
+It also changed three names: **M60 is "M/60"**, **L115 is "L115A3"** and
+**18.5 KS-K is "18.5KS-K"** (ids changed with them; nothing has shipped).
+Where EA's roadmaps spelt a gun differently from the newer loadout page
+(SOR-300C, M327 Trait), the newer page is taken as the game's current name.
+
+Settled on 2026-10-21 from EA's own pages:
+
+- **RPKM** (launch LMG): EA's [Progression in Battlefield 6](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6)
+  lists "RPKM, Weapon, LMG" at Rank 30, and EA's [Season 3 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)
+  calls the RPK-74M "a powerful complement to the RPKM". No longer uncertain.
+- **X95 BRE** (Assault gadget, was "X95 BRM"): EA writes "X95 BRE Breaching
+  Projectile Launcher" in the [1.1.2.0 notes](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-game-update-1-1-2-0)
+  and "Gadget Skin - X95 BRE" in the [Season 3 Battle Pass page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-redsec-season-3-battle-pass-everything-you-need-to-know).
+  The name changed; the id `gadget_weapons.x95_brm` did not (ids never
+  change), and "X95 BRM" stays as an alias for search.
+- **Royal Navy Dive Knife**: EA's [Season 4 page](https://www.ea.com/games/battlefield/battlefield-6/seasons/bf6-season-4)
+  calls it "the new Royal Navy Dive Knife" and the roadmap files its picture
+  as `..._NewMelee_DiveKnife.jpg`, so it is a melee weapon, not a skin. The
+  2.1.1.0 notes add to Portal "the Season 4 Battle Pass weapons: EF88 ...
+  Interdictor ... and Hadal NV-08 Knife"; that list also names the Interdictor,
+  an event reward, and no other Season 4 knife exists, so **"Hadal NV-08
+  Knife" is taken as its in-game name** and added as an alias (still marked
+  uncertain: not seen on screen).
+
+Still uncertain:
+- **Melee.** EA's loadout page lists COMBAT KNIFE, HUNTING KNIFE, NOMAD CX-12
+  ICE-CLIMBING AXE and SLEDGEHAMMER. The axe is "Ice Climbing Axe" in the
+  Season 1 roadmap and "NOMAD CX-12 Ice Axe" in Season 2's. The Season 2
+  machete was announced as the "KAPOK 14” Machete", but the
+  [Hunter / Prey bonus path](https://www.ea.com/games/battlefield/battlefield-6/news/season-2-hunter-prey-bonus-path-free-challenges-guide)
+  that delivered it names its reward "Ripper 14”" (a "Serrated Blade"); they
+  are taken as one weapon. The Royal Navy Dive Knife is the Deep Six event's
+  final reward (EA: 2026-09-15 to 09-29); EA does not say whether it is a
+  weapon or a skin. Guides call the default knife the KBR Mark II.
+
+Battle Pickups (Season 1's Rorsch Mk-2 SMRW railgun and MP-RMG minigun) are
+found on the map, not equipped, and are left out.
+
+- **Gadgets** are from [MP1st's launch gadget list](https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch)
+  (EA publishes none); the 9K38 IGLA from EA's Season 2 roadmap ("9K38 IGLA
+  ACTIVE LOCKING AIR-DEFENSE LAUNCHER", Engineer).
+- **Fire modes** are set only where the class settles it (bolt snipers, semi
+  DMRs and sidearms, pump shotguns, belt-fed LMGs) and for the M16A4 (burst,
+  full-auto only with an attachment). Battlefield's guns switch modes in game
+  and no source lists them gun by gun.
+- The Battlefield wiki (HTTP 402) and EA's forums (HTTP 403) would not load.
+
+| Class | Signature (closed weapons) |
+|---|---|
+| Assault | Assault Rifles |
+| Engineer | SMGs |
+| Support | LMGs |
+| Recon | Sniper Rifles |
+
+([EA's class guide](https://help.ea.com/en/articles/battlefield/battlefield-6/class-guide/))
+
+## Pictures
+
+Every picture was fetched on **2026-10-21** from drop-assets.ea.com, EA's
+image server for ea.com. Most are EA's "workbench" renders: the weapon in its
+default finish on a gun-care mat with ammunition and tools around it, which
+EA puts beside each new weapon in its season roadmaps and in the Loadout
+Creation page. They are cropped to the weapon; where EA's own framing cuts
+off a stock or a barrel the crop does too. Three are crops of promotional
+screenshots with the weapon in a soldier's hands. "Shown on" is the EA page
+whose text names the weapon next to the picture (a heading, a caption or the
+picture's alt text); every one was matched by that text, not by eye.
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/assault_rifles_vcr_2.png | VCR-2 | https://drop-assets.ea.com/images/0AvDqgy1xGVeM2D47CqNw/4e435cb1b1969f33e997b8760be9de15/bf6-s2-roadmap-VCR-2.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/assault_rifles_m16a4.png | M16A4 | https://drop-assets.ea.com/images/3CIU22lwhsy0D5iNJ5DK5u/3d8d9a4755c9fd45ec6cdbb5677ca369/BF6_S3_M16A4_NewWeapon_M16A3.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/assault_rifles_ef88.png | EF88 | https://drop-assets.ea.com/images/7GXfyrDpLtXmeq1PAwppxd/632bfa2312b0c50a63123beff0f4de9b/BF6_S4_EF88_NewWeapon_WEP_AssaultRifle_EF88.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/carbines_m4a1.png | M4A1 | https://drop-assets.ea.com/images/2ones18uzDixy6cmaLaT7C/26a97adcc9da61bdae77cfd8176c686c/GLA_REV_Screenshot_12_M4A1_1920x1080_NoLogo.png | crop: promotional screenshot, the carbine held by a soldier (hands and sleeves visible) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes) | 2026-10-21 |
+| weapons/carbines_ak_205.png | AK-205 | https://drop-assets.ea.com/images/3S2dyZXmTVkb42jFNjs7j6/92d4cda4a6cdd9b8d6c4b1c922a3b146/BF6-Signature-Weapon-Assault-Rifle.jpg | crop: workbench render; EA's caption on the progression page names it the AK-205 (the picture is filed as the Assault "signature weapon") | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes), [page](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6) | 2026-10-21 |
+| weapons/carbines_sor_300sc.png | SOR-300SC | https://drop-assets.ea.com/images/46NBa6hZdXw517WIs9rUVd/084b45f0244a38dc1b69aafe4ce500b2/BF6_S1_SOR300SC_Carbine_ScarSC_DefaultSkin.png | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-1-full-roadmap), [page](https://www.ea.com/games/battlefield/redsec/news/redsec-new-player-guide) | 2026-10-21 |
+| weapons/carbines_brod_3.png | BROD 3 | https://drop-assets.ea.com/images/11IqS3wKfGPVtKUTo0gW5w/8e174313fd489c68faf0f9c979b5afd8/BF6_S4_Brod3_NewWeapon_WEP_Carbine_Bren3.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/smgs_kv9.png | KV9 | https://drop-assets.ea.com/images/30zF2CJDWgAMp3JcPvDjAz/2e7d746c9b57b22039a2d4eba401ac2a/BF6-Signature-Weapon-SMG.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6) | 2026-10-21 |
+| weapons/smgs_scw_10.png | SCW-10 | https://drop-assets.ea.com/images/1aqcmIFl9Kp3dzAaWJbRBS/1fbb0aaaf9169fbcc5801afc013a85d2/BF6_weapon_SMG_SWC10.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes), [page](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6) | 2026-10-21 |
+| weapons/smgs_cz3a1.png | CZ3A1 | https://drop-assets.ea.com/images/449mXDXtfG3l2uBwQv1oL8/f95191119567ac15250a8d4ec0ae6bfb/bf6-s2-roadmap-ScorpionEvo3A1.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/smgs_pp_19.png | PP-19 | https://drop-assets.ea.com/images/3Z690v7EtbHPduKMvdprVz/a1195a4e542e10480510cd1424484e10/BF6_S3_PP-19_NewWeapon_SMG_PP19.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/lmgs_m240l.png | M240L | https://drop-assets.ea.com/images/3AoCiTvIgOPk32STGMGmWs/bb49c803daf5d4a8d7c5d9a8110a5254/BF6_LAU_M240L_LMG.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes) | 2026-10-21 |
+| weapons/lmgs_m121_a2.png | M121 A2 | https://drop-assets.ea.com/images/7kApm34gxbUVvaMFPWo81H/60322e14412456893bf3c1572af6afa9/bf6-s2-roadmap-MG53.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/lmgs_rpk_74m.png | RPK-74M | https://drop-assets.ea.com/images/2O90SHeUCpLIZ9Ciwcid0D/fc206bd4c66c21960f59402f0a98bfd3/BF6_S3_RPK-74M_NewWeapon_WEP_MG_RPK74M.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/dmrs_lmr27.png | LMR27 | https://drop-assets.ea.com/images/4HTltD7q8fOcs2g6bXxqLR/022781839aa9347b5f1aaeff20a7aa65/BF6_weapon_LMR27_BG_16x9.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes), [page](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6) | 2026-10-21 |
+| weapons/dmrs_grt_cps.png | GRT-CPS | https://drop-assets.ea.com/images/roz3YOy0VJTyQMeogTxm5/7080ab9bfe7d75453e7849e7c46105e2/bf6-s2-roadmap-GRT-CPS.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/dmrs_vssm.png | VSSM | https://drop-assets.ea.com/images/1tRDl7xOOyoZQkPbKFNPKO/67fc88e7af45b535c15ea529fd0a2168/BF6_S4_VSSM_NewWeapon_VSSM.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/sniper_rifles_mini_scout.png | Mini Scout | https://drop-assets.ea.com/images/5z62pY8hjFtDzOnD9fGwBd/8404f6d0c80eb5c141942ecd3d5cbce8/BF6_S1_MiniScout_Weapon_Minifix_DefaultSkin.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-1-full-roadmap) | 2026-10-21 |
+| weapons/sniper_rifles_l115a3.png | L115A3 | https://drop-assets.ea.com/images/2LaZ7xsQ8fcDKkd561QI0P/afaea9b2db9a2b305f5a178d477c9a36/BF6_S3_L115_NewWeapon_L115A3.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/sniper_rifles_interdictor.png | Interdictor | https://drop-assets.ea.com/images/1Rkwcb7UVdQbajxtjD41nl/498dfc15c44eebbe31beac13a111706f/BF6_S4_Interdictor_NewWeapon_DesertTechHTI.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/sniper_rifles_elr_40.png | ELR-40 | https://drop-assets.ea.com/images/wG423wuIsxa1Hox8SvE8J/2fb4bbbf4738f37e1143737d17037def/BF6_S5_ELR-40_NewWeapon_CDX40.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-season-5-roadmap) | 2026-10-21 |
+| weapons/shotguns_m87a1.png | M87A1 | https://drop-assets.ea.com/images/1jxH4vfgpY10eckFsCngoq/1529c287cabb656d756b291cf6125ef5/GLA_REV_Screenshot_15_M87A1_1920x1080_NoLogo.png | crop: promotional screenshot, the shotgun held by a soldier (hands visible, stock hidden) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes) | 2026-10-21 |
+| weapons/shotguns_db_12.png | DB-12 | https://drop-assets.ea.com/images/3n0OE05K2uABuAGJyA6cLX/cfdc6b16365c07be215b5b7f6147de93/BF6_S1_DB12_Shotgun_DefaultSkin.png | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/introducing-the-battlefield-6-battle-pass), [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-1-california-resistance-mid-season-roadmap) | 2026-10-21 |
+| weapons/sidearms_p18.png | P18 | https://drop-assets.ea.com/images/6WvG1iaaEiAUws8uyOAIFj/2a10ed908c12be720358dc95bd49080d/P18_V003_0001__1__1.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes) | 2026-10-21 |
+| weapons/sidearms_es_5_7.png | ES 5.7 | https://drop-assets.ea.com/images/2tMh7KktqkcQQZh8f4rNyC/2a61172583936983b48e31b4c915cc5c/BF6_LAU_ES57_Sidearm.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101) | 2026-10-21 |
+| weapons/sidearms_ggh_22.png | GGH-22 | https://drop-assets.ea.com/images/6Eq7JHLAyWvydZhpxZpkuy/bf6cc4824b3e62e2234842ee9037b2f9/BF6_S1_GGH22_SIdearm_DefaultSkin.png | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-1-full-roadmap) | 2026-10-21 |
+| weapons/sidearms_m357_trait.png | M357 TRAIT | https://drop-assets.ea.com/images/2Y1uyRbfa6AexH2teRelKV/26447f63442ce237996f5adc2e01dbf0/BF6_S1_M357Trait_Sidearm_M327TRR8_DefaultSkin.png | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-1-full-roadmap) | 2026-10-21 |
+| weapons/sidearms_vz_61.png | vz. 61 | https://drop-assets.ea.com/images/3xuiHreGxig09jEQJqkXcE/2fc2b746bfe4b0ae8606145d7c17f900/bf6-s2-roadmap-VZ61.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/gadget_weapons_9k38_igla.png | 9K38 IGLA | https://drop-assets.ea.com/images/4IrZXWQbdGD5vhG4U23637/d5d7a8f0e92071b240a898f68707be64/bf6-s2-roadmap-SA18IGLA.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know) | 2026-10-21 |
+| weapons/melee_nomad_cx_12_ice_climbing_axe.png | NOMAD CX-12 Ice-Climbing Axe | https://drop-assets.ea.com/images/3G8FgxekOqkbbK8PXIbaxk/404fb4f189b159094b391c2c18b1c43f/BF6_S1B3_Screenshot_IceClimbingAxe_16x9.png | crop: promotional screenshot, the axe held in a gloved hand, snowy background | [page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-1-winter-offensive-update) | 2026-10-21 |
+| weapons/melee_royal_navy_dive_knife.png | Royal Navy Dive Knife | https://drop-assets.ea.com/images/6fz0pRNeHpfGjwMeG3oy7V/6bc6dbaf2a23e22ed68a895c47bae11a/BF6_S4_DiversKnife_NewMelee_DiveKnife.jpg | crop: workbench render (the weapon on a gun-care mat with ammunition and tools) | [page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know), [page](https://www.ea.com/games/battlefield/redsec/news/battlefield-season-4-update-event-guide) | 2026-10-21 |
+
+Notes on single pictures:
+
+- **AK-205**: EA files the picture as `BF6-Signature-Weapon-Assault-Rifle.jpg`
+  and its alt text says "Assault rifle"; on [Progression in Battlefield 6](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6)
+  its caption is "The AK-205 Carbine Rife, is unlocked at Career Rank 22".
+  The caption is taken as naming the gun (it is an AK-pattern short rifle,
+  which agrees).
+- **KV9**: filed as `BF6-Signature-Weapon-SMG.jpg`; captioned on the same page
+  "The KV-9 SMG, is unlocked at Career Rank 45".
+- **SCW-10**: EA's file says `SWC10` and its caption "SWC-10"; the Loadout
+  page's list says SCW-10, which the catalog keeps.
+- **M357 TRAIT**: from the Season 1 roadmap, where the heading says "M327
+  Trait" and the file `BF6_S1_M357Trait_Sidearm_M327TRR8_DefaultSkin.png`;
+  the mid-season roadmap shows the same picture headed "M357 Trait".
+- **9K38 IGLA**: the file says `SA18IGLA` (the NATO name); the heading above
+  it is "NEW ENGINEER GADGET: 9K38 IGLA ACTIVE LOCKING AIR-DEFENSE LAUNCHER".
+- **M121 A2**: the file says `MG53`; the heading above it is "NEW LIGHT
+  MACHINE GUN: M121 A2".
+
+Official pictures **not used**:
+
+- `BF6-Signature-Weapon-LMG.jpg` and `BF6-Signature-Weapon-Sniper-Rifle.jpg`
+  (workbench renders on the REDSEC Battle Royale 101 and Loadout pages): no
+  EA text names the gun in them, and naming it by eye would be a guess.
+- Weapon Packages and other skins (Year of the Horse AK-205 and sledgehammer,
+  the "Piercing Trauma" M27 IAR package, Season 5 "Ambitious Ace" and others):
+  they show a cosmetic finish, not the gun as most players see it.
+- `GLA_REV_Screenshot_20_Sledgehammer_1920x1080_NoLogo.png`: the hammers rest
+  on two soldiers' shoulders, mostly hidden; no usable crop.
+
+## No official picture (image: null)
+
+No EA page read on 2026-10-21 shows these, or shows them only too small or
+hidden to crop. The pages searched: every article listed on ea.com's
+Battlefield 6 and REDSEC news pages (161 pages), the season pages, the classes
+and media hub pages, and the Loadout Creation page. EA gives a launch weapon a
+picture only when an article happens to feature it; the season roadmaps
+picture every new gun except Season 5's, where only the ELR-40 has one so far.
+The app shows the class symbol until the owner trains the weapon from his own
+screen.
+
+- Assault Rifles: M433, B36A4, SOR-556 MK2, AK4D, TR-7, KORD 6P67, NVO-228E,
+  L85A3, Mk 24
+- Carbines: M277, M417 A2, GRT-BC, QBZ-192, SG 553R
+- SMGs: SGX, PW5A3, PW7A2, UMG-40, USG-90, SL9, RSPR
+- LMGs: L110, DRS-IAR, M/60, RPKM, M123K, M250, KTS100 MK8, Z84M
+- DMRs: M39 EMR, SVK-8.6, SVDM
+- Sniper Rifles: M2010 ESR, SV-98, PSR
+- Shotguns: M1014, 18.5KS-K
+- Sidearms: M45A1, M44
+- Gadget weapons: RPG-7V2, MBT-LAW, M136 AT, MAS 148, SLM-93A, M320A1 HE,
+  M320A1 THRM, M320A1 SMK, X95 BRE, SS26 Fire Shotgun
+- Melee: Combat Knife, Sledgehammer, Ripper 14", Hunting Knife
+
+## Rarity (REDSEC only): `tiers`
+
+REDSEC, the free battle royale, has six weapon rarities, named and coloured by
+EA in [Battlefield REDSEC Battle Royale 101](https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101),
+lowest first: Common (white), Uncommon (green), Rare (blue), Advanced
+(purple), Superior (orange), Unique (red). Checked again 2026-10-10. Weapon
+Upgrade Kits raise a gun up to Advanced; Superior is "extremely rare; only a
+few per match"; Unique are the player's own favourited Custom Weapons, from
+Custom Weapon Drops. The `colour` values are the app's chips only, chosen from
+EA's colour words, **not sampled from a frame** (D134: the Core learns each
+tier's colour from the owner's crops). Where the colour shows on the REDSEC
+HUD is not yet known.
+
+## HUD states
+
+*From public sources, not checked on a real frame.* What the screen shows in
+each state, and what the Core could read there:
+
+| State | What shows | What the Core could read |
+|---|---|---|
+| Deploy screen | Full-screen map, squad list, class and loadout picker | Not a play state: hold all Smart Actions. The loadout's gun names are printed here as text, the one place they surely are |
+| On foot | Bottom right: the held gun's silhouette, magazine / reserve count, fire-mode icon. Bottom left: health (REDSEC: armour bar above it), backpack button | The gun's silhouette (picture teaching); the fire-mode icon; the ammo digits |
+| Gadget held (launcher, SS26, M320A1) | The weapon panel switches to the gadget's icon and ammo | A gadget silhouette: the Gadget weapons group exists so a Smart Action can stand down |
+| Scoped / ADS | Panel stays; a scope overlay fills the centre on high-zoom optics | Same panel |
+| In a vehicle | The panel is replaced by the vehicle's HUD (seat, weapons, health) | "Not on foot": hold gun Smart Actions |
+| Dead / spectating | Kill card, then the deploy screen | Hold everything |
+| REDSEC | As on foot, plus the backpack, armour bar and ring timer; a gun's rarity colour (where on screen is unknown) | Rarity tier (D134) once its place is known |
+
+**Does the HUD print the gun's name?** Probably not. An EA forum request
+titled "Feature Request: Show weapon name on HUD (PS5 / console)"
+([thread](https://forums.ea.com/discussions/battlefield-6-general-discussion-en/feature-request-show-weapon-name-on-hud-ps5--console/12899537),
+read from search snippets only, HTTP 403) says only the weapon **icon and ammo
+count** are shown. A [TechWiser icon guide](https://techwiser.com/battlefield-6-icons-symbols-meaning/)
+describes the ammo readout as a weapon icon with numbers and a separate
+fire-mode icon, and no name. A forum bug report places the weapon icon and
+ammo bottom right. The first pass said the name "flashes for a moment on a
+swap"; no source for that was found on recheck, so it is **unconfirmed**.
+
+So Battlefield 6 is **not a name-reading game** on present evidence: the
+route is **picture teaching** of the silhouette in the bottom-right panel. One
+real frame of a weapon swap settles it; if a name does flash,
+recognition.json's `"blank": "hold"` covers a name that fades.
+
+## Update the list each season
+
+Add each new gun at the end of its group with the season as `from` and the
+season's roadmap or notes as `sources`; check EA's loadout page (it is updated
+each season) for spellings; set `asOf` and `season`. For its picture, look in
+the season roadmap for the `..._NewWeapon_...` workbench render on
+drop-assets.ea.com, crop it to the weapon at most 480 x 300, save it as
+`weapons/<id with the dot as _>.png` and add its row to the Pictures table.
+Then run `node dashboard/tools/test-game-data.js`. Mk 24, RSPR and Z84M have
+no EA picture yet; check EA's Season 5 phase 2 pages (from 2026-11-10).

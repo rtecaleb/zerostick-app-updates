@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZeroStick</title>
+<!-- MOVED (D264, 2026-10-10): this screen now lives in the EXO app at
+     exo/dongle/dongle.html (source of truth: the EXO repo's
+     dashboard/public/dongle/). Kept only so an old deep link still lands in
+     the right place; the query (?from=dongle, ?mock=1) and #route ride along.
+     The old www/js/ files stay for now and are no longer loaded by any page. -->
+<script>
+  location.replace('exo/dongle/dongle.html' + location.search + location.hash);
+</script>
+</head>
+<body style="background:#1b1d20;color:#eef1f4;font:16px/1.5 sans-serif">
+<p style="padding:40px 20px;text-align:center"><a style="color:#58a6ff" href="exo/dongle/dongle.html">Open</a></p>
+</body>
+</html>
