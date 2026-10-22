@@ -1,0 +1,19 @@
+/* zs-build.js — which kind of build this app is (owner, 2026-10-02).
+ *
+ * "For the dev stuff put it in Global Settings and developer mode, hide that
+ * stuff there for debug; for production versions dev mode will be disabled,
+ * but my version it will always be enabled."
+ *
+ *   dev: true   the owner's builds: Global Settings shows the Developer tab
+ *               (inspect, logs, packs, capture-chip firmware tools, ...)
+ *   dev: false  customer (release) builds: no Developer tab; the support
+ *               pieces a customer needs (copy diagnostics, the artwork
+ *               licences, factory reset) move to the General tab
+ *
+ * The repository keeps the OWNER flavor. A customer build is made with
+ * `npm run build:exe:release`, which runs tools/set-build-flavor.js release
+ * first and puts this file back afterwards. For the store phone app: run
+ * `node tools/set-build-flavor.js release`, then tools/sync-mobile.js, then
+ * `node tools/set-build-flavor.js owner`. Never hand-edit it for a release.
+ * ES5, loaded before every screen file. */
+window.ZS_BUILD = { dev: false, flavor: 'release' };
