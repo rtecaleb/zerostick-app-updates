@@ -1,0 +1,288 @@
+{
+  "zerostickGamePack": 1,
+  "id": "rust",
+  "name": "Rust",
+  "aliases": [
+    "Rust Console Edition",
+    "Rust Console"
+  ],
+  "version": 2,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "rust.png",
+    "tall": "rust-tall.png"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "rust",
+    "name": "Rust (Newer)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4530 (RustA, curves RustA-ADS-P5.1 / RustA-ADS-XS.1 / RustA-Hip-P5.1 / RustA-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 542, aiming 542 on PS5; Xbox Series hip 542, aiming 542 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Camera Sensitivity X and Y set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (not published; linear, as the engine assumes for any game). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Camera Sensitivity X Axis",
+        "value": "Highest"
+      },
+      {
+        "setting": "Camera Sensitivity Y Axis",
+        "value": "Highest"
+      },
+      {
+        "setting": "Camera Sensitivity (ADS)",
+        "value": "Highest"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.12,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 542,
+        "pitch": 542
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 542,
+          "pitch": 542
+        },
+        "xbox": {
+          "yaw": 542,
+          "pitch": 542
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 542,
+        "pitch": 542
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 542,
+          "pitch": 542
+        },
+        "xbox": {
+          "yaw": 542,
+          "pitch": 542
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "a",
+      "label": "Newer",
+      "setting": null,
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "rust",
+        "name": "Rust (Newer)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4530 (RustA, curves RustA-ADS-P5.1 / RustA-ADS-XS.1 / RustA-Hip-P5.1 / RustA-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 542, aiming 542 on PS5; Xbox Series hip 542, aiming 542 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Camera Sensitivity X and Y set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (not published; linear, as the engine assumes for any game). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Camera Sensitivity X Axis",
+            "value": "Highest"
+          },
+          {
+            "setting": "Camera Sensitivity Y Axis",
+            "value": "Highest"
+          },
+          {
+            "setting": "Camera Sensitivity (ADS)",
+            "value": "Highest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.12,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 542,
+            "pitch": 542
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 542,
+              "pitch": 542
+            },
+            "xbox": {
+              "yaw": 542,
+              "pitch": 542
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 542,
+            "pitch": 542
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 542,
+              "pitch": 542
+            },
+            "xbox": {
+              "yaw": 542,
+              "pitch": 542
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "d",
+      "label": "Older",
+      "setting": null,
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "rust",
+        "name": "Rust (Older)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4410 (RustD, curves RustD-ADS-P5.1 / RustD-ADS-XS.1 / RustD-Hip-P5.1 / RustD-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 542, aiming 542 on PS5; Xbox Series hip 542, aiming 542 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Camera Sensitivity X and Y set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (not published; linear, as the engine assumes for any game). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Camera Sensitivity X Axis",
+            "value": "Highest"
+          },
+          {
+            "setting": "Camera Sensitivity Y Axis",
+            "value": "Highest"
+          },
+          {
+            "setting": "Camera Sensitivity (ADS)",
+            "value": "Highest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.12,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 542,
+            "pitch": 542
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 542,
+              "pitch": 542
+            },
+            "xbox": {
+              "yaw": 542,
+              "pitch": 542
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 542,
+            "pitch": 542
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 542,
+              "pitch": 542
+            },
+            "xbox": {
+              "yaw": 542,
+              "pitch": 542
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Rust: pack made by import-xim-translators.js (D394) for a game whose turn speeds XIM's data carries. No art yet.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Rust are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Rust comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Rust comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}
