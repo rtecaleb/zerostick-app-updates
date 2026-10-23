@@ -1,0 +1,76 @@
+/* The calibrator's status card, under the ZEROSTICK banner (owner
+   2026-10-23): is the dongle connected, is a controller plugged into it,
+   is its power good. App-side only - it asks the dongle the questions the
+   hub always asked (DEVINFO over Bluetooth; /hid/dev on the Wi-Fi
+   calibrator, which knows only the controller). Every 2 s, one call at a
+   time, nothing while the page is hidden. */
+(function () {
+  'use strict';
+
+  var POLL_MS = 2000;
+  var busy = false;
+
+  function padName(pid) {
+    if (pid === 0x0DF2) return 'DualSense Edge';
+    if (pid === 0x0CE6) return 'DualSense';
+    if (pid === 0x05C4 || pid === 0x09CC) return 'DualShock 4';
+    if (pid === 0x0E45 || pid === 0x0E46) return 'PS VR2 Sense';
+    return 'Controller';
+  }
+  function padRow(d) {
+    if (d.padCode === 2) return ['on', padName(d.pid) + ' detected'];
+    if (d.padCode === 1) return ['wait', 'Starting…'];
+    if (d.padCode === 3) return ['off', 'Not supported'];
+    if (d.padCode === 4) return ['off', 'Port switched off'];
+    return ['off', 'Not detected - plug one in'];
+  }
+  function powerRow(d) {
+    if (d.lowNow) return ['off', 'Too low - try another USB port'];
+    if (d.padCode === 4 || (d.overCurrent && !d.padPowered)) return ['off', 'Controller port off'];
+    if (d.sagged || (d.consoleMv && d.consoleMv < 4500)) return ['warn', 'Dipped'];
+    return ['on', 'Good'];
+  }
+
+  /* -> {dongle:[state,text], pad:[...], power:[...] or null} */
+  function ask() {
+    var B = window.ZSHIDBLE;
+    if (B && B.isConnected && B.isConnected()) {
+      return B.devinfo().then(function (d) {
+        return { dongle: ['on', 'Connected · ' + d.version], pad: padRow(d), power: powerRow(d) };
+      }, function () {
+        return { dongle: ['wait', 'Not answering…'], pad: ['wait', 'Checking…'], power: ['wait', 'Checking…'] };
+      });
+    }
+    if (window.espFetch && !(B && B.remembered && B.remembered())) {
+      return window.espFetch('/hid/dev').then(function (r) { return r.json(); }).then(function (d) {
+        return { dongle: ['on', 'Connected'], pad: d.connected ? ['on', padName(d.pid) + ' detected'] : ['off', 'Not detected - plug one in'], power: null };
+      }, function () {
+        return { dongle: ['off', 'Not connected'], pad: ['wait', '-'], power: null };
+      });
+    }
+    return Promise.resolve({ dongle: ['off', 'Not connected'], pad: ['wait', '-'], power: ['wait', '-'] });
+  }
+
+  function set(el, row) {
+    if (!el) return;
+    var line = el.closest('.zs-st-row');
+    if (!row) { if (line) line.hidden = true; return; }
+    if (line) line.hidden = false;
+    el.textContent = row[1];
+    el.setAttribute('data-state', row[0]);
+  }
+
+  function tick() {
+    if (busy || document.hidden || !document.getElementById('zs-status')) return;
+    busy = true;
+    ask().then(function (s) {
+      set(document.getElementById('zs-st-dongle'), s.dongle);
+      set(document.getElementById('zs-st-pad'), s.pad);
+      set(document.getElementById('zs-st-power'), s.power);
+    }).then(function () { busy = false; }, function () { busy = false; });
+  }
+
+  setInterval(tick, POLL_MS);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick);
+  else tick();
+})();

@@ -76,8 +76,8 @@
  },
  {
   "file_name": "exo/auto-actions.js",
-  "file_hash": "699d4d79edb3e7608f6865f0541a90cfd0d5c2f8f466aeb9d2baf7a13bb6b511",
-  "download_url": "files/699d4d79edb3e7608f6865f0541a90cfd0d5c2f8f466aeb9d2baf7a13bb6b511"
+  "file_hash": "a939d6d036e67e9985794fa76abbb7264e22cf01f061a0506d962c3d5f5ea439",
+  "download_url": "files/a939d6d036e67e9985794fa76abbb7264e22cf01f061a0506d962c3d5f5ea439"
  },
  {
   "file_name": "exo/brand/consoles/SOURCES.md",
@@ -361,8 +361,8 @@
  },
  {
   "file_name": "exo/brand/zs-global-settings.webp",
-  "file_hash": "4ca2bc49ea3cc62ebdde7dbbb4272d9fc50a904165249a9a0c5002e5caaddffe",
-  "download_url": "files/4ca2bc49ea3cc62ebdde7dbbb4272d9fc50a904165249a9a0c5002e5caaddffe"
+  "file_hash": "480733b42a72bb3cfd339e85291d31f934bf322133775332b8185ea16e680528",
+  "download_url": "files/480733b42a72bb3cfd339e85291d31f934bf322133775332b8185ea16e680528"
  },
  {
   "file_name": "exo/brand/zs-gun-frame.jpg",
@@ -441,8 +441,8 @@
  },
  {
   "file_name": "exo/devices.js",
-  "file_hash": "787b10d78285a5aad925db7fc60c1ba7badb5fe21a3863e8d1d924ea3fb92cd1",
-  "download_url": "files/787b10d78285a5aad925db7fc60c1ba7badb5fe21a3863e8d1d924ea3fb92cd1"
+  "file_hash": "521cbb9018e1dd9a12d43beca47bb0be799fa448be4cbf7098a9364991d4d4b4",
+  "download_url": "files/521cbb9018e1dd9a12d43beca47bb0be799fa448be4cbf7098a9364991d4d4b4"
  },
  {
   "file_name": "exo/dongle/README.md",
@@ -511,8 +511,8 @@
  },
  {
   "file_name": "exo/dongle/calibrator.html",
-  "file_hash": "73ffd8427985d2a1c6758668bc60ab63afa16a687e1ba302c0038fb125b4ee93",
-  "download_url": "files/73ffd8427985d2a1c6758668bc60ab63afa16a687e1ba302c0038fb125b4ee93"
+  "file_hash": "e8d84334e58917211a5d45695db5cdb922b7e20fd6392a512ce0685aa5986b41",
+  "download_url": "files/e8d84334e58917211a5d45695db5cdb922b7e20fd6392a512ce0685aa5986b41"
  },
  {
   "file_name": "exo/dongle/css/finetune.css",
@@ -526,28 +526,33 @@
  },
  {
   "file_name": "exo/dongle/css/zs-cal-connect.css",
-  "file_hash": "8437762072a52aff3ca3340cd2746357f9e44ff84b6563eca99d9246e528ad77",
-  "download_url": "files/8437762072a52aff3ca3340cd2746357f9e44ff84b6563eca99d9246e528ad77"
+  "file_hash": "53570ed5212123b4b3812b28b5e6346da3cd7f324d870ceb44d101b01a11d0fb",
+  "download_url": "files/53570ed5212123b4b3812b28b5e6346da3cd7f324d870ceb44d101b01a11d0fb"
  },
  {
   "file_name": "exo/dongle/css/zs-dongle-calibrator.css",
-  "file_hash": "4a4f309a714462e1a27fbe58f391b5fd9cef5ac6d46d7f94da87c0b976cd8431",
-  "download_url": "files/4a4f309a714462e1a27fbe58f391b5fd9cef5ac6d46d7f94da87c0b976cd8431"
+  "file_hash": "8af35c572dabd01b83a9fe3132f7ce7475a35dba007038d1b3d1bcdd8111df2e",
+  "download_url": "files/8af35c572dabd01b83a9fe3132f7ce7475a35dba007038d1b3d1bcdd8111df2e"
+ },
+ {
+  "file_name": "exo/dongle/css/zs-dongle-exo.css",
+  "file_hash": "6fc68d0b93ad7b9f748da71073a796df839c1bb78a66ebdd46e4430914a16f24",
+  "download_url": "files/6fc68d0b93ad7b9f748da71073a796df839c1bb78a66ebdd46e4430914a16f24"
  },
  {
   "file_name": "exo/dongle/css/zs-dongle-theme.css",
-  "file_hash": "588a9c1eb7eaea40c8907c1f54a006f7fa582f3939988e74e31af7b1e5c376a1",
-  "download_url": "files/588a9c1eb7eaea40c8907c1f54a006f7fa582f3939988e74e31af7b1e5c376a1"
+  "file_hash": "76c1f6693549c26e84db81f7319ef2d8f1d9f8cd6e545838d25a7ca5765980cb",
+  "download_url": "files/76c1f6693549c26e84db81f7319ef2d8f1d9f8cd6e545838d25a7ca5765980cb"
  },
  {
   "file_name": "exo/dongle/css/zs-dongle.css",
-  "file_hash": "cd2cdd5926a73b7e51c35a58d352ac1e511453465e458e8b85259feacdba4dec",
-  "download_url": "files/cd2cdd5926a73b7e51c35a58d352ac1e511453465e458e8b85259feacdba4dec"
+  "file_hash": "21f05fb080f26008ad227ccc418d4e29c1690bcd11e86997915318b87232f98a",
+  "download_url": "files/21f05fb080f26008ad227ccc418d4e29c1690bcd11e86997915318b87232f98a"
  },
  {
   "file_name": "exo/dongle/dongle.html",
-  "file_hash": "21ecc12d8a72e53c1a2ddf49df85d9d6bf14c19cc7e6ace751a798ffdebc1f63",
-  "download_url": "files/21ecc12d8a72e53c1a2ddf49df85d9d6bf14c19cc7e6ace751a798ffdebc1f63"
+  "file_hash": "b2630f1263b94e86d71ceb031c46ac92dc674139def7cf06545e9ba2a77c03ca",
+  "download_url": "files/b2630f1263b94e86d71ceb031c46ac92dc674139def7cf06545e9ba2a77c03ca"
  },
  {
   "file_name": "exo/dongle/fw/manifest.json",
@@ -581,8 +586,8 @@
  },
  {
   "file_name": "exo/dongle/js/app-connect.js",
-  "file_hash": "58d79b1f93f5ae2f0143687ca4ae4b36d24175f0a96df576b4f02a4554c2c442",
-  "download_url": "files/58d79b1f93f5ae2f0143687ca4ae4b36d24175f0a96df576b4f02a4554c2c442"
+  "file_hash": "543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548",
+  "download_url": "files/543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548"
  },
  {
   "file_name": "exo/dongle/js/controller-manager.js",
@@ -695,14 +700,19 @@
   "download_url": "files/59c412edc071c4a163b7b84ccb8e1a98cc966559bf5d877f17619e7c411bb9e8"
  },
  {
+  "file_name": "exo/dongle/js/zs-ble-embed.js",
+  "file_hash": "5db9d5e96fde3d9d8bf36d490d677e6ae0d947e31cce011bdd490eeedded1948",
+  "download_url": "files/5db9d5e96fde3d9d8bf36d490d677e6ae0d947e31cce011bdd490eeedded1948"
+ },
+ {
   "file_name": "exo/dongle/js/zs-cal-bar.js",
-  "file_hash": "5bdb4163602565f63312c6a835e2631a194a5f88475bbc388d52c1a0422bac5f",
-  "download_url": "files/5bdb4163602565f63312c6a835e2631a194a5f88475bbc388d52c1a0422bac5f"
+  "file_hash": "8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399",
+  "download_url": "files/8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-app.js",
-  "file_hash": "5ca0287306b0ca704d1c27db19af2fc13730251231a0dc691e7d627861ba98bd",
-  "download_url": "files/5ca0287306b0ca704d1c27db19af2fc13730251231a0dc691e7d627861ba98bd"
+  "file_hash": "ce75c1793ae88a35f7ffdc004b4ce97f38aff630fb9f58968b897b6ca7d69e02",
+  "download_url": "files/ce75c1793ae88a35f7ffdc004b4ce97f38aff630fb9f58968b897b6ca7d69e02"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-mock-loader.js",
@@ -723,6 +733,11 @@
   "file_name": "exo/dongle/js/zs-fw.js",
   "file_hash": "e22db584927c2e15439bb1e142747627e23209e43765301976ad5097c0fa2094",
   "download_url": "files/e22db584927c2e15439bb1e142747627e23209e43765301976ad5097c0fa2094"
+ },
+ {
+  "file_name": "exo/dongle/js/zs-pad-light.js",
+  "file_hash": "20ac90d378f362fe9e0b5cb916905df4fb7cf871b7cbfdaed9993069d8b4471c",
+  "download_url": "files/20ac90d378f362fe9e0b5cb916905df4fb7cf871b7cbfdaed9993069d8b4471c"
  },
  {
   "file_name": "exo/dongle/js/zs-scripts.js",
@@ -938,6 +953,11 @@
   "file_name": "exo/dongle/webfonts/fa-solid-900.woff2",
   "file_hash": "1f0189e087fcefbf654fad74a3a06668b782c01353a61d5c0b7f0bf23e33c020",
   "download_url": "files/1f0189e087fcefbf654fad74a3a06668b782c01353a61d5c0b7f0bf23e33c020"
+ },
+ {
+  "file_name": "exo/dongle/zerostick-white.png",
+  "file_hash": "779d3f6a616ad01916182c6f5f3dfe4045271eafc58c982fe121a83462eba665",
+  "download_url": "files/779d3f6a616ad01916182c6f5f3dfe4045271eafc58c982fe121a83462eba665"
  },
  {
   "file_name": "exo/ds-live.js",
@@ -7061,8 +7081,8 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "26c2f503ec343d011fecbfdaadb8bc98a37162956f7202daa710d38989788173",
-  "download_url": "files/26c2f503ec343d011fecbfdaadb8bc98a37162956f7202daa710d38989788173"
+  "file_hash": "7a81df1e5f470516794d3cdba72c3f61022e6fa55f717a46d1de832ff79ae520",
+  "download_url": "files/7a81df1e5f470516794d3cdba72c3f61022e6fa55f717a46d1de832ff79ae520"
  },
  {
   "file_name": "exo/shell/10-editor.js",
@@ -7566,8 +7586,8 @@
  },
  {
   "file_name": "exo/weapon-live.js",
-  "file_hash": "93d1adec13f9b539b697fce718d9d3ef64839c1236bee9c26fd5b0c50655f6c2",
-  "download_url": "files/93d1adec13f9b539b697fce718d9d3ef64839c1236bee9c26fd5b0c50655f6c2"
+  "file_hash": "607b73cc4a49408044a8d3848a7f96a1027d1ddbc009c3f79682e700376a934a",
+  "download_url": "files/607b73cc4a49408044a8d3848a7f96a1027d1ddbc009c3f79682e700376a934a"
  },
  {
   "file_name": "exo/xim-import-screen.js",
@@ -7646,8 +7666,8 @@
  },
  {
   "file_name": "exo/zs-fixes.css",
-  "file_hash": "a6ca3909dea0d5085fea8c68997d6998c87d31ef7060010ab5ea9e19bb3f52ef",
-  "download_url": "files/a6ca3909dea0d5085fea8c68997d6998c87d31ef7060010ab5ea9e19bb3f52ef"
+  "file_hash": "8785602c3bd3c56dcae5c62f40474eb4dd3d38342536b11aeac37cd25f94af94",
+  "download_url": "files/8785602c3bd3c56dcae5c62f40474eb4dd3d38342536b11aeac37cd25f94af94"
  },
  {
   "file_name": "exo/zs-flat.css",
@@ -8151,8 +8171,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "136806855f296c945ea7c80ebd29dc4da1fd1bdddd7b814409386ce284ae7a53",
-  "download_url": "files/136806855f296c945ea7c80ebd29dc4da1fd1bdddd7b814409386ce284ae7a53"
+  "file_hash": "c466e4aecfefa3eae33d310efb5bc0b06d1aa16cbcbb22298cbf63a75043c243",
+  "download_url": "files/c466e4aecfefa3eae33d310efb5bc0b06d1aa16cbcbb22298cbf63a75043c243"
  },
  {
   "file_name": "zs-live-update.js",
