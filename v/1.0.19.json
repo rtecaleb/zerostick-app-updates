@@ -561,8 +561,8 @@
  },
  {
   "file_name": "exo/dongle/js/app-connect.js",
-  "file_hash": "b8f901081e40dbf0ada54ea7a3dd8a8b20241815268244a781703c6b0e37ad62",
-  "download_url": "files/b8f901081e40dbf0ada54ea7a3dd8a8b20241815268244a781703c6b0e37ad62"
+  "file_hash": "58d79b1f93f5ae2f0143687ca4ae4b36d24175f0a96df576b4f02a4554c2c442",
+  "download_url": "files/58d79b1f93f5ae2f0143687ca4ae4b36d24175f0a96df576b4f02a4554c2c442"
  },
  {
   "file_name": "exo/dongle/js/controller-manager.js",
@@ -5441,8 +5441,8 @@
  },
  {
   "file_name": "exo/game-packs.js",
-  "file_hash": "040bbbe4d209c283f98177c9f796c85b6e80cfca6b86c96b0d5ba34ddc4a9b6d",
-  "download_url": "files/040bbbe4d209c283f98177c9f796c85b6e80cfca6b86c96b0d5ba34ddc4a9b6d"
+  "file_hash": "cd6be3ca9d2a3d43c949ecbea57f1f75d944d2b8de0c4c0adadb21fa56881efb",
+  "download_url": "files/cd6be3ca9d2a3d43c949ecbea57f1f75d944d2b8de0c4c0adadb21fa56881efb"
  },
  {
   "file_name": "exo/game-packs/README.md",
@@ -5451,8 +5451,8 @@
  },
  {
   "file_name": "exo/game-packs/apex-legends.json",
-  "file_hash": "e8b556b23b098cd107f86290fe48eb38075763c30e7cc4026ff197e0b8779849",
-  "download_url": "files/e8b556b23b098cd107f86290fe48eb38075763c30e7cc4026ff197e0b8779849"
+  "file_hash": "4695d2e60bc17306f6a456f6b45ff19a857b7d3de677cb63793da2d4a6ea7c36",
+  "download_url": "files/4695d2e60bc17306f6a456f6b45ff19a857b7d3de677cb63793da2d4a6ea7c36"
  },
  {
   "file_name": "exo/game-packs/arc-raiders.json",
@@ -5461,8 +5461,13 @@
  },
  {
   "file_name": "exo/game-packs/art/SOURCES.md",
-  "file_hash": "3bd7b0ffa8467d193446944a162314a6680da8b75bd9b0a3cd433ad50581c931",
-  "download_url": "files/3bd7b0ffa8467d193446944a162314a6680da8b75bd9b0a3cd433ad50581c931"
+  "file_hash": "3787a8e2d7ce55d1c52b664f7d4e3d9ee08712c798120d96e5394d4abf25b40e",
+  "download_url": "files/3787a8e2d7ce55d1c52b664f7d4e3d9ee08712c798120d96e5394d4abf25b40e"
+ },
+ {
+  "file_name": "exo/game-packs/art/apex-legends-panel.jpg",
+  "file_hash": "4fa7c3d8f6ec0614fd26ed172516fc2c989065140ba5cd9231beda7f76a026cb",
+  "download_url": "files/4fa7c3d8f6ec0614fd26ed172516fc2c989065140ba5cd9231beda7f76a026cb"
  },
  {
   "file_name": "exo/game-packs/art/apex-legends-tall.png",
@@ -5475,6 +5480,11 @@
   "download_url": "files/9c317ef767d68a142f51c8a757b486eda4497f06542369f756843d65cebe2ca8"
  },
  {
+  "file_name": "exo/game-packs/art/cod-bo2-panel.jpg",
+  "file_hash": "8b6e16ebe21746c578e6a7422f5a67c9c80d5400c7875a3da937e0abb232aae2",
+  "download_url": "files/8b6e16ebe21746c578e6a7422f5a67c9c80d5400c7875a3da937e0abb232aae2"
+ },
+ {
   "file_name": "exo/game-packs/art/cod-bo2-tall.png",
   "file_hash": "b36c9986f8e78e0753b142587823685c4390b7531ad61c245767bc1e017cec1c",
   "download_url": "files/b36c9986f8e78e0753b142587823685c4390b7531ad61c245767bc1e017cec1c"
@@ -5483,6 +5493,11 @@
   "file_name": "exo/game-packs/art/cod-bo2.png",
   "file_hash": "5fe16b4d54555246fc138af4d96169ea68466ff7466f56eff9664fde3217fa5e",
   "download_url": "files/5fe16b4d54555246fc138af4d96169ea68466ff7466f56eff9664fde3217fa5e"
+ },
+ {
+  "file_name": "exo/game-packs/art/cod-bo7-panel.jpg",
+  "file_hash": "c5b3d09b24f4eed16be9a15d12e8a81bf3fff93397e74aa622a0a13a025e0435",
+  "download_url": "files/c5b3d09b24f4eed16be9a15d12e8a81bf3fff93397e74aa622a0a13a025e0435"
  },
  {
   "file_name": "exo/game-packs/art/cod-bo7-tall.png",
@@ -5505,6 +5520,11 @@
   "download_url": "files/e4a65ef6b3443dd704f8ec8957af6c5737e608ccd0b47878d87b703f6e24e9f1"
  },
  {
+  "file_name": "exo/game-packs/art/cod-warzone-panel.jpg",
+  "file_hash": "fbd2de4034125a3e7fa2014c206755ac3fa59d37357aab30392139a62822f30b",
+  "download_url": "files/fbd2de4034125a3e7fa2014c206755ac3fa59d37357aab30392139a62822f30b"
+ },
+ {
   "file_name": "exo/game-packs/art/cod-warzone-tall.png",
   "file_hash": "831732a2009324e05f3d2451a41db0f374357dd0de571cd93fde318bf16ba142",
   "download_url": "files/831732a2009324e05f3d2451a41db0f374357dd0de571cd93fde318bf16ba142"
@@ -5523,6 +5543,11 @@
   "file_name": "exo/game-packs/art/destiny-2.png",
   "file_hash": "865a40e264716e274fe2540263afca1c854c7f73720e03d0d8f037deceb83d9a",
   "download_url": "files/865a40e264716e274fe2540263afca1c854c7f73720e03d0d8f037deceb83d9a"
+ },
+ {
+  "file_name": "exo/game-packs/art/fortnite-panel.jpg",
+  "file_hash": "b699a537c0264e450d58946f904c799474d78dd8415b0c028f9141f2f615ebef",
+  "download_url": "files/b699a537c0264e450d58946f904c799474d78dd8415b0c028f9141f2f615ebef"
  },
  {
   "file_name": "exo/game-packs/art/fortnite-tall.png",
@@ -5565,6 +5590,11 @@
   "download_url": "files/8abfb77a8b5c333a8acdd2886b11e44597c0b1584915a8aa9cdd55455106986a"
  },
  {
+  "file_name": "exo/game-packs/art/rainbow-six-siege-panel.jpg",
+  "file_hash": "83dad0cff4f6cc66a8bb97456b7d443ce09f2013b61fa1abe41d41597c50a1cf",
+  "download_url": "files/83dad0cff4f6cc66a8bb97456b7d443ce09f2013b61fa1abe41d41597c50a1cf"
+ },
+ {
   "file_name": "exo/game-packs/art/rainbow-six-siege-tall.png",
   "file_hash": "af52e3d2f1cc7581dc3af05184461795f351db99062d111f31be379ce10b5366",
   "download_url": "files/af52e3d2f1cc7581dc3af05184461795f351db99062d111f31be379ce10b5366"
@@ -5585,6 +5615,11 @@
   "download_url": "files/788b1793a0fe364c6e05bc6a8f362766feb800ffaea410e3a800e341aeb6d596"
  },
  {
+  "file_name": "exo/game-packs/art/rust-panel.jpg",
+  "file_hash": "94e63de886e02c321aac2a7bbf19f05f9da792c5fcec805b8f460213920a1d48",
+  "download_url": "files/94e63de886e02c321aac2a7bbf19f05f9da792c5fcec805b8f460213920a1d48"
+ },
+ {
   "file_name": "exo/game-packs/art/rust-tall.png",
   "file_hash": "1c841e238ac86c0a16eb303b34389e77ac8f9f020fecae7ec6bf3d2070fbf062",
   "download_url": "files/1c841e238ac86c0a16eb303b34389e77ac8f9f020fecae7ec6bf3d2070fbf062"
@@ -5601,8 +5636,8 @@
  },
  {
   "file_name": "exo/game-packs/cod-bo2.json",
-  "file_hash": "69a41cb6ad63031a17d204b459a90152a64c56ff816c3113e7af5ded31604976",
-  "download_url": "files/69a41cb6ad63031a17d204b459a90152a64c56ff816c3113e7af5ded31604976"
+  "file_hash": "3dc271124d0e2cd2a6d14c96f21156583d4fc9e7a301e122feea03fad088bf27",
+  "download_url": "files/3dc271124d0e2cd2a6d14c96f21156583d4fc9e7a301e122feea03fad088bf27"
  },
  {
   "file_name": "exo/game-packs/cod-bo6.json",
@@ -5611,8 +5646,8 @@
  },
  {
   "file_name": "exo/game-packs/cod-bo7.json",
-  "file_hash": "079d12171dd0d1e5acd154392d0195c583fa877704b064a7933a71ec0e58b3fd",
-  "download_url": "files/079d12171dd0d1e5acd154392d0195c583fa877704b064a7933a71ec0e58b3fd"
+  "file_hash": "bb6c244700c9de86c3ffcee5bd95a93ab67e65ef20f531a8cac4f4634716e0d1",
+  "download_url": "files/bb6c244700c9de86c3ffcee5bd95a93ab67e65ef20f531a8cac4f4634716e0d1"
  },
  {
   "file_name": "exo/game-packs/cod-mw3.json",
@@ -5621,8 +5656,8 @@
  },
  {
   "file_name": "exo/game-packs/cod-warzone.json",
-  "file_hash": "35de8245aea8c65d719879df73959844419613a6251bf832673ad71e77c4f6d2",
-  "download_url": "files/35de8245aea8c65d719879df73959844419613a6251bf832673ad71e77c4f6d2"
+  "file_hash": "75e002baf5bb4b12aa816e2538a36317f3c3490e632bc7677939ddc23de67c73",
+  "download_url": "files/75e002baf5bb4b12aa816e2538a36317f3c3490e632bc7677939ddc23de67c73"
  },
  {
   "file_name": "exo/game-packs/destiny-2.json",
@@ -5631,8 +5666,8 @@
  },
  {
   "file_name": "exo/game-packs/fortnite.json",
-  "file_hash": "e4d0dd062fe641a1c3647c12a7c46aefea20521004b0eab6b527a7669545d6de",
-  "download_url": "files/e4d0dd062fe641a1c3647c12a7c46aefea20521004b0eab6b527a7669545d6de"
+  "file_hash": "680b99a2c59238d1b982ad1434e66c16d9a473515da8a481b85d082e35b41214",
+  "download_url": "files/680b99a2c59238d1b982ad1434e66c16d9a473515da8a481b85d082e35b41214"
  },
  {
   "file_name": "exo/game-packs/halo-infinite.json",
@@ -5661,8 +5696,8 @@
  },
  {
   "file_name": "exo/game-packs/nba-2k26.json",
-  "file_hash": "ae83416ea02da619771df68ca6fbc6844570a8c23681306932698113ee3abf02",
-  "download_url": "files/ae83416ea02da619771df68ca6fbc6844570a8c23681306932698113ee3abf02"
+  "file_hash": "3cddfce3e320577ef9a8e114c46fb6946488758c4e32e6776e9dea2a95e0e30f",
+  "download_url": "files/3cddfce3e320577ef9a8e114c46fb6946488758c4e32e6776e9dea2a95e0e30f"
  },
  {
   "file_name": "exo/game-packs/overwatch.json",
@@ -5676,8 +5711,8 @@
  },
  {
   "file_name": "exo/game-packs/rainbow-six-siege.json",
-  "file_hash": "f55d75785e2317fc847229c8783f81935e181b0e8465dae7d11bdfad09114e29",
-  "download_url": "files/f55d75785e2317fc847229c8783f81935e181b0e8465dae7d11bdfad09114e29"
+  "file_hash": "e22ad4aa3ec4d60b53496a8d888d105a945d95bf98c452dab40135664ef3462e",
+  "download_url": "files/e22ad4aa3ec4d60b53496a8d888d105a945d95bf98c452dab40135664ef3462e"
  },
  {
   "file_name": "exo/game-packs/rocket-league.json",
@@ -5686,8 +5721,8 @@
  },
  {
   "file_name": "exo/game-packs/rust.json",
-  "file_hash": "13b5172862238342f0f3bd599f03c9cb2262b89b5c9c45cd1ad7c5f20df409fa",
-  "download_url": "files/13b5172862238342f0f3bd599f03c9cb2262b89b5c9c45cd1ad7c5f20df409fa"
+  "file_hash": "73cd722a2f1434bca601b7bdad0721dfa68458c3a5292b70026e295a3d5f6531",
+  "download_url": "files/73cd722a2f1434bca601b7bdad0721dfa68458c3a5292b70026e295a3d5f6531"
  },
  {
   "file_name": "exo/game-packs/spots/SOURCES.md",
@@ -7006,13 +7041,13 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "1c241cc41e9f05d6bd9ed8c670694c5abe5f52fbed052ce8d7975fa5a03c59a0",
-  "download_url": "files/1c241cc41e9f05d6bd9ed8c670694c5abe5f52fbed052ce8d7975fa5a03c59a0"
+  "file_hash": "55bc8bf9c4dcc155f5365122a1d06d36a8373eab9e5d8c3233fb61cd5d6e414b",
+  "download_url": "files/55bc8bf9c4dcc155f5365122a1d06d36a8373eab9e5d8c3233fb61cd5d6e414b"
  },
  {
   "file_name": "exo/shell/10-editor.js",
-  "file_hash": "a6c3d3ff341fdef90a00ab7c7c0fab5cd074d2a2c98843a23a282769482d5188",
-  "download_url": "files/a6c3d3ff341fdef90a00ab7c7c0fab5cd074d2a2c98843a23a282769482d5188"
+  "file_hash": "559150d3bdf2c6527a8eb24dc0b4b91e6b94eb1ebd4d27d18bfff9447983707a",
+  "download_url": "files/559150d3bdf2c6527a8eb24dc0b4b91e6b94eb1ebd4d27d18bfff9447983707a"
  },
  {
   "file_name": "exo/shell/11-detail-swipe.js",
@@ -7586,8 +7621,8 @@
  },
  {
   "file_name": "exo/zs-fixes.css",
-  "file_hash": "a622ffb1a997a4f9d1848932d701edfaf6a392c3ac6009969e0bef62c6cc7bf5",
-  "download_url": "files/a622ffb1a997a4f9d1848932d701edfaf6a392c3ac6009969e0bef62c6cc7bf5"
+  "file_hash": "6ee66f3bc63d266c03ef21f30822f374b3e3e6498ec793766f67aabc4ba9aabc",
+  "download_url": "files/6ee66f3bc63d266c03ef21f30822f374b3e3e6498ec793766f67aabc4ba9aabc"
  },
  {
   "file_name": "exo/zs-flat.css",
@@ -8091,8 +8126,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "855f08f5d0940d7dc12f9b8d9ac0b10bd0b4f1a55ede48e39ae58e9dc31b5c2a",
-  "download_url": "files/855f08f5d0940d7dc12f9b8d9ac0b10bd0b4f1a55ede48e39ae58e9dc31b5c2a"
+  "file_hash": "6faa8a98fb250ade8418cacd8d2b340d784dd63203d4e32b4183d137c5118b54",
+  "download_url": "files/6faa8a98fb250ade8418cacd8d2b340d784dd63203d4e32b4183d137c5118b54"
  },
  {
   "file_name": "zs-live-update.js",
