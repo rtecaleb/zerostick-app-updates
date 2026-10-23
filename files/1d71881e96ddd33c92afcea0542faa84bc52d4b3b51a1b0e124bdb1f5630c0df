@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<script>/* owner 2026-10-13: the app never zooms (iOS ignores user-scalable=no for pinch, so the gesture itself is refused; double-tap zoom is off in CSS) */(function(){function no(e){e.preventDefault();}document.addEventListener("gesturestart",no,{passive:false});document.addEventListener("gesturechange",no,{passive:false});document.addEventListener("touchmove",function(e){if(e.touches&&e.touches.length>1)e.preventDefault();},{passive:false});var st=document.createElement("style");st.textContent="html,body{-webkit-text-size-adjust:100%;text-size-adjust:100%}*{touch-action:manipulation}";var lastEnd=0;document.addEventListener("touchend",function(e){var n=Date.now();if(n-lastEnd<350&&!(e.target&&e.target.closest&&e.target.closest("button,a,input,textarea,select,label,summary,[role],[tabindex],[contenteditable]"))){e.preventDefault();}lastEnd=n;},{passive:false});document.addEventListener("dblclick",function(e){e.preventDefault();},{passive:false});document.head.appendChild(st);}());</script>
+<meta name="color-scheme" content="dark light">
+<title>ZeroStick Calibration Dongle</title>
+<!-- the dongle's own palette (its copy of the EXO 8K flat tokens, D259/D264)
+     and its screens; nothing here is shared with the EXO app (README.md) -->
+<link rel="stylesheet" href="css/zs-dongle-theme.css">
+<link rel="stylesheet" href="css/zs-dongle.css">
+<link rel="stylesheet" href="css/zs-dongle-exo.css">
+</head>
+<body>
+<!-- first: moves the old phone app's saved data into the zsdongle: key space -->
+<script src="js/zs-dongle-storage.js"></script>
+<!-- D423: the phone app shell's live updates (zerostick-app/www/zs-live-update.js; never on the exe) -->
+<script>if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){document.write('<script src="/zs-live-update.js"><\/script>');}</script>
+<script src="js/zs-dongle-mock-loader.js"></script>
+<script src="js/hid-ble.js"></script>
+<script src="js/zs-scripts.js"></script>
+<script src="js/zs-fw.js"></script>
+
+<header id="bar">
+  <button id="back" aria-label="Back">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#eef1f6" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <div id="title">ZeroStick Dongle</div>
+  <span id="linkchip" class="chip" hidden><span class="dot"></span><span></span></span>
+</header>
+
+<main class="shell">
+
+  <!-- ══ 1. Connect ═══════════════════════════════════════════════════ -->
+  <section id="v-connect" class="view" hidden>
+    <div class="hero"><div class="art">
+      <svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="#6f9bff" stroke-width="1.3"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M1.7 10.1h3.9v3.8H1.7z"/><path d="M3 11.4v1.2"/>
+        <rect x="5.6" y="6.9" width="16.5" height="10.2" rx="1.3"/>
+        <rect x="8.1" y="9.5" width="5.1" height="5" rx=".7"/>
+        <path d="M15.8 9.7v4.6M18.5 9.7v4.6"/>
+      </svg>
+    </div></div>
+    <h1 id="c-title">Connect your ZeroStick Dongle</h1>
+    <div class="status" id="c-busy" hidden role="status" aria-live="polite">
+      <div class="spin" aria-hidden="true"></div><div id="c-busytext">Connecting…</div>
+    </div>
+    <div class="card err" id="c-err" hidden role="alert" style="margin-top:16px">
+      <b id="c-errt"></b><span id="c-errd"></span>
+      <button class="btn second" id="c-fix" style="margin-top:14px" hidden>Open Settings</button>
+    </div>
+    <ol class="steps" id="c-steps">
+      <li><span>Plug the dongle into your <b>PS5</b> or any <b>USB charger</b>. Its light comes on.</span></li>
+      <li><span>Plug your <b>controller</b> into the dongle with its USB cable.</span></li>
+      <li><span>Keep your phone close, tap <b>Connect</b>, and choose <b>ZeroStick Dongle</b>.</span></li>
+    </ol>
+    <p class="hint" id="c-perm">Your phone may ask to allow Bluetooth or "Nearby devices". Tap <b>Allow</b>, it's only used to reach the dongle.</p>
+    <div class="stack" style="margin-top:22px">
+      <button class="btn plain" id="c-other" hidden>Use a different dongle</button>
+      <button class="btn plain" id="c-wifi">I have the ZeroStick Calibrator (WiFi)</button>
+    </div>
+    <div class="dock"><div class="in"><button class="btn primary" id="c-go">Connect</button></div></div>
+  </section>
+
+  <!-- ══ 2. Hub ═══════════════════════════════════════════════════════ -->
+  <section id="v-hub" class="view" hidden>
+    <div class="card">
+      <div class="devhead">
+        <span class="glyph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6f9bff"
+          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M1.7 10.1h3.9v3.8H1.7z"/><rect x="5.6" y="6.9" width="16.5" height="10.2" rx="1.3"/>
+          <rect x="8.1" y="9.5" width="5.1" height="5" rx=".7"/><path d="M15.8 9.7v4.6M18.5 9.7v4.6"/></svg></span>
+        <div style="flex:1;min-width:0">
+          <div class="nm" id="h-name">ZeroStick Dongle</div>
+          <div class="sub"><span style="color:var(--ok);font-weight:700">&#9679; Connected</span> · <span id="h-fw">Firmware –</span></div>
+        </div>
+      </div>
+      <div class="facts">
+        <div class="fact"><span class="k">Controller</span><span class="v" id="h-pad">Checking…</span></div>
+        <div class="fact"><span class="k">Stick flex</span><span class="v" id="h-flex">Checking…</span></div>
+        <div class="fact" style="border-bottom:0"><span class="k">Power</span><span class="v" id="h-pow">Checking…</span>
+          <button class="qbtn" data-more="h-powmore" aria-expanded="false" aria-label="Power details">?</button></div>
+        <div class="note warnline" id="h-powd" hidden></div>
+        <div class="more" id="h-powmore" hidden></div>
+      </div>
+    </div>
+
+    <h2>What do you want to do?</h2>
+    <button class="choice" id="h-cal">
+      <span class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6f9bff" stroke-width="1.7"
+        stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/>
+        <path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3"/></svg></span>
+      <span class="tx"><span class="t">Calibrate sticks</span>
+        <span class="d" style="display:block">Fix stick drift and centring on a DualSense or Edge.</span></span>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a9b5c5" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <button class="choice" id="h-scr">
+      <span class="ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6f9bff" stroke-width="1.7"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/>
+        <path d="M12 7v7M8.5 11.5 12 15l3.5-3.5"/></svg></span>
+      <span class="tx"><span class="eb">Script Edition</span><span class="t" style="display:block">Recoil &amp; Aim</span>
+        <span class="d" style="display:block">Anti-recoil and aim patterns through your stick flex.</span></span>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a9b5c5" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+
+    <h2>Dongle</h2>
+    <button class="menu" id="h-fwrow">
+      <span class="tx"><span class="t" style="display:block">Firmware update</span>
+        <span class="d" style="display:block">Keep your dongle up to date.</span></span>
+      <span class="chip" id="h-fwchip">–</span>
+    </button>
+
+    <div class="stack" style="margin-top:26px">
+      <button class="btn second" id="h-disc">Disconnect</button>
+      <button class="btn plain" id="h-forget">Forget this dongle</button>
+    </div>
+  </section>
+
+  <!-- ══ 3. Recoil & Aim ══════════════════════════════════════════════ -->
+  <section id="v-scripts" class="view" hidden>
+    <div class="card linkcard" id="s-link" aria-live="polite">
+      <span class="big" id="s-linkic"></span>
+      <div style="flex:1">
+        <div class="t" id="s-linkt">Checking your stick flex…</div>
+        <div class="d" id="s-linkd"></div>
+        <button class="btn second act" id="s-linkbtn" hidden>Pair stick flex</button>
+        <div class="warnline" id="s-linkwarn" hidden></div>
+      </div>
+    </div>
+
+    <div class="card" id="s-cal" hidden aria-live="polite">
+      <div class="linkcard">
+        <span class="big" id="s-calic" style="background:var(--zs-control)"></span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div class="t" id="s-calt" style="flex:1">Stick flex setup</div>
+            <button class="qbtn" data-more="s-calmore" aria-expanded="false" aria-label="Setup details">?</button>
+          </div>
+          <div class="d" id="s-cald"></div>
+          <div class="bar" id="s-calbar" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100" hidden><div></div></div>
+          <button class="btn second act" id="s-calbtn" hidden>Run setup</button>
+          <button class="btn plain" id="s-calstop" hidden>Stop setup</button>
+        </div>
+      </div>
+      <div class="more" id="s-calmore" hidden></div>
+    </div>
+
+    <div class="card">
+      <button class="switchrow" id="s-master" role="switch" aria-checked="false">
+        <span class="tx"><span class="t" style="display:block">Scripts</span>
+          <span class="d" id="s-masterd" style="display:block">Off: your sticks work normally.</span></span>
+        <span class="sw" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;font-weight:700;font-size:18px">Running now</div>
+        <span class="chip" id="s-slotchip">Script 1</span>
+      </div>
+      <div class="live" id="s-live" aria-live="polite">
+        <div data-a="idle" class="on">Nothing<small>sticks normal</small></div>
+        <div data-a="aim" class="aim">Aim<small>holding L2</small></div>
+        <div data-a="recoil" class="recoil">Recoil<small>L2 + R2</small></div>
+      </div>
+      <div class="warnline" id="s-sat" hidden>At its limit: this script asks for more pull than the stick flex can give, so it is giving its most. Lower <b>Pull down</b> to get the same feel with headroom.</div>
+      <p class="hint" id="s-livehint">Hold <b>L2</b> to aim, then press <b>R2</b> to fire. The controller must stay plugged into the dongle so it can see your triggers.</p>
+    </div>
+
+    <h2>Your scripts</h2>
+    <div class="slots" id="s-slots" role="list"></div>
+
+    <h2>Stick flex</h2>
+    <button class="menu" id="s-pair">
+      <span class="tx"><span class="t" style="display:block">Pair stick flex again</span>
+        <span class="d" style="display:block">For a new or replaced stick flex.</span></span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a9b5c5" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+  </section>
+
+  <!-- ══ 4. Script editor ═════════════════════════════════════════════ -->
+  <section id="v-edit" class="view" hidden>
+    <label class="sr" for="e-name">Script name</label>
+    <input id="e-name" class="namebox" maxlength="24" autocomplete="off" placeholder="Script name">
+
+    <h2>Quick start</h2>
+    <div class="card">
+      <div class="plab">Anti-recoil</div>
+      <div class="presets" id="e-pre-recoil"></div>
+      <div class="plab">Aim</div>
+      <div class="presets" id="e-pre-aim"></div>
+    </div>
+
+    <h2>Anti-recoil · L2 + R2</h2>
+    <div class="card" id="e-recoil"></div>
+
+    <h2>Aim pattern · L2</h2>
+    <div class="card" id="e-aim">
+      <div class="ctl" style="padding-top:4px">
+        <div class="top"><span class="lab">Pattern</span></div>
+        <div class="help">Small stick movements while you aim, to help aim assist lock on.</div>
+        <div class="seg" id="e-aimtype" role="radiogroup" aria-label="Aim pattern">
+          <button role="radio" data-v="0">Off</button>
+          <button role="radio" data-v="1">Jitter</button>
+          <button role="radio" data-v="2">Circle</button>
+        </div>
+      </div>
+      <div id="e-aimmore"></div>
+    </div>
+
+    <h2>More</h2>
+    <div class="card">
+      <button class="switchrow" id="e-inv" role="switch" aria-checked="false">
+        <span class="tx"><span class="t" style="display:block">Inverted look</span>
+          <span class="d" style="display:block">Turn on if your game has up/down look inverted.</span></span>
+        <span class="sw" aria-hidden="true"></span>
+      </button>
+    </div>
+    <button class="btn plain" id="e-reset" style="margin-top:14px">Reset to the dongle's default</button>
+
+    <div class="dock"><div class="in row2">
+      <button class="btn second" id="e-use">Use this script</button>
+      <button class="btn primary" id="e-save" disabled>Saved</button>
+    </div></div>
+  </section>
+  <!-- ══ 5. Firmware update ══════════════════════════════════════════ -->
+  <section id="v-update" class="view" hidden>
+    <div id="u-idle">
+      <div class="card err" id="u-err" hidden role="alert" style="margin-bottom:12px">
+        <b id="u-errt"></b><span id="u-errd"></span>
+      </div>
+      <div class="card">
+        <div class="devhead">
+          <span class="glyph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6f9bff"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.7 10.1h3.9v3.8H1.7z"/><rect x="5.6" y="6.9" width="16.5" height="10.2" rx="1.3"/>
+            <rect x="8.1" y="9.5" width="5.1" height="5" rx=".7"/><path d="M15.8 9.7v4.6M18.5 9.7v4.6"/></svg></span>
+          <div style="flex:1;min-width:0">
+            <div class="nm">Dongle</div>
+            <div class="sub">Installed: <b id="u-cur">–</b></div>
+          </div>
+        </div>
+        <p class="note" id="u-state" style="font-weight:650;margin-top:14px">Checking…</p>
+        <p class="hint" id="u-notes" hidden></p>
+        <button class="btn primary act" id="u-go" hidden style="margin-top:14px">Update the dongle</button>
+      </div>
+      <div class="card" hidden>  <!-- stick flex: not on this device (owner 2026-10-23) -->
+        <div class="devhead">
+          <span class="glyph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6f9bff"
+            stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/>
+            <circle cx="12" cy="12" r="3.2"/></svg></span>
+          <div style="flex:1;min-width:0">
+            <div class="nm">Stick flex</div>
+            <div class="sub">Installed: <b id="u-fcur">–</b></div>
+          </div>
+        </div>
+        <p class="note" id="u-fstate" style="font-weight:650;margin-top:14px">Checking…</p>
+        <p class="hint" id="u-fnotes" hidden></p>
+        <button class="btn primary act" id="u-fgo" hidden style="margin-top:14px">Update the stick flex</button>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
+        <p class="hint" style="flex:1;margin:0">Updates come with the ZeroStick app. Your calibration is kept.</p>
+        <button class="qbtn" data-more="u-more" aria-expanded="false" aria-label="About these updates">?</button>
+      </div>
+      <div class="more" id="u-more" hidden></div>
+    </div>
+
+    <div id="u-run" hidden>
+      <h1 id="u-title">Updating your dongle</h1>
+      <div class="dontunplug" role="alert">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true" style="flex:0 0 26px"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9.5v5M12 17.5v.1"/></svg>
+        <span id="u-warn">Don't unplug the dongle and keep this screen open. Your phone stays awake until it's done.</span>
+      </div>
+      <div class="pct" id="u-pct" aria-hidden="true">0%</div>
+      <div class="bar big" id="u-bar" role="progressbar" aria-label="Update progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
+      <p class="hint" id="u-stage" role="status" aria-live="polite" style="font-size:17px;margin-top:14px">Getting ready…</p>
+      <p class="hint" id="u-runhint">If Bluetooth drops, the update carries on from where it stopped. The dongle keeps its current firmware until the new one is fully checked.</p>
+      <div class="dock"><div class="in"><button class="btn second" id="u-cancel">Stop update</button></div></div>
+    </div>
+  </section>
+</main>
+
+<div id="scrim" hidden><div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+  <div class="pairart" id="sh-art"></div>
+  <h1 id="sh-t"></h1>
+  <div class="body" id="sh-b"></div>
+  <div class="stack" id="sh-btns"></div>
+</div></div>
+<div id="toast" class="hide" role="status" aria-live="polite"></div>
+
+<script src="js/zs-dongle-app.js"></script>
+</body>
+</html>
