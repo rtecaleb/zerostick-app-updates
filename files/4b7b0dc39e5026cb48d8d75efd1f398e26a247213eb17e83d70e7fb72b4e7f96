@@ -1,0 +1,219 @@
+/* shell/16-start.js — boot.
+ *
+ * The appbar (the cog, the device switcher), the live surfaces' subscriptions
+ * to devbar.js, the first paint, the first /status and the 8 s poll.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── boot ──────────────────────────────────────────────────────── */
+  /* The logochip is gone from the appbar — the real logo IS the title now. */
+  /* ⋯ NOT A GEAR (owner, 2026-08-18: "have that be on a little 3 dot tab on
+     the top right instead of the sun icon"). The gear opened Global Settings
+     alone; the dots open the three doors that used to sit under HOME — the
+     device, the configs, and the settings — because HOME is now the playing
+     config and nothing else. Three lines of markup rather than an icon font:
+     a gear read as 'settings' and this must read as 'more'. */
+  document.getElementById('cog').innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">'+
+      '<circle cx="12" cy="5" r="1.9" fill="currentColor"/>'+
+      '<circle cx="12" cy="12" r="1.9" fill="currentColor"/>'+
+      '<circle cx="12" cy="19" r="1.9" fill="currentColor"/></svg>';
+  document.getElementById('cog').setAttribute('aria-label','More');
+  document.getElementById('cog').setAttribute('aria-haspopup','dialog');
+  /* wrapped, not passed by name: openMoreMenu is declared below this line
+     and a bare reference resolves at WIRE time, which left the listener
+     holding undefined — mini-dom's addEventListener drops a non-function
+     silently, so the dots did nothing and nothing said why. The wrapper
+     resolves at CALL time, when the declaration certainly exists. */
+  document.getElementById('cog').addEventListener('click', function(){ openMoreMenu(); });
+  /* The three doors, as a sheet. Same destinations, same words, same order
+     they had on HOME (the device, then its configs, then the app's own
+     furniture) — only the address changed. Built fresh each open so the
+     config count and the active config's art are never stale. */
+  function openMoreMenu(){
+    var a = prof(activeId), n = PROFILES.length;
+    var DEVS = window.ZS_DEVICES || [], meDev = null, di;
+    for(di=0; di<DEVS.length; di++) if(DEVS[di] && DEVS[di].id===ZS_MY_DEVICE) meDev = DEVS[di];
+    /* ONE CONFIG IS NOT A CHOICE. #cfgrow branched both halves of this and
+       the branch did not travel with the row: a brand-new owner with a
+       single config was offered a switch with nothing to switch to. Both
+       come back — the visible hint and the announced name, which is also
+       the only place 'reorder' can live: it measured 217px and wrapped the
+       visible line at 375px, which is why it was kept out of it. */
+    var cfgHint = (n===1) ? '1 saved — add one per game'
+                          : n+' saved — switch or add one';
+    var cfgLab  = (n===1)
+      ? 'Your configs. '+esc(a.name)+' is your only config. Add another.'
+      : 'Your configs. '+esc(a.name)+' is playing now, '+n+
+        ' saved. Switch, reorder or add one.';
+    /* the owner's two logos (2026-10-10) instead of the drawn glyphs */
+    /* D335: inside EXO Studio the device list is Studio's (zs-host.js) */
+    var hostOwnsDevices = !!(window.ZSHOST && ZSHOST.hides('devicePicker'));
+    var h = (hostOwnsDevices ? '' : '<div class="mrow" data-more="devices"><span class="ico ico-img">'+
+        '<img src="brand/zs-your-devices-ico.webp" width="160" height="160" alt=""></span><span class="t"><div class="lab">Your devices</div>'+
+        /* the product's name from the gate (PRODUCTS), which is the registry
+           name on an EXO and "ZeroStick Core" once /status says core */
+        '<div class="hint">'+esc(productName())+'</div></span>'+
+        '<span class="chev">›</span></div>')+
+      '<div class="mrow" data-more="configs" aria-label="'+cfgLab+'">'+artHTML(a, 42, {shape:'square'})+
+        '<span class="t"><div class="lab">Your configs</div>'+
+        '<div class="hint">'+cfgHint+'</div></span>'+
+        '<span class="chev">›</span></div>'+
+      '<div class="mrow" data-more="global"><span class="ico ico-img">'+
+        '<img src="brand/zs-global-settings.webp" width="160" height="160" alt=""></span><span class="t"><div class="lab">Global Settings</div>'+
+        /* A LIST OF INTERNAL TAB NAMES IS NOT A DESCRIPTION. This read
+           "Passthrough Mode, performance, access, developer" — a proper noun
+           the user has never met, a truncated word ("access"), and a tab
+           meant for whoever is debugging the board. Say what the room is
+           for. */
+        '<div class="hint">Text size, contrast, and how this app behaves</div></span>'+
+        '<span class="chev">›</span></div>';
+    /* D271: the EXO is coming soon to the public; the owner is in through
+       the device list's hidden developer door (devices.js devUnlock). This
+       row, shown ONLY while that is on, locks it again: the key goes and
+       the device list opens with the EXO back to Coming soon. Small, last,
+       no picture, so nobody else ever meets it. */
+    var devKey = null;
+    for(di=0; di<DEVS.length; di++) if(DEVS[di] && DEVS[di].devUnlock) devKey = DEVS[di].devUnlock;
+    var devOn = false;
+    try{ devOn = !!devKey && localStorage.getItem(devKey)==='1'; }catch(e){}
+    if(devOn && !hostOwnsDevices) h += '<div class="mrow mrow-dev" data-more="devlock"><span class="t"><div class="lab">Lock developer access</div>'+
+        '<div class="hint">Show the EXO as Coming soon on this device again</div></span></div>';
+    var body = sheetOpen('More', h);
+    wireArt(body);
+    body.querySelectorAll('.mrow').forEach(function(el){
+      el.addEventListener('click', function(){
+        var w = el.dataset.more; sheetClose();
+        if(w==='devices') location.href=devicesURL();
+        else if(w==='devlock'){
+          try{ localStorage.removeItem(devKey); }catch(e){}
+          location.href = devicesURL()+'&locked=1';
+        }
+        else if(w==='configs') openDetail({id:'profiles', lab:'Configs'});
+        else openDetail({id:'global', lab:'Global Settings'});
+      });
+      kb(el);
+    });
+  }
+
+  /* ── appbar device switcher ──────────────────────────────────────
+     Turns the title into "ZeroStick EXO ⌄" once there are 2+ SHIPPING
+     products to switch between. Guarded on ready>=2, so while EXO is the
+     only one that ships this function returns before touching the DOM and
+     the appbar stays pixel-identical to before. */
+  (function(){
+    var L = window.ZS_DEVICES || [], ready = 0, me = null;
+    for(var i=0;i<L.length;i++){
+      if(!L[i]) continue;
+      if(L[i].status==='ready') ready++;
+      if(L[i].id===ZS_MY_DEVICE) me = L[i];
+    }
+    if(ready < 2) return;                       /* today: nothing changes */
+    if(window.ZSHOST && ZSHOST.hides('devicePicker')) return;   /* D335 */
+    var go = function(){ location.href = devicesURL(); };
+    /* THE TITLE LEFT THE BAR (2026-09-04): the mark is under the live pad
+       now, so the device switcher's target moved with it. Guarded rather
+       than assumed - this whole block is dead until a second product ships,
+       and a null here would throw on a screen that has nothing to do with
+       device switching. */
+    var h1 = document.querySelector('.hfoot h1') || document.querySelector('.appbar h1');
+    if(!h1) return;
+    /* D264: two products ship now (the Core and the Calibration Dongle), so
+       this block is live for the first time - and the app bar's h1 is the ZS
+       EXO logo (#brand, D185), which this would have overwritten with text.
+       The logo stays; the way to the other device is More > Your devices. */
+    if(h1.id === 'brand') return;
+    h1.className = 'devsw';
+    h1.innerHTML = esc(me ? me.name : 'ZeroStick')+'<span class="cv">⌄</span>';
+    h1.setAttribute('role','button');
+    h1.setAttribute('aria-label','Switch device — currently '+(me ? me.name : 'ZeroStick'));
+    h1.addEventListener('click', go); kb(h1);
+  })();
+
+  renderHome();
+  /* THE TWO LIVE SURFACES ON HOME subscribe to the device bar's existing
+     pollers rather than starting their own (see ZS.onLiveInput in devbar.js).
+     CALLED FROM AFTER devbar.js, NOT FROM HERE: this script runs before that
+     file is fetched, so ZS.onLiveInput does not exist yet and a call here
+     would be skipped by its own `if` - silently, which is exactly the kind of
+     no-op that looks like a broken feature. Declared here (with the code it
+     belongs to) and invoked at the bottom of the page, next to the tag that
+     defines what it needs. */
+  function wireHomeLive(){
+    if(!window.ZS) return;
+    if(ZS.onLiveInput) ZS.onLiveInput(function(){ paintHomeKeys(); paintHomeNav(); paintHomeGun(); paintHomeDev(); });
+    if(ZS.onDevicesChange) ZS.onDevicesChange(function(){
+      paintDevPills();
+      /* a pad swapped mid-session changes which glyph set is right, and
+         keySig is keyed on the family - clear it or the old symbols persist. */
+      keySig = null; paintHomeKeys();
+    });
+  }
+  /* the two panel-header board chips: static markup, so this is the only
+     wiring pass they ever need, and it must happen before the first poll can
+     land so their state is never a request behind the app's */
+  wireBoardChips();
+  wireSaveChips();
+  applyAccess();
+  /* The one place the boot entrance fires — AFTER applyAccess, so a stored
+     Reduce Motion is already on the <body> before any animation could start
+     a first frame. All in one synchronous task with renderHome, so there is
+     no paint between the children appearing and the class arriving. */
+  homeEnter();
+  syncInert();
+
+  /* The photos of the adapter this list belongs to, from the app's own
+     drawer, before anything is asked of the adapter: they are not on it
+     (D120), so a player opening the app with the adapter away still sees
+     their pictures on the configs they last saw. */
+  loadPhotos();
+  /* connect to the board: load real configs, then keep status fresh */
+  Promise.all([loadLive(), refreshStatus()]).then(function(r){
+    renderHomeIfVisible();
+    if(r[0]){ flushPendingBinds(); toast('Connected — configs loaded'); offerDrafts(); /* M9 */ }
+    /* teach the swipe gesture once, after the connect toast has had its moment */
+    if(!STORE.vals['ui|swipetip']){
+      setTimeout(function(){
+        toast('Tip: swipe right to go back, left for the next tab', {ms:6000});
+        STORE.vals['ui|swipetip']=1; persist();
+      }, r[0] ? 3200 : 600);
+    }
+  });
+  setInterval(function(){
+    if(document.hidden) return;
+    var wasOffline = LIVE.online===false || !Object.keys(LIVE.full).length;
+    refreshStatus().then(function(j){
+      /* the board may boot (or the cable go back in) AFTER the app opened —
+         pull the real configs the first time it answers, or the app keeps
+         showing preview data while claiming to be connected */
+      if(j && j.ok && wasOffline){
+        loadLive().then(function(ok){
+          renderHomeIfVisible();
+          /* anything edited while it was away goes out now, before the user
+             sees the board's own values reappear under their fingers */
+          if(ok){ flushPendingBinds(); toast('Board found — configs loaded'); offerDrafts(); /* M9 */ }
+        });
+        return;
+      }
+      renderHomeIfVisible();
+    });
+  }, 8000);
+  /* 2026-10-23 (owner: "the gap between the EXO logo bar and the colourful
+     part is a hard line, blend the colour all the way to the top"): on HOME
+     the appbar is see-through and #home's wash and lights reach up under
+     it. zs-fixes.css pulls #home up by the appbar's height, which differs
+     with the phone's notch, so it is measured here into --zs-abh. */
+  (function(){
+    var ab = document.querySelector('.screen > .appbar');
+    var sc = ab && ab.parentNode;
+    if(!ab || !sc || !sc.style || !sc.style.setProperty) return;
+    function put(){ var h = ab.offsetHeight; if(h > 0) sc.style.setProperty('--zs-abh', h + 'px'); }
+    put();
+    if(typeof ResizeObserver === 'function'){ try{ new ResizeObserver(put).observe(ab); }catch(e){} }
+    else if(window.addEventListener){ window.addEventListener('resize', put); }
+  })();
