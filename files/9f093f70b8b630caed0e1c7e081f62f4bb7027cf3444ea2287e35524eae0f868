@@ -1,0 +1,163 @@
+/* zs-cal-connect.css - the calibrator page's top bar and its Connect screen
+ * (calibrator.html, js/zs-cal-bar.js, js/app-connect.js), D273.
+ *
+ * The Connect screen is dongle.html's Connect view (css/zs-dongle.css: hero
+ * picture, title, numbered steps with bold key words, a small note, the big
+ * Connect button docked at the bottom) for the ORIGINAL WiFi calibrator too.
+ * zs-dongle.css itself cannot be linked here: it styles bare elements and
+ * classes (*, body, h1, .btn, .card) that Bootstrap also owns on this page.
+ * So the rules it needs are COPIED, every one scoped under #zsbar or
+ * #zsConnectOverlay. Colours are the dongle's own palette
+ * (css/zs-dongle-theme.css, linked before this), so light and dark follow
+ * the system the same way the dongle screens do.
+ *
+ * Accessibility first: targets >= 56 px, text >= 4.5:1, the action at the
+ * bottom for one thumb, 360 px wide with no sideways scroll.
+ */
+
+/* ── the top bar (every calibrator screen): the dongle's #bar ────────── */
+#zsbar{
+  position:sticky; top:0; z-index:100000; display:flex; align-items:center; gap:6px;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px; background:var(--zs-page);
+  border-bottom:1px solid var(--line); color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+#zsback{width:56px; height:56px; flex:0 0 56px; border-radius:12px; display:grid; place-items:center;
+  background:none; border:0; padding:0; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+#zsback:active{background:var(--zs-raised);}
+#zsback:focus-visible{outline:3px solid var(--ion); outline-offset:2px;}
+#zsback svg{stroke:var(--fg);}
+#zsbartitle{flex:1; min-width:0; font-size:19px; font-weight:700; letter-spacing:var(--tr-title);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0;}
+
+/* the PC's network line under the bar, while the exe holds the calibrator's WiFi */
+#zsPcNet{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 16px;
+  background:var(--warn-wash); border-bottom:1px solid var(--warn-edge); color:var(--fg); font-size:15px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;}
+#zsPcNet .t{flex:1 1 200px; min-width:0;}
+#zsPcNet button{min-height:48px; padding:8px 16px; border-radius:12px; background:var(--zs-control);
+  color:var(--fg); border:1px solid var(--line); font-weight:700; font-size:15px;}
+
+/* ── the Connect screen: a page under the bar ────────────────────────── */
+#zsConnectOverlay{
+  position:fixed; left:0; right:0; bottom:0; top:calc(env(safe-area-inset-top,0px) + 73px);
+  z-index:99999; overflow-y:auto; overflow-x:hidden; background:var(--zs-page); color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:17px; line-height:1.45; text-align:left; -webkit-font-smoothing:antialiased;
+}
+#zsConnectOverlay *{box-sizing:border-box;}
+#zsConnectOverlay[hidden], #zsConnectOverlay [hidden]{display:none !important;}
+#zsConnectOverlay .shell{max-width:560px; margin:0 auto;
+  padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 120px); animation:zswc-in .22s var(--ease);}
+@keyframes zswc-in{from{opacity:0; transform:translateY(6px);}}
+@media (prefers-reduced-motion:reduce){#zsConnectOverlay .shell{animation:none;}}
+
+#zsConnectOverlay .hero{display:grid; place-items:center; margin:8px 0 18px;}
+#zsConnectOverlay .hero img{width:160px; height:160px; object-fit:cover; border-radius:16px;
+  border:1px solid var(--line); background:#000; display:block;}
+#zsConnectOverlay .hero .art{width:128px; height:128px; border-radius:16px; background:var(--zs-card);
+  display:grid; place-items:center; border:1px solid var(--line);}
+#zsConnectOverlay .hero .art svg{stroke:var(--ion);}
+#zsConnectOverlay h1{font-size:26px; font-weight:700; letter-spacing:var(--tr-title); line-height:1.2;
+  margin:0; color:var(--fg);}
+
+#zsConnectOverlay .steps{list-style:none; counter-reset:zswc; margin:18px 0 0; padding:0;}
+#zsConnectOverlay .steps li{counter-increment:zswc; display:flex; gap:14px; align-items:flex-start; padding:12px 0;}
+#zsConnectOverlay .steps li::before{content:counter(zswc); flex:0 0 34px; height:34px; border-radius:50%;
+  background:var(--zs-card); color:var(--fg); font-weight:700; display:grid; place-items:center;
+  border:1px solid var(--line);}
+#zsConnectOverlay .steps li > span{padding-top:4px;}
+#zsConnectOverlay b{font-weight:700; color:var(--fg);}
+#zsConnectOverlay .hint{color:var(--muted); font-size:14.5px; margin:10px 0 0;}
+#zsConnectOverlay .hint b{color:var(--fg);}
+
+/* progress: a spinner and what is happening now */
+#zsConnectOverlay .status{display:flex; gap:14px; align-items:center; margin-top:16px;}
+#zsConnectOverlay .spin{width:30px; height:30px; flex:0 0 30px; border-radius:50%; border:4px solid var(--zs-control);
+  border-top-color:var(--ion); animation:zswc-spin 1s linear infinite;}
+@keyframes zswc-spin{to{transform:rotate(360deg);}}
+#zsConnectOverlay .status .sub{display:block; color:var(--muted); font-size:14.5px;}
+#zsConnectOverlay .done{display:flex; gap:12px; align-items:center; margin-top:16px; color:var(--ok); font-weight:700; font-size:18px;}
+#zsConnectOverlay .done .tick{flex:0 0 30px; height:30px; border-radius:50%; background:var(--ok-wash);
+  display:grid; place-items:center;}
+#zsConnectOverlay .done .tick svg{stroke:var(--ok);}
+
+/* an error: what happened, then what to do */
+#zsConnectOverlay .err{margin-top:16px; background:var(--zs-card); border:1px solid var(--bad-edge);
+  border-radius:12px; padding:16px 18px;}
+#zsConnectOverlay .err b{display:block; font-size:18px; color:var(--bad); margin-bottom:4px;}
+#zsConnectOverlay .err span{display:block; color:var(--fg);}
+#zsConnectOverlay .err .btn{margin-top:14px;}
+
+/* buttons: the dongle's .btn family */
+#zsConnectOverlay .btn{display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+  min-height:60px; padding:14px 20px; border-radius:12px; font:inherit; font-size:18px; font-weight:700;
+  letter-spacing:var(--tr-title); cursor:pointer; transition:transform 90ms var(--ease);
+  -webkit-tap-highlight-color:transparent;}
+#zsConnectOverlay .btn:active:not(:disabled){transform:scale(.98);}
+#zsConnectOverlay .btn:focus-visible{outline:3px solid var(--ion); outline-offset:2px;}
+#zsConnectOverlay .btn.primary{background:var(--ion); color:var(--ion-ink); border:1px solid var(--ion);}
+#zsConnectOverlay .btn.primary:disabled{background:var(--zs-control); color:var(--faint); border-color:var(--line); cursor:default;}
+#zsConnectOverlay .btn.second{background:var(--zs-control); color:var(--fg); border:1px solid var(--line);}
+#zsConnectOverlay .btn.plain{display:block; text-align:center; min-height:56px; background:none; border:0; color:var(--muted); font-weight:600;
+  font-size:16px; text-decoration:underline; text-underline-offset:3px;}
+#zsConnectOverlay .btn.plain .faint{color:var(--muted); font-weight:500;}
+#zsConnectOverlay .stack{display:flex; flex-direction:column; gap:12px; margin-top:22px;}
+
+#zsConnectOverlay .dock{position:fixed; left:0; right:0; bottom:0; z-index:2;
+  padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px); background:var(--zs-page);
+  border-top:1px solid var(--line);}
+#zsConnectOverlay .dock .in{max-width:560px; margin:0 auto;}
+
+/* ── the Search list (app-connect.js showFound): only calibrators ────── */
+#zsConnectOverlay .found{margin-top:18px;}
+#zsConnectOverlay .found h2{font-size:15px; font-weight:700; color:var(--muted); margin:0 0 10px;}
+#zsConnectOverlay .found .list{display:flex; flex-direction:column; gap:10px;}
+#zsConnectOverlay .net{display:flex; align-items:center; gap:14px; width:100%; min-height:72px; padding:12px 14px;
+  border-radius:14px; background:var(--zs-card); border:2px solid var(--ion); color:var(--fg); font:inherit;
+  text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform 90ms var(--ease);}
+#zsConnectOverlay .net:active{transform:scale(.98);}
+#zsConnectOverlay .net:focus-visible{outline:3px solid var(--ion); outline-offset:2px;}
+#zsConnectOverlay .net .ic{flex:0 0 44px; height:44px; border-radius:12px; display:grid; place-items:center;
+  background:var(--zs-control); color:var(--ion);}
+#zsConnectOverlay .net .nm{flex:1; min-width:0;}
+#zsConnectOverlay .net .nm b{display:block; font-size:18px;}
+#zsConnectOverlay .net .nm .sub{display:block; color:var(--muted); font-size:14.5px;}
+#zsConnectOverlay .net .go{flex:0 0 auto; color:var(--muted); display:grid; place-items:center;}
+#zsConnectOverlay .found .none{margin:0; padding:16px 18px; border-radius:12px; background:var(--zs-card);
+  border:1px solid var(--line); color:var(--fg);}
+#zsConnectOverlay .found #zsAnyway{margin-top:12px;}
+#zsConnectOverlay .help{margin-top:14px; border-top:1px solid var(--line); padding-top:4px;}
+#zsConnectOverlay .help summary{min-height:48px; display:flex; align-items:center; cursor:pointer; font-weight:600;
+  color:var(--fg); list-style:none;}
+#zsConnectOverlay .help summary::-webkit-details-marker{display:none;}
+#zsConnectOverlay .help summary::after{content:'+'; margin-left:auto; font-size:22px; color:var(--muted);}
+#zsConnectOverlay .help[open] summary::after{content:'\2212';}
+#zsConnectOverlay .help ul{margin:0 0 6px; padding-left:20px; color:var(--fg); font-size:15.5px;}
+#zsConnectOverlay .help li{margin:6px 0;}
+
+/* Controller light on the Connect screen (js/zs-pad-light.js) */
+.zs-pad-light {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, 0.10);
+  font-weight: 600;
+}
+.zs-pad-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8a8f98;
+}
+.zs-pad-dot.zs-pad-on  { background: #22c55e; box-shadow: 0 0 10px 2px rgba(34, 197, 94, 0.75); }
+.zs-pad-dot.zs-pad-off { background: #ef4444; box-shadow: 0 0 10px 2px rgba(239, 68, 68, 0.75); }
+.zs-pad-light[data-state="on"]  { color: #22c55e; }
+.zs-pad-light[data-state="off"] { color: #ef4444; }
+@media (prefers-reduced-motion: no-preference) {
+  .zs-pad-dot.zs-pad-wait { animation: zs-pad-pulse 1.2s ease-in-out infinite; }
+}
+@keyframes zs-pad-pulse { 50% { opacity: 0.35; } }

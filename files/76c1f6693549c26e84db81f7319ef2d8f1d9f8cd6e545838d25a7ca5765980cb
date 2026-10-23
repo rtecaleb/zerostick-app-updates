@@ -1,0 +1,52 @@
+/* zs-dongle-theme.css - the dongle pages' palette: the EXO app's 8K flat look
+ * (D259, D264), as the dongle's OWN copy.
+ *
+ * These values are copied from the EXO app's zs-flat.css on 2026-10-10 and
+ * are deliberately NOT linked from it: the dongle folder shares no file with
+ * the EXO app (dongle/README.md, tools/test-dongle-isolation.js), so a change
+ * to one app's stylesheet can never break the other. If the EXO palette
+ * moves, re-copy the numbers here by hand.
+ *
+ *   one ground, one card, one control face - solid, never a gradient
+ *   a 1px hairline is the only edge; nothing floats on a shadow
+ *   one blue accent for "on", "selected" and "press this"
+ *   labels are small capitals at .06em, no ornaments
+ *
+ * Dark only - no light theme (owner 2026-10-23).
+ *
+ * Every text colour here is >= 4.5:1 on the card and the ground it sits on.
+ */
+:root{
+  color-scheme:dark;
+  --zs-page:#1b1d20;            /* the 8K ground  (--zk-ground) */
+  --zs-card:#26282d;            /* a card         (--zk-card)   */
+  --zs-raised:#2d3036;          /* a raised face  (--zk-card3)  */
+  --zs-control:#1b1e22;         /* a control face (--zk-card2)  */
+  --line:#3a3e45;               /* the one hairline (--zk-line) */
+  --line-soft:#33373d;
+  --fg:#eef1f4; --muted:#9aa3ad; --faint:#8a929c;
+  --ion:#58a6ff; --ion-ink:#06172e;
+  --ion-wash:rgba(88,166,255,.12); --ion-edge:rgba(88,166,255,.45);
+  --ok:#4ade80; --ok-wash:rgba(74,222,128,.12);
+  --warn:#ffb454; --warn-wash:rgba(255,180,84,.12); --warn-edge:rgba(255,180,84,.5); --warn-ink:#ffe2b8;
+  --bad:#ff6259; --bad-wash:rgba(255,98,89,.12); --bad-edge:rgba(255,98,89,.5); --bad-ink:#ffd0cc;
+  --fire:#ff9f5a; --fire-wash:rgba(255,159,90,.14);
+  --knob:#d6dbe1; --thumb:#ffffff;
+  --toast-bg:#eef1f4; --toast-ink:#1b1d20; --toast-bad:#ffd0cc;
+  --scrim:rgba(0,0,0,.6);
+  --tr-title:-.016em; --tr-label:.06em;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --top:env(safe-area-inset-top,0px); --bot:env(safe-area-inset-bottom,0px);
+}
+/* One theme only (owner 2026-10-23): dark on every phone and PC. */
+
+/* The line drawings were drawn with the old navy app's literal colours in
+   their stroke attributes (in the HTML and in zs-dongle-app.js). A CSS
+   property beats a presentation attribute, so the drawings follow the
+   palette here without one line of the screens' code changing. */
+svg [stroke="#6f9bff"], svg[stroke="#6f9bff"]{stroke:var(--ion);}
+svg [stroke="#eef1f6"], svg[stroke="#eef1f6"]{stroke:var(--fg);}
+svg [stroke="#e9edf3"], svg[stroke="#e9edf3"]{stroke:var(--fg);}
+svg [stroke="#a9b5c5"], svg[stroke="#a9b5c5"]{stroke:var(--muted);}
+svg [stroke="#fbbf24"], svg[stroke="#fbbf24"]{stroke:var(--warn);}
+svg [stroke="#4ade80"], svg[stroke="#4ade80"]{stroke:var(--ok);}

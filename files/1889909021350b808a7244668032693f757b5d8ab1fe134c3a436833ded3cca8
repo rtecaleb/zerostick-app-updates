@@ -1,0 +1,56 @@
+/* Controller light on the Connect screen: green when the dongle (or the
+   Wi-Fi calibrator) sees a controller in its USB port, red when it does not.
+   App-side only - it asks the board the same DEV question hid-proxy.js asks,
+   once a second, and only while the Connect screen is showing. */
+(function () {
+  'use strict';
+
+  var POLL_MS = 1000;
+  var busy = false;
+
+  function nameFor(pid) {
+    if (pid === 0x0DF2) return 'DualSense Edge';
+    if (pid === 0x0CE6) return 'DualSense';
+    if (pid === 0x05C4 || pid === 0x09CC) return 'DualShock 4';
+    return 'Controller';
+  }
+
+  /* {connected, pid} from whichever link is up, or null = board not reachable */
+  function ask() {
+    var ble = window.ZSHIDBLE;
+    if (ble && ble.isConnected && ble.isConnected()) {
+      return ble.dev().then(null, function () { return null; });
+    }
+    if (window.espFetch && !(ble && ble.remembered && ble.remembered())) {
+      return window.espFetch('/hid/dev').then(function (r) { return r.json(); })
+        .then(null, function () { return null; });
+    }
+    return Promise.resolve(null);
+  }
+
+  function show(el, d) {
+    var dot = el.querySelector('.zs-pad-dot'), txt = el.querySelector('.zs-pad-text');
+    var state = !d ? 'wait' : (d.connected ? 'on' : 'off');
+    if (el.getAttribute('data-state') === state && state !== 'on') return;
+    el.setAttribute('data-state', state);
+    if (state === 'on') {
+      txt.textContent = nameFor(d.pid) + ' detected';
+    } else if (state === 'off') {
+      txt.textContent = 'No controller detected - plug one into the dongle';
+    } else {
+      txt.textContent = 'Checking for a controller…';
+    }
+    dot.className = 'zs-pad-dot zs-pad-' + state;
+  }
+
+  function tick() {
+    var bar = document.getElementById('offlinebar');
+    var el = document.getElementById('zs-pad-light');
+    if (!bar || !el || busy || bar.style.display === 'none' || bar.offsetParent === null) return;
+    busy = true;
+    ask().then(function (d) { show(el, d); }).then(function () { busy = false; }, function () { busy = false; });
+  }
+
+  setInterval(tick, POLL_MS);
+  document.addEventListener('DOMContentLoaded', tick);
+})();
