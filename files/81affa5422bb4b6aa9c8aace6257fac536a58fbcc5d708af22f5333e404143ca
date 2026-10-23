@@ -1,0 +1,234 @@
+# Where every game picture comes from
+
+Publisher artwork, used to identify the game. Decision D116: this is the
+publisher's copyright and trademark in a sold, unlicensed accessory, and the
+owner accepted that risk. Delete this folder's `.png` files and every config
+falls back to our own banner with nothing else changed.
+
+Rules: official publisher-provided images only. The Steam store's own
+capsules for the game's app id; for a game Steam does not sell, the
+PlayStation Store's own art for the game's concept page (the publisher
+uploads it, the same as a Steam capsule); or the publisher's press kit.
+Never Wikipedia covers, fan sites, SteamGridDB or image search. A game with
+no official source stays on our own banner and is listed under **Missing**.
+
+These pictures live in the app only: the exe and the phone app carry this
+folder, and nothing about a picture is ever sent to the Core (D120).
+
+## One picture per shape the app draws (D121)
+
+Every game has two pictures, because the app draws two shapes and a picture
+cropped to the wrong shape loses its title (Black Ops II's banner, cropped
+square, is the black middle of it).
+
+| shape | the picture | where the app draws it |
+|---|---|---|
+| `wide` | Steam's header capsule, 460 x 215 (about 2.14:1), title included | the Overview banner, the Configs list, the new-config wizard's game list |
+| `tall` | a 2:3 portrait cover, 600 x 900: Steam's library capsule, or the PlayStation Store's portrait banner | HOME's picture, and the small square in the More menu |
+
+Every slot draws its picture WHOLE: contained over a blurred, darkened copy
+of itself, so a picture whose shape is a little off (a 16:9 banner in a wide
+slot, a 0.83:1 cover in a tall one) gets soft edges and never loses its
+title. Nothing is stretched and nothing is cropped.
+
+The size column is the size the PNG is saved at: the largest the app draws
+that shape, capped by what the publisher offers, never scaled up. HOME's
+picture is about 349 x 523 CSS pixels on a 393 x 852 phone; the biggest 2:3
+cover Steam serves is 600 x 900, so that is the size. The wide picture is
+drawn at most about 357 CSS pixels across (the Overview banner), and Steam's
+460 x 215 header is kept as it was fetched; Steam's `header_2x.jpg`
+(920 x 430) is the swap to make if the banner looks soft on a 3x phone.
+
+`dashboard/tools/fetch-pack-art.ps1` reads the table below, fetches each
+missing picture from its row's URL, saves it as a PNG at the row's size
+(scaling a bigger source down, refusing to scale one up), and writes the
+date into the `fetched` column. Run it once the owner has said yes to the
+downloads; `-List` shows what it would fetch first.
+
+| file | shape | game | size | source | fetched |
+|---|---|---|---|---|---|
+| cod-mw3.png | wide | Call of Duty: Modern Warfare III | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/7d0f21912a075c33bbb5ea558100e187ceb234ac/header.jpg | 2026-09-22 |
+| cod-mw3-tall.png | tall | Call of Duty: Modern Warfare III | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/a3070fe258d1e2a0232aad783d34f927629dbd21/library_capsule_2x.jpg | 2026-09-23 |
+| cod-warzone.png | wide | Call of Duty: Warzone | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1962663/header.jpg | 2026-09-22 |
+| cod-warzone-tall.png | tall | Call of Duty: Warzone | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1962663/c4c51637319d5c93006cdac9c15b3029387e8ca4/hero_capsule_alt_assets_20_2x.jpg | 2026-09-23 |
+| cod-bo7.png | wide | Call of Duty: Black Ops 7 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/d7041a15f572f7702d5f4bc97e498cd3e1cc62e2/header.jpg | 2026-09-23 |
+| cod-bo7-tall.png | tall | Call of Duty: Black Ops 7 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/31b4b3e440129c472e45f78ebb375b6e83f91c90/hero_capsule_2x.jpg | 2026-09-23 |
+| rust.png | wide | Rust | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252490/header.jpg | 2026-10-21 |
+| rust-tall.png | tall | Rust | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252490/library_600x900_2x.jpg | 2026-10-21 |
+| cod-bo2.png | wide | Call of Duty: Black Ops II | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/202970/header.jpg | 2026-09-22 |
+| cod-bo2-tall.png | tall | Call of Duty: Black Ops II | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/202970/library_600x900_2x.jpg | 2026-09-23 |
+| apex-legends.png | wide | Apex Legends | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/header.jpg | 2026-09-22 |
+| apex-legends-tall.png | tall | Apex Legends | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/f86ccfa6119d81a3072ab57886dd1843c0306f7a/library_capsule_2x.jpg | 2026-09-23 |
+| rainbow-six-siege.png | wide | Tom Clancy's Rainbow Six Siege | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/359550/header.jpg | 2026-09-22 |
+| rainbow-six-siege-tall.png | tall | Tom Clancy's Rainbow Six Siege | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/359550/5878a9291aaf2334e08424c6db8e9635d9fa05b4/library_capsule_2x.jpg | 2026-09-23 |
+| destiny-2.png | wide | Destiny 2 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1085660/header.jpg | 2026-09-22 |
+| destiny-2-tall.png | tall | Destiny 2 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1085660/1aa20f983639643d7961f3ffcadf63bd3c49362f/library_capsule_2x.jpg | 2026-09-23 |
+| halo-infinite.png | wide | Halo Infinite | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1240440/header.jpg | 2026-09-22 |
+| halo-infinite-tall.png | tall | Halo Infinite | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1240440/5c09b42d3b89901b78c322bb366bb34a1123f468/library_capsule_2x.jpg | 2026-09-23 |
+| nba-2k26.png | wide | NBA 2K26 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3472040/f7e126add75c3b09779b44cd349be93d31b0a80b/header.jpg | 2026-09-22 |
+| nba-2k26-tall.png | tall | NBA 2K26 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3472040/bebd889b3d90330de84453f42c4dfd525a9ea06f/library_600x900_2x.jpg | 2026-09-23 |
+| rocket-league.png | wide | Rocket League | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252950/header.jpg | 2026-09-22 |
+| rocket-league-tall.png | tall | Rocket League | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252950/161e2a08ff71138d985e006df616970f670f2732/library_capsule_2x.jpg | 2026-09-23 |
+| fortnite.png | wide | Fortnite | 504 x 284 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1519/372c37ff95c41c2578e1fe2f2097245e81cd0d1c43f98e26.jpg?w=460 | 2026-09-23 |
+| fortnite-tall.png | tall | Fortnite | 600 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1519/fb3f5da1ecb1a4dc6a2d0fe0a8250321b246edc99211a418.jpg?w=600 | 2026-09-23 |
+| mlb-the-show-25.png | wide | MLB The Show 25 | 504 x 284 | https://image.api.playstation.com/vulcan/ap/rnd/202509/0922/78ba464cf6eac0e749cbd4603f824c9ef442166b733221dc.jpg?w=460 | 2026-09-23 |
+| mlb-the-show-25-tall.png | tall | MLB The Show 25 | 600 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202509/0922/8cc0fc4c7dbfa791b5810915ebe08a9af2885b26fd8c9f59.jpg?w=600 | 2026-09-23 |
+
+The app ids were read off each game's own Steam store page on 2026-09-22
+(`store.steampowered.com/app/<id>`). Modern Warfare III's old id 2519060 now
+redirects to 3595270, which is the one above.
+
+Newer Steam apps keep their capsules under a content hash, so the plain
+`apps/<id>/header.jpg` answers 404 for them (MW3 and NBA 2K26 did). The
+exact URL of the header is the `header_image` field of Steam's own store
+API, `store.steampowered.com/api/appdetails?appids=<id>`. That field has no
+library capsule, so the tall rows come from Steam's other store API,
+`api.steampowered.com/IStoreBrowseService/GetItems/v1` with
+`"data_request": {"include_assets": true}`, whose `assets` block names
+`library_capsule_2x` (and every other capsule) with its hash folder; the
+file is `store_item_assets/` plus `asset_url_format` with `${FILENAME}`
+filled in, without the `?t=` stamp. Read on 2026-09-23. The hash changes
+when the publisher replaces the art, so a row that starts answering 404
+later needs the same lookup again.
+
+**Warzone's tall picture is its vertical capsule**, not its library capsule.
+Steam's store API names no library capsule for app 1962663, and the plain
+`library_600x900_2x.jpg` still served there is the retired 2022 art
+("MW | WARZONE", the Modern Warfare II era). The vertical capsule
+(`hero_capsule_alt_assets_20_2x.jpg`, 748 x 896, about 0.83:1) is the
+current Warzone art with "CALL OF DUTY WARZONE" on it, so it is the one. It
+is less tall than 2:3, and the tall slot draws it whole with soft edges
+above and below.
+
+**Black Ops 7's tall picture is its vertical capsule too, for the same
+reason.** Its app id, 3606480, was read off its store page
+(`store.steampowered.com/app/3606480`) on 2026-09-23. The header row is the
+`header_image` of Steam's `appdetails` API, less its `?t=` stamp. Steam's
+`GetItems` API names no library capsule for this app (with or without
+overrides), and the plain `library_600x900_2x.jpg` answers 404 on every
+Steam CDN host, so the tall row is the `hero_capsule_2x` that API does name:
+Steam's vertical capsule, 374 x 448 at 2x, the same shape as Warzone's. Both
+rows say `not yet` until `fetch-pack-art.ps1` has fetched them; the script
+refuses a picture whose real size is not the row's shape, so the 748 x 896
+here is checked on the way in. Until then the app falls back to our own
+banner for this pack (D121: a picture is only used once it has loaded).
+
+## The two from the PlayStation Store
+
+Fortnite and MLB The Show 25 are not sold on Steam, and Epic's own store
+refuses a script (403), so both come from the PlayStation Store, where each
+game's publisher uploads its art. The URLs are images of each game's concept
+page (`store.playstation.com/en-us/concept/228748` for Fortnite,
+`.../concept/10011213` for MLB The Show 25): the `SIXTEEN_BY_NINE_BANNER`
+for `wide`, asked for at `?w=460`, which the image service answers at
+504 x 284, and the `PORTRAIT_BANNER` (2:3) for `tall`, asked for at `?w=600`,
+which it answers at 764 x 1146 and the script scales to 600 x 900. Each tall
+picture is from the same set as its wide one (the same `rnd/<date>/<time>`
+folder), so the two agree. Fortnite's art is its CURRENT season's and Epic
+replaces it every season; the files here are the ones fetched on the dates
+in the table, and a new season's pictures are the same lookup again.
+
+## The panel pictures (D434)
+
+The owner, 2026-10-22: "make the UI look better with the artwork; find
+better artwork for the games if needed that will fit that aspect ratio". The
+simple settings menu (D433) draws the config's picture across everything
+under its four doors: about 365 CSS pixels wide and 230 to 420 tall on a
+phone, `object-fit: cover`, anchored at the top, with the EXO and console
+chips across its top (about 70 px) and the config's name across its foot
+(about 110 px). A 2:3 cover cut to that box lost its title, so a game may
+name a third picture, `panel`: a 900 x 900 JPEG cropped from the
+publisher's own art so the title sits whole in the band between the two
+banners. A pack without one falls back to its tall picture, then its wide
+one (game-packs.js, FALLBACK.panel).
+
+Six of the seven come from the PlayStation Store's image service (Warzone's comes from callofduty.com, below), the same official
+source as Fortnite's two pictures above: each is an image the publisher
+uploaded to the game's own concept or product page
+(`store.playstation.com/en-us/concept/<id>` or `.../product/<id>`), read
+from that page's media list on 2026-10-22. `MASTER` is the store's square
+key art (1024 x 1024), `SIXTEEN_BY_NINE_BANNER` and `FOUR_BY_THREE_BANNER`
+its 3840 x 2160 and 2880 x 2160 banners. These are crops, so
+`fetch-pack-art.ps1` does not read this table; the crop column says exactly
+what was cut, as `x, y, side` in the source's own pixels, and each square was
+then scaled to 900 x 900 and saved at JPEG quality 85. A negative `y` means
+the crop starts above the picture: only on Black Ops II and Rust, whose key
+art is pure black (RGB 0-5) along its whole top edge, and the rows added are
+that same black, so the title sits below the chips.
+
+Warzone's panel (2026-10-23, replacing the store's green zombie-season
+banner the owner did not like) is Activision's own: the share image of the
+Warzone page on callofduty.com (`WZ_LP-Update_Meta.webp`, 1920 x 1080, the
+current evergreen key art: the squad on the wreck with the full CALL OF DUTY
+WARZONE logo over them). Its logo is wider than a 1080 square and starts 140
+rows from the top, so no plain crop keeps it whole and clear of the chips.
+The crop is a 1200-wide square, x 365, with the picture placed 100 rows down;
+the 100 rows above it (and the 20 left below) are the same art blurred and
+darkened, the fill the app already draws behind off-shape pictures, and the
+picture's top 70 rows fade into it. No pixel of the art itself is changed.
+
+| file | shape | game | size | source | crop | fetched |
+|---|---|---|---|---|---|---|
+| cod-bo2-panel.jpg | panel | Call of Duty: Black Ops II | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202606/2619/c4ce7fe379aa05dd3f6ecc11e8fa38dfea03d4b4a8bad73a.png | MASTER (concept 10017658), 0, -120, 1024: 120 rows of the art's own black added above | 2026-10-22 |
+| cod-warzone-panel.jpg | panel | Call of Duty: Warzone | 900 x 900 | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/warzone2/blackops7/evergreen/WZ_LP-Update_Meta.webp | callofduty.com Warzone page share image (1920 x 1080 key art, squad + full logo), 365, -100, 1200: 100 rows of the art blurred and darkened added above, 20 below (see below) | 2026-10-23 |
+| cod-bo7-panel.jpg | panel | Call of Duty: Black Ops 7 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202508/2119/8c163e488e9e46b842889e773a8d6807b52f9d0e00b05652.png | MASTER (product UP0002-PPSA01649_00-CODBO7CROSSGEN01), 132, 244, 780: zoomed in so the title clears the name | 2026-10-22 |
+| rust-panel.jpg | panel | Rust | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202103/1609/iXyUOZpAfq34g4CGsgUb9VEc.png | FOUR_BY_THREE_BANNER (concept 233072, the base game's art), 360, -140, 2160: 140 rows of the art's own black added above | 2026-10-22 |
+| fortnite-panel.jpg | panel | Fortnite | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202608/2716/7327dedce378c26158c6bde93adab301c6cf2ae6839c8e98.png | MASTER (product UP1477-PPSA01922_00-FNOGBNDL00000000, Fortnite OG on concept 228748), 0, 0, 1024: whole | 2026-10-22 |
+| rainbow-six-siege-panel.jpg | panel | Tom Clancy's Rainbow Six Siege | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202602/2616/b8caad33ff5fdf712d88de35c192016ad8d84fe9f68e6943.png | MASTER (concept 203897), 0, 0, 1024: whole | 2026-10-22 |
+| apex-legends-panel.jpg | panel | Apex Legends | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202607/3013/6a6c898139c7550f3f5cd26135675bd3f3651be30bb17b74.png | MASTER (concept 232352), 74, 148, 876: zoomed in so the title clears the name | 2026-10-22 |
+
+Why these and not others. Steam's `library_hero` has no title on it, and
+its 3.1:1 shape keeps a third of itself in a square. Every square key art
+the stores carry puts the title in its top quarter (Warzone, Fortnite, NBA
+2K26) or its lower middle (Black Ops 7, Apex Legends), where the chips or
+the name cover it, so each crop above is the one that keeps the title whole
+in the band the banners leave. Fortnite's is the Fortnite OG key art, not
+the season's: the season's square ("Fortnitemares") does not say
+"Fortnite", and the Battle Royale square puts the word under the chips.
+Black Ops 7's says "Cross-Gen Bundle" under the title because the PlayStation
+Store sells the game as that bundle; Steam has no square art for it.
+
+**Not given a panel picture (they draw their tall one):** NBA 2K26. Its
+square key art (`MASTER`, concept 10014149) and every banner put the "2K26"
+title in the top fifth, under the chips, and nothing above it can be added
+(a photo of the crowd). Its tall cover, drawn in the panel today, keeps the
+whole title below the chips, so it already fits. Every pack whose game has
+no pictures at all (the list below) also has no panel picture.
+
+## Missing
+
+Five packs added on 2026-10-10 have no picture yet (`art: null`), so the app
+draws our own banner for them. No artwork was fetched for them: the owner's
+rule for that round was no official game art taken from the web. To add one,
+put its rows in the table above (Steam's header and 2:3 capsule where Steam
+sells the game; VALORANT is not on Steam) and run `fetch-pack-art.ps1` once
+the owner has said yes.
+
+- Overwatch
+- VALORANT
+- Marvel Rivals
+- Battlefield 6
+- ARC Raiders
+- Call of Duty: Black Ops 6
+- PUBG: Battlegrounds
+- The Finals
+- Marathon
+- Rust
+
+The last five were added on 2026-10-15 by `import-xim-translators.js` (D394),
+for games whose turn speeds XIM's data carries; no art was fetched for them.
+
+Every other pack names its game's own pictures in the table above, and all
+of them are fetched (Black Ops 7's two on 2026-09-23). A row marked
+`not yet` would be waiting for the script: until its file is in this folder
+a slot of that shape draws the pack's other picture, whole, and with
+neither there, our own banner.
+
+**No panel picture (D434):** NBA 2K26 keeps drawing its tall cover in the
+settings menu's art panel. Every official NBA 2K26 image puts the "2K26"
+title in its top fifth, under the panel's chips, over a crowd photo that
+cannot be extended; the tall cover already shows the whole title there.
+Not looked for yet, because the settings menu does not show their games
+today (none is started or open, D300): Call of Duty: Modern Warfare III,
+Destiny 2, Halo Infinite, MLB The Show 25, Rocket League. Each draws its
+tall cover in the panel until it gets one.
