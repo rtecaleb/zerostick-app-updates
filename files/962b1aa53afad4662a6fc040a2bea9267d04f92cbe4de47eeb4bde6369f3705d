@@ -1,0 +1,1401 @@
+/* recoil-workshop.js: the Recoil Workshop (D170), ZS_RECOIL.
+ *
+ * XIM's Recoil Modeling (guide.xim.tech/Recoil-Modeling), on the Core, made
+ * friendlier. The player fires a magazine at a wall, traces the bullet marks
+ * with the mouse, and gets a Smart Action on Fire that pulls the aim against
+ * the climb. Five short pages in one sheet:
+ *
+ *   1 Check     what XIM asks you to do by hand, done or checked for you:
+ *               other fire actions are PAUSED by the Core while the workshop
+ *               is open (and come back when it closes), Passthrough Mode,
+ *               the config's DPI, ADS, the in-game settings.
+ *   2 Fire rate RPM typed in (best), or measured: fire a full magazine and
+ *               the Core times the fire button.
+ *   3 Fire      the wall, and the "spread the shots" aid for a gun whose
+ *               shots land on top of each other (taken out again later).
+ *   4 Trace     reticle on the first mark, Trace, click Fire on each next
+ *               mark (those clicks do not shoot), Done. Red dots, live.
+ *               More samples average a random pattern.
+ *   5 Tune      the model as dots over the trace; optimisation, Scale X,
+ *               Scale Y, wait scale; a live test with the real gun; saved by itself (D418).
+ *
+ * The Core does the work: it keeps the mouse position in counts, consumes
+ * the tracing clicks, builds the model (components/zs_recoil) and plays the
+ * live test. This file draws and asks: GET /recoil/status (a 250 ms poll,
+ * which also keeps the Core's 20 s lease alive), POST /recoil/... for the
+ * rest. The routes are main/zs_run_recoil_adapt.h's. The saved action's
+ * steps are {"move":[dx,dy],"ms":N} (mouse counts, +y down), and it keeps
+ * a `recoil` record (the samples and the tuning) so its wrench re-opens it.
+ *
+ * D175: most players play on a CONTROLLER, and this path needs a mouse.
+ * The workshop now starts by asking "Controller or Mouse?" (a controller
+ * config skips the question), and the controller path is recoil-pad.js
+ * (ZS_RECOIL_PAD): tune a live right-stick pull while you shoot, with no
+ * DPI, sensitivity or calibration step. This file keeps the mouse path and
+ * lends its small kit (ZS_RECOIL._kit) to that one.
+ *
+ * D403 (owner, 2026-10-17): the Lab opens on a choice, AUTOMATIC
+ * (recommended: the Core watches the wall and finds every hole) or MANUAL
+ * (the wall method: a picture of the wall, you tap each hole in order),
+ * with "Tune by feel" (recoil-pad.js) and, for a mouse config, "Trace with
+ * your mouse's reticle" (the five pages above) as quieter ways. The wall
+ * methods' pages live in recoil-wall.js (ZS_RECOIL_WALL); this file keeps
+ * the sheet, the session, Check, Fire rate and Tune for all of them. Their
+ * session is opened with the TRIGGER as fire ({"trigger":true}), so a
+ * controller config works exactly as a mouse one, and the holes reach the
+ * Core as one ordinary sample (/recoil/samples), so the model and Tune are
+ * the D170 ones, unchanged.
+ *
+ * D404 (owner, 2026-10-17): Automatic at a TRAINED SPOT (recoil-spots.js,
+ * ZS_RECOIL_SPOTS: the flow 'spot', and the developer's 'train').
+ *
+ * D408 (the owner, 2026-10-19, Call of Duty BO7 / Warzone): Automatic is TWO
+ * steps. A, on Fire rate: "Measure fire rate", the only place the Core
+ * presses anything (it fires one magazine by itself and reads the ammo
+ * counter, recoil-spots.js). B, the wall: the player fires and the Core only
+ * watches and traces the bullet trail as a line (recoil-wall.js); a trained
+ * spot is the guide for where to stand and lends the wall step its wall.
+ *
+ * D418 (the owner, 2026-10-20): MANUAL works like Automatic, by hand (the
+ * same fire rate and magazine, the same timing, gain, defaults, Tune and
+ * saved shape: recoil-wall.js), and FIRE IS OFF while the holes are marked
+ * (Manual's Mark page, from the let-go on its wall page; Automatic's
+ * Confirm) so the wall is not shot again: POST /recoil/fire, lifted on Tune,
+ * Back to shoot again, the Lab closing or the app going quiet. And the
+ * Script SAVES ITSELF: the moment Tune has a model it is saved (the door's
+ * onAccept, the Lab staying open), every change on Tune saves the same
+ * action again ~600 ms later, and closing keeps the latest. No Save button.
+ *
+ * ES5 ONLY (DESIGN.md: no arrows, no template strings, no let/const).
+ * Load after smart-actions.js and sa-mnk.js; recoil-pad.js,
+ * recoil-wall.js and recoil-spots.js after this.
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 250;
+  var MODEL_DEBOUNCE_MS = 150;
+  var SAVE_DEBOUNCE_MS = 600;       /* D418: a Tune change saves this long after the last one */
+  var DUR_CAP = 30000;              /* the runner's own maxDuration ceiling */
+  var SPREAD_LEVELS = [0, 4, 8, 14]; /* counts per shot: Off, Small, Medium, Large */
+  var SPREAD_WORDS = ['Off', 'Small', 'Medium', 'Large'];
+  var SAMPLES_MAX = 8;
+
+  var supportKnown = null;          /* null unknown, true, false (a Core before D170) */
+  var cssDone = false;
+
+  function Z() { return window.ZS; }
+  function esc(s) { return Z().esc(String(s == null ? '' : s)); }
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function round1(v) { return Math.round(num(v, 0) * 10) / 10; }
+
+  /* ── the rig ─────────────────────────────────────────────────────── */
+
+  function full(p) {
+    var L = Z().live;
+    return (L && L.full && p && L.full[p.id]) || {};
+  }
+  function mt(p) { return full(p).mouseTranslation || {}; }
+  function dpiOf(p) { return num(mt(p).dpi, 1000); }
+  function adsName(p) {
+    var a = mt(p).adsBinding;
+    if (a === '') return '';
+    return mouseWord(typeof a === 'string' && a ? a : 'BTN_RIGHT');
+  }
+  /* the mouse button or key this config fires with: whatever is bound to
+     the full right-trigger pull (sa-mnk.js boundTo), '' when it is a pad */
+  function fireOf(p) {
+    if (window.ZS_SA_MNK && typeof ZS_SA_MNK.boundTo === 'function') {
+      var b = ZS_SA_MNK.boundTo(p, 'rt+');
+      if (b) return b;
+    }
+    return '';
+  }
+  function mouseWord(code) {
+    if (window.ZS_SA_MNK && typeof ZS_SA_MNK.nameOf === 'function') {
+      var n = ZS_SA_MNK.nameOf(code);
+      if (n) return n;
+    }
+    return String(code || '');
+  }
+
+  /* ── the doors ask this ─────────────────────────────────────────── */
+
+  function isCore() {
+    var z = Z();
+    return !!(z && typeof z.productId === 'function' && z.productId() === 'core');
+  }
+  function offered(p) {
+    if (!p || !isCore()) return false;
+    /* 2026-10-23 (owner: "the Anti-Recoil Lab does not exist for 2K at all"):
+       a basketball game has no guns, so an NBA 2K config never offers it */
+    var z = Z(), full = z && z.live && z.live.full ? z.live.full[p.id] : null;
+    if (window.ZSPACKS && typeof window.ZSPACKS.isNba2k === 'function' &&
+        (window.ZSPACKS.isNba2k(full) || window.ZSPACKS.isNba2k(p))) return false;
+    return supportKnown !== false;
+  }
+
+  /* ── the plot: red dots, live ───────────────────────────────────── */
+
+  /* sets: [{pts:[[x,y],...], cls, line}] in counts, +y down (the screen's
+     own sense, so a climbing pattern climbs on screen). Fitted to the box
+     with equal scale on both axes, the first shot marked by a crosshair. */
+  function plotSVG(sets, label) {
+    var W = 300, H = 220, PAD = 16, minx = 0, maxx = 0, miny = 0, maxy = 0, i, j;
+    for (i = 0; i < sets.length; i++) {
+      for (j = 0; j < sets[i].pts.length; j++) {
+        var q = sets[i].pts[j];
+        if (q[0] < minx) minx = q[0];
+        if (q[0] > maxx) maxx = q[0];
+        if (q[1] < miny) miny = q[1];
+        if (q[1] > maxy) maxy = q[1];
+      }
+    }
+    var span = Math.max(maxx - minx, maxy - miny, 20);
+    var k = Math.min((W - 2 * PAD) / span, (H - 2 * PAD) / span);
+    var cx = W / 2 - k * (minx + maxx) / 2, cy = H / 2 - k * (miny + maxy) / 2;
+    function X(v) { return (cx + k * v).toFixed(1); }
+    function Y(v) { return (cy + k * v).toFixed(1); }
+    var h = '<svg class="rw-plot" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(label) + '">' +
+      '<g class="rw-org"><line x1="' + (num(X(0), 0) - 7) + '" y1="' + Y(0) + '" x2="' + (num(X(0), 0) + 7) +
+      '" y2="' + Y(0) + '"/><line x1="' + X(0) + '" y1="' + (num(Y(0), 0) - 7) + '" x2="' + X(0) +
+      '" y2="' + (num(Y(0), 0) + 7) + '"/></g>';
+    for (i = 0; i < sets.length; i++) {
+      var s = sets[i];
+      if (!s.pts.length) continue;
+      if (s.line && s.pts.length > 1) {
+        h += '<polyline class="' + s.cls + '" points="' + s.pts.map(function (q) { return X(q[0]) + ',' + Y(q[1]); }).join(' ') + '"/>';
+      }
+      for (j = 0; j < s.pts.length; j++) {
+        h += '<circle class="' + s.cls + '" cx="' + X(s.pts[j][0]) + '" cy="' + Y(s.pts[j][1]) + '" r="' + (s.r || 3.4) + '"/>';
+      }
+    }
+    return h + '</svg>';
+  }
+  function pairs(flat) {
+    var out = [], i;
+    flat = flat || [];
+    for (i = 0; i + 1 < flat.length; i += 2) out.push([num(flat[i], 0), num(flat[i + 1], 0)]);
+    return out;
+  }
+  /* where the model puts each knot, NEGATED back into pattern space, so it
+     lies over the trace it is meant to cancel */
+  function modelPts(m) {
+    var out = [[0, 0]], x = 0, y = 0, i;
+    if (!m || !m.steps) return [];
+    for (i = 0; i < m.steps.length; i++) {
+      x -= num(m.steps[i][0], 0);
+      y -= num(m.steps[i][1], 0);
+      out.push([x, y]);
+    }
+    return out;
+  }
+
+  /* ── the sheet ──────────────────────────────────────────────────── */
+
+  var PAGES = ['check', 'rate', 'fire', 'trace', 'tune'];
+  /* D403: the pages each way takes (the first, 'mode', is the choice) */
+  var FLOWS = {
+    trace: PAGES,
+    wall: ['check', 'rate', 'wall', 'mark', 'tune'],
+    auto: ['check', 'rate', 'watch', 'confirm', 'tune'],
+    /* D404: Automatic at a trained spot (the spot is the guide; then the
+       same two steps), and the developer's training */
+    spot: ['spot', 'rate', 'watch', 'confirm', 'tune'],
+    train: ['tspot', 'watch', 'confirm', 'tsave']
+  };
+  var PAGE_WORDS = { check: 'Check', rate: 'Fire rate', fire: 'Fire', trace: 'Trace', tune: 'Tune',
+    wall: 'Fire', mark: 'Mark', watch: 'Fire', confirm: 'Confirm',
+    spot: 'Spot', tspot: 'Spot', tsave: 'Save' };
+  function flowOf(W) { return FLOWS[W.method] || PAGES; }
+  function byCore(W) { return W.method === 'spot' || W.method === 'train'; }
+  function isWall(W) { return W.method === 'wall' || W.method === 'auto' || byCore(W); }
+  function WALL() { return window.ZS_RECOIL_WALL; }
+  function SPOTS() { return window.ZS_RECOIL_SPOTS; }
+
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'rw-css';
+    s.textContent =
+      '.rw-steps{display:flex;gap:4px;margin:0 0 12px;flex-wrap:wrap}' +
+      '.rw-steps span{font-size:12px;letter-spacing:var(--tr-caption,.004em);padding:4px 8px;border-radius:999px;' +
+        'color:var(--muted);border:1px solid var(--line,rgba(255,255,255,.12))}' +
+      '.rw-steps span.on{color:var(--accent-ink,#00201d);background:var(--rose,#f47fa4);border-color:transparent;font-weight:600}' +
+      '.rw-steps span.done{color:var(--text)}' +
+      '.rw-q{font-size:17px;font-weight:600;letter-spacing:var(--tr-title,-.016em);margin:2px 0 6px}' +
+      '.rw-h{font-size:13.5px;line-height:1.5;color:var(--muted);margin:0 0 12px}' +
+      '.rw-checks{list-style:none;margin:0 0 12px;padding:0}' +
+      '.rw-checks li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line,rgba(255,255,255,.08));font-size:14px;line-height:1.4}' +
+      '.rw-checks li:last-child{border-bottom:0}' +
+      '.rw-checks i{flex:0 0 22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:13px}' +
+      '.rw-checks i.ok{background:var(--green,#3fb950);color:var(--accent-ink,#04130a)}' +
+      '.rw-checks i.no{background:var(--amber,#e3b341);color:#1d1400}' +
+      '.rw-checks i.ask{border:2px solid var(--muted);color:var(--muted)}' +
+      '.rw-checks em{display:block;font-style:normal;font-size:12.5px;color:var(--muted)}' +
+      '.rw-plotwrap{background:var(--panel2,#141a24);border-radius:14px;padding:6px;margin:0 0 10px}' +
+      '.rw-plot{display:block;width:100%;height:auto}' +
+      '.rw-plot .rw-org line{stroke:var(--muted);stroke-width:1}' +
+      '.rw-plot polyline{fill:none!important;stroke-width:1.6;stroke-linejoin:round}' +
+      '.rw-plot .tr{fill:var(--red,#e5484d);stroke:var(--red,#e5484d)}' +
+      '.rw-plot .old{fill:var(--red,#e5484d);stroke:var(--red,#e5484d);opacity:.35}' +
+      '.rw-plot .mdl{fill:var(--accent,#2fd9ce);stroke:var(--accent,#2fd9ce)}' +
+      '.rw-legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:0 0 10px}' +
+      '.rw-legend b{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}' +
+      '.rw-live{font-variant-numeric:tabular-nums;font-size:14px;margin:0 0 10px}' +
+      '.rw-live b{font-size:20px}' +
+      '.rw-stats{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);margin:0 0 10px;line-height:1.5}' +
+      '.rw-saved{font-size:12px;color:var(--muted);margin:-6px 0 10px;min-height:1em}' +
+      '.rw-namefld{display:flex;align-items:center;gap:10px;margin:0 0 10px}' +
+      '.rw-name{flex:1;min-width:0;font:inherit;font-size:15px;padding:8px 10px;border-radius:10px;' +
+        'border:1px solid var(--line,#333);background:var(--card,transparent);color:inherit}' +
+      '.rw-delask{margin:8px 0}.rw-delask p{margin:0 0 6px;font-weight:600}' +
+      '.rw-row{display:flex;gap:8px}' +
+      '.rw-dellink{display:block;margin:14px auto 4px;padding:6px 10px;background:none;border:0;font:inherit;' +
+        'font-size:13px;color:var(--red,#e5484d);opacity:.85;text-decoration:underline;text-underline-offset:3px;cursor:pointer}' +
+      '.rw-row .btn{flex:1}' +
+      '.rw-test{border:1.5px solid var(--accent,#2fd9ce);border-radius:14px;padding:10px 12px;margin:0 0 10px}' +
+      '.rw-test.on{background:rgba(47,217,206,.08)}' +
+      /* Scale X / Y: the two that matter, lit (the owner, 2026-10-20) */
+      '.rw-scales{border:1.5px solid var(--accent,#b98cff);margin:0 0 10px;' +
+        'box-shadow:0 0 0 1px rgba(185,140,255,.25),0 0 18px rgba(185,140,255,.35)}' +
+      '.rw-scales .salab{font-size:17px;font-weight:700}' +
+      '.rw-scales .sv{color:var(--accent,#b98cff);font-size:19px}' +
+      '.rw-adv{margin:0 0 10px}' +
+      '.rw-adv>summary{cursor:pointer;list-style:none;padding:10px 4px;font-size:14px;color:var(--muted);' +
+        'text-decoration:underline;text-underline-offset:3px}' +
+      '.rw-adv>summary::-webkit-details-marker{display:none}' +
+      /* D421: strength wobble override row */
+      '.rw-vmag-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.rw-vmag-ov-lbl{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap}' +
+      '.rw-vmag-dim{opacity:.4;pointer-events:none}';
+    document.head.appendChild(s);
+  }
+
+  function btn(label, kind, id, disabled) {
+    return '<button class="btn' + (kind ? ' ' + kind : '') + '" id="' + id + '"' +
+      (disabled ? ' disabled aria-disabled="true"' : '') + '>' + esc(label) + '</button>';
+  }
+  function note(t, kind) {
+    return '<div class="note' + (kind ? ' ' + kind : '') + '">' + t + '</div>';
+  }
+  function card(inner) { return '<div class="grp-card">' + inner + '</div>'; }
+  function fld(label, control, sub) {
+    return '<div class="fld"><div class="salab">' + esc(label) + (sub ? '<em>' + sub + '</em>' : '') +
+      '</div>' + control + '</div>';
+  }
+  function stepper(label, val, d, min, max, suf, sub, field) {
+    return fld(label, '<span class="stp"><button data-d="-' + d + '" aria-label="decrease">−</button>' +
+      '<b class="sv" data-nosave="1" data-f="' + esc(field) + '" data-min="' + min + '" data-max="' + max + '"' +
+      (suf ? ' data-suffix="' + esc(suf) + '"' : '') + '>' + esc(String(val)) + '</b>' +
+      '<button data-d="' + d + '" aria-label="increase">+</button></span>', sub);
+  }
+  function toggle(on, id, aria) {
+    return '<span class="sw' + (on ? ' on' : '') + '" data-nosave="1" role="switch" id="' + id +
+      '" aria-checked="' + (on ? 'true' : 'false') + '" tabindex="0" aria-label="' + esc(aria) + '"></span>';
+  }
+  function seg(opts, idx, id) {
+    return '<div class="seg2" data-nosave="1" id="' + id + '">' + opts.map(function (o, i) {
+      return '<button' + (i === idx ? ' class="on"' : '') + ' data-i="' + i + '">' + esc(o) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  /* ── one workshop ───────────────────────────────────────────────── */
+
+  /* D175: which path. A saved controller model re-opens the controller
+     path, a saved mouse model the mouse one. A new model goes straight to
+     the controller path on a controller config and straight to the mouse
+     path on a mouse one (M&K, Joystick + Mouse); a config whose input type
+     is not known is asked, CONTROLLER first and picked (the owner: most
+     players play on a controller). */
+  function open(p, opts) {
+    opts = opts || {};
+    var PAD = window.ZS_RECOIL_PAD;
+    var made = opts.action && opts.action.recoil && typeof opts.action.recoil === 'object';
+    if (PAD && PAD.isPadAction(opts.action)) return PAD.open(p, opts);
+    /* D403: a new model starts on the choice, Automatic first; a saved one
+       re-opens the way it was made */
+    if (!made && window.ZS_RECOIL_WALL) {
+      return openMouse(p, { action: opts.action, onAccept: opts.onAccept, onDelete: opts.onDelete, mode: true, room: opts.room });
+    }
+    if (PAD && !made) {
+      var input = PAD.inputOf(p);
+      if (input !== 'mnk' && input !== 'stick_mouse') return PAD.open(p, opts);
+    }
+    return openMouse(p, opts);
+  }
+
+  /* Scale X / Y reach 2000% (the owner, 2026-10-20: 400% still left the
+     aim climbing on a controller config, where the game's own stick speed
+     is not the mouse translator's). A NEW model starts at the scale the
+     last Lab model saved on this config, so a strength found once carries
+     to the next gun. */
+  var SCALE_MAX_PCT = 400;       /* 400% x WALL_GAIN 4.8 = 19.2x, under the Core's 20x */
+  /* the owner, 2026-10-20: "300% seems to be the 100% it should be". A
+     model made at the wall (Automatic, a spot, Manual) is played this many
+     times its traced size at 100%; the saved action keeps the Core's own
+     multiplier, so the Core is unchanged. The mouse trace stays 1. */
+  var WALL_GAIN = 4.8;            /* the owner, 2026-10-20: the old 160% (of 3x) is the new 100% */
+  /* the owner, 2026-10-20: "make the default scale 160 always" - every new
+     model starts here, X and Y; a saved model keeps its own */
+  var DEFAULT_SCALE_PCT = 100;
+  /* D419: a model made anywhere whose counts came from the SENSITIVITY CHECK
+     (the Core moved the aim by known counts and measured the view) is played
+     at its measured size: 100% is the truth, no gain. WALL_GAIN stays for the
+     field-of-view models (a spot, Manual, anywhere not yet checked). */
+  function gainOf(method, sens) {
+    if (sens) return 1;
+    return method === 'wall' || method === 'auto' || method === 'spot' || method === 'train' ? WALL_GAIN : 1;
+  }
+  function savedSens(saved) { return !!(saved && saved.wall && saved.wall.sens); }
+  var LIVE = null;       /* the one Lab on screen */
+  function lastScale(p, k) {
+    var v = ZS.store && ZS.store.vals ? ZS.store.vals['rclScale2|' + (p && p.id)] : null;
+    return v && num(v[k], 0) > 0 ? clamp(Math.round(num(v[k], 100)), 0, SCALE_MAX_PCT) : 100;
+  }
+  function keepScale(W) {
+    if (!ZS.store || !ZS.store.vals) return;
+    ZS.store.vals['rclScale2|' + W.p.id] = { sx: W.params.sx, sy: W.params.sy };
+    if (typeof ZS.persistStore === 'function') ZS.persistStore();
+  }
+
+  function openMouse(p, opts) {
+    css();
+    var saved = opts.action && opts.action.recoil && typeof opts.action.recoil === 'object'
+      ? opts.action.recoil : null;
+    var W = {
+      p: p, page: 'check', opened: false, closed: false, timer: null, mtimer: null,
+      status: null, model: null, modelErr: '', err: '', busy: false,
+      fire: fireOf(p),
+      ads: saved ? !!saved.ads : (opts.action ? opts.action.gate === 'ads' : false),
+      checked: !!saved,
+      spread: 0,
+      mag: 30,
+      samples: saved && saved.samples && saved.samples.length ? saved.samples.slice(0, SAMPLES_MAX) : [],
+      params: {
+        rpm: saved ? clamp(Math.round(num(saved.rpm, 600)), 60, 3000) : 600,
+        opt: saved ? clamp(Math.round(num(saved.opt, 3)), 0, 10) : 0,   /* every shot (the owner, 2026-10-20) */
+        sx: saved ? clamp(Math.round(num(saved.sx, 1) * 100 / gainOf(saved.method, savedSens(saved))), 0, SCALE_MAX_PCT) : DEFAULT_SCALE_PCT,
+        sy: saved ? clamp(Math.round(num(saved.sy, 1) * 100 / gainOf(saved.method, savedSens(saved))), 0, SCALE_MAX_PCT) : DEFAULT_SCALE_PCT,
+        ws: saved ? clamp(Math.round(num(saved.ws, 1) * 100), 25, 400) : 100
+      },
+      testing: false,
+      editing: !!saved,
+      onAccept: opts.onAccept,
+      /* D418: the Script's name (the Lab is where a Lab Script is edited
+         now), '' = the default (defaultName); and the door's delete */
+      name: opts.action && typeof opts.action.name === 'string' ? opts.action.name : '',
+      onDelete: opts.onDelete,
+      savedOnce: !!saved,
+      opts: opts,
+      /* D403: 'trace' (the reticle, D170), 'wall' (Manual) or 'auto';
+         null until the first page's choice */
+      method: saved ? (saved.method === 'wall' || saved.method === 'auto' || saved.method === 'spot' || saved.method === 'train' ? saved.method : 'trace') : null,
+      input: window.ZS_RECOIL_PAD ? ZS_RECOIL_PAD.inputOf(p) : '',
+      rateTyped: !!saved,
+      sensUsed: savedSens(saved),
+      wallRec: saved && saved.wall ? saved.wall : null
+    };
+    /* a saved spot model keeps its spot when it is saved again */
+    if (saved && typeof saved.spot === 'string' && saved.spot) W.spotId = saved.spot;
+    /* the Smart Actions' own timing wobble (varianceMs), 0 = exact */
+    W.vms = opts.action ? clamp(Math.round(num(opts.action.varianceMs, 0)), 0, 500) : 0;
+    /* D421: strength wobble: per-script when overrideVmag is set, else the
+       profile's global default (behavior.recoilStrengthWobble). */
+    var _globalVmag = clamp(num((p.behavior && p.behavior.recoilStrengthWobble), 0), 0, 1);
+    W.vmagOverride = opts.action ? !!opts.action.varianceMagOverride : false;
+    W.vmag = opts.action && typeof opts.action.varianceMag === 'number'
+      ? clamp(num(opts.action.varianceMag, 0), 0, 1)
+      : _globalVmag;
+    if (opts.ask) W.page = 'kind';
+    if (opts.mode) W.page = 'mode';
+    W.useSample = function (smp) { useSample(W, smp); };
+    /* D404: several magazines averaged, and the one-tap Save */
+    W.useSamples = function (list, o) { useSamples(W, list, o); };
+    W.openSession = function () { openSession(W); };
+    W.paint = function () { paint(W); };
+    /* ONE live Lab (the owner, 2026-10-20: Scale Y kept snapping back to 0).
+       A Lab opened over a sheet that was still open never ran the earlier
+       one's teardown, so that one kept polling and, on every test play,
+       repainted the sheet with ITS numbers. The newest Lab ends the last. */
+    if (LIVE && LIVE !== W) teardown(LIVE);
+    LIVE = W;
+    paint(W);
+    /* the owner, 2026-10-20: tapping a Lab Script opens its model, not the
+       checks - a saved wall model goes straight to Tune */
+    if (opts.direct && saved && isWall(W)) openSession(W);
+    /* ask first: whether this Core has the workshop at all, and whether
+       Passthrough Mode is on (a read; it opens nothing) */
+    api('/recoil/status').then(function (j) {
+      if (W.closed) return;
+      if (j.ok && j.data) {
+        supportKnown = true;
+        W.status = j.data;
+      } else if (/does not answer|501|not found|no such/i.test(String(j.error || ''))) {
+        supportKnown = false;
+        W.err = 'This Core’s firmware does not have the Anti-Recoil Lab yet. Update the Core, then try again.';
+      }
+      if ((W.page === 'check' || W.page === 'kind' || W.page === 'mode') && !W.busy) W.paint();
+    });
+    return W;
+  }
+
+  function api(path, method, body) {
+    return Z().api(path, method, body).then(function (j) { return j || { ok: false, error: 'no answer' }; });
+  }
+
+  function stop(W) {
+    if (W.timer) { clearInterval(W.timer); W.timer = null; }
+    if (W.mtimer) { clearTimeout(W.mtimer); W.mtimer = null; }
+  }
+  /* the sheet's close: the ×, the scrim, Escape and Cancel all land here.
+     Closing gives every paused Smart Action back at once (the Core would
+     after 20 s on its own), and fire (D418: /recoil/close lifts the block).
+     D418: a save still waiting for its debounce is made now, so closing
+     keeps the latest. */
+  function teardown(W) {
+    if (W.closed) return;
+    if (W.deleted) W.changed = false;
+    /* a Tune change not saved yet: the model as it is now (rebuilt first
+       when the change had not reached it), then the session closes */
+    var pend = !!(W.changed && W.model && W.page === 'tune');
+    var rebuild = pend && !!(W.mtimer || W.mbusy);
+    if (W.stimer) { clearTimeout(W.stimer); W.stimer = null; }
+    if (pend && !rebuild) saveNow(W);
+    W.closed = true;
+    W.fblock = 'off';
+    stop(W);
+    if (SPOTS()) SPOTS().teardown(W);
+    if (WALL()) WALL().teardown(W);
+    var was = W.opened;
+    W.opened = false;
+    if (!rebuild) {
+      if (was) api('/recoil/close', 'POST', {});
+      return;
+    }
+    api('/recoil/model', 'POST', params(W)).then(function (j) {
+      if (j.ok && j.data && j.data.model) { W.model = j.data.model; saveNow(W); }
+      if (was) api('/recoil/close', 'POST', {});
+    });
+  }
+
+  function header(W) {
+    if (W.page === 'kind' || W.page === 'mode') return '';
+    /* D404: a game with no trained spot is told so, not stepped through */
+    if (W.page === 'spot' && !(W.spots || []).length) return '';
+    var flow = flowOf(W), at = flow.indexOf(W.page);
+    return '<div class="rw-steps" aria-label="step ' + (at + 1) + ' of ' + flow.length + '">' +
+      flow.map(function (pg, i) {
+        return '<span class="' + (i === at ? 'on' : i < at ? 'done' : '') + '">' + (i + 1) + ' ' + esc(PAGE_WORDS[pg]) + '</span>';
+      }).join('') + '</div>';
+  }
+
+  /* ── D418: fire off while the holes are marked ──
+     Manual's wall page asks for "after" (the Core turns fire off itself at
+     the let-go of the magazine, no round trip), its Mark page "on";
+     Automatic's Confirm (and the picture being taken after the magazine)
+     "on"; every other page "off" (Tune's live test needs fire; Back to the
+     wall shoots again). Sent only when it changes; the Core also lifts it on
+     the live test, the Lab closing and its 1.5 s lease (the 250 ms poll
+     renews it). A Core from before D418 answers 404: no block, no line. */
+  function blockWanted(W) {
+    if (!W.opened || W.closed || !isWall(W)) return 'off';
+    if (W.method === 'wall') return W.page === 'wall' ? 'after' : W.page === 'mark' ? 'on' : 'off';
+    if (W.page === 'confirm') return 'on';
+    if (W.page === 'watch' && W.wall && W.wall.state === 'done') return 'on';   /* the picture being taken */
+    return 'off';
+  }
+  function syncBlock(W) {
+    if (!W.opened) { W.fblock = 'off'; return; }
+    var want = blockWanted(W);
+    if (W.fireNoRoute || want === (W.fblock || 'off')) return;
+    W.fblock = want;
+    api('/recoil/fire', 'POST', { block: want }).then(function (j) {
+      if (!j.ok && /no such|404|not found/i.test(String(j.error || ''))) {
+        W.fireNoRoute = true;
+        W.fblock = 'off';
+        if (!W.closed && (W.page === 'mark' || W.page === 'confirm' || W.page === 'wall')) W.paint();
+      }
+    });
+  }
+  /* the line on the marking pages (the "?" says why) */
+  function fireOffHTML(W) {
+    if (W.fireNoRoute || !isWall(W)) return '';
+    var h = '<p class="rl-fireoff" id="rl-fireoff">' + (W.page === 'wall'
+      ? 'Fire turns off when you let go, so the wall is not shot again'
+      : 'Fire is off while you mark the holes') + '</p>';
+    return h + (Z().helpHTML ? Z().helpHTML('rl-fireoff-help', 'Why fire is off',
+      'So you cannot shoot the wall again by accident: new holes would not match the picture. ' +
+      'Everything else works as usual. Fire comes back on Tune (to test the Script), when you go Back to ' +
+      'shoot again, and when you close the Lab.') : '');
+  }
+
+  function paint(W) {
+    if (W.closed || (LIVE && LIVE !== W)) return;
+    syncBlock(W);
+    /* D403: the Lab is purple (zs-flat.css sections 21 and 23) */
+    var html = '<div class="gfzone">' + header(W) + body(W) + '</div>';
+    var fresh = !document.getElementById('sheetwrap') ||
+      !document.getElementById('sheetwrap').classList.contains('open');
+    var el = Z().sheetOpen('Anti-Recoil Lab', html, fresh ? function () { teardown(W); } : undefined);
+    if (fresh) W.closed = false;
+    if (Z().wire) Z().wire(el, 'rw/sheet');
+    wire(W, el);
+  }
+
+  /* ── the five pages ── */
+
+  function body(W) {
+    if (W.page === 'kind') {
+      return ZS_RECOIL_PAD.kindHTML(false) + errNote(W) + '<div class="rw-row">' + btn('Cancel', null, 'rw-cancel') + '</div>';
+    }
+    if (W.page === 'mode') return WALL().pageMode(W);
+    if (W.page === 'check') return isWall(W) ? pageCheckWall(W) : pageCheck(W);
+    if (W.page === 'rate') return pageRate(W);
+    if (W.page === 'fire') return pageFire(W);
+    if (W.page === 'trace') return pageTrace(W);
+    if (W.page === 'wall') return WALL().pageWall(W);
+    if (W.page === 'mark') return WALL().pageMark(W);
+    if (W.page === 'watch') return WALL().pageWatch(W);
+    if (W.page === 'confirm') return WALL().pageConfirm(W);
+    /* D404 */
+    if (W.page === 'spot') return SPOTS().pageSpot(W);
+    if (W.page === 'tspot') return SPOTS().pageTspot(W);
+    if (W.page === 'tsave') return SPOTS().pageTsave(W);
+    return pageTune(W);
+  }
+
+  function errNote(W) {
+    return W.err ? note(esc(W.err), 'warn') : '';
+  }
+
+  function pageCheck(W) {
+    var p = W.p, st = W.status || {};
+    var ads = adsName(p);
+    var navOk = st.navigate !== true;
+    var h = '<p class="rw-q">Make a recoil model for a gun</p>' +
+      '<p class="rw-h">You fire at a wall, trace where the bullets went, and the Core builds a Script ' +
+      'that pulls your aim against the climb while you hold Fire. About two minutes.</p>';
+    h += '<ul class="rw-checks">' +
+      '<li><i class="ok">✓</i><span>Your other fire actions are paused while this is open<em>Rapid fire, anti-recoil ' +
+        'and the rest come back the moment you close it. Nothing to switch off by hand.</em></span></li>' +
+      '<li><i class="' + (navOk ? 'ok' : 'no') + '">' + (navOk ? '✓' : '!') + '</i><span>Passthrough Mode is ' +
+        (navOk ? 'off' : '<b>on</b>: switch it off with its shortcut first') + '</span></li>' +
+      '<li><i class="ok">✓</i><span>Mouse DPI: <b>' + esc(dpiOf(p)) + '</b><em>From this config. The model is measured at this DPI; ' +
+        'if you change your mouse’s DPI later, trace it again.</em></span></li>' +
+      (W.fire
+        ? '<li><i class="ok">✓</i><span>Fire is <b>' + esc(mouseWord(W.fire)) + '</b><em>While you trace, its clicks ' +
+          'mark shots and do not shoot.</em></span></li>'
+        : '<li><i class="no">!</i><span>Fire needs to be a mouse button or a key<em>The pattern is measured in mouse ' +
+          'movement, so the workshop needs Fire bound to a click (Mappings).</em></span></li>') +
+      '<li><i class="ask">?</i><span>Your in-game settings match this config<em>Sensitivity, ADS sensitivity and ' +
+        'aim settings the same as when you set up this config.</em></span></li>' +
+      '</ul>';
+    h += card(fld('I’ve checked my game settings', toggle(W.checked, 'rw-checked', 'my game settings match')) +
+      fld('Only while aiming down sights', toggle(W.ads, 'rw-ads', 'only while aiming down sights'),
+        ads ? 'trace it aimed in (hold ' + esc(ads) + ')' : 'this config has no aim button set, so it would never run'));
+    h += errNote(W);
+    h += '<div class="rw-row">' + (W.fromMode ? btn('Back', null, 'rw-tomode') : btn('Cancel', null, 'rw-cancel')) +
+      btn(W.busy ? 'Opening…' : (W.editing ? 'Open my model' : 'Start'), 'primary', 'rw-next',
+        !W.fire || !W.checked || W.busy) + '</div>';
+    return h;
+  }
+
+  /* D403: Check for the wall methods: no mouse needed (fire is the
+     trigger), the field of view the holes are measured with */
+  function pageCheckWall(W) {
+    var V = WALL(), ads = adsName(W.p), any = W.method === 'auto';
+    var h = '<p class="rw-q">' + (any ? 'Automatic' : 'Manual') + ': before you start</p>' +
+      (any
+        /* D419: one Automatic: a game with a trained spot goes to the spot;
+           this one has none, so any flat wall with some detail will do */
+        ? '<div class="rs-spot rw-anywall" id="rw-anywall"><div class="rs-pad"><span class="rs-where">Anywhere</span>' +
+          '<b class="rs-name">A white wall</b><p class="rs-say">Find a white wall where bullet holes show up clearly, with an edge, a sign or the floor also in view. Aim down sights and empty the magazine.</p></div></div>' +
+          (Z().helpHTML ? Z().helpHTML('rw-any-help', 'Which wall works', V.HELP_ANY) : '')
+        : '<p class="rw-h">You fire one magazine at a wall, and tap each bullet hole on a picture of your screen.' +
+          ' About two minutes.</p>');
+    h += '<ul class="rw-checks">' + V.checkItems(W) + '</ul>';
+    h += card(fld('I’ve checked my game settings', toggle(W.checked, 'rw-checked', 'my game settings match')) +
+      fld('Only while aiming down sights', toggle(W.ads, 'rw-ads', 'only while aiming down sights'),
+        W.input === 'mnk' || W.input === 'stick_mouse'
+          ? (ads ? 'fire it aimed in (hold ' + esc(ads) + ')' : 'this config has no aim button set, so it would never run')
+          : 'fire it aimed in (hold your aim trigger)'));
+    /* D419: anywhere, the field of view matters only until the sensitivity
+       is checked (the Fire rate step) */
+    if (!any || !V.sensFor(W.p)) h += V.fovHTML(W);
+    else h += '<p class="rw-h" id="rw-sensok">Sensitivity checked by your Core: the Script is made at its real size.</p>';
+    if (any && SPOTS() && SPOTS().devHTML) h += SPOTS().devHTML(W, false);
+    h += errNote(W);
+    h += '<div class="rw-row">' + btn('Back', null, 'rw-tomode') +
+      btn(W.busy ? 'Opening…' : (W.editing ? 'Open my model' : 'Start'), 'primary', 'rw-next',
+        !W.checked || W.busy) + '</div>';
+    return h;
+  }
+
+  function measuredRpm(W) {
+    var m = (W.status && W.status.measure) || {};
+    if (num(m.presses, 0) >= 3 && num(m.spanMs, 0) > 0) {
+      return Math.round(60000 * (num(m.presses, 0) - 1) / num(m.spanMs, 1));
+    }
+    if (num(m.heldMs, 0) > 0 && W.mag >= 2) return Math.round(60000 * (W.mag - 1) / num(m.heldMs, 1));
+    return 0;
+  }
+
+  function pageRate(W) {
+    var SP = SPOTS(), byLab = isWall(W) && !!SP;
+    /* step A running: hands off while the Core fires */
+    if (byLab && W.meas && SP.running(W.meas)) return SP.measureRunHTML(W);
+    if (byLab && W.sensRun && SP.running(W.sensRun)) return SP.sensRunHTML(W);   /* D419 */
+    var st = W.status || {}, measuring = st.state === 'measuring', m = st.measure || {};
+    var rpm = measuredRpm(W);
+    var sub = W.rateTyped ? 'rounds per minute' : W.rateSrc === 'measured' ? 'measured by your Core'
+      : W.rateSrc === 'guess' ? 'a guess by your Core' : 'rounds per minute';
+    var h = '<p class="rw-q">How fast does it fire?</p>' +
+      '<p class="rw-h">' + (byLab ? 'Rounds per minute. Type it in, or let your Core measure it.'
+        : 'Rounds per minute. Typing it in is the most accurate: look it up for your gun.') + '</p>' +
+      card(stepper('Fire rate', W.params.rpm, 10, 60, 3000, ' RPM', sub, 'rpm'));
+    if (byLab) h += SP.measureHTML(W);
+    if (byLab && W.method === 'auto' && SP.sensHTML) h += SP.sensHTML(W);       /* D419 */
+    h += '<div class="sh">' + (byLab ? 'Or time it yourself' : 'Or measure it') + '</div>' +
+      card(stepper('Rounds in the magazine', W.mag, 1, 2, 100, '', W.magMeasured ? 'measured by your Core'
+        : 'a full magazine', 'mag') +
+        (measuring
+          ? '<p class="rw-live" id="rw-meas" aria-live="polite">' + measureWords(m) + '</p>' +
+            btn('Stop measuring', null, 'rw-mstop')
+          : (num(m.presses, 0) > 0
+            ? '<p class="rw-live" id="rw-meas">' + measureWords(m) + '</p>' : '') +
+            btn('Measure: fire a full magazine', null, 'rw-mstart')));
+    if (measuring) {
+      h += note('Hold Fire and empty the whole magazine, then let go <b>right after the last shot</b>.');
+    }
+    if (rpm >= 60 && rpm <= 3000) {
+      h += btn('Use ' + rpm + ' RPM', null, 'rw-muse');
+    }
+    if (W.method === 'auto' && WALL() && !WALL()._counterKnown(W.p)) {
+      /* D419: anywhere in a game whose ammo counter the Lab does not know */
+      h += note('Your Core counts the shots from the fire rate and how long you hold Fire, never more than the ' +
+        'magazine: set both (or let your Core measure them).');
+    } else if ((W.method === 'auto' || W.method === 'spot' || W.method === 'wall') && !W.rateTyped && !W.rateSrc) {
+      h += note('Not sure? Go on: your Core counts the shots on your ammo counter while you fire at the wall.');
+    }
+    h += errNote(W) + '<div class="rw-row">' + btn('Back', null, 'rw-back') + btn('Next', 'primary', 'rw-next', !!W.busy) + '</div>';
+    return h;
+  }
+  function measureWords(m) {
+    if (!num(m.presses, 0)) return 'Waiting for you to fire…';
+    if (m.down) return '<b>Firing…</b>';
+    return '<b>' + (num(m.heldMs, 0) / 1000).toFixed(2) + ' s</b> held' +
+      (num(m.presses, 0) > 1 ? ' · ' + m.presses + ' presses' : '');
+  }
+
+  function pageFire(W) {
+    var h = '<p class="rw-q">Fire a magazine at a wall</p>' +
+      '<p class="rw-h">Go somewhere you can shoot a plain wall (a practice range is ideal). ' +
+      (W.ads ? 'Aim down sights, ' : '') + 'keep the mouse <b>completely still</b> and hold Fire until the magazine is empty. ' +
+      'Your gun fires as normal: the workshop only pauses your other Scripts.</p>';
+    h += card('<div class="fld col"><div class="salab">Shots landing on top of each other?' +
+      '<em>Spread them into a column you can trace. Taken out again when the model is built.</em></div>' +
+      seg(SPREAD_WORDS, W.spread, 'rw-spread') + '</div>');
+    h += errNote(W) + '<div class="rw-row">' + btn('Back', null, 'rw-back') +
+      btn('I’ve fired: trace it', 'primary', 'rw-next') + '</div>';
+    return h;
+  }
+
+  function tracePlot(W) {
+    var st = W.status || {}, tr = st.trace || {}, sets = [], i;
+    for (i = 0; i < W.samples.length; i++) {
+      sets.push({ pts: pairs(W.samples[i].pts), cls: 'old', line: true, r: 2.6 });
+    }
+    if (st.state === 'tracing' || (W.page === 'trace' && num(tr.n, 0) > 1 && !W.justDone)) {
+      sets.push({ pts: pairs(tr.pts), cls: 'tr', line: true });
+    }
+    return plotSVG(sets, 'your traced shots, ' + num(tr.n, 0) + ' in this trace');
+  }
+
+  function pageTrace(W) {
+    var st = W.status || {}, tracing = st.state === 'tracing', tr = st.trace || {};
+    var h = '<p class="rw-q">' + (tracing ? 'Click Fire on each mark, in order' : 'Trace the marks') + '</p>';
+    if (!tracing) {
+      h += '<ol class="rw-h" style="padding-left:18px;margin-top:0">' +
+        '<li>Put your reticle on the <b>first</b> bullet mark.</li>' +
+        '<li>Press <b>Trace</b> below.</li>' +
+        '<li>Move to each next mark and click <b>' + esc(mouseWord(W.fire)) + '</b>. Those clicks don’t shoot.</li>' +
+        '<li>Press <b>Done</b>.</li></ol>';
+    }
+    h += '<div class="rw-plotwrap" id="rw-plot">' + tracePlot(W) + '</div>';
+    h += '<p class="rw-live" id="rw-count" aria-live="polite">' + traceWords(W) + '</p>';
+    if (tracing) {
+      h += '<div class="rw-row">' + btn('Start over', null, 'rw-treset') + btn('Done', 'primary', 'rw-tdone') + '</div>';
+    } else {
+      h += btn(W.samples.length ? 'Trace another magazine' : 'Trace', W.samples.length ? null : 'primary', 'rw-tstart',
+        W.samples.length >= SAMPLES_MAX);
+      if (W.samples.length) {
+        h += note('More samples average out a gun whose pattern is a little random. One is fine for a steady one.');
+        h += btn('Clear all samples', 'danger', 'rw-tclear');
+      }
+    }
+    h += errNote(W) + '<div class="rw-row">' + btn('Back', null, 'rw-back', tracing) +
+      btn('Build the model', W.samples.length ? 'primary' : null, 'rw-next', !W.samples.length || tracing) + '</div>';
+    return h;
+  }
+  function traceWords(W) {
+    var st = W.status || {}, tr = st.trace || {};
+    var n = W.samples.length;
+    var lead = n ? n + (n === 1 ? ' sample' : ' samples') + ' kept' : 'No samples yet';
+    if (st.state === 'tracing') {
+      return '<b>' + Math.max(0, num(tr.n, 1)) + '</b> shots traced' + (tr.full ? ' (that is the most one trace holds)' : '') +
+        ' · ' + lead;
+    }
+    return lead;
+  }
+
+  function tunePlot(W) {
+    var sets = [];
+    if (W.model && W.model.mean) sets.push({ pts: pairs(W.model.mean), cls: 'tr', line: true });
+    /* drawn at the page's 100%: a wall model plays WALL_GAIN times its
+       traced size, so it is drawn back down by that much, and at 100% it
+       sits on the holes (the owner, 2026-10-20) */
+    var g = gainOf(W.method, W.sensUsed);
+    if (W.model) sets.push({ pts: modelPts(W.model).map(function (q) { return [q[0] / g, q[1] / g]; }), cls: 'mdl', line: true, r: 2.4 });
+    return plotSVG(sets, 'your averaged pattern in red and the model in cyan');
+  }
+  function statsWords(W) {
+    var m = W.model;
+    if (!m) return W.modelErr ? esc(W.modelErr) : 'Building…';
+    var rpm = Math.round(60000 / num(m.intervalMs, 100));
+    return m.steps.length + ' moves from ' + m.shots + ' shots' + (m.samples > 1 ? ' (' + m.samples + ' samples averaged)' : '') +
+      ' · lasts ' + (num(m.totalMs, 0) / 1000).toFixed(2) + ' s · plays at ' + rpm + ' RPM' +
+      (num(m.err, 0) > 0 ? ' · within ' + (num(m.err, 0) / gainOf(W.method, W.sensUsed)).toFixed(1) + ' counts of your trace' : ' · exactly your trace');
+  }
+
+  /* D418: the Script's name when the player has not given one: the gun's
+     ("M15 Mod 0 recoil") when it is tied to one, else "Recoil control" */
+  function defaultName(W) {
+    var room = W.opts && W.opts.room, tg = null;
+    if (room && room.title) return room.title + ' recoil';
+    try { tg = SPOTS() && isWall(W) ? SPOTS().target(W) : null; } catch (e) { tg = null; }
+    if (tg && tg.gun && tg.gun.name) return tg.gun.name + ' recoil';
+    return 'Recoil control';
+  }
+  function nameOf(W) {
+    var n = String(W.name || '').replace(/\s+/g, ' ').trim();
+    return n || defaultName(W);
+  }
+  /* D418: the name at the top of Tune, and Delete at its foot (asked once) */
+  function nameHTML(W) {
+    return '<div class="fld rw-namefld"><label class="salab" for="rw-name">Name</label>' +
+      '<input type="text" id="rw-name" class="rw-name" maxlength="40" data-nosave="1" autocomplete="off" value="' +
+      esc(nameOf(W)) + '" aria-label="the Script\'s name"></div>';
+  }
+  function deleteHTML(W) {
+    if (!W.onDelete || !W.savedOnce) return '';
+    if (W.delAsk) {
+      return '<div class="rw-delask" id="rw-delask"><p>Delete this recoil script?</p><div class="rw-row">' +
+        btn('Cancel', null, 'rw-delno') + btn('Delete', 'danger', 'rw-delyes') + '</div></div>';
+    }
+    /* small and quiet (the owner, 2026-10-20: "make Delete script way smaller") */
+    return '<button type="button" class="rw-dellink" id="rw-delete">Delete script</button>';
+  }
+  function deleteNow(W) {
+    var cb = W.onDelete;
+    if (!cb) return;
+    if (W.stimer) { clearTimeout(W.stimer); W.stimer = null; }
+    W.changed = false;          /* nothing left to save on the way out */
+    W.deleted = true;
+    try { cb(); } catch (e) { W.err = 'Not deleted: ' + String((e && e.message) || e); W.deleted = false; W.paint(); return; }
+    Z().sheetClose();           /* runs teardown: the Core's session closes */
+    if (Z().toast) Z().toast('Recoil script deleted');
+  }
+
+  /* D418: the quiet line under the stats: saving, saved */
+  function savedWords(W) {
+    if (!W.model) return '';
+    if (W.saveErr) return esc(W.saveErr);
+    return W.saving || W.stimer || W.changed ? 'Saving…' : W.savedOnce ? 'Saved. Changes save by themselves.' : '';
+  }
+  function pageTune(W) {
+    var st = W.status || {}, test = st.test || {};
+    var h = nameHTML(W) + (W.autoMade && isWall(W) ? '<div class="rl-ok" id="rw-auto"><i>✓</i><span>Your Core mapped every bullet ' +
+        'from your aim and built this model. It is saved; <b>Back</b> shows the dots.</span></div>' : '') +
+      '<div class="rw-plotwrap" id="rw-plot">' + tunePlot(W) + '</div>' +
+      '<div class="rw-legend"><span><b style="background:var(--red,#e5484d)"></b>' +
+        (isWall(W) ? 'the holes' : 'your trace') + '</span>' +
+      '<span><b style="background:var(--accent,#2fd9ce)"></b>the model</span></div>' +
+      '<p class="rw-stats" id="rw-stats" aria-live="polite">' + statsWords(W) + '</p>' +
+      '<p class="rw-saved" id="rw-saved" aria-live="polite">' + savedWords(W) + '</p>';
+    if (W.method === 'auto') {
+      /* D419: anywhere, what 100% means */
+      h += '<p class="rw-h" id="rw-sens">' + (W.sensUsed ? '<b>Sensitivity checked.</b> 100% is the real size your Core ' +
+        'measured in the game.' : '<b>Sensitivity not checked.</b> 100% is a guess from the field of view; check it ' +
+        'on the Fire rate step and make the Script again.') + '</p>';
+    }
+    /* the owner, 2026-10-20: Scale X and Y are what matters - on top, lit;
+       the rest under Advanced */
+    h += '<div class="grp-card rw-scales">' +
+      stepper('Scale Y', W.params.sy, 10, 0, SCALE_MAX_PCT, '%', 'more if it still climbs, less if it pulls down too far', 'sy') +
+      stepper('Scale X', W.params.sx, 10, 0, SCALE_MAX_PCT, '%', 'more if it still drifts sideways, less if it over-corrects', 'sx') +
+      '</div>';
+    h += '<div class="rw-test' + (W.testing ? ' on' : '') + '">' +
+      fld('Test it with the gun', toggle(W.testing, 'rw-test', 'test the model with the gun'),
+        '<span id="rw-testline">' + testLine(W) + '</span>') + '</div>';
+    /* D421: strength wobble – override toggle + stepper */
+    var _gvDisplay = Math.round(W.vmag * 100);
+    var _svSub = W.vmagOverride ? 'each shot varies by up to this much; 0 is exact'
+      : 'following Translation → Behavior; override to change for this script only';
+    h += '<details class="rw-adv"' + (W.advOpen ? ' open' : '') + '><summary>Advanced</summary>' + card(
+      stepper('Wait scale', W.params.ws, 5, 25, 400, '%', 'stretches the timing; for a new fire rate use old ÷ new', 'ws') +
+      stepper('Fewer moves', W.params.opt, 1, 0, 10, '', '0 follows every shot; higher merges moves', 'opt') +
+      stepper('Fire rate', W.params.rpm, 10, 60, 3000, ' RPM', 'what the trace was fired at', 'rpm') +
+      stepper('Timing wobble', W.vms, 5, 0, 500, 'ms', 'each step varies by up to this much; 0 is exact', 'vms') +
+      '<div class="fld"><div class="salab">Strength wobble' +
+        '<em>' + _svSub + '</em></div>' +
+        '<span class="rw-vmag-row">' +
+          '<label class="rw-vmag-ov-lbl"><input type="checkbox" class="rw-vmag-ov-cb"' + (W.vmagOverride ? ' checked' : '') + '> Override</label>' +
+          '<span class="stp' + (!W.vmagOverride ? ' rw-vmag-dim' : '') + '">' +
+            '<button data-d="-5"' + (!W.vmagOverride ? ' disabled' : '') + ' aria-label="decrease">−</button>' +
+            '<b class="sv" data-nosave="1" data-f="vmag" data-min="0" data-max="100" data-suffix="%"' +
+            (!W.vmagOverride ? ' aria-disabled="true"' : '') + '>' + _gvDisplay + '</b>' +
+            '<button data-d="5"' + (!W.vmagOverride ? ' disabled' : '') + ' aria-label="increase">+</button>' +
+          '</span>' +
+        '</span>' +
+      '</div>') + '</details>';
+    h += fld('Only while aiming down sights', toggle(W.ads, 'rw-ads', 'only while aiming down sights'));
+    /* D417: how the pull feels, behind a "?" */
+    h += Z() && Z().helpHTML ? Z().helpHTML('rw-feel', 'How the pull feels',
+      'On a controller the pull eases off while you move your aim stick, and comes back the moment you let go. ' +
+      'It starts just past the dead zone, so the first shots pull right away. ' +
+      'With a mouse it moves like your hand does.') : '';
+    h += note('Good to know: a gun with a very random pattern, marks that disappear fast, or a pattern that changes ' +
+      'as you pull against it only ever gets an approximate model.');
+    /* D418: no Save button: the Script saves itself */
+    /* the owner, 2026-10-20: a Done to finish (it is saved already) */
+    h += errNote(W) + '<div class="rw-row">' + btn('Back', null, 'rw-back') + btn('Done', 'primary', 'rw-done') + '</div>';
+    h += deleteHTML(W);
+    return h;
+  }
+
+  function testLine(W) {
+    var test = (W.status || {}).test || {};
+    return W.testing ? 'Fire now: it runs while you hold Fire' + (num(test.plays, 0) ? ' · tested ' + test.plays + '×' : '')
+      : 'the model runs while you hold Fire, before you keep it';
+  }
+
+  /* ── talking to the Core ── */
+
+  function poll(W) {
+    if (W.closed) return;
+    api('/recoil/status').then(function (j) {
+      if (W.closed) return;
+      if (!j.ok) {
+        if (/not open/i.test(String(j.error || ''))) { W.opened = false; }
+        return;
+      }
+      var was = W.status || {};
+      W.status = j.data || {};
+      if (W.status.state === 'closed' && W.opened) {
+        /* the Core's lease ran out under us (the link dropped for 20 s) */
+        W.opened = false;
+        W.err = 'The Core closed the workshop because it lost touch with the app. Go back to the start to open it again.';
+        W.paint();
+        return;
+      }
+      live(W, was);
+    });
+  }
+  function startPolling(W) {
+    if (W.timer) clearInterval(W.timer);
+    W.timer = setInterval(function () { poll(W); }, POLL_MS);
+  }
+  /* the parts that move on their own, without repainting the sheet (which
+     would cut a stepper's hold-to-repeat short) */
+  function live(W, was) {
+    var el = document.getElementById('sheetbody');
+    if (!el) return;
+    var st = W.status;
+    if (W.page === 'trace') {
+      if ((was.state === 'tracing') !== (st.state === 'tracing')) { W.paint(); return; }
+      var pl = el.querySelector('#rw-plot');
+      if (pl) pl.innerHTML = tracePlot(W);
+      var c = el.querySelector('#rw-count');
+      if (c) c.innerHTML = traceWords(W);
+    } else if (W.page === 'rate' && !W.meas) {
+      var m = st.measure || {}, wm = was.measure || {};
+      if (m.presses !== wm.presses || m.down !== wm.down || m.heldMs !== wm.heldMs ||
+          (st.state === 'measuring') !== (was.state === 'measuring')) W.paint();
+    } else if (W.page === 'tune') {
+      var t = st.test || {}, wt = was.test || {};
+      /* a test play only changes the line under the switch: never a
+         repaint, which threw away a number being typed and showed the old
+         one again (the owner, 2026-10-20: "the second I shoot it goes back") */
+      if (t.plays !== wt.plays) {
+        var tl = el.querySelector('#rw-testline');
+        if (tl) tl.innerHTML = testLine(W);
+      }
+    } else if (W.page === 'check' && st.navigate !== was.navigate) {
+      W.paint();
+    } else if (W.page === 'wall' && WALL()) {
+      WALL().live(W, was);
+    }
+  }
+
+  function params(W) {
+    var g = gainOf(W.method, W.sensUsed);
+    return { rpm: W.params.rpm, opt: W.params.opt, sx: Math.round(W.params.sx * g) / 100, sy: Math.round(W.params.sy * g) / 100,
+      ws: W.params.ws / 100 };
+  }
+  function requestModel(W, soon) {
+    if (W.mtimer) clearTimeout(W.mtimer);
+    W.mtimer = setTimeout(function () {
+      W.mtimer = null;
+      var body = params(W);
+      W.mbusy = true;
+      api('/recoil/model', 'POST', body).then(function (j) {
+        W.mbusy = false;
+        if (W.closed) return;
+        if (j.ok && j.data && j.data.model) {
+          W.model = j.data.model;
+          W.modelErr = '';
+          W.status = j.data;
+          delete W.status.model;
+        } else {
+          W.model = null;
+          W.modelErr = String(j.error || 'The model could not be built.');
+        }
+        if (W.testing) api('/recoil/test', 'POST', { op: 'start', rpm: body.rpm, opt: body.opt, sx: body.sx, sy: body.sy, ws: body.ws });
+        if (W.page === 'tune') {
+          /* D418: the model is the Script: saved at once the first time,
+             ~600 ms after the last change after that (a saved Script just
+             re-opened is not saved again until something changes) */
+          if (W.model && W.changed) autoSave(W, !W.savedOnce);
+          else if (W.model && W.editing) W.savedOnce = true;
+          var el = document.getElementById('sheetbody');
+          var pl = el && el.querySelector('#rw-plot');
+          var stt = el && el.querySelector('#rw-stats');
+          if (pl) pl.innerHTML = tunePlot(W);
+          if (stt) stt.innerHTML = statsWords(W);
+          savedLine(W);
+        }
+      });
+    }, soon ? 0 : MODEL_DEBOUNCE_MS);
+  }
+
+  /* open the session, then put back any samples a saved model carries, one
+     request each (a big body is the request most likely to lose a line on
+     the USB link, D138) */
+  function openSession(W) {
+    W.busy = true;
+    W.err = '';
+    W.paint();
+    api('/recoil/open', 'POST', isWall(W) ? { trigger: true } : { fire: W.fire }).then(function (j) {
+      if (W.closed) return null;
+      if (!j.ok) {
+        W.busy = false;
+        var e = String(j.error || '');
+        if (isWall(W) && /fire control|mouse button or a key/i.test(e)) {
+          /* a Core from before D403 */
+          W.err = 'This Core’s firmware does not have Automatic and Manual yet. Update the Core, then try again.';
+        } else if (/does not answer|501|not found|no such/i.test(e)) {
+          supportKnown = false;
+          W.err = 'This Core’s firmware does not have the Anti-Recoil Lab yet. Update the Core, then try again.';
+        } else {
+          W.err = 'The Core could not open the workshop' + (e ? ': ' + e : '.');
+        }
+        W.paint();
+        return null;
+      }
+      supportKnown = true;
+      W.opened = true;
+      W.status = j.data || {};
+      startPolling(W);
+      return api('/recoil/samples', 'POST', { op: 'clear' }).then(function () {
+        var chain = Promise.resolve(), i;
+        for (i = 0; i < W.samples.length; i++) {
+          (function (smp) {
+            chain = chain.then(function () {
+              return api('/recoil/samples', 'POST', { op: 'add', spread: num(smp.spread, 0), pts: smp.pts });
+            });
+          })(W.samples[i]);
+        }
+        return chain;
+      }).then(function () {
+        if (W.closed) return;
+        W.busy = false;
+        /* D404: training arms the Core for the view next */
+        if (byCore(W) && SPOTS() && SPOTS().opened(W)) return;
+        if (W.editing && W.samples.length) {
+          W.page = 'tune';
+          requestModel(W, true);
+        } else {
+          W.page = 'rate';
+        }
+        W.paint();
+      });
+    });
+  }
+
+  function cmd(W, path, body, then) {
+    W.err = '';
+    return api(path, 'POST', body).then(function (j) {
+      if (W.closed) return;
+      if (!j.ok) {
+        W.err = String(j.error || 'The Core said no.');
+        W.paint();
+        return;
+      }
+      if (j.data) {
+        var m = j.data.model;
+        W.status = j.data;
+        if (m) delete W.status.model;
+      }
+      if (then) then(j);
+      W.paint();
+    });
+  }
+
+  /* D404: several magazines (each one sample), averaged by the D170 model;
+     then Tune, which saves it (D418) */
+  function useSamples(W, list, o) {
+    o = o || {};
+    W.busy = true;
+    W.err = '';
+    var chain = api('/recoil/samples', 'POST', { op: 'clear' }), last = { ok: true };
+    list.forEach(function (smp) {
+      chain = chain.then(function () {
+        return api('/recoil/samples', 'POST', { op: 'add', spread: 0, pts: smp.pts }).then(function (j) { last = j; });
+      });
+    });
+    chain.then(function () {
+      if (W.closed) return;
+      W.busy = false;
+      if (!last.ok) {
+        W.saving = false;
+        W.err = String(last.error || 'The Core did not take the holes.');
+        W.paint();
+        return;
+      }
+      W.samples = list.map(function (smp) { return { spread: 0, pts: smp.pts.slice() }; });
+      W.model = null;
+      W.saving = false;
+      W.changed = true;           /* D418: a new pattern: Tune saves it */
+      W.page = 'tune';
+      W.paint();
+      requestModel(W, true);
+    });
+  }
+
+  /* D403: the wall's holes as ONE sample on the Core, then Tune */
+  function useSample(W, smp) {
+    W.busy = true;
+    W.err = '';
+    api('/recoil/samples', 'POST', { op: 'clear' }).then(function () {
+      return api('/recoil/samples', 'POST', { op: 'add', spread: 0, pts: smp.pts });
+    }).then(function (j) {
+      if (W.closed) return;
+      W.busy = false;
+      if (!j.ok) {
+        W.err = String(j.error || 'The Core did not take the holes.');
+        W.paint();
+        return;
+      }
+      W.samples = [{ spread: 0, pts: smp.pts.slice() }];
+      W.page = 'tune';
+      W.model = null;
+      W.changed = true;           /* D418: a new pattern: Tune saves it */
+      W.paint();
+      requestModel(W, true);
+    });
+  }
+
+  var RATE_NOTE = { measured: ' (measured by the Core)', wall: ' (counted by the Core)', guess: ' (a guess by the Core)',
+    wallGuess: ' (a guess by the Core)' };
+  /* the Script as the door saves it (null with no model) */
+  function buildAction(W) {
+    var m = W.model;
+    if (!m) return null;
+    var pr = params(W);
+    var total = num(m.totalMs, 0);
+    var action = {
+      name: nameOf(W),
+      enabled: true,
+      colour: '#f47fa4',
+      trigger: { src: null, follow: 'rt+', gesture: 'press' },
+      /* run while held: let go of Fire and the pull stops at once, exactly
+         what the live test did */
+      holdMode: 'run_while_held', gate: W.ads ? 'ads' : 'always', uninterruptible: false,
+      varianceMs: W.vms || 0, varianceMag: W.vmag, varianceMagOverride: W.vmagOverride || undefined,
+      maxDurationMs: clamp(total + 500, 100, DUR_CAP), cooldownMs: 0, maxRepeats: 1,
+      category: 'Recoil', fromTemplate: 'recoil-workshop',
+      notes: W.method === 'spot' || W.method === 'auto'
+        ? 'Made in the Anti-Recoil Lab (Automatic' + (W.spot ? ' at ' + W.spot.name + ', ' + W.spot.where
+          : W.method === 'auto' ? ', a magazine at any wall' + (W.sensUsed ? ', sensitivity checked' : '') : ', a magazine at a wall') +
+          (W.samples.length > 1 ? ', ' + W.samples.length + ' magazines averaged' : '') + ') at ' + pr.rpm + ' RPM' +
+          (RATE_NOTE[W.wallRec && W.wallRec.rateSrc] || '') +
+          (W.wallRec && !W.sensUsed ? ', ' + W.wallRec.fov + '° field of view' : '') + '.'
+        : isWall(W)
+        ? 'Made in the Anti-Recoil Lab (Manual, a magazine at a wall' +
+          (W.wallRec && W.wallRec.marked ? ', ' + W.wallRec.marked + ' holes marked' : '') + ') at ' +
+          pr.rpm + ' RPM' + (RATE_NOTE[W.wallRec && W.wallRec.rateSrc] || '') +
+          (W.wallRec ? ', ' + W.wallRec.fov + '° field of view' : '') + '.'
+        : 'Made in the Anti-Recoil Lab at ' + dpiOf(W.p) + ' DPI, ' + pr.rpm + ' RPM.',
+      steps: m.steps.map(function (s) {
+        return { k: 'move', dx: num(s[0], 0), dy: num(s[1], 0), ms: Math.round(num(s[2], 0)) };
+      }),
+      recoil: {
+        v: isWall(W) ? 2 : 1, rpm: pr.rpm, opt: pr.opt, sx: pr.sx, sy: pr.sy, ws: pr.ws, ads: !!W.ads,
+        dpi: dpiOf(W.p), fire: isWall(W) ? '' : W.fire,
+        samples: W.samples.map(function (s) {
+          return { spread: num(s.spread, 0), pts: (s.pts || []).map(round1) };
+        })
+      }
+    };
+    /* D403: how it was made, and the holes as dots (fractions of the
+       picture, never the picture itself) */
+    if (isWall(W)) {
+      action.recoil.method = W.method;
+      if (W.wallRec) action.recoil.wall = W.wallRec;
+    }
+    /* D404: the spot it was made at, and (opened from no gun page) the gun
+       the reader sees out, which the door saves it to (the Confirm page
+       says so). D418: Manual too. */
+    if (W.method === 'spot' || W.method === 'auto' || W.method === 'wall') {
+      if (W.spotId && W.method !== 'wall') action.recoil.spot = W.spotId;
+      var tg = SPOTS() ? SPOTS().target(W) : null;
+      if (tg && tg.gun) action.forGun = tg.gun;
+    }
+    return action;
+  }
+  /* D418: save it now, the Lab staying open (the door replaces the same
+     action on every call after the first) */
+  function saveNow(W) {
+    var action = buildAction(W);
+    if (!action || !W.onAccept) return;
+    keepScale(W);
+    try {
+      W.onAccept(action);
+      W.saveErr = '';
+      W.changed = false;
+      if (!W.savedOnce) {
+        W.savedOnce = true;
+        /* Delete appears once there is something to delete */
+        var el = document.getElementById('sheetbody');
+        if (el && W.page === 'tune' && !W.closed && !el.querySelector('#rw-delete') && W.onDelete) W.paint();
+      }
+    } catch (e) {
+      W.saveErr = 'Not saved: ' + String((e && e.message) || e);
+    }
+    W.saving = false;
+  }
+  function autoSave(W, now) {
+    if (W.stimer) { clearTimeout(W.stimer); W.stimer = null; }
+    if (now) { saveNow(W); savedLine(W); return; }
+    W.stimer = setTimeout(function () {
+      W.stimer = null;
+      if (W.closed) return;
+      saveNow(W);
+      savedLine(W);
+    }, SAVE_DEBOUNCE_MS);
+    savedLine(W);
+  }
+  function savedLine(W) {
+    var el = document.getElementById('sheetbody');
+    var s = el && el.querySelector('#rw-saved');
+    if (s) s.innerHTML = savedWords(W);
+  }
+
+  /* ── the wiring ── */
+
+  function wire(W, el) {
+    var adv = el.querySelector('.rw-adv');
+    if (adv) adv.addEventListener('toggle', function () { W.advOpen = adv.open; });
+    function on(id, fn) {
+      var b = el.querySelector('#' + id);
+      if (b) b.addEventListener('click', function (e) { if (!b.disabled) fn(e, b); });
+    }
+    on('rw-cancel', function () { Z().sheetClose(); });
+    /* D403: the first page's choice */
+    function choose(m) {
+      W.method = m;
+      W.fromMode = true;
+      W.err = '';
+      W.page = 'check';
+      W.paint();
+    }
+    /* D404: Automatic goes to the game's trained spot (or says there is none) */
+    on('rw-mode-auto', function () { if (SPOTS()) SPOTS().begin(W); else choose('auto'); });
+    on('rw-mode-manual', function () { choose('wall'); });
+    on('rw-mode-trace', function () { choose('trace'); });
+    on('rw-mode-feel', function () {
+      W.closed = true;          /* nothing was opened on the Core */
+      stop(W);
+      if (WALL()) WALL().teardown(W);
+      ZS_RECOIL_PAD.open(W.p, { action: W.opts.action, onAccept: W.onAccept });
+    });
+    on('rw-tomode', function () { W.err = ''; W.page = 'mode'; W.paint(); });
+    if (WALL() && (W.page === 'mode' || isWall(W))) WALL().wire(W, el);
+    if (SPOTS() && isWall(W)) SPOTS().wire(W, el);
+    /* D175: "Controller or Mouse?" */
+    on('rw-kind-mouse', function () { W.page = 'check'; W.paint(); });
+    on('rw-kind-pad', function () {
+      W.closed = true;          /* nothing was opened on the Core; its close is a no-op */
+      stop(W);
+      ZS_RECOIL_PAD.open(W.p, { action: W.opts.action, onAccept: W.onAccept });
+    });
+    on('rw-checked', function (e, b) { W.checked = b.classList.contains('on'); W.paint(); });
+    on('rw-ads', function (e, b) {
+      W.ads = b.classList.contains('on');
+      /* the field of view on Check is the aiming one or the hip one */
+      if (W.page === 'check' && isWall(W)) W.paint();
+      /* D418: on Tune it is part of the saved Script */
+      if (W.page === 'tune' && W.model) { W.changed = true; autoSave(W, false); }
+    });
+    on('rw-back', function () {
+      var flow = flowOf(W), at = flow.indexOf(W.page);
+      W.err = '';
+      if (W.page === 'tune' && W.testing) { W.testing = false; api('/recoil/test', 'POST', { op: 'stop' }); }
+      if (W.page === 'rate' && W.status && W.status.state === 'measuring') api('/recoil/measure', 'POST', { op: 'stop' });
+      if (at === 1 && W.method === 'train') {
+        /* training: back to the view, the session stays (it re-arms) */
+      } else if (at === 1) {
+        /* back to Check closes the session: its toggles are what opening
+           it depends on */
+        api('/recoil/close', 'POST', {});
+        W.opened = false;
+        stop(W);
+      }
+      W.page = flow[Math.max(0, at - 1)];
+      if (WALL() && isWall(W)) WALL().enter(W, W.page);
+      if (SPOTS() && byCore(W)) SPOTS().enter(W, W.page);
+      W.paint();
+    });
+    on('rw-next', function () {
+      W.err = '';
+      if (W.page === 'check') { openSession(W); return; }
+      if (W.page === 'rate') {
+        if (W.status && W.status.state === 'measuring') api('/recoil/measure', 'POST', { op: 'stop' });
+        W.page = flowOf(W)[2];
+        /* D418: Manual's wall page watches the ammo counter, as Automatic's */
+        if (WALL() && isWall(W)) WALL().enter(W, W.page);
+        W.paint();
+        return;
+      }
+      if (W.page === 'fire') { W.page = 'trace'; W.paint(); return; }
+      if (W.page === 'trace') { W.page = 'tune'; W.model = null; W.changed = true; W.paint(); requestModel(W, true); }
+    });
+    /* fire rate */
+    on('rw-mstart', function () { cmd(W, '/recoil/measure', { op: 'start' }); });
+    on('rw-mstop', function () { cmd(W, '/recoil/measure', { op: 'stop' }); });
+    on('rw-muse', function () { W.params.rpm = clamp(measuredRpm(W), 60, 3000); W.rateTyped = true; W.rateSrc = 'typed'; W.paint(); });
+    /* the spread aid */
+    var sp = el.querySelector('#rw-spread');
+    if (sp) sp.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        W.spread = num(b.getAttribute('data-i'), 0);
+        cmd(W, '/recoil/spread', { perShot: SPREAD_LEVELS[W.spread], rpm: W.params.rpm });
+      });
+    });
+    /* tracing */
+    on('rw-tstart', function () { W.justDone = false; cmd(W, '/recoil/trace', { op: 'start' }); });
+    on('rw-treset', function () { cmd(W, '/recoil/trace', { op: 'reset' }); });
+    on('rw-tdone', function () {
+      var pts = W.status && W.status.trace ? W.status.trace.pts : [];
+      var spread = W.status && W.status.trace ? num(W.status.trace.spread, 0) : 0;
+      cmd(W, '/recoil/trace', { op: 'done' }, function (j) {
+        var tr = (j.data && j.data.trace) || {};
+        /* the Core's own copy of the trace it kept, not the last poll's */
+        W.samples.push({ spread: num(tr.spread, spread), pts: (tr.pts || pts).slice() });
+        W.justDone = true;
+      });
+    });
+    on('rw-tclear', function () {
+      cmd(W, '/recoil/samples', { op: 'clear' }, function () { W.samples = []; });
+    });
+    /* tuning */
+    /* D418: the name (saved with the rest, no repaint while typing) and
+       Delete, asked once */
+    var nm = el.querySelector('#rw-name');
+    if (nm) nm.addEventListener('input', function () {
+      W.name = nm.value;
+      if (!W.model) return;
+      W.changed = true;
+      autoSave(W, false);
+    });
+    on('rw-delete', function () { W.delAsk = true; W.paint(); });
+    /* Done: it is saved already; closing keeps the latest change */
+    on('rw-done', function () { Z().sheetClose(); });
+    /* D421: strength wobble override checkbox */
+    var vmagCb = el.querySelector('.rw-vmag-ov-cb');
+    if (vmagCb) vmagCb.addEventListener('change', function () {
+      W.vmagOverride = vmagCb.checked;
+      if (!W.vmagOverride) {
+        /* snap back to the profile's global */
+        W.vmag = clamp(num((W.p.behavior && W.p.behavior.recoilStrengthWobble), 0), 0, 1);
+      }
+      if (W.page === 'tune' && W.model) autoSave(W, false);
+      W.paint();
+    });
+    on('rw-delno', function () { W.delAsk = false; W.paint(); });
+    on('rw-delyes', function () { deleteNow(W); });
+    on('rw-test', function (e, b) {
+      W.testing = b.classList.contains('on');
+      var pr = params(W);
+      if (W.testing) {
+        api('/recoil/test', 'POST', { op: 'start', rpm: pr.rpm, opt: pr.opt, sx: pr.sx, sy: pr.sy, ws: pr.ws })
+          .then(function (j) {
+            if (!j.ok) { W.testing = false; W.err = String(j.error || 'The test could not start.'); W.paint(); }
+          });
+      } else {
+        api('/recoil/test', 'POST', { op: 'stop' });
+      }
+      W.paint();
+    });
+
+    /* every stepper on every page */
+    el.addEventListener('zsstep', function (e) {
+      var t = e.target, f = t && t.getAttribute ? t.getAttribute('data-f') : null;
+      var v = num(parseFloat(t && t.textContent), 0);
+      if (!f) return;
+      if (f === 'mag') { W.mag = clamp(Math.round(v), 2, 100); W.magKnown = true; W.magMeasured = false; return; }
+      if (f === 'fov') { if (WALL()) WALL().setFov(W.p, W.ads, v); return; }
+      if (f === 'rpm') { W.rateTyped = true; W.rateSrc = 'typed'; }
+      if (f === 'vms') {
+        W.vms = clamp(Math.round(v), 0, 500);
+        if (W.page === 'tune' && W.model) autoSave(W, false);
+        return;
+      }
+      if (f === 'vmag') {
+        W.vmag = clamp(Math.round(v), 0, 100) / 100;
+        if (W.page === 'tune' && W.model) autoSave(W, false);
+        return;
+      }
+      if (W.params[f] == null) return;
+      W.params[f] = Math.round(v);
+      if (W.page === 'tune') {
+        /* D418: the change is saved once the model is rebuilt (~600 ms) */
+        W.changed = true;
+        if (W.stimer) { clearTimeout(W.stimer); W.stimer = null; }
+        savedLine(W);
+        requestModel(W, false);
+      }
+    });
+  }
+
+  /* ── for the tests: the pure parts ── */
+  window.ZS_RECOIL = {
+    open: open,
+    offered: offered,
+    /* D175: the small kit recoil-pad.js draws with, so the two paths look
+       and behave as one workshop */
+    _kit: { btn: btn, note: note, card: card, fld: fld, stepper: stepper, toggle: toggle, seg: seg,
+      esc: esc, api: api },
+    /* the tests pin these */
+    _modelPts: modelPts,
+    _pairs: pairs,
+    _plotSVG: plotSVG,
+    _SAVE_DEBOUNCE_MS: SAVE_DEBOUNCE_MS,
+    _blockWanted: blockWanted,
+    fireOffHTML: fireOffHTML,
+    _setSupport: function (v) { supportKnown = v; }
+  };
+})();
