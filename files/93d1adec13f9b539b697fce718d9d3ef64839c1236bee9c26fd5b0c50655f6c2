@@ -1,0 +1,607 @@
+/* weapon-live.js - D439: the live AI Scripts view behind HOME's Active
+ * Weapon card (owner, 2026-10-23: "when someone clicks the Active Weapon
+ * card, pull up the weapon image and all the info about it, like the active
+ * scripts, in a sub-tab. As it switches, show the next gun ... show the
+ * previous gun also ... as it's training, show what it's doing, like
+ * 'expected next weapon' once it learns the two guns out").
+ *
+ * WHAT IT SHOWS
+ *   1. the gun in your hands, big: its catalog picture, name, class, the
+ *      AI Scripts this config switches on for it (and whether each is on),
+ *      and a door to its page in AI Scripts;
+ *   2. the gun before it, smaller, with when it was swapped;
+ *   3. what the reader is doing, in plain words: reading / holding (D428
+ *      gun memory) / the HUD gone N s / the pickup look-again window; the
+ *      swap pair it is learning or has learnt (D420) and the "Expected next
+ *      weapon"; how recent and how sure the last read was; which game's
+ *      reader is loaded (D424);
+ *   4. the last few swaps, with times.
+ *
+ * WHERE THE DATA COMES FROM (nothing new is polled while the view is shut)
+ *   - the gun: ZS.liveInput.weapon, devbar.js's one /output/live poll
+ *     (the "weapon" block; `active` is the reader's folded name);
+ *   - the reader's state: GET /status's weapon.reader block (firmware D439,
+ *     never in /output/live), asked every READER_MS ONLY while the view is
+ *     open and the Core online;
+ *   - names, classes, pictures: game-data/<pack>/catalog.json through
+ *     ZSAUTO.loadCatalog, the HUD spellings from recognition.json;
+ *   - the swap history: kept here, in memory, from the live feed (a
+ *     comparison per poll; nothing is stored).
+ *
+ * ES5 only (DESIGN.md). window.ZSWEAPONLIVE; RENDERERS.weaponlive.
+ */
+(function () {
+  'use strict';
+  if (typeof window === 'undefined') { return; }
+
+  var DIR = 'game-data/';
+  var HUE = '#e061c8';                 /* AI Scripts' door and room light (D438) */
+  var READER_MS = 1500;                /* /status while open */
+  var TICK_MS = 1000;                  /* the "N s ago" words */
+  var HIST_MAX = 6;
+  var NAME_PACKS = ['cod-bo2', 'cod-bo7', 'cod-warzone'];
+
+  function ZS() { return window.ZS || null; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function has(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); }
+  function now() { return Date.now(); }
+  /* the reader's fold (name-reader.js fold, zs_tr_fold) */
+  function fold(s) {
+    if (window.ZSNAMEREADER && typeof window.ZSNAMEREADER.fold === 'function') {
+      return window.ZSNAMEREADER.fold(s);
+    }
+    return String(s == null ? '' : s).toUpperCase().replace(/\s+/g, '');
+  }
+  function reduced() {
+    var b = document.body;
+    if (b && b.classList.contains('a11y-motion')) { return true; }
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch (e) { return false; }
+  }
+
+  /* ── state ─────────────────────────────────────────────────────────── */
+  var S = {
+    hist: [],              /* [{name (folded), at}] newest first: the guns held */
+    lastActive: null,      /* the folded name the feed last said */
+    reader: null,          /* the last /status weapon.reader block */
+    readerAt: 0,
+    weapon: null,          /* the last /status weapon block */
+    busy: false,
+    timer: null,
+    open: false,
+    shownGun: null,        /* the gun the hero card shows (for the swap motion) */
+    names: {},             /* pack -> {folded: {item, group, kind}} */
+    crcs: {},              /* crc -> pack id, the games' own readers (D424) */
+    crcAsked: {}
+  };
+
+  /* THE HISTORY, from the fast feed: a change of the active gun is a swap */
+  function noteWeapon(w) {
+    var a = (w && w.loaded !== false && typeof w.active === 'string') ? w.active : '';
+    if (a === S.lastActive) { return false; }
+    S.lastActive = a;
+    if (!a) { return true; }
+    if (S.hist.length && S.hist[0].name === a) { return true; }
+    S.hist.unshift({ name: a, at: now() });
+    if (S.hist.length > HIST_MAX) { S.hist.length = HIST_MAX; }
+    return true;
+  }
+
+  /* ── the game's names, classes and pictures ────────────────────────── */
+  function packOf(full) {
+    var p = (window.ZSPACKS && full) ? window.ZSPACKS.ofConfig(full) : null;
+    return p && p.id ? p : null;
+  }
+  function namesFor(pack) {
+    var A = window.ZSAUTO;
+    if (!pack || !A) { return null; }
+    if (S.names[pack]) { return S.names[pack]; }
+    var c = A.catalog ? A.catalog(pack) : null;
+    if (!c) { if (A.loadCatalog) { A.loadCatalog(pack).then(redraw, redraw); } return null; }
+    if (c.state !== 'ready' || !c.data) { return null; }
+    var map = {}, by = c.data.byId || {}, id;
+    for (id in by) {
+      if (has(by, id) && by[id] && by[id].item && by[id].item.name) {
+        var k = fold(by[id].item.name);
+        if (k && !has(map, k)) { map[k] = by[id]; }
+      }
+    }
+    S.names[pack] = map;
+    /* the HUD's own spellings (recognition.json names.hud), which is what
+       the reader's lexicon holds for a gun whose HUD name differs */
+    if (typeof window.fetch === 'function' && A.readsNames && A.readsNames(pack)) {
+      window.fetch(DIR + pack + '/recognition.json').then(function (r) {
+        return r && r.ok ? r.json() : null;
+      }).then(function (rec) {
+        var hud = rec && rec.names && rec.names.hud, hid;
+        if (!hud) { return; }
+        for (hid in hud) {
+          if (has(hud, hid) && has(by, hid)) { map[fold(hud[hid])] = by[hid]; }
+        }
+        redraw();
+      })['catch'](function () {});
+    }
+    return map;
+  }
+  function findGun(pack, folded) {
+    var m = namesFor(pack);
+    return (m && folded && has(m, fold(folded))) ? m[fold(folded)] : null;
+  }
+  function gunName(pack, folded) {
+    var f = findGun(pack, folded);
+    return f ? f.item.name : String(folded || '');
+  }
+  function picHTML(pack, f, size) {
+    var A = window.ZSAUTO;
+    if (f && f.item && f.item.image) {
+      return '<img class="wl-img" alt="" aria-hidden="true" decoding="async" draggable="false" src="' +
+        esc(DIR + pack + '/' + f.item.image) + '" onerror="this.parentNode.classList.add(\'nopic\');this.remove()">';
+    }
+    /* a gun with no picture shows its class's code, never another gun (D339) */
+    var code = (f && A && A.classCode) ? A.classCode(f.group) : '';
+    return '<span class="wl-code' + (size ? ' ' + size : '') + '" aria-hidden="true">' + esc(code || '?') + '</span>';
+  }
+
+  /* ── the Scripts this gun turns on (D122, D134) ───────────────────── */
+  function scriptsFor(full, pack, itemId) {
+    var A = window.ZSAUTO, out = [];
+    if (!full || !A || !A.isAuto || !itemId) { return out; }
+    var c = A.catalog ? A.catalog(pack) : null;
+    var cat = (c && c.state === 'ready') ? c.data : null;
+    (full.accessibilityActions || []).forEach(function (a) {
+      if (!A.isAuto(a)) { return; }
+      var own = a.auto.item === itemId;
+      var reach = A.reachOf ? A.reachOf(a, cat) : { ids: [a.auto.item] };
+      if (!own && reach.ids.indexOf(itemId) < 0) { return; }
+      out.push({ name: String(a.name || 'Script'), on: !(a.auto && a.auto.on === false), linked: !own });
+    });
+    return out;
+  }
+
+  /* ── words ─────────────────────────────────────────────────────────── */
+  function agoWords(ms) {
+    if (!(ms >= 0)) { return ''; }
+    var s = Math.floor(ms / 1000);
+    if (s < 2) { return 'just now'; }
+    if (s < 60) { return s + ' s ago'; }
+    var m = Math.floor(s / 60);
+    if (m < 60) { return m + ' min ago'; }
+    return Math.floor(m / 60) + ' h ago';
+  }
+  function secs(ms) { return (Math.round(ms / 100) / 10).toFixed(1) + ' s'; }
+
+  /* What the reader is doing, as status lines {tone, text}: tone ok
+     (green), info (grey), learn (the room's hue) */
+  function readerLines(w, rd, pack, shown) {
+    var L = [];
+    if (!w) { return L; }
+    var held = w.active ? shown(w.active) : '';
+    var mem = rd && rd.memory;
+    /* 1. reading or holding */
+    if (w.active) {
+      if (w.verdict === 'gun' && fold(w.sees || '') === fold(w.active)) {
+        L.push({ tone: 'ok', text: 'Reading your ' + held + ' on screen' });
+      } else if (mem && mem.on) {
+        L.push({ tone: 'ok', text: 'Holding your ' + held + ' (gun memory): its name is not readable right now' });
+      } else {
+        L.push({ tone: 'ok', text: 'Holding your ' + held + ' until another gun is read' });
+      }
+    } else if (w.noWeapon) {
+      L.push({ tone: 'info', text: 'No weapon out: AI Scripts are paused' });
+    } else {
+      L.push({ tone: 'info', text: 'Looking for your weapon' });
+    }
+    if (mem && mem.on && mem.hudKnown && mem.hud === false && mem.goneMs > 0) {
+      L.push({ tone: 'info', text: 'HUD gone for ' + secs(mem.goneMs) +
+        (w.active ? ': the gun is forgotten at ' + secs(mem.forgetMs || 3000) : '') });
+    }
+    if (mem && mem.on && mem.windowMs > 0) {
+      L.push({ tone: 'learn', text: 'Pickup pressed: the next clear read is your gun (' + secs(mem.windowMs) + ' left)' });
+    }
+    /* 2. the swap pair (D420) */
+    if (rd) {
+      var pr = rd.pair || [];
+      if (rd.learned && pr.length === 2) {
+        L.push({ tone: 'learn', text: 'Swap pair learned: ' + shown(pr[0]) + ' ⇄ ' + shown(pr[1]) });
+      } else if (pr.length === 2) {
+        L.push({ tone: 'info', text: 'Learning your swap: ' + shown(pr[0]) + ' ⇄ ' + shown(pr[1]) +
+          ' (' + Math.min(rd.alt || 0, rd.altNeed || 3) + ' of ' + (rd.altNeed || 3) + ' swaps)' });
+      } else {
+        L.push({ tone: 'info', text: 'Learning your swap pair: switch between your two guns' });
+      }
+      if (rd.hudGone && rd.expect) {
+        L.push({ tone: 'info', text: 'HUD away: expecting your ' + shown(rd.expect) + ' back' });
+      }
+      /* 3. how recent, how sure */
+      var bits = [];
+      if (rd.namedAgoMs != null && w.active) { bits.push('last clear read ' + agoWords(rd.namedAgoMs)); }
+      if (typeof rd.conf === 'number') { bits.push(Math.round(rd.conf * 100) + '% match'); }
+      if (bits.length) { L.push({ tone: 'info', text: bits[0].charAt(0).toUpperCase() + bits.join(' · ').slice(1) }); }
+    }
+    return L;
+  }
+
+  /* D424: is the Core running THIS game's reader? '' unknown */
+  function readerGame(rd, pack) {
+    var crc = rd && typeof rd.crc === 'string' ? rd.crc.toLowerCase() : '';
+    var R = window.ZSNAMEREADER;
+    if (!crc || crc === '00000000' || !R || !R.prepare) { return null; }
+    NAME_PACKS.forEach(function (pk) {
+      if (S.crcAsked[pk]) { return; }
+      S.crcAsked[pk] = true;
+      R.prepare(pk).then(function (c) { if (c && c.crc) { S.crcs[c.crc] = pk; redraw(); } }, function () {});
+    });
+    var who = S.crcs[crc];
+    if (!who) { return { known: false, mine: false, name: '' }; }
+    var gp = window.ZSPACKS && window.ZSPACKS.get ? window.ZSPACKS.get(who) : null;
+    return { known: true, mine: !!pack && who === pack.id, name: (gp && gp.name) || who };
+  }
+
+  /* ── drawing ───────────────────────────────────────────────────────── */
+  var root = null;
+
+  function emptyHTML(title, line, help) {
+    return '<div class="wl-empty"><span class="wl-ret" aria-hidden="true"></span>' +
+      '<div class="wl-et">' + esc(title) + '</div>' +
+      (line ? '<div class="wl-el">' + esc(line) + '</div>' : '') +
+      (help || '') + '</div>';
+  }
+
+  function helpBox() {
+    var Z = ZS();
+    var text = 'The Core reads your gun’s name off the screen and switches on the AI Scripts you made for it. ' +
+      'Gun memory keeps the gun while its name fades and forgets it when the HUD has been gone 3 seconds (you died). ' +
+      'Pressing pickup tells it to look again. After you swap between the same two guns three times, ' +
+      'it learns them as your pair and expects the other one next, so the swap is read sooner. ' +
+      'It never switches on a gun it has not actually read.';
+    return (Z && Z.helpHTML) ? Z.helpHTML('wl-how', 'How the reader works', esc(text)) : '';
+  }
+
+  function stateOf() {
+    var Z = ZS();
+    if (!Z) { return { kind: 'none' }; }
+    var live = Z.live || {};
+    var full = (live.full && live.full[Z.activeId]) || null;
+    var pack = packOf(full);
+    var off = live.online === false;
+    var w = (!off && Z.liveInput && Z.liveInput.weapon) ? Z.liveInput.weapon : null;
+    return { Z: Z, full: full, pack: pack, off: off, w: w };
+  }
+
+  function heroHTML(st, cur, pk) {
+    var f = findGun(pk, cur), name = gunName(pk, cur);
+    var A = window.ZSAUTO;
+    var cls = f ? f.group.name : '';
+    var from = f && f.item.from ? f.item.from : '';
+    var scripts = f ? scriptsFor(st.full, pk, f.item.id) : [];
+    var onN = scripts.filter(function (s) { return s.on; }).length;
+    var rows = scripts.map(function (s) {
+      return '<li class="wl-sc' + (s.on ? ' on' : '') + '"><span class="wl-scn">' + esc(s.name) +
+        (s.linked ? '<span class="wl-link">linked</span>' : '') + '</span>' +
+        '<span class="wl-pill">' + (s.on ? 'On' : 'Off') + '</span></li>';
+    }).join('');
+    return '<section class="wl-hero" aria-label="The gun in your hands">' +
+      '<div class="wl-lab">In your hands</div>' +
+      '<div class="wl-pic' + (f && f.item.image ? '' : ' nopic') + '">' + picHTML(pk, f, 'big') + '</div>' +
+      '<div class="wl-name" role="status" aria-live="polite">' + esc(name) + '</div>' +
+      ((cls || from) ? '<div class="wl-cls">' + esc([cls, from].filter(Boolean).join(' · ')) + '</div>' : '') +
+      '<div class="wl-sub">' + (scripts.length
+        ? '<span class="wl-dot ok" aria-hidden="true"></span>' + onN + ' of ' + scripts.length + ' AI Script' + (scripts.length > 1 ? 's' : '') + ' on'
+        : '<span class="wl-dot" aria-hidden="true"></span>No AI Scripts for this gun yet') + '</div>' +
+      (rows ? '<ul class="wl-scripts">' + rows + '</ul>' : '') +
+      (f && A && A.openGun ? '<button type="button" class="wl-door" data-wl-gun="' + esc(f.item.id) + '">' +
+        'Open ' + esc(name) + ' in AI Scripts<span class="wl-chev" aria-hidden="true">›</span></button>' : '') +
+      '</section>';
+  }
+
+  function smallHTML(cls, label, pk, folded, words, agoAt) {
+    var f = findGun(pk, folded);
+    return '<div class="wl-small ' + cls + '">' +
+      '<div class="wl-tpic' + (f && f.item.image ? '' : ' nopic') + '">' + picHTML(pk, f, 'small') + '</div>' +
+      '<div class="wl-tt"><div class="wl-lab">' + esc(label) + '</div>' +
+      '<div class="wl-tn">' + esc(gunName(pk, folded)) + '</div>' +
+      (words || agoAt ? '<div class="wl-tw"' + (agoAt ? ' data-wl-at="' + agoAt + '"' : '') + '>' +
+        esc(words || agoWords(now() - agoAt)) + '</div>' : '') +
+      '</div></div>';
+  }
+
+  function bodyHTML() {
+    var st = stateOf();
+    if (!st.Z) { return emptyHTML('AI Scripts', ''); }
+    if (st.off) {
+      var last = '';
+      try { last = window.localStorage.getItem('zs-last-gun') || ''; } catch (e) { last = ''; }
+      return emptyHTML('Your EXO Core is offline', last ? 'Last detected: ' + last : 'Connect it to see your gun live.');
+    }
+    var pk = st.pack ? st.pack.id : '';
+    var A = window.ZSAUTO;
+    if (!pk || !(A && A.readsNames && A.readsNames(pk))) {
+      return emptyHTML('No gun reader for this game', 'AI Scripts read guns by name in Call of Duty: Black Ops II, ' +
+        'Black Ops 7 and Warzone.', helpBox());
+    }
+    var w = st.w;
+    if (!w) { return emptyHTML('Waiting for your Core’s reader', 'It answers once the capture card shows the game.', helpBox()); }
+    if (w.loaded === false) { return emptyHTML('Detection not set up', 'No game’s weapon names on your Core yet.', helpBox()); }
+    var rd = S.reader;
+    var shown = function (n) { return gunName(pk, n); };
+    var h = '';
+    var cur = w.active || '';
+    if (cur) {
+      h += heroHTML(st, cur, pk);
+    } else {
+      h += '<section class="wl-hero wl-none" aria-label="The gun in your hands"><div class="wl-lab">In your hands</div>' +
+        '<div class="wl-pic nopic"><span class="wl-ret" aria-hidden="true"></span></div>' +
+        '<div class="wl-name" role="status" aria-live="polite">' + (w.noWeapon ? 'No weapon out' : 'Looking for your weapon…') + '</div>' +
+        '<div class="wl-sub"><span class="wl-dot" aria-hidden="true"></span>' + (w.noWeapon ? 'AI Scripts paused' : 'Reading the screen') + '</div></section>';
+    }
+    /* the gun before, and the one it expects next */
+    var prevName = '', prevAt = 0;
+    var hi = cur ? (S.hist.length && S.hist[0].name === cur ? 1 : 0) : 0;
+    if (S.hist.length > hi) {
+      prevName = S.hist[hi].name;
+      prevAt = hi > 0 ? S.hist[hi - 1].at : 0;
+    } else if (rd && rd.prev) {
+      prevName = rd.prev;
+    }
+    var pair = '';
+    if (prevName) {
+      pair += smallHTML('wl-prev', 'Previous', pk, prevName, prevAt ? '' : 'Before this one', prevAt);
+    }
+    if (rd && rd.expect && rd.expect !== cur) {
+      pair += smallHTML('wl-next', rd.learned && !rd.hudGone ? 'Expected next weapon' : 'Expected back', pk, rd.expect,
+        rd.learned && !rd.hudGone ? 'Your swap pair' : 'After the HUD came back', 0);
+    }
+    if (pair) { h += '<div class="wl-pair">' + pair + '</div>'; }
+    /* what the reader is doing */
+    var lines = readerLines(w, rd, pk, shown);
+    var rg = readerGame(rd, st.pack);
+    if (rg && rg.known) {
+      lines.push(rg.mine ? { tone: 'ok', text: 'Reader: ' + rg.name + ', this config’s game' }
+                         : { tone: 'info', text: 'Reader: ' + rg.name + '’s is loaded; this config’s swaps in when it saves' });
+    } else if (st.pack) {
+      lines.push({ tone: 'info', text: 'Reader: ' + st.pack.name });
+    }
+    if (!rd) { lines.push({ tone: 'info', text: 'Asking your Core what the reader is learning…' }); }
+    h += '<section class="wl-block" aria-label="What the reader is doing"><div class="wl-bh">What the reader is doing</div>' +
+      '<ul class="wl-lines">' + lines.map(function (l) {
+        return '<li class="t-' + l.tone + '"><span class="wl-dot" aria-hidden="true"></span><span>' + esc(l.text) + '</span></li>';
+      }).join('') + '</ul>' + helpBox() + '</section>';
+    /* the last few swaps */
+    if (S.hist.length > 1) {
+      h += '<section class="wl-block wl-histb" aria-label="Recent swaps"><div class="wl-bh">Recent swaps</div><ol class="wl-hist">' +
+        S.hist.slice(0, 5).map(function (e, i) {
+          return '<li' + (i === 0 ? ' class="cur"' : '') + '><span class="wl-hn">' + esc(shown(e.name)) + '</span>' +
+            '<span class="wl-ht" data-wl-at="' + e.at + '">' + esc(agoWords(now() - e.at)) + '</span></li>';
+        }).join('') + '</ol></section>';
+    }
+    return h;
+  }
+
+  var sig = '';
+  function redraw() {
+    if (!isOpen()) { return; }
+    var html = bodyHTML();
+    if (html === sig) { tickWords(); return; }
+    sig = html;
+    var st = stateOf();
+    var cur = (st.w && st.w.active) || '';
+    var swapped = S.shownGun !== null && cur && cur !== S.shownGun;
+    S.shownGun = cur;
+    root.innerHTML = html;
+    if (swapped && !reduced()) {
+      var hero = root.querySelector('.wl-hero'), prev = root.querySelector('.wl-prev');
+      if (hero) { hero.classList.add('wl-in'); }
+      if (prev) { prev.classList.add('wl-drop'); }
+    }
+  }
+  /* the "N s ago" words only, every second, without a rebuild */
+  function tickWords() {
+    if (!root) { return; }
+    var L = root.querySelectorAll('[data-wl-at]'), i;
+    for (i = 0; i < L.length; i++) {
+      var t = agoWords(now() - Number(L[i].getAttribute('data-wl-at')));
+      if (L[i].textContent !== t) { L[i].textContent = t; }
+    }
+  }
+
+  function isOpen() {
+    if (!root || !root.parentNode || !document.body.contains(root)) { return false; }
+    var d = document.getElementById('detail');
+    return !!d && d.classList.contains('open');
+  }
+
+  /* ── the one poll, only while open ─────────────────────────────────── */
+  function askReader() {
+    var Z = ZS();
+    if (!Z || typeof Z.api !== 'function' || S.busy) { return; }
+    if (Z.live && Z.live.online === false) { return; }
+    S.busy = true;
+    Z.api('/status').then(function (j) {
+      var wb = j && j.ok && j.data && j.data.weapon;
+      S.weapon = (wb && typeof wb === 'object') ? wb : null;
+      S.reader = (wb && wb.reader && typeof wb.reader === 'object') ? wb.reader : null;
+      S.readerAt = now();
+    }, function () {}).then(function () { S.busy = false; redraw(); });
+  }
+  function tick() {
+    if (!isOpen()) { stop(); return; }
+    redraw();
+  }
+  var readerTimer = null;
+  function start() {
+    stop();
+    S.open = true;
+    S.timer = setInterval(tick, TICK_MS);
+    readerTimer = setInterval(function () { if (isOpen()) { askReader(); } else { stop(); } }, READER_MS);
+    askReader();
+  }
+  function stop() {
+    S.open = false;
+    if (S.timer) { clearInterval(S.timer); S.timer = null; }
+    if (readerTimer) { clearInterval(readerTimer); readerTimer = null; }
+  }
+
+  /* ── the screen ────────────────────────────────────────────────────── */
+  function render(p) {
+    injectCss();
+    return {
+      html: '<div class="wl-root" id="wl-root"></div>',
+      after: function (body) {
+        root = body.querySelector('#wl-root');
+        body.removeAttribute('data-tint');
+        sig = '';
+        S.shownGun = null;
+        redraw();
+        root.addEventListener('click', function (e) {
+          var t = e.target && e.target.closest ? e.target.closest('[data-wl-gun]') : null;
+          if (!t) { return; }
+          var A = window.ZSAUTO, Z = ZS();
+          var pp = Z && Z.live && Z.live.full ? p : null;
+          if (A && A.openGun && pp) { stop(); A.openGun(pp, t.getAttribute('data-wl-gun')); }
+        });
+        start();
+      }
+    };
+  }
+
+  function open() {
+    var Z = ZS();
+    if (!Z || typeof Z.openDetail !== 'function') { return; }
+    var pr = (typeof window.prof === 'function') ? window.prof(Z.activeId) : null;
+    Z.openDetail({ id: 'weaponlive', lab: 'AI Scripts', backLabel: '‹ Home',
+                   onBack: function () { stop(); closeDetail(); } }, pr || undefined);
+  }
+  function closeDetail() {
+    var d = document.getElementById('detail');
+    if (d) { d.classList.remove('open'); }
+    if (typeof window.syncInert === 'function') { window.syncInert(); }
+  }
+
+  /* HOME's card is the door: a tap, Enter or Space (a controller's A
+     arrives as a click on the focused card) */
+  function fromCard(e) {
+    var t = e.target && e.target.closest ? e.target.closest('#hsgun') : null;
+    if (!t || t.hidden || t.getAttribute('data-wl') !== '1') { return false; }
+    return true;
+  }
+  document.addEventListener('click', function (e) { if (fromCard(e)) { open(); } });
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && fromCard(e)) { e.preventDefault(); open(); }
+  });
+
+  /* the feed: history always (one comparison a poll), a redraw only open */
+  function onLive(li) {
+    var changed = noteWeapon(li && li.weapon);
+    if (isOpen() && changed) { redraw(); }
+  }
+  function hook() {
+    var Z = ZS();
+    if (Z && typeof Z.onLiveInput === 'function') { Z.onLiveInput(onLive); return true; }
+    return false;
+  }
+  if (!hook()) { setTimeout(hook, 0); }
+
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.weaponlive = render;
+  /* now, so HOME's card wears its chevron before the view is opened */
+  if (document.head) { setTimeout(injectCss, 0); }
+
+  /* ── the look (dark only, D439; DESIGN.md room hues, HOME's type) ─── */
+  var cssDone = false;
+  function injectCss() {
+    if (cssDone || !document.head) { return; }
+    cssDone = true;
+    var css =
+      'html body #detail:has(> #dbody > .wl-root){--amb-room:' + HUE + '}' +
+      '.wl-root{--wl-hue:' + HUE + ';display:flex;flex-direction:column;gap:12px;padding:6px 16px 150px}' +
+      '.wl-lab{font-size:11px;font-weight:800;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;color:var(--muted)}' +
+      '.wl-hero{position:relative;overflow:hidden;border-radius:18px;padding:14px 16px 16px;' +
+        'background:linear-gradient(180deg,color-mix(in srgb,var(--wl-hue) 10%,var(--zk-card,#151a22)),var(--zk-card,#151a22) 60%);' +
+        'border:1px solid color-mix(in srgb,var(--wl-hue) 40%,transparent);' +
+        'box-shadow:inset 0 1px 0 color-mix(in srgb,var(--wl-hue) 50%,#fff 20%),0 16px 34px -24px rgba(0,0,0,.8)}' +
+      '.wl-pic{position:relative;height:150px;margin:8px -4px 6px;display:flex;align-items:center;justify-content:center;' +
+        'background:radial-gradient(60% 70% at 50% 55%,color-mix(in srgb,var(--wl-hue) 22%,transparent),transparent 72%)}' +
+      '.wl-pic .wl-img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 10px 18px rgba(0,0,0,.55))}' +
+      '.wl-name{font-size:24px;font-weight:800;letter-spacing:var(--tr-title,-.016em);line-height:1.2;color:var(--text);' +
+        'font-variant-numeric:tabular-nums}' +
+      '.wl-none .wl-name{font-size:19px;font-weight:650;color:var(--zs-ink-2,var(--muted))}' +
+      '.wl-cls{font-size:13px;color:var(--zs-ink-2,var(--muted));margin-top:2px}' +
+      '.wl-sub{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--zs-ink-2,var(--muted));margin-top:8px}' +
+      '.wl-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--muted)}' +
+      '.wl-dot.ok,.t-ok .wl-dot{background:var(--st-ok,var(--green))}' +
+      '.t-learn .wl-dot{background:var(--wl-hue)}' +
+      '.wl-scripts{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}' +
+      '.wl-sc{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:9px 12px;border-radius:12px;' +
+        'background:color-mix(in srgb,var(--zk-card,#151a22) 70%,#000);border:1px solid var(--zk-line,#2a3140);font-size:14px}' +
+      '.wl-scn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}' +
+      '.wl-link{margin-left:8px;font-size:11px;color:var(--muted)}' +
+      '.wl-pill{flex:none;font-size:12px;font-weight:800;padding:3px 10px;border-radius:99px;color:var(--muted);' +
+        'border:1px solid var(--zk-line,#2a3140)}' +
+      '.wl-sc.on .wl-pill{color:var(--accent-ink,#00201d);background:var(--accent,#2fd9ce);border-color:transparent}' +
+      '.wl-door{margin-top:12px;width:100%;min-height:48px;display:flex;align-items:center;justify-content:space-between;' +
+        'padding:0 14px;border-radius:14px;font:inherit;font-size:15px;font-weight:700;color:var(--text);cursor:pointer;' +
+        'background:color-mix(in srgb,var(--wl-hue) 14%,var(--zk-card,#151a22));' +
+        'border:1px solid color-mix(in srgb,var(--wl-hue) 45%,transparent)}' +
+      '.wl-door:focus-visible{outline:3px solid var(--accent,#2fd9ce);outline-offset:2px}' +
+      '.wl-chev{font-size:22px;color:var(--wl-hue)}' +
+      '.wl-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}' +
+      '.wl-pair > .wl-small:only-child{grid-column:1 / -1}' +
+      '.wl-small{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;min-width:0;' +
+        'background:var(--zk-card,#151a22);border:1px solid var(--zk-line,#2a3140)}' +
+      '.wl-next{border-color:color-mix(in srgb,var(--wl-hue) 45%,transparent)}' +
+      '.wl-next .wl-lab{color:var(--wl-hue)}' +
+      '.wl-tpic{height:54px;display:flex;align-items:center;justify-content:center}' +
+      '.wl-tpic .wl-img{max-width:100%;max-height:100%;object-fit:contain;opacity:.9}' +
+      '.wl-tt{min-width:0}' +
+      '.wl-tn{font-size:15px;font-weight:750;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.wl-tw{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}' +
+      '.wl-code{display:inline-flex;align-items:center;justify-content:center;min-width:56px;height:40px;padding:0 10px;' +
+        'border-radius:10px;font-weight:800;font-size:15px;letter-spacing:.06em;color:var(--zs-ink-2,var(--muted));' +
+        'border:1px solid var(--zk-line,#2a3140);background:color-mix(in srgb,var(--wl-hue) 8%,transparent)}' +
+      '.wl-code.big{min-width:96px;height:64px;font-size:22px;border-radius:14px}' +
+      '.wl-block{padding:12px 14px;border-radius:14px;background:var(--zk-card,#151a22);border:1px solid var(--zk-line,#2a3140)}' +
+      '.wl-bh{font-size:11px;font-weight:800;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;color:var(--muted);margin-bottom:8px}' +
+      '.wl-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}' +
+      '.wl-lines li{display:flex;align-items:baseline;gap:9px;font-size:13px;line-height:1.45;color:var(--zs-ink-2,var(--text))}' +
+      '.wl-lines .wl-dot{transform:translateY(-1px)}' +
+      '.wl-hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}' +
+      '.wl-hist li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;font-size:13px;' +
+        'border-top:1px solid color-mix(in srgb,var(--zk-line,#2a3140) 70%,transparent);color:var(--zs-ink-2,var(--text))}' +
+      '.wl-hist li:first-child{border-top:0}' +
+      '.wl-hist li.cur .wl-hn{color:var(--text);font-weight:700}' +
+      '.wl-ht{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}' +
+      '.wl-empty{margin-top:8px;padding:22px 18px;border-radius:16px;text-align:center;background:var(--zk-card,#151a22);' +
+        'border:1px solid var(--zk-line,#2a3140)}' +
+      '.wl-et{font-size:17px;font-weight:750;color:var(--text);margin-top:10px}' +
+      '.wl-el{font-size:13px;color:var(--zs-ink-2,var(--muted));margin-top:6px;line-height:1.5}' +
+      '.wl-ret{display:inline-block;width:34px;height:34px;border-radius:50%;border:2px solid var(--muted);opacity:.7;' +
+        'background:radial-gradient(circle,var(--muted) 0 3px,transparent 4px)}' +
+      '.wl-in{animation:wlIn .42s var(--ease-settle,cubic-bezier(.22,1,.36,1)) both}' +
+      '.wl-drop{animation:wlDrop .42s var(--ease-settle,cubic-bezier(.22,1,.36,1)) both}' +
+      '@keyframes wlIn{from{opacity:.35;transform:translateX(26px)}to{opacity:1;transform:none}}' +
+      '@keyframes wlDrop{from{opacity:.4;transform:translateY(-14px) scale(1.04)}to{opacity:1;transform:none}}' +
+      '@media (prefers-reduced-motion: reduce){.wl-in,.wl-drop{animation:none}}' +
+      'body.a11y-motion .wl-in,body.a11y-motion .wl-drop{animation:none}' +
+      '#hsgun[data-wl="1"]{cursor:pointer}' +
+      '#hsgun[data-wl="1"]:focus-visible{outline:3px solid var(--accent,#2fd9ce);outline-offset:2px}' +
+      '#hsgun[data-wl="1"]:active{transform:scale(.985)}' +
+      '#hsgun .wl-cardchev{align-self:center;flex:none;font-size:22px;color:var(--muted);padding-left:4px}';
+    var el = document.createElement('style');
+    el.id = 'wl-css';
+    el.textContent = css;
+    document.head.appendChild(el);
+  }
+
+  window.ZSWEAPONLIVE = {
+    open: open, render: render, noteWeapon: noteWeapon, readerLines: readerLines, agoWords: agoWords,
+    isOpen: isOpen, stop: stop, injectCss: injectCss,
+    state: function () { return { hist: S.hist.slice(), reader: S.reader, polling: !!readerTimer, open: isOpen() }; },
+    /* tests only */
+    reset: function () { stop(); S.hist = []; S.lastActive = null; S.reader = null; S.names = {}; S.crcs = {}; S.crcAsked = {}; sig = ''; }
+  };
+}());
