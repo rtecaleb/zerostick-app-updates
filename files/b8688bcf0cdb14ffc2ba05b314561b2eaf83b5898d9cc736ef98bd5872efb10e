@@ -1,0 +1,791 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  app-connect.js — the calibrator's Connect screen and its WiFi auto-connect
+//
+//  This file is what makes the APP different from the web portal:
+//    1. It defines espFetch() — every message to the board goes through here.
+//       Inside the app it uses the phone's NATIVE http (via Capacitor), which
+//       is allowed to talk to the board even though the board has no internet.
+//    2. It finds + joins the original calibrator's WiFi network ITSELF, checks
+//       it's really a ZeroStick board, and only then reveals the calibrator:
+//         - in the phone app with the CapacitorWifiConnect plugin, after a
+//           tap on Search (a drop after that rejoins by itself, on resume too);
+//         - in the PC exe through the exe's own server (D273: POST
+//           /zs/wifi/join runs netsh / networksetup, server.js + src/wifi.js),
+//           after the person taps Search and picks it (it costs the PC its internet), and
+//           back to the PC's own WiFi when they leave (ZSCALWIFI.leave, the
+//           back key, the "Back to ..." line);
+//         - in a plain browser it cannot, so step 3 says how to join by hand.
+//    3. The NEW Bluetooth dongle (CH582F) skips all of the WiFi business: the
+//       calibrator opened from the dongle hub (?from=dongle) remembers "ble",
+//       the phone connects over Bluetooth (js/hid-ble.js), and hid-proxy.js
+//       uses that link instead.
+//
+//  THE LOOK (D273, owner: "why do the new calibrator's instructions and
+//  colouring look so much better"): the Connect screen is dongle.html's
+//  Connect view - the calibrator's photo, "Connect your calibrator", three
+//  numbered steps with the key words in bold, one small note, a big Connect
+//  button docked at the bottom, a spinner line for progress and a red card
+//  that says what went wrong and what to do. Styles: css/zs-cal-connect.css.
+//
+//  SEARCH -> PICK -> CONNECT -> STRAIGHT IN (owner, 2026-10-10: "you click
+//  Search and it searches your WiFi and lets you choose ZeroStick
+//  Calibrator, then it connects and pushes you into the app"):
+//    - Android: Search asks for the WiFi/Location permission (one line says
+//      why), scans with the plugin's getSSIDs(), and lists ONLY calibrators
+//      (other networks are counted, never named). Tap "ZeroStick Calibrator"
+//      -> connect() -> /info -> the calibrator page.
+//    - iPhone: Apple lets no app list nearby WiFi. Search goes straight to
+//      the system's "Join ZeroStick-Calibrator?" prompt (NEHotspot), then in.
+//    - PC exe: Search asks GET /zs/wifi/scan (Windows' own list, netsh), the
+//      same list, then the D273 join. A Mac cannot list: it joins directly.
+//    - A plain browser cannot do any of it: unchanged (join by hand).
+//  The board's network name is fixed in its firmware (never updated):
+//  "ZeroStick-Calibrator", with a hyphen. It is SHOWN as "ZeroStick
+//  Calibrator"; the hyphenated name appears only where the person has to
+//  find it themselves (their WiFi list, the system's join prompt).
+//  Nothing is joined on open any more: the app waits for Search. A drop
+//  after the app joined (or mid-session) still rejoins by itself.
+//
+//  IMPORTANT: this script must load BEFORE js/hid-proxy.js (hid-proxy uses
+//  espFetch). Check the <script> order in calibrator.html if you move things.
+// ─────────────────────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  // ── Settings — match these to the firmware (see AP_SSID in the .ino) ───────
+  var WIFI_NAME = 'ZeroStick-Calibrator'; // the WiFi network the board creates (its SSID)
+  var SHOW_NAME = 'ZeroStick Calibrator'; // how the app names it
+  var BOARD_URL = 'http://192.168.4.1';   // the board's fixed address on that network
+  var PING_PATH = '/info';                // endpoint that proves "this is our board"
+  // The PC exe's own WiFi routes (server.js, D273). Web addresses on this
+  // page's own server, not files: the isolation test knows them.
+  var PC_STATUS = '/zs/wifi/status';
+  var PC_JOIN = '/zs/wifi/join';
+  var PC_RESTORE = '/zs/wifi/restore';
+  var PC_LOCATION = '/zs/wifi/location-settings';
+  var PC_SCAN = '/zs/wifi/scan';
+
+  // Are we running inside the real app (true) or a normal browser tab (false)?
+  function isApp() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform &&
+              window.Capacitor.isNativePlatform());
+  }
+  // Inside the app: an iPhone/iPad (no WiFi scanning allowed) or not
+  function isIos() {
+    return isApp() && !!(window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios');
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ── espFetch: send one request to the board ────────────────────────────────
+  //  Returns an object that looks like a normal fetch() response (has .ok,
+  //  .text(), .json()) so hid-proxy.js can use it without caring which path
+  //  the request actually took.
+  window.espFetch = async function (path) {
+    var url = BOARD_URL + path;
+    if (isApp()) {
+      // Native request — goes out over the WiFi connection the app created,
+      // and isn't blocked by the browser's "no http from an app page" rule.
+      var res = await window.Capacitor.Plugins.CapacitorHttp.request({
+        url: url,
+        method: 'GET',
+        responseType: 'text',
+        connectTimeout: 4000,
+        readTimeout: 4000
+      });
+      var asText = (typeof res.data === 'string') ? res.data : JSON.stringify(res.data);
+      return {
+        ok: res.status >= 200 && res.status < 300,
+        status: res.status,
+        text: async function () { return asText; },
+        json: async function () {
+          return (typeof res.data === 'string') ? JSON.parse(res.data) : res.data;
+        }
+      };
+    }
+    // Browser / PC exe: the PC is on the board's WiFi (joined by the exe or
+    // by hand), so the board answers directly
+    return fetch(url);
+  };
+
+  // ── Ping: is the board reachable AND really a ZeroStick calibrator? ────────
+  async function pingBoard() {
+    try {
+      // 4 s at most, like the app's native request: a PC with no route to
+      // 192.168.4.1 can otherwise wait out the browser's own ~20 s timeout
+      var r = await Promise.race([window.espFetch(PING_PATH),
+        wait(4000).then(function () { throw new Error('timeout'); })]);
+      if (!r.ok) return false;
+      var info = await r.json();
+      return info && info.device === 'zerostick-calibrator';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ── Which dongle: 'ble' (new) or 'wifi' (older), remembered per phone ─────
+  var LINK_KEY = 'zsdongle:zsCalibratorLink';
+  /* THE NEW (BLUETOOTH) CALIBRATOR IS HIDDEN (owner, 2026-10-10: "get rid of
+     the 'I have the new calibrator' option in the app, forget that for
+     now"). Nothing offers it: the Connect screen has no link to it and a
+     saved 'ble' choice is treated as the WiFi calibrator. Opened from the
+     dongle screen itself (?from=dongle) it still works, but nothing in the
+     app leads there. Set true to bring it back. */
+  var SHOW_NEW_CALIBRATOR = true;   /* owner, 2026-10-22: back on, to test the Bluetooth dongle (DSE session) */
+  function savedLink() {
+    try { return localStorage.getItem(LINK_KEY); } catch (e) { return null; }
+  }
+  function saveLink(v) {
+    try { localStorage.setItem(LINK_KEY, v); } catch (e) { /* private mode: ask again next time */ }
+  }
+  /* D445 (owner, 2026-10-23): the device list now asks "which calibrator do
+     you have?" and opens this page with ?link=wifi. That choice is LOCKED for
+     this visit: it overrides a remembered 'ble' and the screen offers no
+     switch to the other calibrator (the owner picked one; it must not land
+     on the Bluetooth screen with WiFi as a link at the bottom). */
+  var LOCKED = (/[?&]link=(wifi|ble)(&|$)/.exec(location.search) || [])[1] || null;
+  if (LOCKED) saveLink(LOCKED);
+
+  // ── The PC exe's WiFi routes ───────────────────────────────────────────────
+  //  null = not asked yet; false = not the exe (a plain browser, or a server
+  //  that cannot change WiFi); otherwise the exe's last /zs/wifi/status.
+  var pc = null;
+  var pcJoined = false;        // this visit, the exe put the PC on the calibrator
+  var pcPrevious = '';         // the PC's own network, to go back to
+  function pcCall(method, path, body, ms) {
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, ms || 4000) : 0;
+    var opt = { method: method, headers: { 'X-ZS-App': '1' } };
+    if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    if (ctl) opt.signal = ctl.signal;
+    if (method === 'POST') opt.keepalive = true;
+    return fetch(path, opt).then(function (r) {
+      if (timer) clearTimeout(timer);
+      var type = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+      if (!/json/.test(type)) throw new Error('not the exe');
+      return r.json();
+    }, function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+  async function detectPc() {
+    if (pc !== null) return pc;
+    if (isApp()) { pc = false; return pc; }
+    try {
+      var j = await pcCall('GET', PC_STATUS, null, 3000);
+      pc = (j && j.ok && j.data && j.data.supported) ? j.data : false;
+    } catch (e) { pc = false; }
+    if (pc && pc.joinedByApp) { pcJoined = true; pcPrevious = pc.previous || ''; }
+    return pc;
+  }
+  function mode() {
+    if (savedLink() === 'ble') return 'ble';
+    if (isApp()) return 'app';
+    return pc ? 'pc' : 'browser';
+  }
+  /* which words the screen uses: the app splits into Android and iPhone,
+     because only Android may list nearby WiFi (theme-shots' preview can
+     force one) */
+  var previewKey = null;
+  function copyKey() {
+    if (previewKey) return previewKey;
+    var m = mode();
+    if (m === 'app') return isIos() ? 'ios' : 'android';
+    return m;
+  }
+  /* the ways that start with Search (everything but a browser and Bluetooth) */
+  function searches() {
+    var k = copyKey();
+    return k === 'android' || k === 'ios' || k === 'pc';
+  }
+  function onPhone() { var k = copyKey(); return k === 'android' || k === 'ios'; }
+
+  // ── The Connect screen ─────────────────────────────────────────────────────
+  var overlay, statusEl, subEl, busyEl, doneEl, errEl, errT, errD, fixBtn,
+      retryBtn, switchBtn, newBtn, heroEl, titleEl, stepsEl, noteEl, fixAction = null,
+      foundEl, foundT, listEl, foundNote, anywayBtn, helpList;
+
+  var PHOTO = '<img id="zsPic" src="assets/zs-dongle.webp" alt="The ZeroStick Calibrator">';
+  var DONGLE_ART = '<div class="art"><svg width="78" height="78" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="#6f9bff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M1.7 10.1h3.9v3.8H1.7z"/><path d="M3 11.4v1.2"/>' +
+    '<rect x="5.6" y="6.9" width="16.5" height="10.2" rx="1.3"/>' +
+    '<rect x="8.1" y="9.5" width="5.1" height="5" rx=".7"/>' +
+    '<path d="M15.8 9.7v4.6M18.5 9.7v4.6"/></svg></div>';
+  var WIFI_ICON = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.3a10 10 0 0 1 14 0"/><path d="M8.5 15.8a5 5 0 0 1 7 0"/>' +
+    '<circle cx="12" cy="19.3" r="1.1" fill="currentColor"/></svg>';
+  var CHEVRON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+
+  /* the steps and the note, per way of connecting */
+  var POWER = '<li><span>Plug the calibrator into your <b>PS5</b> or any <b>USB charger</b>. Wait for its <b>blue light</b>.</span></li>' +
+              '<li><span>Plug your <b>controller</b> into the calibrator with its USB cable.</span></li>';
+  var TITLE = 'Connect your ZeroStick Calibrator';
+  var COPY = {
+    android: {
+      title: TITLE,
+      steps: POWER + '<li><span>Tap <b>Search</b>, then tap <b>ZeroStick Calibrator</b>. The app joins its WiFi and opens it.</span></li>',
+      note: 'Your phone may ask to allow Location or "Nearby devices". Tap <b>Allow</b>, it’s only used to find the calibrator’s WiFi.'
+    },
+    ios: {
+      title: TITLE,
+      steps: POWER + '<li><span>Tap <b>Search</b>. When your iPhone asks to join <b>ZeroStick-Calibrator</b>, tap <b>Join</b>.</span></li>',
+      note: 'iPhones don’t let apps show a list of nearby WiFi, so your iPhone asks you to join the calibrator’s WiFi directly. ' +
+            'It has no internet, so your phone is offline while you calibrate.'
+    },
+    pc: {
+      title: TITLE,
+      steps: POWER + '<li><span>Tap <b>Search</b>, then pick <b>ZeroStick Calibrator</b>. The app joins its WiFi for you.</span></li>',
+      note: 'While you calibrate, this PC is on the calibrator’s WiFi, so it has <b>no internet</b>. ' +
+            'The app puts it back on your own WiFi when you leave.'
+    },
+    browser: {
+      title: TITLE,
+      steps: POWER + '<li><span>Open this device’s WiFi settings and join <b>ZeroStick-Calibrator</b> ' +
+             '(no password). Then come back and tap <b>Connect</b>.</span></li>',
+      note: 'The calibrator’s WiFi has no internet, so this device is offline while it’s on it. ' +
+            'The ZeroStick app joins it for you.'
+    },
+    ble: {
+      title: 'Connect your ZeroStick Dongle',
+      steps: '<li><span>Plug the dongle into your <b>PS5</b> or any <b>USB charger</b>. Its light comes on.</span></li>' +
+             '<li><span>Plug your <b>controller</b> into the dongle with its USB cable.</span></li>' +
+             '<li><span>Keep your phone close, tap <b>Connect</b>, and choose <b>ZeroStick Dongle</b>.</span></li>',
+      note: 'Your phone may ask to allow Bluetooth or "Nearby devices". Tap <b>Allow</b>, it’s only used to reach the dongle.'
+    }
+  };
+  /* the "Not finding it?" fold under the search list */
+  function helpItems() {
+    var who = onPhone() ? 'your phone' : 'this PC';
+    var where = onPhone() ? 'your phone’s WiFi settings' : 'the WiFi button in the bottom-right corner of Windows';
+    return '<li>Check the calibrator’s <b>blue light</b> is on. Its WiFi can take up to 30 seconds to appear after you plug it in.</li>' +
+           '<li>Keep ' + who + ' within 6 feet of it.</li>' +
+           '<li>It shows in ' + where + ' as <b>ZeroStick-Calibrator</b>. You can join it there yourself, then come back and tap <b>Search again</b>.</li>';
+  }
+
+  function buildOverlay() {
+    overlay = document.createElement('div');
+    overlay.id = 'zsConnectOverlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-labelledby', 'zsTitle');
+    overlay.innerHTML =
+      '<div class="shell">' +
+        /* the owner's photo of the WiFi calibrator (2026-10-10): the default,
+           because most players have this one */
+        '<div class="hero" id="zsHero">' + PHOTO + '</div>' +
+        '<h1 id="zsTitle">' + TITLE + '</h1>' +
+        '<div class="status" id="zsBusy" hidden role="status" aria-live="polite">' +
+          '<div class="spin" aria-hidden="true"></div>' +
+          '<div><span id="zsStatus">Connecting…</span><span class="sub" id="zsSub"></span></div></div>' +
+        '<div class="done" id="zsDone" hidden role="status"><span class="tick"><svg width="18" height="18" ' +
+          'viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" ' +
+          'stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' +
+          '<span>Connected</span></div>' +
+        '<div class="err" id="zsErr" hidden role="alert"><b id="zsErrT"></b><span id="zsErrD"></span>' +
+          '<button class="btn second" id="zsFix" type="button" hidden></button></div>' +
+        /* the Search list: only calibrators, the person taps one */
+        '<section class="found" id="zsFound" hidden aria-labelledby="zsFoundT">' +
+          '<h2 id="zsFoundT">Calibrators near you</h2>' +
+          '<div class="list" id="zsList" role="list"></div>' +
+          '<button class="btn second" id="zsAnyway" type="button" hidden>Join ' + SHOW_NAME + ' anyway</button>' +
+          '<p class="hint" id="zsFoundNote" hidden></p>' +
+          '<details class="help" id="zsHelp"><summary>Not finding it?</summary><ul id="zsHelpList"></ul></details>' +
+        '</section>' +
+        '<ol class="steps" id="zsSteps"></ol>' +
+        '<p class="hint" id="zsNote"></p>' +
+        '<div class="stack">' +
+          '<button class="btn plain" id="zsSwitch" type="button" hidden>I have the ZeroStick Calibrator (WiFi)</button>' +
+          /* WiFi is the default; this is the way to the new one (owner: "it
+             would be ALL black if it's the new one, you'd know") */
+          '<button class="btn plain" id="zsNew" type="button">I have the new calibrator <span class="faint">(it\'s all black)</span></button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dock"><div class="in"><button class="btn primary" id="zsRetry" type="button">Connect</button></div></div>';
+    document.body.appendChild(overlay);
+    var q = function (id) { return overlay.querySelector('#' + id); };
+    statusEl = q('zsStatus'); subEl = q('zsSub'); busyEl = q('zsBusy'); doneEl = q('zsDone');
+    errEl = q('zsErr'); errT = q('zsErrT'); errD = q('zsErrD'); fixBtn = q('zsFix');
+    retryBtn = q('zsRetry'); switchBtn = q('zsSwitch'); newBtn = q('zsNew');
+    heroEl = q('zsHero'); titleEl = q('zsTitle'); stepsEl = q('zsSteps'); noteEl = q('zsNote');
+    foundEl = q('zsFound'); foundT = q('zsFoundT'); listEl = q('zsList'); foundNote = q('zsFoundNote');
+    anywayBtn = q('zsAnyway'); helpList = q('zsHelpList');
+    /* the new calibrator is the Bluetooth dongle: its own screen */
+    newBtn.addEventListener('click', function () { location.href = 'dongle.html'; });
+    retryBtn.addEventListener('click', function () { connectFlow(true); });
+    fixBtn.addEventListener('click', function () { if (fixAction) fixAction(); });
+    anywayBtn.addEventListener('click', function () { joinPicked(); });
+    /* on the Bluetooth link, "a different calibrator" is the WiFi one */
+    switchBtn.addEventListener('click', function () { saveLink('wifi'); dress(); connectFlow(true); });
+    dress();
+  }
+
+  var dressed = '';
+  /* what the screen shows for this way of connecting */
+  function dress() {
+    if (!overlay) return;
+    var m = mode();
+    var k = copyKey();
+    var c = COPY[k];
+    if (dressed !== k) {
+      dressed = k;
+      heroEl.innerHTML = m === 'ble' ? DONGLE_ART : PHOTO;
+      titleEl.textContent = c.title;
+      stepsEl.innerHTML = c.steps;
+      noteEl.innerHTML = c.note;
+      helpList.innerHTML = helpItems();
+    }
+    newBtn.hidden = !!LOCKED || !SHOW_NEW_CALIBRATOR || m === 'ble';
+    switchBtn.hidden = !!LOCKED || m !== 'ble';
+  }
+  function show() {
+    overlay.hidden = false;
+    dress();
+  }
+  var listShown = false;
+  function reset() {
+    busyEl.hidden = true; doneEl.hidden = true; errEl.hidden = true; fixBtn.hidden = true; fixAction = null;
+    foundEl.hidden = true; listShown = false;
+    stepsEl.hidden = false; noteEl.hidden = false;
+    retryBtn.disabled = false;
+  }
+  /* the first button: Search where the app can look, else Connect */
+  function goLabel() { return searches() ? 'Search' : 'Connect'; }
+  /* waiting for a tap */
+  function showIdle(label) {
+    show(); reset();
+    retryBtn.textContent = label || goLabel();
+  }
+  /* something is happening */
+  function showStatus(msg, sub, busyLabel) {
+    show(); reset();
+    busyEl.hidden = false;
+    statusEl.textContent = msg;
+    subEl.textContent = sub || '';
+    retryBtn.disabled = true;
+    retryBtn.textContent = busyLabel || 'Connecting…';
+  }
+  /* it went wrong: what happened (title), what to do (text), maybe a fix */
+  function showError(title, text, fix) {
+    show(); reset();
+    errEl.hidden = false;
+    errT.textContent = title;
+    errD.textContent = text || '';
+    if (fix) { fixBtn.hidden = false; fixBtn.textContent = fix.label; fixAction = fix.run; }
+    retryBtn.textContent = 'Try again';
+  }
+  /* the Search answer. r = { found, others, failed }: a calibrator to tap,
+     or "none yet" with the way to join anyway */
+  function showFound(r) {
+    show(); reset();
+    listShown = true;
+    foundEl.hidden = false;
+    stepsEl.hidden = true; noteEl.hidden = true;
+    listEl.innerHTML = '';
+    if (r.found) {
+      foundT.textContent = 'Calibrators near you';
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'net';
+      row.id = 'zsNet';
+      row.setAttribute('role', 'listitem');
+      row.setAttribute('data-ssid', WIFI_NAME);
+      row.innerHTML = '<span class="ic">' + WIFI_ICON + '</span>' +
+        '<span class="nm"><b>' + SHOW_NAME + '</b><span class="sub">Open network · tap to connect</span></span>' +
+        '<span class="go">' + CHEVRON + '</span>';
+      row.addEventListener('click', function () { joinPicked(); });
+      listEl.appendChild(row);
+      anywayBtn.hidden = true;
+    } else {
+      foundT.textContent = r.failed ? 'Couldn’t search just now' : 'No calibrator found yet';
+      var none = document.createElement('p');
+      none.className = 'none';
+      none.id = 'zsNone';
+      none.textContent = r.failed
+        ? (onPhone() ? 'Your phone didn’t return a list of WiFi networks. Tap Search again in a few seconds, or join it anyway.'
+                     : 'Windows didn’t return a list of WiFi networks. Tap Search again in a few seconds, or join it anyway.')
+        : 'Check its blue light is on and wait up to 30 seconds after plugging it in, then tap Search again.';
+      listEl.appendChild(none);
+      anywayBtn.hidden = false;
+    }
+    if (r.others > 0) {
+      foundNote.hidden = false;
+      foundNote.textContent = 'Only calibrators are shown. ' + r.others + ' other WiFi network' +
+        (r.others === 1 ? ' is' : 's are') + ' hidden.';
+    } else foundNote.hidden = true;
+    retryBtn.textContent = 'Search again';
+  }
+  function hideOverlay() {
+    if (!overlay) return;
+    overlay.hidden = true;
+    paintPcNet();
+  }
+  /* connected: a moment of "Connected", then the calibrator */
+  async function showConnected() {
+    show(); reset();
+    doneEl.hidden = false;
+    retryBtn.disabled = true;
+    retryBtn.textContent = 'Connected';
+    await wait(700);
+    hideOverlay();
+  }
+
+  // Always-available fallback: joining the network by hand in Settings works
+  // even when the app cannot do it itself. Worth saying on every failure --
+  // an App Review tester has no calibrator in range and would otherwise be
+  // left looking at what reads as a broken app.
+  var MANUAL_HINT = 'You can also join the "' + WIFI_NAME + '" network ' +
+                    'yourself in your phone\'s WiFi settings, then tap Try again.';
+  var PC_MANUAL = 'You can also join "' + WIFI_NAME + '" yourself from the WiFi button in the ' +
+                  'bottom-right corner of Windows, then tap Try again.';
+  var NEAR = 'Check the calibrator\'s blue light is on. Its WiFi can take up to 30 seconds to appear ' +
+             'after you plug it in. ';
+
+  // Turn the phone plugin's error codes into instructions a customer can follow
+  function explainError(code) {
+    if (code === -4) return { t: 'WiFi is turned off', d: 'Turn WiFi on in your phone settings, then tap Try again.' };
+    /* iPhone: -1 is the person tapping "Don't Join" on the system prompt */
+    if (code === -1 && isIos()) {
+      return { t: 'The calibrator wasn\'t joined', d: 'Tap Try again, then tap Join when your iPhone asks to join "' + WIFI_NAME + '".' };
+    }
+    if (code === -5 || code === -6 || code === -1) {
+      return { t: 'Permission needed', d: 'Allow this app to use WiFi and Location (your phone needs it to join ' +
+               'the calibrator\'s network), then tap Try again.' };
+    }
+    if (code === -3) {
+      return { t: 'Can\'t find the calibrator\'s WiFi', d: NEAR + 'Hold your phone within 6 feet of it. ' + MANUAL_HINT };
+    }
+    // Anything else: the join simply did not happen. Two very different
+    // causes look identical here -- no hardware in range, or the app not
+    // being allowed to join networks itself -- so name both, and always
+    // offer the manual route, which works no matter which it was.
+    return { t: 'Could not join the calibrator\'s WiFi', d: 'Make sure the calibrator is powered on and your phone ' +
+             'is within 6 feet of it. When your phone asks to join the network, tap Connect or Join. ' + MANUAL_HINT };
+  }
+  // The exe's answers (src/wifi.js codes)
+  function explainPc(r) {
+    var code = r && r.code;
+    if (code === 'location') {
+      return { t: 'Windows needs Location turned on', d: 'Windows only lets apps see and join WiFi when Location is on. ' +
+        'Turn on "Location services" and "Let desktop apps access your location", then tap Try again. ' + PC_MANUAL,
+        fix: { label: 'Open Location settings', run: function () { pcCall('POST', PC_LOCATION, {}, 5000).catch(function () {}); } } };
+    }
+    if (code === 'no-wifi') return { t: 'This PC has no WiFi', d: 'Use the ZeroStick app on your phone instead, or plug a USB WiFi adapter into this PC and tap Try again.' };
+    if (code === 'wifi-off') return { t: 'This PC\'s WiFi is off', d: 'Turn WiFi on from the WiFi button in the bottom-right corner of Windows, then tap Try again.' };
+    if (code === 'not-found') return { t: 'Can\'t find the calibrator\'s WiFi', d: NEAR + 'Move this PC closer to it, then tap Try again. ' + PC_MANUAL };
+    return { t: 'Could not join the calibrator\'s WiFi', d: ((r && r.error) ? r.error + ' ' : '') + PC_MANUAL };
+  }
+
+  // ── The PC's network line (exe only) ───────────────────────────────────────
+  var pcNet = null;
+  function paintPcNet() {
+    if (!pcJoined || mode() !== 'pc') { if (pcNet) pcNet.hidden = true; return; }
+    if (!pcNet) {
+      pcNet = document.createElement('div');
+      pcNet.id = 'zsPcNet';
+      pcNet.setAttribute('role', 'status');
+      pcNet.innerHTML = '<span class="t"></span><button type="button"></button>';
+      var bar = document.getElementById('zsbar');
+      if (bar && bar.parentNode) bar.parentNode.insertBefore(pcNet, bar.nextSibling);
+      else document.body.insertBefore(pcNet, document.body.firstChild);
+      pcNet.querySelector('button').addEventListener('click', function () {
+        leave().then(function () { showIdle(); });
+      });
+    }
+    pcNet.hidden = false;
+    pcNet.querySelector('.t').textContent = 'This PC is on the calibrator’s WiFi, so it has no internet.';
+    pcNet.querySelector('button').textContent = pcPrevious ? 'Back to ' + pcPrevious : 'Leave its WiFi';
+  }
+  /* back to the PC's own WiFi (the back key calls this before leaving) */
+  function leave() {
+    if (!pcJoined || mode() !== 'pc') return Promise.resolve(false);
+    pcJoined = false;
+    if (pcNet) pcNet.hidden = true;
+    return pcCall('POST', PC_RESTORE, {}, 6000).then(function (r) { return !!(r && r.ok); }, function () { return false; });
+  }
+
+  // ── The main connect sequence ──────────────────────────────────────────────
+  var connecting = false;
+  var appJoined = false;       // this visit, the phone app put the phone on the calibrator
+
+  // ── Bluetooth dongle ───────────────────────────────────────────────────────
+  var bleWatching = false;
+  async function connectBle(fromTap) {
+    if (!window.ZSHIDBLE) { showError('This version of the app cannot use the Bluetooth dongle', ''); return; }
+    markBle();
+    if (window.ZSHIDBLE.isConnected()) { hideOverlay(); return; }
+    // A dongle this phone already knows reconnects by itself, no chooser
+    // (inside the app it is usually still connected from the dongle screen).
+    if (window.ZSHIDBLE.remembered && window.ZSHIDBLE.remembered()) {
+      showStatus('Reconnecting to your ZeroStick Dongle…');
+      try {
+        await window.ZSHIDBLE.reconnect();
+        watchBle();
+        hideOverlay();
+        return;
+      } catch (e) {
+        if (!(e && e.zsKind === 'none') && !fromTap) {
+          var x = window.ZSHIDBLE.explain(e);
+          showError(x.title, x.text);
+          return;
+        }
+      }
+    }
+    if (!isApp() && !fromTap) {
+      // A browser only opens its Bluetooth picker from a real tap.
+      showIdle('Connect');
+      return;
+    }
+    showStatus('Looking for your ZeroStick Dongle…', 'Pick "ZeroStick Dongle" when your phone asks.');
+    try {
+      await window.ZSHIDBLE.connect();
+    } catch (e) {
+      var ex = window.ZSHIDBLE.explain(e);
+      showError(ex.title, ex.text);
+      return;
+    }
+    watchBle();
+    hideOverlay();
+  }
+  function watchBle() {
+    if (bleWatching) return;
+    bleWatching = true;
+    window.ZSHIDBLE.onDisconnect(function () {
+      showError('The dongle disconnected', 'Check it is still plugged in, then tap Try again.');
+    });
+  }
+  // The Bluetooth dongle has no WiFi network and no reboot page: hide the
+  // calibrator's WiFi-only hints (calibrator.html marks them .zs-wifi-only).
+  function markBle() {
+    var s = document.getElementById('zsBleOnly');
+    if (s) return;
+    s = document.createElement('style');
+    s.id = 'zsBleOnly';
+    s.textContent = '.zs-wifi-only{display:none !important;}';
+    document.head.appendChild(s);
+  }
+
+  /* after the join: does the board answer? (it can take a few seconds) */
+  async function checkBoard() {
+    showStatus('Checking the calibrator…', 'This takes a few seconds.');
+    for (var i = 0; i < 12; i++) {
+      if (await pingBoard()) { await showConnected(); return true; }
+      await wait(700);
+    }
+    showError('The calibrator didn\'t answer', 'Joined its WiFi, but the calibrator did not answer. ' +
+              'Unplug it, plug it back in, wait for the blue light, and tap Try again.');
+    return false;
+  }
+
+  // ── Search (the step before the join) ──────────────────────────────────────
+  var SEARCHING = 'Searching for your calibrator…';
+  /* the phone app: the WiFi permission first, with one line that says why */
+  async function appPermission() {
+    var W = window.Capacitor.Plugins.CapacitorWifiConnect;
+    var perm = (await W.checkPermission()).value;
+    if (perm === 'prompt' || perm === 'prompt-with-rationale') {
+      showStatus('Allow the app to find the calibrator', 'Your phone asks for Location or "Nearby devices". ' +
+                 'The app only uses it to find the calibrator’s WiFi.');
+      perm = (await W.requestPermission()).value;
+    }
+    if (perm !== 'granted') {
+      showError('Permission needed', 'Allow this app to use WiFi and Location so it can find the calibrator, then tap Try again. ' + MANUAL_HINT);
+      return false;
+    }
+    return true;
+  }
+  /* Android: the plugin's scan (4 scans every 2 minutes; a throttled scan
+     returns the phone's last list, status 1, with our patch). Answers
+     { found, others } or { failed } or { code } */
+  async function scanAndroid() {
+    var W = window.Capacitor.Plugins.CapacitorWifiConnect;
+    var res;
+    try {
+      res = await Promise.race([W.getSSIDs(), wait(15000).then(function () { return { timeout: true }; })]);
+    } catch (e) { return { failed: true }; }
+    if (!res || res.timeout) return { failed: true };
+    if (res.status === -4) return { code: -4 };
+    if (!Array.isArray(res.value)) return { failed: true };           // a permission refused mid-way (-2)
+    var names = res.value.filter(function (n) { return typeof n === 'string' && n; });
+    var found = names.indexOf(WIFI_NAME) >= 0;
+    if (!found && !names.length) return { failed: true };              // nothing at all: the scan didn't happen
+    return { found: found, others: names.filter(function (n) { return n !== WIFI_NAME; }).length };
+  }
+  /* the PC exe: Windows' own list (GET /zs/wifi/scan) */
+  async function scanPc() {
+    var r;
+    try { r = await pcCall('GET', PC_SCAN, null, 15000); }
+    catch (e) { return { failed: true }; }
+    if (!r || !r.ok) return { pcError: r };
+    var d = r.data || {};
+    if (d.scanned === false) return { skip: true };                    // a Mac: no list, join directly
+    return { found: !!d.found, others: d.others || 0, on: !!d.onCalibrator };
+  }
+  async function search() {
+    showStatus(SEARCHING, onPhone() ? 'Looking at the WiFi networks near your phone.' : 'Looking at the WiFi networks near this PC.', 'Searching…');
+    if (copyKey() === 'pc') {
+      var p = await scanPc();
+      if (p.pcError) { var x = explainPc(p.pcError); showError(x.t, x.d, x.fix); return; }
+      if (p.skip || p.on) { await pcJoin(); return; }
+      showFound(p);
+      return;
+    }
+    var a = await scanAndroid();
+    if (a.code) { var y = explainError(a.code); showError(y.t, y.d); return; }
+    showFound(a);
+  }
+
+  // ── The joins ──────────────────────────────────────────────────────────────
+  async function pcJoin() {
+    showStatus('Joining ' + SHOW_NAME + '…', 'This PC will be on "' + WIFI_NAME + '" while you calibrate.');
+    var r;
+    try { r = await pcCall('POST', PC_JOIN, { ssid: WIFI_NAME }, 30000); }
+    catch (e) { r = { ok: false, code: 'failed', error: 'The app could not reach its own WiFi helper.' }; }
+    if (!r || !r.ok) { var x = explainPc(r); showError(x.t, x.d, x.fix); return; }
+    pcJoined = true;
+    if (r.data && r.data.previous) pcPrevious = r.data.previous;
+    await checkBoard();
+  }
+  async function appJoin() {
+    var W = window.Capacitor.Plugins.CapacitorWifiConnect;
+    showStatus('Joining ' + SHOW_NAME + '…',
+               (isIos() ? 'Your iPhone will ask to join "' + WIFI_NAME + '". Tap Join. '
+                        : 'If your phone asks to connect to "' + WIFI_NAME + '", tap Connect. ') +
+               'Keep your phone within 6 feet of the calibrator.');
+    var res = await W.connect({ ssid: WIFI_NAME, saveNetwork: true });
+    if (res.value !== 0) { var ex = explainError(res.value); showError(ex.t, ex.d); return; }
+    appJoined = true;
+    await checkBoard();
+  }
+  /* the person tapped the calibrator in the list (or "Join it anyway") */
+  async function joinPicked() {
+    if (connecting) return;
+    connecting = true;
+    try {
+      if (mode() === 'pc') await pcJoin();
+      else if (mode() === 'app') await appJoin();
+    } catch (e) {
+      showError('Something went wrong', (e && e.message ? e.message : String(e)) + '. Tap Try again.');
+    } finally {
+      connecting = false;
+    }
+  }
+
+  /* fromTap: the person tapped Search / Connect / Try again. lost: the
+     watchdog saw the calibrator stop answering mid-session. */
+  async function connectFlow(fromTap, lost) {
+    if (connecting) return;
+    // Opened from the ZeroStick Dongle screen: it is the Bluetooth dongle.
+    if (/[?&]from=dongle(&|$)/.test(location.search)) saveLink('ble');
+    else if (LOCKED) saveLink(LOCKED);
+    /* THE WIFI CALIBRATOR BY DEFAULT (owner, 2026-10-10): most players have
+       it, the Bluetooth one has not launched. Nothing is asked; the screen
+       offers "I have the new calibrator" instead. */
+    var link = savedLink();
+    if (link !== 'ble' && link !== 'wifi') { saveLink('wifi'); link = 'wifi'; }
+    /* the new calibrator is hidden: a phone that once picked it is back on WiFi */
+    if (!SHOW_NEW_CALIBRATOR && link === 'ble' && !/[?&]from=dongle(&|$)/.test(location.search)) {
+      saveLink('wifi'); link = 'wifi';
+    }
+    connecting = true;
+    try {
+      if (link === 'ble') { await connectBle(fromTap); return; }
+      // Already connected (joined by hand, or still on it)? Straight in.
+      if (!listShown || fromTap) showStatus('Looking for your calibrator…', 'This can take a few seconds.');
+      await detectPc();
+      if (await pingBoard()) { await showConnected(); return; }
+      var m = mode();
+
+      if (m === 'browser') {
+        // Plain browser: we can't join WiFi for the user — the steps say how.
+        if (lost) showError('Lost the calibrator', 'This device left the "' + WIFI_NAME + '" WiFi, or the ' +
+                            'calibrator lost power. Join it again in your WiFi settings, then tap Try again.');
+        else if (fromTap) showError('Not on the calibrator\'s WiFi yet', 'Join "' + WIFI_NAME + '" in this ' +
+                            'device\'s WiFi settings (no password), then tap Try again. ' + NEAR);
+        else showIdle('Connect');
+        return;
+      }
+
+      if (!fromTap) {
+        // Not a tap: rejoin by itself only when the app already joined this
+        // visit (or the calibrator dropped mid-session); otherwise wait for
+        // Search. A list on screen stays (coming back from the WiFi settings).
+        if (m === 'pc') {
+          if (pcJoined) { await pcJoin(); return; }
+          if (lost) showError('Lost the calibrator', 'It stopped answering. Check its blue light, then tap Try again.');
+          else if (!listShown) showIdle();
+          return;
+        }
+        if (appJoined || lost) {
+          if (await appPermission()) await appJoin();
+          return;
+        }
+        if (!listShown) showIdle();
+        return;
+      }
+
+      // A tap on Search / Try again
+      if (m === 'pc') { await search(); return; }
+      if (!(await appPermission())) return;
+      // iPhone: no list is possible; the system's join prompt IS the pick
+      if (isIos()) { await appJoin(); return; }
+      await search();
+    } catch (e) {
+      showError('Something went wrong', (e && e.message ? e.message : String(e)) + '. Tap Try again.');
+    } finally {
+      connecting = false;
+    }
+  }
+
+  // ── Watchdog: if the WiFi drops mid-session, reconnect ─────────────────────
+  var failCount = 0;
+  setInterval(async function () {
+    if (connecting) return;
+    if (savedLink() !== 'wifi') return;                      // Bluetooth has its own disconnect event
+    if (overlay && !overlay.hidden) return;                  // already showing
+    if (await pingBoard()) { failCount = 0; return; }
+    failCount++;
+    if (failCount >= 3) {   // ~3 misses in a row = really disconnected
+      failCount = 0;
+      connectFlow(false, true);   // shows the screen + rejoins automatically (app, and the exe after a first join)
+    }
+  }, 4000);
+
+  // For the back key (js/zs-cal-bar.js), the tests and the screenshots
+  // (tools/theme-shots.js --pages draws each state with preview()).
+  // as: 'pc' | 'browser' | 'android' | 'ios' (the words; nothing is joined)
+  window.ZSCALWIFI = {
+    leave: leave,
+    mode: mode,
+    busy: function () { return connecting; },
+    connect: function () { return connectFlow(true); },
+    preview: function (state, as) {
+      if (as === 'pc') pc = pc || { supported: true };
+      if (as === 'browser') pc = false;
+      previewKey = (as === 'android' || as === 'ios') ? as : null;
+      dressed = '';
+      if (state === 'idle') showIdle();
+      else if (state === 'permission') showStatus('Allow the app to find the calibrator', 'Your phone asks for Location or "Nearby devices". The app only uses it to find the calibrator’s WiFi.');
+      else if (state === 'searching') showStatus(SEARCHING, onPhone() ? 'Looking at the WiFi networks near your phone.' : 'Looking at the WiFi networks near this PC.', 'Searching…');
+      else if (state === 'found') showFound({ found: true, others: 6 });
+      else if (state === 'none') { showFound({ found: false, others: 4 }); overlay.querySelector('#zsHelp').open = true; }
+      else if (state === 'scan-failed') showFound({ failed: true });
+      else if (state === 'joining') showStatus('Joining ' + SHOW_NAME + '…', as === 'ios' ? 'Your iPhone will ask to join "' + WIFI_NAME + '". Tap Join. Keep your phone within 6 feet of the calibrator.'
+        : onPhone() ? 'If your phone asks to connect to "' + WIFI_NAME + '", tap Connect. Keep your phone within 6 feet of the calibrator.'
+        : 'This PC will be on "' + WIFI_NAME + '" while you calibrate.');
+      else if (state === 'checking') showStatus('Checking the calibrator…', 'This takes a few seconds.');
+      else if (state === 'connected') { show(); reset(); doneEl.hidden = false; retryBtn.disabled = true; retryBtn.textContent = 'Connected'; }
+      else if (state === 'not-found') { var x = explainPc({ code: 'not-found' }); showError(x.t, x.d); }
+      else if (state === 'location') { var y = explainPc({ code: 'location' }); showError(y.t, y.d, y.fix); }
+      else if (state === 'on-calibrator') { pcJoined = true; pcPrevious = 'Home WiFi'; hideOverlay(); }
+    }
+  };
+
+  // ── Kick everything off ────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    buildOverlay();
+    connectFlow();
+    // Re-check every time the user switches back to the app
+    if (isApp() && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('resume', function () { connectFlow(); });
+    }
+  });
+})();

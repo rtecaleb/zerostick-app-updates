@@ -220,6 +220,11 @@
   "download_url": "files/ff67a8d66a5eb9fa8594baaf877ac490bfd9fff4bd467f961b853e5c000858e9"
  },
  {
+  "file_name": "exo/brand/devices/zs-dongle-bt.webp",
+  "file_hash": "92b5e038c4e47d50e606fd107cf69df7e1ce28e4b93a6e9c3d03f1386fc2b0f5",
+  "download_url": "files/92b5e038c4e47d50e606fd107cf69df7e1ce28e4b93a6e9c3d03f1386fc2b0f5"
+ },
+ {
   "file_name": "exo/brand/devices/zs-dongle.webp",
   "file_hash": "f9d9122670883dcb92b46bfc575e0cf6a15cac00f6d140cda634cb23a86ff1ff",
   "download_url": "files/f9d9122670883dcb92b46bfc575e0cf6a15cac00f6d140cda634cb23a86ff1ff"
@@ -231,8 +236,8 @@
  },
  {
   "file_name": "exo/brand/rte-logo-white.png",
-  "file_hash": "efffd53a05e174f6366083df99aea260003aa408d0019e438cb404aa0f94b4b8",
-  "download_url": "files/efffd53a05e174f6366083df99aea260003aa408d0019e438cb404aa0f94b4b8"
+  "file_hash": "6126da327cd8de75e6222efc06af94aa5ae96b8c9dd1b4917c6acf168640e909",
+  "download_url": "files/6126da327cd8de75e6222efc06af94aa5ae96b8c9dd1b4917c6acf168640e909"
  },
  {
   "file_name": "exo/brand/weapon-classes/SOURCES.md",
@@ -295,6 +300,11 @@
   "download_url": "files/d14f8ae07d6a2c36dc33a6c3e8518a5ef5786589ecc88bf09e13a1b0e7c26011"
  },
  {
+  "file_name": "exo/brand/zerostick-logo-white.png",
+  "file_hash": "784d88255da75d89981ae62bf16851d2e44025ce4537bf6301c0b9d87490f0f3",
+  "download_url": "files/784d88255da75d89981ae62bf16851d2e44025ce4537bf6301c0b9d87490f0f3"
+ },
+ {
   "file_name": "exo/brand/zs-advanced-chip.jpg",
   "file_hash": "e31270ffefcaeb0bd0298e46a402855aae8c6e16873cf9dcb6d131ef6c609ab8",
   "download_url": "files/e31270ffefcaeb0bd0298e46a402855aae8c6e16873cf9dcb6d131ef6c609ab8"
@@ -335,11 +345,6 @@
   "download_url": "files/4a30ec88d689706b8ad7da5e26c0dfaa35dd852c9d22a69039ee99a6ec075942"
  },
  {
-  "file_name": "exo/brand/zs-exo-light.png",
-  "file_hash": "166b4cef885c8fc91443febcec22892af5ad7a0646e253ba693adc6f8ae751d4",
-  "download_url": "files/166b4cef885c8fc91443febcec22892af5ad7a0646e253ba693adc6f8ae751d4"
- },
- {
   "file_name": "exo/brand/zs-exo-light.webp",
   "file_hash": "ac89cfcdf8254345f69a19930e1e06262c527b23bbd9f7f01eda17877ce21bb9",
   "download_url": "files/ac89cfcdf8254345f69a19930e1e06262c527b23bbd9f7f01eda17877ce21bb9"
@@ -353,11 +358,6 @@
   "file_name": "exo/brand/zs-exo-studio-wordmark-dark.png",
   "file_hash": "a5d44e3d76acb4b1116df1e479cdbba68444afbfb45d0a9b0a24b279b85ee91e",
   "download_url": "files/a5d44e3d76acb4b1116df1e479cdbba68444afbfb45d0a9b0a24b279b85ee91e"
- },
- {
-  "file_name": "exo/brand/zs-exo-studio-wordmark-light.png",
-  "file_hash": "afa036764e2f088eb841a65d0b1aa6069f308b2d6e25e063b9375932500577c0",
-  "download_url": "files/afa036764e2f088eb841a65d0b1aa6069f308b2d6e25e063b9375932500577c0"
  },
  {
   "file_name": "exo/brand/zs-exo-studio.svg",
@@ -441,13 +441,13 @@
  },
  {
   "file_name": "exo/devices.html",
-  "file_hash": "85611b00632d9f3be3e78f016bb91e4a8ca5095a5ebc0746ffcde6090ddecd66",
-  "download_url": "files/85611b00632d9f3be3e78f016bb91e4a8ca5095a5ebc0746ffcde6090ddecd66"
+  "file_hash": "507b4f2383f2bfa3de05388c8c48c61a86994895b1cb28171c6ade6b71a0701c",
+  "download_url": "files/507b4f2383f2bfa3de05388c8c48c61a86994895b1cb28171c6ade6b71a0701c"
  },
  {
   "file_name": "exo/devices.js",
-  "file_hash": "a7e66a9b17ab6a0c201b95e6c0b49ef9331157cfcd7950500d8144071a352f90",
-  "download_url": "files/a7e66a9b17ab6a0c201b95e6c0b49ef9331157cfcd7950500d8144071a352f90"
+  "file_hash": "f9db86d58f44c157bea3f7342659960d53afb3835572439f2e0d4786b03b6c7e",
+  "download_url": "files/f9db86d58f44c157bea3f7342659960d53afb3835572439f2e0d4786b03b6c7e"
  },
  {
   "file_name": "exo/dongle/LICENSE-dualshock-tools.txt",
@@ -601,8 +601,8 @@
  },
  {
   "file_name": "exo/dongle/js/app-connect.js",
-  "file_hash": "543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548",
-  "download_url": "files/543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548"
+  "file_hash": "b8688bcf0cdb14ffc2ba05b314561b2eaf83b5898d9cc736ef98bd5872efb10e",
+  "download_url": "files/b8688bcf0cdb14ffc2ba05b314561b2eaf83b5898d9cc736ef98bd5872efb10e"
  },
  {
   "file_name": "exo/dongle/js/controller-manager.js",
@@ -721,13 +721,13 @@
  },
  {
   "file_name": "exo/dongle/js/zs-cal-bar.js",
-  "file_hash": "8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399",
-  "download_url": "files/8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399"
+  "file_hash": "b87a4b32e81c1f4e9e1348f904a87e763c8e2ce22b75c0dbcef3672be8f0b3a7",
+  "download_url": "files/b87a4b32e81c1f4e9e1348f904a87e763c8e2ce22b75c0dbcef3672be8f0b3a7"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-app.js",
-  "file_hash": "af3c1d0df8bdeb9ee3c9046fb551b341042a9a27ea69bff7afe0ee65830b500e",
-  "download_url": "files/af3c1d0df8bdeb9ee3c9046fb551b341042a9a27ea69bff7afe0ee65830b500e"
+  "file_hash": "1c39ab1d96242efac78ec19628927188f52b6c890f4228fd301c1be0e9552723",
+  "download_url": "files/1c39ab1d96242efac78ec19628927188f52b6c890f4228fd301c1be0e9552723"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-mock-loader.js",
@@ -7026,8 +7026,8 @@
  },
  {
   "file_name": "exo/sections/22-global.js",
-  "file_hash": "80d4a321a961d448ee7d30436941486f64aea21103f6f062163187990ce6890f",
-  "download_url": "files/80d4a321a961d448ee7d30436941486f64aea21103f6f062163187990ce6890f"
+  "file_hash": "b6a737e883624d2833373e4464a354973cdf231e1ed737933f9077bfbab12d0f",
+  "download_url": "files/b6a737e883624d2833373e4464a354973cdf231e1ed737933f9077bfbab12d0f"
  },
  {
   "file_name": "exo/sections/23-vision.js",
@@ -7725,11 +7725,6 @@
   "download_url": "files/043929ba8aa01b0c773b3dd584e7bd7aeb3c4322abf3d62bdc5630133a3f2414"
  },
  {
-  "file_name": "exo/zs-light.css",
-  "file_hash": "bd57ac56866574f0c5017a3eb0c7e0ab715bf61a08500d0d601604d98b3c1a24",
-  "download_url": "files/bd57ac56866574f0c5017a3eb0c7e0ab715bf61a08500d0d601604d98b3c1a24"
- },
- {
   "file_name": "exo/zs-logo.png",
   "file_hash": "949d45e1432dd97739f885bb09c5d63e80097e3a1172541c48ea3bc25bd32833",
   "download_url": "files/949d45e1432dd97739f885bb09c5d63e80097e3a1172541c48ea3bc25bd32833"
@@ -8186,8 +8181,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "8f68d24bd74112213546734c5f8e1cdf9649a057ccfeb456b2b82d068d842d3a",
-  "download_url": "files/8f68d24bd74112213546734c5f8e1cdf9649a057ccfeb456b2b82d068d842d3a"
+  "file_hash": "11ea2c05bee2027452ec0e7be84f4c0e6700304245668464e7e1a984a1c11af0",
+  "download_url": "files/11ea2c05bee2027452ec0e7be84f4c0e6700304245668464e7e1a984a1c11af0"
  },
  {
   "file_name": "zs-live-update.js",
