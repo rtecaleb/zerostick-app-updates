@@ -1,0 +1,1474 @@
+/* smart-actions/11-library.js — the ready-made library.
+ *
+ * TEMPLATES and FAMILIES (rapid fire, drop shot, anti-recoil...), building a
+ * template into an action (buildTemplate), which template an action came from
+ * (tplIdOf, templateWhere), the browse grid.
+ *
+ * Tests: test-smart-actions.js, test-game-packs.js (packs name templates)
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('library', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var adsBindingName = SEC.adsBindingName, adsGateOK = SEC.adsGateOK, arr = SEC.arr,
+      btn = SEC.btn, btnI = SEC.btnI, card = SEC.card, clamp = SEC.clamp,
+      clone = SEC.clone, DUR_MAX = SEC.DUR_MAX, DUR_MIN = SEC.DUR_MIN,
+      emitSource = SEC.emitSource, esc = SEC.esc, fillNames = SEC.fillNames, fld = SEC.fld,
+      ico = SEC.ico, intOf = SEC.intOf, normAction = SEC.normAction, note = SEC.note, helpNote = SEC.helpNote,
+      num = SEC.num, saveAll = SEC.saveAll, seg = SEC.seg, sh = SEC.sh,
+      srcArt = SEC.srcArt, STEP_MS_CAP = SEC.STEP_MS_CAP, stepper = SEC.stepper,
+      TAP_MS_MIN = SEC.TAP_MS_MIN, tgtName = SEC.tgtName, tgtSvg = SEC.tgtSvg,
+      triggerName = SEC.triggerName, VIEW = SEC.VIEW, waits = SEC.waits, ZS = SEC.ZS,
+      DUP_WHEN_MSG = SEC.DUP_WHEN_MSG, dupWhen = SEC.dupWhen, hasErrors = SEC.hasErrors,
+      problems = SEC.problems, sentence = SEC.sentence, COLOURS = SEC.COLOURS,
+      openTargetPane = SEC.openTargetPane, pickTrigger = SEC.pickTrigger,
+      sheetPaint = SEC.sheetPaint;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var rowFor, draw;
+  ZS_SMART_PARTS.after(function () {
+    rowFor = SEC.rowFor;
+    draw = SEC.draw;
+  });
+
+  /* ══ the ready-made library ═══════════════════════════════════════
+     Thirty-one starting points, in four families, and the order of those
+     families is the product's order and not an accident: MOVEMENT AND ACCESS
+     comes first because taking physical effort out of playing is what this
+     box is for. Aim, firing and quality-of-life follow.
+
+     Rules every entry here obeys:
+
+       · the DESCRIPTION says what it FEELS like, never what it emits. "You
+         can let go of the stick and keep running", not "holds ly+ for 8000 ms".
+       · control names come from {tokens} (see fillNames), so a DualSense owner
+         reads R2 and an Xbox owner reads RT without a second copy of the text.
+       · every preset builds steps that pass the BOARD's validator — walked
+         through profiles/schema.validate() and actions/steps.build_steps() by
+         board/agent/tests/unit/test_preset_actions.py, at its defaults AND at
+         both ends of every slider. A preset that cannot be expressed in the
+         board's step vocabulary is not in this list.
+       · nothing here needs a keyboard or a mouse. Every default trigger is a
+         control on the pad, which is the whole reason Caleb's actions were
+         dead: the app used to resolve "Fire" through the default profile's
+         MOUSE binding. ONE DELIBERATE EXCEPTION (D280): Turn assist is a
+         mouse accommodation by its nature, so it starts on keyboard X, and
+         it is the one a mouse-and-keyboard config gets by default
+         (ZS_SMART.seedTurnAssist, 21-rooms-exports.js).
+
+     A note on the ones that tap the very control that starts them (rapid fire,
+     bunny hop, hold-for-me): the board TAKES OVER that control for the length
+     of the run — see actions/sequences.py set_takeover. Without that, your own
+     finger holding the trigger merges with max() and the taps never reach the
+     console, which is exactly what the shipped rapid fire used to do.
+
+     shape of an entry:
+       id     stable, for the colour and for tests
+       fam    which family it files under
+       ico    an icoSVG name (phone.html)
+       n, d   name, and the plain-English description
+       trig   the suggested trigger: {follow:'rt+'} follows whatever fires,
+              {src:'BTN_TL'} is a literal control
+       tunes  [] of sliders: {lab, val, min, max, step, unit, sub}
+       pick   optional big three-way shortcut that writes tunes[into]
+       btns   optional output buttons the user picks
+       build(v, b, ctx) -> the action, with v the tune values in order,
+              b the chosen buttons and ctx {ads: true|false|null} */
+
+  var FAMILIES = [
+    { k: 'aim', n: 'Aim', ico: 'target', col: '#58a6ff',
+      d: 'Keep the game’s own aim assist awake and hold your shots on target.' },
+    /* the family colours are DATA — they ride an inline border-left on each
+       card, so they are literal hex. Firing was #d29922, the pre-2026-08-18
+       amber; --amber is #e3b341 now (9.13:1 on a card) and this is the same
+       token, not a new colour. --green / --blue / --purple were already
+       exact, and each one still MEANS what DESIGN.md says it means. */
+    { k: 'fire', n: 'Firing', ico: 'burst', col: '#e3b341',
+      d: 'One pull, many shots — and the shots you would otherwise miss.' },
+    { k: 'qol', n: 'Quality of life', ico: 'grid', col: '#a371f7',
+      d: 'The small repeated jobs, done properly every time.' },
+    /* LAST since 2026-10-07 (owner: auto walk, auto sprint and the two
+       "without holding it" ones off the top). Every card stays in the
+       library; Featured (below) is what the tab now opens on. */
+    { k: 'access', n: 'Movement & access', ico: 'shift', col: '#3fb950',
+      d: 'Take the holding, the reaching and the timing out of moving.' }
+  ];
+
+  /* ══ FEATURED (owner, 2026-10-07) ═════════════════════════════════
+     "add a featured tab and in featured have rapid fire and aim assist
+     booster, and once someone clicks one of these to add it don't show the
+     technical script, just show strength for aim assist booster with a
+     slider, and for rapid fire just show speed and a slider of ms - that way
+     it's dummy proof". So a featured card opens ONE slider and an Add key:
+     no step list, no trigger picker (the template's own default, LT for the
+     booster, RT for rapid fire), and adding stays on Ready-made instead of
+     opening the editor. `tune` is the index into the template's tunes the
+     slider writes; every other tune keeps its default. */
+  var FEATURED = [
+    /* D285: every Featured card carries its template's "?" */
+    { id: 'aimboost', tune: 0, lab: 'Strength', unit: '%', quick: true, help: true,
+      say: 'Keeps the game’s aim assist switched on while you aim. Start low — if the reticle visibly wobbles, it is too strong.' },
+    { id: 'turbo', tune: 0, lab: 'Speed', unit: 'ms', quick: true, help: true,
+      say: 'Hold fire and it taps for you. Lower is faster — too fast and some games drop shots.' },
+    /* D280 (owner, 2026-10-10: "while holding X, whatever way you swipe your
+       mouse, it stays going that speed"). Added on the tap like the two
+       above; the card carries the template's "?" (D236), and the add says
+       how to use it instead of pointing at a slider. */
+    { id: 'turnassist', tune: 0, lab: 'Swipe ends after', unit: 'ms', quick: true, help: true,
+      cd: 'Hold X, swipe once, keep turning',
+      added: 'hold X and swipe the mouse',
+      say: 'Hold X and swipe the mouse: the camera keeps turning at that speed until you let go.' }
+  ];
+  var FAM_BY_KEY = {};
+  FAMILIES.forEach(function (f) { FAM_BY_KEY[f.k] = f; });
+
+  var TEMPLATES = [
+
+    /* ── movement and access ─────────────────────────────────────── */
+    {
+      id: 'autosprint', fam: 'access', ico: 'shift', n: 'Auto sprint', runsFor: 0,
+      d: 'Click sprint once and ZeroStick pushes the stick forward for you. ' +
+         'You can take your thumb off the stick completely and keep running.',
+      trig: { follow: 'l3' },
+      tunes: [{ lab: 'Keep running for', val: 8000, min: 1000, max: 29000,
+                step: 500, unit: 'ms', sub: 'it stops on its own at the end' }],
+      build: function (v) {
+        return {
+          name: 'Auto sprint', holdMode: 'once', cooldownMs: 200,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          notes: 'Your own sprint press still goes through — this only supplies ' +
+                 'the forward stick.',
+          steps: [{ k: 'stick', stick: 'left', angle: 90, dist: 1, ms: 0 }]
+            .concat(waits(v[0]))
+        };
+      }
+    },
+    {
+      id: 'autowalk', fam: 'access', ico: 'pad', n: 'Auto walk forward', runsFor: 1,
+      d: 'One press and you keep walking forward on your own, at whatever pace ' +
+         'you set. For long empty stretches, and for anyone who finds holding a ' +
+         'stick tiring.',
+      trig: { follow: 'dpad_up' },
+      tunes: [
+        { lab: 'How fast', val: 55, min: 15, max: 100, step: 5, unit: '%',
+          sub: 'under about 60% most games walk instead of running' },
+        { lab: 'For how long', val: 10000, min: 1000, max: 29000, step: 500, unit: 'ms' }
+      ],
+      build: function (v) {
+        return {
+          name: 'Auto walk', holdMode: 'once', cooldownMs: 200,
+          maxDurationMs: clamp(v[1] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'stick', stick: 'left', angle: 90, dist: v[0] / 100, ms: 0 }]
+            .concat(waits(v[1]))
+        };
+      }
+    },
+    {
+      id: 'togglecrouch', fam: 'access', ico: 'shift', n: 'Crouch without holding it',
+      runsFor: 0,
+      d: 'Tap {east} once and you stay down, hands off, until the time is up. ' +
+         'Nothing to hold, nothing to keep pressed while you are also aiming.',
+      trig: { follow: 'east' },
+      btns: [{ lab: 'Crouch button', def: 'east' }],
+      tunes: [{ lab: 'Stay crouched for', val: 8000, min: 1000, max: 29000,
+                step: 500, unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Crouch hold', holdMode: 'once', cooldownMs: 250,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          notes: 'If you want a true on/off toggle with no timer, the Buttons ' +
+                 'screen can set this button to Toggle instead.',
+          steps: [{ k: 'hold', t: [b[0]] }].concat(waits(v[0]))
+            .concat([{ k: 'release', t: [b[0]] }])
+        };
+      }
+    },
+    {
+      id: 'toggleads', fam: 'access', ico: 'target', n: 'Aim without holding it',
+      runsFor: 0,
+      d: 'Pull {lt+} once and ZeroStick keeps it pulled for you. Aiming down ' +
+         'sights with nothing held down — the single most tiring thing a shooter ' +
+         'asks of your hands.',
+      trig: { follow: 'lt+' },
+      tunes: [{ lab: 'Stay aimed for', val: 6000, min: 1000, max: 29000,
+                step: 500, unit: 'ms' }],
+      build: function (v) {
+        return {
+          name: 'Aim hold', holdMode: 'once', cooldownMs: 250,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'trig', t: ['lt+'], keep: true, ms: 120 }]
+            .concat(waits(v[0]))
+            .concat([{ k: 'release', t: ['lt+'] }])
+        };
+      }
+    },
+    {
+      id: 'holdfor', fam: 'access', ico: 'shift', n: 'Hold any button for me', runsFor: 0,
+      d: 'The plain version of the two above: pick any button, tap it once, and ' +
+         'ZeroStick keeps it down for as long as you say.',
+      trig: { follow: 'lt+' },
+      btns: [{ lab: 'Button to hold', def: 'lt+' }],
+      tunes: [{ lab: 'Keep it down for', val: 5000, min: 1000, max: 29000,
+                step: 500, unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Hold it for me', holdMode: 'once', cooldownMs: 300,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'hold', t: [b[0]] }].concat(waits(v[0]))
+            .concat([{ k: 'release', t: [b[0]] }])
+        };
+      }
+    },
+    {
+      id: 'grenade', fam: 'access', ico: 'burst', n: 'Cook and throw a grenade', runsFor: 0,
+      d: 'Tap once. ZeroStick holds the grenade button and lets go at the right ' +
+         'moment, every time — no holding, no counting in your head.',
+      trig: { follow: 'l1' },
+      btns: [{ lab: 'Grenade button', def: 'l1' }],
+      tunes: [{ lab: 'Hold it for', val: 700, min: 100, max: 3000, step: 50,
+                unit: 'ms', sub: 'how long it cooks before it leaves your hand' }],
+      build: function (v, b) {
+        return {
+          name: 'Grenade throw', holdMode: 'once', cooldownMs: 400,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'hold', t: [b[0]] }, { k: 'wait', ms: clamp(v[0], 0, STEP_MS_CAP) },
+            { k: 'release', t: [b[0]] }]
+        };
+      }
+    },
+    {
+      id: 'easymelee', fam: 'access', ico: 'pad', n: 'Easy melee',
+      d: 'Melee without clicking the stick in. Pressing {r3} hard enough to ' +
+         'register is one of the most awkward things a pad asks for, so this ' +
+         'moves it to a button you can actually reach.',
+      trig: { follow: 'r1' },
+      btns: [{ lab: 'What it should press', def: 'r3' }],
+      tunes: [{ lab: 'Press it for', val: 90, min: 40, max: 400, step: 10,
+                unit: 'ms', sub: 'a firmer press if the game keeps missing it' }],
+      build: function (v, b) {
+        return {
+          name: 'Easy melee', holdMode: 'once', cooldownMs: 250,
+          maxDurationMs: 2000, maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: clamp(v[0], TAP_MS_MIN, STEP_MS_CAP) }]
+        };
+      }
+    },
+    {
+      id: 'slidecancel', fam: 'access', ico: 'cycle', n: 'Slide cancel',
+      d: 'Slide and pop straight back up in one press. The timing is the whole ' +
+         'trick and the timing is done for you.',
+      trig: { follow: 'east' },
+      btns: [{ lab: 'Crouch / slide button', def: 'east' },
+             { lab: 'Jump button', def: 'south' }],
+      tunes: [{ lab: 'How long the slide lasts', val: 320, min: 100, max: 1200,
+                step: 20, unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Slide cancel', holdMode: 'once', cooldownMs: 350,
+          maxDurationMs: 4000, maxRepeats: 1,
+          steps: [
+            { k: 'hold', t: ['ly+'] },
+            { k: 'tap', t: [b[0]], ms: 60 },
+            { k: 'wait', ms: clamp(v[0], 0, STEP_MS_CAP) },
+            { k: 'tap', t: [b[1]], ms: 60 },
+            { k: 'wait', ms: 110 },
+            { k: 'tap', t: [b[0]], ms: 60 },
+            { k: 'release', t: ['ly+'] }
+          ]
+        };
+      }
+    },
+    {
+      id: 'bunnyhop', fam: 'access', ico: 'burst', n: 'Bunny hop',
+      d: 'Hold it down and you keep jumping. No mashing — which is the point: ' +
+         'repeated hard presses are what hurts.',
+      trig: { follow: 'south' },
+      btns: [{ lab: 'Jump button', def: 'south' }],
+      tunes: [{ lab: 'Time between hops', val: 220, min: 80, max: 900, step: 10,
+                unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Bunny hop', holdMode: 'repeat_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 70 },
+            { k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) }]
+        };
+      }
+    },
+    {
+      id: 'reloadmove', fam: 'access', ico: 'cycle', n: 'Reload and back off',
+      d: 'One press reloads AND walks you backwards out of the open while it ' +
+         'happens. The part that is easy to forget when your hands are already busy.',
+      trig: { follow: 'west' },
+      btns: [{ lab: 'Reload button', def: 'west' }],
+      tunes: [
+        { lab: 'How far you back off', val: 75, min: 20, max: 100, step: 5, unit: '%' },
+        { lab: 'For how long', val: 900, min: 200, max: 3000, step: 50, unit: 'ms' }
+      ],
+      build: function (v, b) {
+        return {
+          name: 'Reload and back off', holdMode: 'once', cooldownMs: 400,
+          maxDurationMs: clamp(v[1] + 900, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 70 },
+            { k: 'stick', stick: 'left', angle: 270, dist: v[0] / 100, ms: 0 },
+            { k: 'wait', ms: clamp(v[1], 1, STEP_MS_CAP) }]
+        };
+      }
+    },
+
+    /* D280: the owner's turn accommodation. Lifting the mouse and putting it
+       back down is hard, so one swipe keeps the camera turning. The Core
+       does the latching (zs_engine.c stage_turn_assist): the turn is the
+       swipe's own top speed through the config's own mouse translation, so
+       it feels like the hand kept going. Its description is the "?" help,
+       one point per sentence (helpHTML). */
+    {
+      id: 'turnassist', fam: 'access', ico: 'cycle', n: 'Turn assist',
+      d: 'Hold X and swipe your mouse left or right. The camera keeps turning at ' +
+         'that speed after your hand stops, so you never have to lift the mouse ' +
+         'and put it back. Swipe the other way to turn the other way, at that ' +
+         'swipe\u2019s speed. A faster swipe the same way turns faster; a slower one ' +
+         'slows it down once that swipe is over. Looking up and down still works ' +
+         'normally while you turn. Let go of X and the turn stops at once.',
+      trig: { src: 'KEY_X' },
+      tunes: [{ lab: 'A swipe ends after', val: 80, min: 30, max: 400, step: 10, unit: 'ms',
+                sub: 'how long the mouse rests before the turn locks in' }],
+      build: function (v) {
+        return {
+          name: 'Turn assist', holdMode: 'run_while_held', cooldownMs: 0,
+          /* never gives up: it ends when X is let go, however long that is */
+          maxDurationMs: 0, maxRepeats: 1,
+          steps: [{ k: 'tassist', gap: clamp(Math.round(v[0]), 30, 400) }]
+        };
+      }
+    },
+
+    /* ── aim ─────────────────────────────────────────────────────── */
+    {
+      id: 'aimboost', fam: 'aim', ico: 'waves', n: 'Aim assist booster',
+      d: 'A tiny circle on the aim stick, over and over, the whole time you are ' +
+         'aiming. Most games only switch their own aim assist on while the stick ' +
+         'is actually moving, so this keeps it awake without visibly moving your ' +
+         'shot. Start Gentle — if you can see the reticle wobble, it is too strong.',
+      trig: { follow: 'lt+' },
+      pick: { lab: 'How strong', opts: ['Gentle', 'Medium', 'Strong'],
+              vals: [4, 7, 11], into: 0 },
+      tunes: [
+        { lab: 'How wide the circle is', val: 7, min: 2, max: 25, step: 1, unit: '%' },
+        { lab: 'How fast it goes round', val: 30, min: 12, max: 120, step: 2,
+          unit: 'ms', sub: 'time on each of the eight points' }
+      ],
+      build: function (v) {
+        var st = [], i;
+        for (i = 0; i < 8; i++) {
+          st.push({ k: 'stick', stick: 'right', angle: i * 45, dist: v[0] / 100,
+                    ms: clamp(v[1], 1, STEP_MS_CAP) });
+        }
+        return {
+          name: 'Aim assist booster', holdMode: 'repeat_while_held',
+          cooldownMs: 0, maxDurationMs: 30000, maxRepeats: 1, varianceMs: 0,
+          steps: st
+        };
+      }
+    },
+    {
+      id: 'recoil', fam: 'aim', ico: 'wave', n: 'Anti-recoil',
+      d: 'While you aim AND fire, the aim stick is pulled straight down so the ' +
+         'gun stops climbing off the target. It ADDS to what you are already ' +
+         'aiming, so you can still track upward — it just takes the climb out. ' +
+         'Hip-fire and menus are left alone.',
+      trig: { follow: 'rt+' },
+      /* D270 (owner, 2026-10-10: "pull straight down while BOTH aim and fire
+         are held"): started by Fire (rt+, which follows the config, so it
+         is the left click on mouse and keyboard), only while aiming (the
+         ads gate: on a Core, L2/LT pulled or the config's ADS button held,
+         the right click by default), running while Fire is held. Where the
+         gate could never open (ctx.ads false: an EXO pad-only rig whose ADS
+         button is still the mouse) it keeps the old fire-only shape rather
+         than build a Script that never runs. A Script made before this is
+         not rebuilt: it keeps doing exactly what it did. */
+      pick: { lab: 'How hard', opts: ['Light', 'Medium', 'Heavy'],
+              vals: [10, 20, 32], into: 0 },
+      tunes: [{ lab: 'How hard it pulls down', val: 20, min: 3, max: 60, step: 1,
+                unit: '%', sub: 'too much and your shots go into the floor' }],
+      build: function (v, b, ctx) {
+        return {
+          name: 'Anti-recoil', holdMode: 'run_while_held', cooldownMs: 0,
+          gate: (ctx && ctx.ads === false) ? 'always' : 'ads',
+          maxDurationMs: 30000, maxRepeats: 3,
+          steps: [{ k: 'stick', stick: 'right', angle: 270, dist: v[0] / 100,
+                    ms: STEP_MS_CAP }]
+        };
+      }
+    },
+    {
+      id: 'recoilads', fam: 'aim', ico: 'wave', n: 'Anti-recoil, aiming only',
+      d: 'The same downward pull, but only when you are actually aiming down ' +
+         'sights — so hip-fire and menus are left completely alone.',
+      trig: { follow: 'rt+' },
+      pick: { lab: 'How hard', opts: ['Light', 'Medium', 'Heavy'],
+              vals: [10, 20, 32], into: 0 },
+      tunes: [{ lab: 'How hard it pulls down', val: 20, min: 3, max: 60, step: 1,
+                unit: '%' }],
+      /* The board decides "aiming" from mouseTranslation.adsBinding only. On a
+         pad-only rig that is still the default RIGHT MOUSE BUTTON, so the gate
+         can never open — and an action gated on it would sit there doing
+         nothing. When that is the case this builds the honest alternative
+         instead: start it from the AIM control itself, which is the same
+         condition by a route that works. openTemplate says so on screen. */
+      adaptive: true,
+      build: function (v, b, ctx) {
+        var gated = ctx.ads !== false;
+        return {
+          name: gated ? 'Anti-recoil (aiming)' : 'Anti-recoil (while aiming)',
+          holdMode: 'run_while_held', cooldownMs: 0,
+          gate: gated ? 'ads' : 'always',
+          trigger: gated ? null : { follow: 'lt+' },
+          maxDurationMs: 30000, maxRepeats: 3,
+          steps: [{ k: 'stick', stick: 'right', angle: 270, dist: v[0] / 100,
+                    ms: STEP_MS_CAP }]
+        };
+      }
+    },
+    {
+      id: 'recoilpat', fam: 'aim', ico: 'recoil', n: 'Recoil pattern',
+      d: 'For a gun that always pulls the same way. Instead of dragging straight ' +
+         'down, this walks the aim stick along a path while you fire — down, ' +
+         'then a lean left, then back right. Get the shape roughly right first, ' +
+         'then tune the strength.',
+      trig: { follow: 'rt+' },
+      tunes: [
+        { lab: 'How hard', val: 22, min: 3, max: 60, step: 1, unit: '%' },
+        { lab: 'How quickly it walks', val: 100, min: 40, max: 200, step: 10,
+          unit: '%', sub: 'lower is slower — match it to the gun’s fire rate' }
+      ],
+      build: function (v) {
+        /* angle, and how long that leg lasts at 100% */
+        var legs = [[270, 150], [262, 160], [286, 180], [252, 190], [270, 420]];
+        var mag = v[0] / 100, speed = Math.max(40, v[1]) / 100;
+        return {
+          /* maxRepeats is the board's hard cap on looping (10, schema.py), and
+             a pattern that stops mid-magazine is worse than none — so take all
+             ten. The whole thing still ends the instant you stop firing. */
+          name: 'Recoil pattern', holdMode: 'run_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 10,
+          steps: legs.map(function (l) {
+            return { k: 'stick', stick: 'right', angle: l[0], dist: mag,
+                     ms: clamp(Math.round(l[1] / speed), 1, STEP_MS_CAP) };
+          })
+        };
+      }
+    },
+    {
+      id: 'steady', fam: 'aim', ico: 'sliders', n: 'Steady aim',
+      d: 'While you are aiming, the aim stick moves more slowly and more finely. ' +
+         'For shaky hands, and for landing a precise shot without sailing past it. ' +
+         'Nothing is added to your aim — it is only made gentler.',
+      trig: { follow: 'lt+' },
+      pick: { lab: 'How much slower', opts: ['A little', 'Half speed', 'A lot'],
+              vals: [75, 50, 30], into: 0 },
+      tunes: [{ lab: 'Aim speed while aiming', val: 55, min: 15, max: 100, step: 5,
+                unit: '%', sub: '100% is your normal speed' }],
+      build: function (v) {
+        return {
+          name: 'Steady aim', holdMode: 'run_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 3,
+          steps: [{ k: 'sens', which: 'aim', scale: v[0] / 100, axis: 'both', ms: 0 },
+            { k: 'wait', ms: STEP_MS_CAP }]
+        };
+      }
+    },
+    {
+      id: 'snap', fam: 'aim', ico: 'target', n: 'Snap-to-target nudge',
+      d: 'The instant you fire, the aim stick twitches once and comes straight ' +
+         'back. Games hand out their own aim assist while the stick is moving, ' +
+         'so this asks for it at the exact moment it matters. Keep it small — ' +
+         'if you can feel it tug your shot, turn it down.',
+      trig: { follow: 'rt+' },
+      tunes: [
+        { lab: 'How big the nudge is', val: 8, min: 2, max: 25, step: 1, unit: '%' },
+        { lab: 'How long it lasts', val: 30, min: 10, max: 150, step: 5, unit: 'ms' }
+      ],
+      build: function (v) {
+        var ms = clamp(v[1], 1, STEP_MS_CAP);
+        return {
+          name: 'Snap nudge', holdMode: 'once', cooldownMs: 220, maxDurationMs: 2000,
+          maxRepeats: 1,
+          steps: [{ k: 'stick', stick: 'right', angle: 0, dist: v[0] / 100, ms: ms },
+            { k: 'stick', stick: 'right', angle: 180, dist: v[0] / 100, ms: ms }]
+        };
+      }
+    },
+    {
+      id: 'turn', fam: 'aim', ico: 'cycle', n: 'Quick 180° turn',
+      d: 'Spin to face behind you with one press, instead of dragging the stick ' +
+         'all the way across and back.',
+      trig: { follow: 'l3' },
+      tunes: [{ lab: 'How long the spin takes', val: 160, min: 60, max: 400,
+                step: 10, unit: 'ms',
+                sub: 'longer if your game turns slowly' }],
+      build: function (v) {
+        return {
+          name: 'Quick turn', holdMode: 'once', cooldownMs: 400, maxDurationMs: 3000,
+          maxRepeats: 1,
+          steps: [{ k: 'stick', stick: 'right', angle: 180, dist: 1,
+                    ms: clamp(v[0], 1, STEP_MS_CAP) }]
+        };
+      }
+    },
+    {
+      id: 'vehicle', fam: 'aim', ico: 'wheel', n: 'Vehicles and parachutes',
+      d: 'Gives your aim speed back for as long as you hold it, for the parts of ' +
+         'a game that slow your camera to a crawl.',
+      trig: { follow: 'r1' },
+      tunes: [{ lab: 'Aim speed while held', val: 160, min: 100, max: 300, step: 10,
+                unit: '%' }],
+      build: function (v) {
+        return {
+          name: 'Vehicle look', holdMode: 'run_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 3,
+          steps: [{ k: 'sens', which: 'aim', scale: v[0] / 100, axis: 'both', ms: 0 },
+            { k: 'wait', ms: STEP_MS_CAP }]
+        };
+      }
+    },
+
+    /* ── firing ──────────────────────────────────────────────────── */
+    {
+      id: 'turbo', fam: 'fire', ico: 'burst', n: 'Rapid fire (turbo)',
+      d: 'Hold {rt+} and ZeroStick taps it for you, over and over, for as long ' +
+         'as you keep holding. Turns a semi-automatic into something you do not ' +
+         'have to hammer.',
+      trig: { follow: 'rt+' },
+      tunes: [{ lab: 'Time between taps', val: 40, min: 15, max: 300, step: 5,
+                unit: 'ms', sub: 'shorter is faster — too fast and games drop shots' }],
+      build: function (v) {
+        var ms = clamp(v[0], 1, STEP_MS_CAP);
+        return {
+          name: 'Rapid fire', holdMode: 'repeat_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 1, varianceMs: 0,
+          steps: [{ k: 'trig', t: ['rt+'], keep: false, ms: ms }, { k: 'wait', ms: ms }]
+        };
+      }
+    },
+    {
+      id: 'burst', fam: 'fire', ico: 'recoil', n: 'Burst fire',
+      d: 'One press fires a short, even burst instead of a single shot. Steadier ' +
+         'than a full-automatic hold, and only one press from you.',
+      trig: { follow: 'rt+' },
+      pick: { lab: 'How many', opts: ['2 round', '3 round', '5 round'],
+              vals: [2, 3, 5], into: 0 },
+      tunes: [
+        { lab: 'Shots in the burst', val: 3, min: 2, max: 8, step: 1, unit: '' },
+        { lab: 'Gap between shots', val: 60, min: 20, max: 400, step: 5, unit: 'ms' }
+      ],
+      build: function (v) {
+        var st = [], i, n = clamp(intOf(v[0], 3), 2, 8);
+        var gap = clamp(v[1], 1, STEP_MS_CAP);
+        for (i = 0; i < n; i++) {
+          st.push({ k: 'trig', t: ['rt+'], keep: false, ms: 40 });
+          st.push({ k: 'wait', ms: gap });
+        }
+        return {
+          name: n + '-round burst', holdMode: 'once', cooldownMs: 120,
+          maxDurationMs: 8000, maxRepeats: 1, steps: st
+        };
+      }
+    },
+    {
+      id: 'autofire', fam: 'fire', ico: 'bolt', n: 'Fire without holding', runsFor: 0,
+      d: 'Pull {rt+} once and let go — ZeroStick keeps it pulled for you until ' +
+         'the time is up. For anyone who cannot comfortably hold a trigger down ' +
+         'through a whole fight.',
+      trig: { follow: 'rt+' },
+      tunes: [{ lab: 'Keep firing for', val: 6000, min: 1000, max: 29000, step: 500,
+                unit: 'ms',
+                sub: 'it cannot be stopped early, so pick a length you are happy with' }],
+      build: function (v) {
+        return {
+          name: 'Fire without holding', holdMode: 'once', cooldownMs: 250,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'trig', t: ['rt+'], keep: true, ms: 120 }]
+            .concat(waits(v[0]))
+            .concat([{ k: 'release', t: ['rt+'] }])
+        };
+      }
+    },
+    {
+      id: 'hairfire', fam: 'fire', ico: 'bolt', n: 'Hair trigger fire', runsFor: 0,
+      d: 'Squeeze {rt+} a little over half way and ZeroStick pulls it the rest ' +
+         'of the way. Less grip for the same shot, and it lets go the moment you do.',
+      trig: { follow: 'rt+' },
+      tunes: [{ lab: 'Hold for at most', val: 10000, min: 1000, max: 29000,
+                step: 500, unit: 'ms' }],
+      build: function (v) {
+        return {
+          name: 'Hair trigger', holdMode: 'run_while_held', cooldownMs: 0,
+          maxDurationMs: clamp(v[0] + 800, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          notes: 'Controller Feel has a real hair-trigger setting that can go a ' +
+                 'lot lighter than this — try that first if you want a feather touch.',
+          steps: [{ k: 'trig', t: ['rt+'], keep: true, ms: 120 }].concat(waits(v[0]))
+        };
+      }
+    },
+    {
+      id: 'dropshot', fam: 'fire', ico: 'target', n: 'Drop shot',
+      d: 'Go to ground the instant you open fire, so the shots coming back at you ' +
+         'go over your head. Your trigger keeps working the whole time.',
+      trig: { follow: 'rt+' },
+      btns: [{ lab: 'Crouch / prone button', def: 'east' }],
+      tunes: [{ lab: 'How soon after you fire', val: 40, min: 0, max: 800, step: 10,
+                unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Drop shot', holdMode: 'once', cooldownMs: 400, maxDurationMs: 4000,
+          maxRepeats: 1,
+          steps: [{ k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) },
+            { k: 'tap', t: [b[0]], ms: 80 }]
+        };
+      }
+    },
+    {
+      id: 'jumpshot', fam: 'fire', ico: 'burst', n: 'Jump shot',
+      d: 'Hop the moment you open fire — the oldest trick there is for not being ' +
+         'where the other player expected. Firing carries on underneath it.',
+      trig: { follow: 'rt+' },
+      btns: [{ lab: 'Jump button', def: 'south' }],
+      tunes: [{ lab: 'How soon after you fire', val: 30, min: 0, max: 800, step: 10,
+                unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Jump shot', holdMode: 'once', cooldownMs: 450, maxDurationMs: 4000,
+          maxRepeats: 1,
+          steps: [{ k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) },
+            { k: 'tap', t: [b[0]], ms: 80 }]
+        };
+      }
+    },
+
+    /* ── quality of life ─────────────────────────────────────────── */
+    {
+      id: 'swapweapon', fam: 'qol', ico: 'cycle', n: 'Swap and get back on target',
+      d: 'One press swaps weapon and puts you back down the sights the moment it ' +
+         'lands, so you are not caught looking at your hands.',
+      trig: { follow: 'north' },
+      btns: [{ lab: 'Swap button', def: 'north' }],
+      tunes: [
+        { lab: 'How long the swap takes', val: 450, min: 100, max: 2000, step: 50,
+          unit: 'ms', sub: 'match this to your game’s swap animation' },
+        { lab: 'Then aim for', val: 350, min: 100, max: 2000, step: 50, unit: 'ms' }
+      ],
+      build: function (v, b) {
+        return {
+          name: 'Swap and aim', holdMode: 'once', cooldownMs: 400,
+          maxDurationMs: clamp(v[0] + v[1] + 900, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 70 },
+            { k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) },
+            { k: 'trig', t: ['lt+'], keep: true, ms: 120 },
+            { k: 'wait', ms: clamp(v[1], 1, STEP_MS_CAP) },
+            { k: 'release', t: ['lt+'] }]
+        };
+      }
+    },
+    {
+      id: 'swapcancel', fam: 'qol', ico: 'cycle', n: 'Cancel a reload',
+      d: 'Flick to your other weapon and straight back. In most games the reload ' +
+         'animation stops but the ammo stays, so you are ready again sooner. Two ' +
+         'exact presses from one.',
+      trig: { follow: 'north' },
+      btns: [{ lab: 'Swap button', def: 'north' }],
+      tunes: [{ lab: 'Time before swapping back', val: 260, min: 60, max: 1500,
+                step: 20, unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Reload cancel', holdMode: 'once', cooldownMs: 400,
+          maxDurationMs: clamp(v[0] + 900, DUR_MIN, DUR_MAX), maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 70 },
+            { k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) },
+            { k: 'tap', t: [b[0]], ms: 70 }]
+        };
+      }
+    },
+    /* 2026-10-22 (owner: "add auto ping on the Warzone config in Quick
+       scripts"): when you fire, the Core taps your ping button once (Warzone
+       pings what your crosshair is on), then waits before it pings again,
+       so it never spams the squad. A single press per pull, never held:
+       Rapid fire and Anti-recoil on the same trigger are not disturbed
+       (dupWhen only clashes the same hold mode). */
+    {
+      id: 'autoping', fam: 'qol', ico: 'target', n: 'Auto ping',
+      d: 'Every time you shoot, it pings what you are aiming at, so your squad sees the ' +
+         'enemy. It waits a few seconds before pinging again, so it never spams.',
+      trig: { follow: 'rt+' },
+      btns: [{ lab: 'Your ping button', def: 'dpad_up' }],
+      tunes: [{ lab: 'Ping at most every', val: 3, min: 1, max: 10, step: 1, unit: 's' }],
+      build: function (v, b) {
+        return {
+          name: 'Auto ping', holdMode: 'once', cooldownMs: clamp(v[0], 1, 10) * 1000, maxDurationMs: 2000,
+          maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 80 }]
+        };
+      }
+    },
+    {
+      id: 'ping', fam: 'qol', ico: 'waves', n: 'Ping your team',
+      d: 'Puts marking a spot for your team on a button you can reach without ' +
+         'letting go of a stick — and gives the game the same firm, deliberate ' +
+         'press every time instead of a light one it might ignore.',
+      /* The trigger and the button it presses must be DIFFERENT, and that is
+         not a style note: a preset triggered by {dpad_up} that then presses
+         {dpad_up} is a no-op, because holding the pad's own button already
+         sends it. Caught by test_preset_actions.py's control group — the
+         console received exactly what it would have without the action. */
+      trig: { follow: 'r3' },
+      btns: [{ lab: 'What it should press', def: 'dpad_up' }],
+      tunes: [{ lab: 'Press it for', val: 90, min: 40, max: 600, step: 10, unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Ping', holdMode: 'once', cooldownMs: 400, maxDurationMs: 2000,
+          maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: clamp(v[0], TAP_MS_MIN, STEP_MS_CAP) }]
+        };
+      }
+    },
+    {
+      id: 'menuskip', fam: 'qol', ico: 'grid', n: 'Menu skip',
+      d: 'Hold it and ZeroStick taps through menus, dialogue and cutscenes for ' +
+         'you. Long menus are the other place a game asks for dozens of presses ' +
+         'in a row.',
+      trig: { follow: 'south' },
+      btns: [{ lab: 'Confirm button', def: 'south' }],
+      tunes: [{ lab: 'Time between presses', val: 180, min: 60, max: 900, step: 10,
+                unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Menu skip', holdMode: 'repeat_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 70 },
+            { k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) }]
+        };
+      }
+    },
+    {
+      id: 'loot', fam: 'qol', ico: 'lootbox', n: 'Looting',
+      d: 'While held, the two sticks swap over and slow down, so a menu you have ' +
+         'to land a cursor on stops being a fight.',
+      trig: { follow: 'r1' },
+      tunes: [{ lab: 'Aim speed while looting', val: 60, min: 10, max: 100, step: 5,
+                unit: '%' }],
+      build: function (v) {
+        return {
+          name: 'Looting', holdMode: 'run_while_held', cooldownMs: 0,
+          maxDurationMs: 30000, maxRepeats: 3,
+          steps: [{ k: 'swap', ms: 0 },
+            { k: 'sens', which: 'aim', scale: v[0] / 100, axis: 'both', ms: 0 },
+            { k: 'wait', ms: STEP_MS_CAP }]
+        };
+      }
+    },
+    {
+      id: 'combo', fam: 'qol', ico: 'grid', n: 'Two-button combo',
+      d: 'One button plays two presses in order with a gap in between — the blank ' +
+         'one to build your own from.',
+      trig: { follow: 'r1' },
+      btns: [{ lab: 'First button', def: 'west' }, { lab: 'Second button', def: 'east' }],
+      tunes: [{ lab: 'Gap between them', val: 90, min: 20, max: 900, step: 10,
+                unit: 'ms' }],
+      build: function (v, b) {
+        return {
+          name: 'Combo', holdMode: 'once', cooldownMs: 200, maxDurationMs: 5000,
+          maxRepeats: 1,
+          steps: [{ k: 'tap', t: [b[0]], ms: 60 },
+            { k: 'wait', ms: clamp(v[0], 1, STEP_MS_CAP) },
+            { k: 'tap', t: [b[1]], ms: 60 }]
+        };
+      }
+    },
+    {
+      id: 'nextcfg', fam: 'qol', ico: 'nest', n: 'Switch to my next config',
+      d: 'One button jumps to the next config in your list, without putting the ' +
+         'pad down and picking up a phone.',
+      trig: { follow: 'select' },
+      tunes: [],
+      build: function () {
+        return {
+          name: 'Next config', holdMode: 'once', cooldownMs: 600, maxDurationMs: 2000,
+          maxRepeats: 1,
+          /* one step, and no padding Wait: a config load fires the moment its
+             step begins and is reported at the sequencer level, so it survives
+             its own run finishing on the same tick (sequences.py) */
+          steps: [{ k: 'config', to: 'next' }]
+        };
+      }
+    }
+  ];
+
+  /* Build one preset into a full action. The single place a template's shorthand
+     becomes the editor's model, so the gallery and the tests cannot drift: the
+     Node exporter and board/agent/tests/unit/test_preset_actions.py both come
+     through here. */
+  function buildTemplate(p, t, cfg) {
+    var base = t.build(cfg.v.slice(), cfg.btns.slice(), { ads: adsGateOK(p) });
+    /* a preset may override the trigger when it adapts to the rig */
+    var trig = base.trigger
+      ? { src: base.trigger.src || null, follow: base.trigger.follow || null,
+          gesture: 'press', holdMs: 350, windowMs: 300 }
+      : cfg.trig;
+    var a = normAction({
+      name: base.name, holdMode: base.holdMode, cooldownMs: base.cooldownMs,
+      maxDurationMs: base.maxDurationMs, maxRepeats: base.maxRepeats,
+      varianceMs: base.varianceMs, gate: base.gate, notes: base.notes,
+      uninterruptible: base.uninterruptible,
+      steps: base.steps, trigger: trig, category: 'Ready-made',
+      /* stamped so the gallery can tell you it is already here. buildTemplate
+         copies a CONSTANT name per template — turbo is always "Rapid fire" —
+         which is what made two identical chips possible in the first place;
+         the id is the thing that is actually stable and comparable. */
+      fromTemplate: t.id,
+      group: (FAM_BY_KEY[t.fam] || {}).n || ''
+    });
+    a.colour = (FAM_BY_KEY[t.fam] || {}).col || COLOURS[0];
+    return a;
+  }
+
+  /* ── WHICH TEMPLATE AN ACTION CAME FROM, INCLUDING ONE OFF THE BOARD ──
+     `fromTemplate` is stamped by buildTemplate and by nothing else, so an
+     action that arrived through fromBoardAction — a fresh phone, cleared
+     storage, a second device, anything the PC dashboard wrote — carried no
+     stamp at all. The gallery then drew all 31 cards identically and the
+     "already on R2" mark, which IS the second half of the duplicate fix,
+     was blind in exactly the situation where a duplicate is easiest to
+     make: you cannot see what is already there.
+
+     Two channels, tried in order.
+       1. THE FIELD. toBoard now writes it. schema.py's action validator
+          type-checks only the keys it names and passes everything else
+          through untouched (the same unknown-key forgiveness `follows` and
+          `tapMs` ride on), so it round-trips and the engine never sees it.
+       2. THE NAME, for everything written before that. buildTemplate copies
+          ONE CONSTANT name per template — turbo is always "Rapid fire" —
+          and the add path only ever appends " 2", so the base name plus
+          category "Ready-made" is a real fingerprint of where a copy came
+          from. It is a fallback, not a claim: rename an action and it stops
+          matching, which is correct, because you have made it yours. */
+  var TPL_BY_NAME = null;
+  function tplByName() {
+    if (TPL_BY_NAME) return TPL_BY_NAME;
+    TPL_BY_NAME = {};
+    TEMPLATES.forEach(function (t) {
+      try {
+        var cfg = templateCfg(t);
+        var b = t.build(cfg.v.slice(), cfg.btns.slice(), { ads: null });
+        if (b && typeof b.name === 'string' && b.name) TPL_BY_NAME[b.name] = t.id;
+      } catch (e) {
+        /* a template that will not build at its own defaults simply has no
+           legacy fingerprint; channel 1 still finds every copy of it */
+      }
+    });
+    return TPL_BY_NAME;
+  }
+  function tplIdOf(a) {
+    if (!a) return '';
+    if (a.fromTemplate) return a.fromTemplate;
+    if (a.category !== 'Ready-made') return '';
+    return tplByName()[String(a.name || '').replace(/\s+\d+$/, '')] || '';
+  }
+
+  /* how many copies of this template are already on this config */
+  function templateCount(S, id) {
+    var n = 0;
+    arr(S && S.actions).forEach(function (o) { if (o && tplIdOf(o) === id) n++; });
+    return n;
+  }
+  /* the button the first copy sits on, for the card's "already on R2" tag */
+  function templateWhere(S, p, id) {
+    var out = '';
+    arr(S && S.actions).forEach(function (o) {
+      if (out || !o || tplIdOf(o) !== id) return;
+      out = triggerName(p, o);
+    });
+    return out;
+  }
+
+  function templateCfg(t) {
+    return {
+      v: (t.tunes || []).map(function (u) { return u.val; }),
+      trig: { src: t.trig.src || null, follow: t.trig.follow || null,
+              gesture: 'press', holdMs: 350, windowMs: 300 },
+      btns: (t.btns || []).map(function (b) { return b.def; })
+    };
+  }
+
+  /* one template card — shared by the Ready-made grid and by "Build your
+     own"'s foot, so the two can never drift into two different cards */
+  function tplCardHTML(t, ti, p, S, folded, isHero) {
+    var f = FAM_BY_KEY[t.fam] || { col: 'var(--line)' };
+    /* THE SECOND HALF OF THE DUPLICATE FIX. Nothing used to mark a
+       template already on this config, so all 31 cards drew identically
+       whether or not you added one thirty seconds ago. It does NOT block
+       a second add — one button legitimately holds several sequences —
+       it just stops one being accidental. */
+    var where = S ? templateWhere(S, p, t.id) : '';
+    return '<div class="card satpl' + (folded ? ' safold' : '') + '" data-tpl="' + ti +
+      '" role="button" tabindex="0" style="cursor:pointer;border-left:3px solid ' +
+      esc(f.col) + '">' +
+      '<div class="ci">' + ico(t.ico, 24) + '</div>' +
+      '<div class="cn">' + esc(fillNames(t.n, p)) +
+      (where ? '<span class="satpon">already on ' + esc(where) + '</span>' : '') +
+      /* THE CARD THE HERO IS ABOUT SAYS SO. The "Start here" panel promotes
+         one template and the full library below still lists it, so the same
+         name with the same paragraph appeared twice on one tab and read as
+         two suggestions. Every one of the 31 stays drawn — the library is
+         the library — but this one is marked as the one already offered at
+         the top rather than pretending to be a second idea. */
+      (isHero ? '<span class="satpon satphero">the one suggested above</span>' : '') +
+      '</div>' +
+      /* D255 (owner, 2026-10-09: "why the year-long explanation - just put
+         the little question mark tooltip"): the card is its name; the full
+         description is behind the "?" (D236), and the add sheet's too */
+      (ZS.helpHTML ? '<div class="cdq">' + ZS.helpHTML('tpl-' + t.id, fillNames(t.n, p), esc(fillNames(t.d, p))) + '</div>'
+                   : '<div class="cd">' + esc(tplLead(t, p)) + '</div>') + '</div>';
+  }
+
+  /* ── A BROWSE GRID GETS THE FIRST SENTENCE, NOT THE PARAGRAPH ──────────
+     Owner, 2026-08-28: the app is "a clutterd confusing mess", and Ready-made
+     was its longest surface — 2831px in a 677px viewport, four and a bit
+     screenfuls, because all 31 cards carry their full two-to-four sentence
+     description at browse rank, two columns wide, six to eight lines each.
+
+     NOTHING IS LOST, and that is what makes this a trim rather than a cut:
+     tapping a card opens the add sheet, which renders the SAME t.d in full
+     as its first note (see the `#tp-wrap` builder). So the full text is one
+     tap away on the screen where you are actually deciding — the visible
+     full-detail path the truncation rule asks for — and the grid goes back
+     to doing what a grid is for.
+
+     THE FIRST SENTENCE IS THE RIGHT CUT because these descriptions are all
+     written the same way: what it does, then why it matters. "Tap {east}
+     once and you stay down, hands off, until the time is up." then "Nothing
+     to hold, nothing to keep pressed while you are also aiming." The first
+     half is the card; the second half is the argument. Deriving it rather
+     than hand-writing 31 summaries means a template added later gets this
+     for free instead of quietly regrowing the wall.
+
+     Two guards. A sentence shorter than 30 characters takes the next one too
+     (a lead like "One press and it stays down." is a fragment, not a
+     summary), and a description with no sentence break is returned whole. */
+  function tplLead(t, p) {
+    var d = fillNames(t.d, p);
+    var out = '', rest = d;
+    /* split only on a full stop that is followed by a space and a capital or
+       an opening quote — never on a decimal, an abbreviation or a "{name}" */
+    for (var pass = 0; pass < 2; pass++) {
+      var m = /^(.*?[.!?])\s+(?=[A-Z“"‘'])/.exec(rest);
+      if (!m) { out += (out ? ' ' : '') + rest; rest = ''; break; }
+      out += (out ? ' ' : '') + m[1];
+      rest = rest.slice(m[0].length);
+      if (out.length >= 30) break;
+    }
+    return out || d;
+  }
+
+  /* THE RECOMMENDATION IS THE LIBRARY'S OWN ORDER, NOT A NEW OPINION.
+     TEMPLATES is hand-ordered — Movement & access leads because those are
+     the ones that take physical effort out of playing rather than adding an
+     edge (the sentence that used to say so on the screen died in the §5.5
+     copy triage; the ORDER is the statement now, so this comment is where
+     the reasoning lives). "Start here" is simply the first entry this config
+     does not already have. Returns an index into TEMPLATES, or -1 once every
+     one of them is on the config — in which case the screen says that
+     instead of pretending there is more to add. */
+  function heroTplIndex(S, p) {
+    for (var i = 0; i < TEMPLATES.length; i++) {
+      if (!templateWhere(S, p, TEMPLATES[i].id)) return i;
+    }
+    return -1;
+  }
+
+  /* How many cards of one family are drawn before the run is folded. Both
+     numbers are whole rows of the two-up grid, so a cut run never reads as a
+     card that failed to load. FOUR for the family the library leads with —
+     Movement & access leads deliberately (see heroTplIndex's comment),
+     so it gets two rows — and TWO for the rest, which is a taste plus a key
+     that opens the whole thing. 31 → 10 drawn, and the screen goes from
+     5409px (7.5 screenfuls) to about 2600 (3.5). */
+  var FAM_PEEK = 4;
+  var FAM_PEEK_REST = 2;
+
+  function templatesHTML(S, p) {
+    var fam = S.tplFam || 'all';
+    var counts = { all: TEMPLATES.length };
+    TEMPLATES.forEach(function (t) { counts[t.fam] = (counts[t.fam] || 0) + 1; });
+
+    var chips = '<div class="safil" id="sa-fil" role="tablist" aria-label="filter by family">' +
+      [{ k: 'all', n: 'All' }].concat(FAMILIES).map(function (f) {
+        var on = fam === f.k;
+        return '<button data-fam="' + esc(f.k) + '" role="tab" aria-selected="' +
+          (on ? 'true' : 'false') + '"' + (on ? ' class="on"' : '') + '>' +
+          esc(f.n) + ' <b>' + (counts[f.k] || 0) + '</b></button>';
+      }).join('') + '</div>';
+
+    /* ── FEATURED, above everything (replaces the "Start here" hero) ──── */
+    var hi = -1;
+    var hero = '<div class="safam safeat" style="--famc:var(--accent)">' +
+      '<span class="safi">' + ico('star', 20) + '</span><b>Featured</b>' +
+      '<i>The ones most people want, added in one tap.</i></div>' +
+      '<div class="cards">' + FEATURED.map(function (f, fi) {
+        var ti = tplIndexById(f.id), t = TEMPLATES[ti];
+        if (!t) return '';
+        var where = templateWhere(S, p, t.id);
+        return '<div class="card satpl safeatc" data-feat="' + fi + '" role="button" tabindex="0" ' +
+          'style="cursor:pointer;border-left:3px solid var(--accent)">' +
+          '<div class="ci">' + ico(t.ico, 24) + '</div>' +
+          '<div class="cn">' + esc(f.id === 'turbo' ? 'Rapid fire' : fillNames(t.n, p)) +
+          (where ? '<span class="satpon">already on ' + esc(where) + '</span>' : '') + '</div>' +
+          '<div class="cd">' + esc(f.cd || (f.lab + ' — one slider')) + '</div>' +
+          /* D280: the template's description behind a "?" (D236) */
+          /* D280/D285: the template's description behind a "?" (D236) */
+          ((f.help && ZS.helpHTML) ? '<div class="cdq">' + ZS.helpHTML('feat-' + t.id, fillNames(t.n, p),
+            esc(fillNames(t.d, p))) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
+
+    var body = '';
+    FAMILIES.forEach(function (f, fi) {
+      if (fam !== 'all' && fam !== f.k) return;
+      var mine = [];
+      TEMPLATES.forEach(function (t, i) { if (t.fam === f.k) mine.push([t, i]); });
+      if (!mine.length) return;
+      /* THE RUN IS CUT WHILE "ALL" IS SHOWING. Thirty-one cards is 5409px —
+         7.5 screenfuls — and a card at 4800px is a card nobody has ever
+         seen. Filtered to one family, the whole family is shown, because
+         then that IS the screen you asked for. */
+      var peek = (fi === 0) ? FAM_PEEK : FAM_PEEK_REST;
+      var cut = (fam === 'all' && mine.length > peek);
+      body += '<div class="safam" style="--famc:' + esc(f.col) + '">' +
+        '<span class="safi">' + ico(f.ico, 20) + '</span>' +
+        '<b>' + esc(f.n) + '</b><i>' + esc(f.d) + '</i></div>' +
+        '<div class="cards">' + mine.map(function (pair, n) {
+          /* EVERY ONE OF THE 31 IS STILL BUILT — the run past the peek is
+             folded, not dropped, so the gallery is still the whole library
+             (test-smart-actions.js counts .satpl and expects 31) and one tap
+             on the family key unfolds it. */
+          return tplCardHTML(pair[0], pair[1], p, S, cut && n >= peek, pair[1] === hi);
+        }).join('') + '</div>' +
+        (cut ? '<button class="samore" data-fam="' + esc(f.k) + '">Show all <b>' +
+               mine.length + '</b> in ' + esc(f.n) + ' ›</button>' : '');
+    });
+
+    /* the curation note that told the user Movement & access was placed
+       first deliberately DIED here (screen-map §5.5): the family order in
+       the chips and the gallery IS the priority statement, and a sentence
+       announcing an order the eye can already see is documentation, not
+       feedback. (The §5.5 gate greps this file for the dead sentence, so it
+       is paraphrased here rather than quoted.) */
+    /* "Ready-made starting points." is the name of the tab you are standing
+       on, printed again underneath itself. What is left is the only part a
+       first-time reader does not already have: what tapping one costs them. */
+    return '<p class="lead">Tap one, choose which button starts it — you can ' +
+      'change anything about it afterwards.</p>' +
+      hero +
+      chips + body +
+      btn('Nothing fits? Record your own', null, 'sa-create-go2');
+  }
+
+  function tplIndexById(id) {
+    for (var i = 0; i < TEMPLATES.length; i++) if (TEMPLATES[i].id === id) return i;
+    return -1;
+  }
+
+  /* A featured card's sheet: what it does in one line, ONE slider, Add.
+     Nothing technical — the steps, the trigger and the other tunes are the
+     template's own defaults, and the editor is still there afterwards for
+     anyone who wants it (the button's Mappings row). */
+  /* AUDIT m22: a Featured add is one tap (D256), so a tremor double-tap or
+     a second visit made a second rapid fire on the same trigger, and the
+     "copies + 1" name could repeat one already there. The same clash rule
+     the editor uses (dupWhen) shows the one already on the button instead,
+     and a new copy takes the first unused number. */
+  function freeName(S, base) {
+    var used = {};
+    arr(S.actions).forEach(function (o) { if (o && o.name) used[o.name] = true; });
+    if (!used[base]) return base;
+    for (var n = 2; ; n++) if (!used[base + ' ' + n]) return base + ' ' + n;
+  }
+  function showClash(root, p, S, clash) {
+    S.screen = 'index';
+    S.flashAct = S.actions.indexOf(clash);
+    draw(root || VIEW.lastRoot, p);
+    ZS.toast('"' + (clash.name || 'A Script') + '" already does this on that button - here it is');
+  }
+  /* D280 (2026-10-13 audit): Featured's Turn assist only ever checked the
+     clash rule, so on a config that already had one (every mouse config
+     does: it comes with it, waiting on no key where X reloads) a tap added
+     a SECOND copy on X, switched on, over the player's own reload. Now:
+       ? the config has one: that one opens, on its key picker;
+       ? X does something here (a binding, a chord, another Script:
+         keyTaken, the seed's own rule): it is added on no key, switched
+         off, and opens on its key picker;
+       ? otherwise it is added on X as before (the caller's path).
+     Returns true when it handled the tap. */
+  function featuredTurnAssist(root, p, S, made) {
+    var have = -1, src, doc;
+    arr(S.actions).forEach(function (o, k) { if (have < 0 && o && tplIdOf(o) === 'turnassist') have = k; });
+    if (have >= 0) {
+      ZS.toast('"' + (S.actions[have].name || 'Turn assist') +
+        '" is already in this config - pick the key that starts it');
+      SEC.openOnKeyPicker(root, p, S, have);
+      return true;
+    }
+    src = emitSource(p, made.trigger) || '';
+    doc = { bindings: SEC.bindsOf(p), accessibilityActions: arr(S.actions).map(function (o) {
+      return { trigger: { source: emitSource(p, o.trigger) || '', unbound: !!(o.trigger && o.trigger.unbound) } };
+    }) };
+    if (!src || !SEC.keyTaken || !SEC.keyTaken(doc, src)) return false;
+    made.trigger.unbound = true;
+    made.trigger.home = src;
+    made.trigger.src = null;
+    made.trigger.follow = null;
+    made.enabled = false;
+    made.name = freeName(S, made.name);
+    S.actions.push(made);
+    saveAll(p, S);
+    ZS.toast(SEC.srcName(src) + ' already does something here - pick the key for "' + made.name + '"');
+    SEC.openOnKeyPicker(root, p, S, S.actions.length - 1);
+    return true;
+  }
+  function openFeatured(root, p, S, fi) {
+    var f = FEATURED[fi], ti = tplIndexById(f && f.id), t = TEMPLATES[ti];
+    if (!t) return;
+    var cfg = templateCfg(t), u = t.tunes[f.tune];
+    /* D256 (owner, 2026-10-09: "when I add the premade rapid fire don't give
+       me the slider there - just add the script to the config and teleport
+       me to Smart mappings to view it"): Rapid fire adds on the tap, at its
+       default speed, and opens Smart mappings on its row - where its speed
+       slider is (inputRowHTML's turbo row) */
+    /* D270: the Aim assist booster the same way (owner, 2026-10-10: "when
+       added, the row in Scripts shows the slider ... and the featured add
+       drops it straight into the config and jumps to the row") */
+    if (f.quick) {
+      var made0 = buildTemplate(p, t, cfg);
+      var nm0 = f.id === 'turbo' ? 'Rapid fire' : fillNames(t.n, p);
+      if (hasErrors(made0, p, null)) { ZS.toast(nm0 + ' cannot be added here'); return; }
+      if (t.id === 'turnassist' && featuredTurnAssist(root, p, S, made0)) return;
+      var clash0 = dupWhen(S.actions, made0, p);
+      if (clash0) { showClash(root, p, S, clash0); return; }
+      made0.name = freeName(S, made0.name);
+      S.actions.push(made0);
+      var at = S.actions.length - 1;
+      saveAll(p, S);
+      S.screen = 'index';
+      S.flashAct = at;
+      draw(root || VIEW.lastRoot, p);
+      ZS.toast('"' + made0.name + '" added - ' + (f.added ||
+        ('slide its ' + (f.id === 'turbo' ? 'speed' : 'strength') + ' here')));
+      return;
+    }
+    var title = f.id === 'turbo' ? 'Rapid fire' : fillNames(t.n, p);
+    function hint(v) {
+      if (f.id === 'turbo') return 'about ' + Math.max(1, Math.round(1000 / Math.max(1, v * 2))) + ' taps a second';
+      return v <= 6 ? 'gentle' : v <= 10 ? 'medium' : 'strong';
+    }
+    var v0 = cfg.v[f.tune];
+    var h = '<div id="tf-wrap">' + helpNote('featsay-' + f.id, title, esc(f.say)) +
+      '<div class="fld col safeatfld"><div class="flab">' + esc(f.lab) +
+      ' <b id="tf-val">' + v0 + ' ' + esc(f.unit) + '</b> <span class="safeath" id="tf-hint">' + esc(hint(v0)) + '</span></div>' +
+      '<input class="rng" id="tf-rng" type="range" min="' + u.min + '" max="' + u.max + '" step="' + u.step +
+      '" value="' + v0 + '" data-nosave="1" aria-label="' + esc(f.lab + ' in ' + f.unit) + '"></div>' +
+      '<div class="safeatwho">Starts when you hold <b>' +
+      esc(triggerName(p, buildTemplate(p, t, cfg))) + '</b></div>' +
+      btnI('plus', 'Add to this config', 'primary', 'tf-add') + '</div>';
+    var body = sheetPaint(title, h, function () {});
+    var rng = body.querySelector('#tf-rng'), add = body.querySelector('#tf-add');
+    rng.addEventListener('input', function () {
+      cfg.v[f.tune] = clamp(Math.round(num(rng.value, v0)), u.min, u.max);
+      body.querySelector('#tf-val').textContent = cfg.v[f.tune] + ' ' + f.unit;
+      body.querySelector('#tf-hint').textContent = hint(cfg.v[f.tune]);
+    });
+    add.addEventListener('click', function () {
+      /* one tap, one action (the same guard as #tp-add) */
+      if (add.disabled) return;
+      add.disabled = true;
+      var made = buildTemplate(p, t, cfg);
+      if (hasErrors(made, p, null)) { add.disabled = false; ZS.toast('That one cannot be added here'); return; }
+      var clash = dupWhen(S.actions, made, p);
+      if (clash) { ZS.sheetClose(); showClash(root, p, S, clash); return; }
+      made.name = freeName(S, made.name);
+      S.actions.push(made);
+      saveAll(p, S);
+      ZS.sheetClose();
+      draw(root || VIEW.lastRoot, p);
+      ZS.toast('"' + made.name + '" added');
+    });
+  }
+
+  /* owner 2026-10-17: a gun page's Rapid fire / Aim assist / Anti-recoil
+     tiles are dummy-proof - ONE slider, "Add to this config" or Cancel,
+     nothing else. Once added, the Script shows in that gun's Scripts with
+     the same slider on its row (16-buttons.js turbo / STRENGTH rows), so
+     the strength can be turned up or down there. Rapid fire's slider is
+     taps a second (what a player understands), written back as the
+     template's half-period ms. */
+  var QUICK_ADD = {
+    turbo: { title: 'Rapid fire', lab: 'Speed', say: 'Hold fire and it taps for you. Too fast and some games drop shots.' },
+    aimboost: { title: 'Aim assist', lab: 'Strength', say: 'Keeps the game’s aim assist switched on while you aim. Start low; if the reticle wobbles, it is too strong.' },
+    recoil: { title: 'Anti-recoil', lab: 'Strength', say: 'Pulls your aim down while you aim and fire, so the gun stops climbing. Too strong and your shots go into the floor.' },
+    autoping: { title: 'Auto ping', lab: 'Ping at most every', say: 'Every time you shoot, it pings what you are aiming at (your ping button, D-pad up in Warzone). It waits this long before it pings again.' }
+  };
+  /* The one slider's scale, shared by openQuickAdd and the AI Scripts
+     list's "Add quick scripts to guns" (gun-bulk.js, D405), so the two can
+     never offer different ranges or defaults. `s` is what the player sees
+     (taps a second, or %); `v` is the template's own first tune. */
+  function quickRange(id) {
+    var q = QUICK_ADD[id], t = TEMPLATES[tplIndexById(id)];
+    if (!q || !t) return null;
+    var u = t.tunes[0], taps = id === 'turbo', secs = id === 'autoping';
+    function toV(s) { return taps ? clamp(Math.round(1000 / (2 * s)), u.min, u.max) : clamp(s, u.min, u.max); }
+    function fromV(v) { return taps ? Math.max(2, Math.min(33, Math.round(1000 / (2 * Math.max(1, v))))) : v; }
+    var min = taps ? fromV(u.max) : u.min, max = taps ? fromV(u.min) : u.max;
+    return {
+      id: id, title: q.title, lab: q.lab, say: q.say, taps: taps,
+      min: min, max: max, def: fromV(u.val), toV: toV, fromV: fromV,
+      shown: function (s) { return taps ? s + ' taps a second' : secs ? s + ' s' : s + '%'; },
+      hint: function (s) {
+        var f = (s - min) / Math.max(1, max - min);
+        if (secs) return f < 0.34 ? 'often' : f < 0.67 ? 'now and then' : 'rarely';
+        return taps ? (f < 0.34 ? 'steady' : f < 0.67 ? 'fast' : 'very fast') : (f < 0.34 ? 'gentle' : f < 0.67 ? 'medium' : 'strong');
+      }
+    };
+  }
+  /* the Script a quick tile adds, at strength `s`, as the room holds it */
+  function quickBuild(p, id, s) {
+    var r = quickRange(id), t = TEMPLATES[tplIndexById(id)];
+    if (!r || !t) return null;
+    var cfg = templateCfg(t);
+    cfg.v[0] = r.toV(clamp(Math.round(+s || r.def), r.min, r.max));
+    var made = buildTemplate(p, t, cfg);
+    if (r.taps) made.name = 'Rapid fire';
+    return made;
+  }
+  function openQuickAdd(root, p, S, id) {
+    var q = QUICK_ADD[id], ti = tplIndexById(id), t = TEMPLATES[ti], R = quickRange(id);
+    if (!q || !t || !R) return;
+    var cfg = templateCfg(t);
+    var taps = R.taps, toV = R.toV;
+    var smin = R.min, smax = R.max;
+    var s0 = R.fromV(cfg.v[0]);
+    var shown = R.shown, hint = R.hint;
+    var h = '<div id="tq-wrap">' + helpNote('quickadd-' + id, q.title, esc(q.say)) +
+      '<div class="fld col safeatfld"><div class="flab">' + esc(q.lab) +
+      ' <b id="tq-val">' + esc(shown(s0)) + '</b> <span class="safeath" id="tq-hint">' + esc(hint(s0)) + '</span></div>' +
+      '<input class="rng" id="tq-rng" type="range" min="' + smin + '" max="' + smax + '" step="1" value="' + s0 +
+      '" data-nosave="1" aria-label="' + esc(q.title + ' ' + q.lab.toLowerCase()) + '"></div>' +
+      btnI('plus', 'Add to this config', 'primary', 'tq-add') +
+      btn('Cancel', null, 'tq-cancel') + '</div>';
+    var body = sheetPaint(q.title, h, function () {});
+    var rng = body.querySelector('#tq-rng'), add = body.querySelector('#tq-add');
+    rng.addEventListener('input', function () {
+      var s = Math.round(num(rng.value, s0));
+      cfg.v[0] = toV(s);
+      body.querySelector('#tq-val').textContent = shown(s);
+      body.querySelector('#tq-hint').textContent = hint(s);
+    });
+    body.querySelector('#tq-cancel').addEventListener('click', function () { ZS.sheetClose(); });
+    add.addEventListener('click', function () {
+      if (add.disabled) return;
+      add.disabled = true;
+      var made = buildTemplate(p, t, cfg);
+      if (taps) made.name = 'Rapid fire';
+      if (hasErrors(made, p, null)) { add.disabled = false; ZS.toast(q.title + ' cannot be added here'); return; }
+      var clash = dupWhen(S.actions, made, p);
+      if (clash) { ZS.sheetClose(); showClash(root, p, S, clash); return; }
+      made.name = freeName(S, made.name);
+      S.actions.push(made);
+      S.flashAct = S.actions.length - 1;
+      saveAll(p, S);
+      ZS.sheetClose();
+      draw(root || VIEW.lastRoot, p);
+      ZS.toast('"' + made.name + '" added - slide its ' + q.lab.toLowerCase() + ' in Scripts');
+    });
+  }
+
+  function openTemplate(root, p, S, ti) {
+    var t = TEMPLATES[ti];
+    var cfg = templateCfg(t);
+    var first = true;
+
+    function paint() {
+      var a = buildTemplate(p, t, cfg);
+      var s = sentence(a, p);
+      var ps = problems(a, p, null);
+      var bad = [];
+      ps.forEach(function (x) { if (x.level === 'error') bad.push(x.msg); });
+
+      /* D285: the description AND the step-by-step are the "?" fold; the
+         sheet itself is the name, the button and the sliders */
+      var desc = esc(fillNames(t.d, p));
+      var pts = (ZS.helpPoints && ZS.helpPoints(desc)) || [desc];
+      var h = '<div id="tp-wrap">' + helpNote('tpls-' + t.id, fillNames(t.n, p),
+          '<ul class="qhlist">' + pts.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+          /* the TAIL as well as the steps. The gallery used to print only
+             the lead and the numbered steps, so everything that decides WHEN
+             a preset runs — "only while you are aiming down sights", the
+             cooldown, how many times it plays — was invisible until after
+             you had added it and opened the editor. */
+          '<div class="sapreview">' + s.leadHTML + '<ol>' +
+          s.lines.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
+          '</ol>' +
+          s.tail.map(function (x) { return '<div class="satail">' + esc(x) + '</div>'; }).join('') +
+          '</div>') +
+        /* the adaptive ones say out loud what they changed and why, rather
+           than silently building something other than what the card promised */
+        (t.adaptive && adsGateOK(p) === false
+          ? note('Nothing plugged in can aim down sights (L2 / LT, a right click or ' +
+                 (adsBindingName(p) ? '<b>' + esc(adsBindingName(p)) + '</b>' : 'your Aim button') +
+                 ') — so this one ' +
+                 'starts from your <b>Aim</b> control instead, which comes to the ' +
+                 'same thing. Set Aim / ADS on the Fire &amp; Aim screen if you would ' +
+                 'rather have the real gate.', 'warn')
+          : '') +
+        sh('Which button should start it?') +
+        helpNote('tp-trig', 'Which button should start it?',
+                 'We have suggested the one most people use. Change it if you like.') +
+        card(fld('Started by',
+          '<button class="pbtn" id="tp-trig" aria-label="' +
+          esc('trigger: ' + triggerName(p, a) + ' — change') + '">' +
+          srcArt(emitSource(p, a.trigger)) + '<span class="plab">' +
+          esc(triggerName(p, a)) + '</span><span class="pchev">▾</span></button>') +
+          (t.btns || []).map(function (b, i) {
+            return fld(b.lab, '<button class="pbtn" data-tb="' + i + '" aria-label="' +
+              esc(b.lab + ': ' + tgtName(cfg.btns[i], p) + ' — change') + '">' +
+              tgtSvg(cfg.btns[i], p) + '<span class="plab">' +
+              esc(tgtName(cfg.btns[i], p)) + '</span><span class="pchev">▾</span></button>');
+          }).join('') +
+          (t.pick ? seg(t.pick.lab, t.pick.opts,
+                        t.pick.vals.indexOf(cfg.v[t.pick.into || 0]), 'tp-pick',
+                        'or set it exactly below') : '') +
+          (t.tunes || []).map(function (u, i) {
+            return stepper(u.lab, cfg.v[i], u.step, u.min, u.max, u.unit, u.sub || null,
+                           'v' + i);
+          }).join('')) +
+        (t.id === 'turbo'
+          ? note('That is about <b>' +
+                 Math.max(1, Math.round(1000 / Math.max(1, cfg.v[0] * 2))) +
+                 ' taps a second</b>.') : '') +
+        (bad.length
+          ? bad.map(function (m) { return note('<b>Fix this first:</b> ' + esc(m), 'warn'); }).join('')
+          : '') +
+        /* THE THIRD HALF. problems() has always detected this; it was only
+           ever RENDERED inside the draft editor of one of the two, so the
+           duplicate was created here and reported somewhere else. Same string,
+           printed where the second one would actually be made. */
+        (dupWhen(S.actions, a, p)
+          ? note('<b>' + esc(triggerName(p, a)) + ' already has one:</b> ' + esc(DUP_WHEN_MSG), 'warn')
+          : '') +
+        btnI('plus', 'Add to this config', 'primary', 'tp-add') + '</div>';
+
+      var body = sheetPaint(fillNames(t.n, p), h, first ? function () {} : undefined);
+      first = false;
+      var addBtn = body.querySelector('#tp-add');
+      if (addBtn) addBtn.disabled = bad.length > 0;
+
+      body.querySelector('#tp-wrap').addEventListener('zsstep', function (e) {
+        var f = e.target && e.target.dataset && e.target.dataset.f;
+        if (!f || f.charAt(0) !== 'v') return;
+        var idx = +f.slice(1);
+        if (!(idx >= 0 && idx < cfg.v.length)) return;
+        cfg.v[idx] = Math.round(num(e.target.textContent, cfg.v[idx]));
+        paint();
+      });
+      /* the three-way shortcut writes the slider it stands for, so both
+         controls always agree and there is only ever one number */
+      var pk = body.querySelector('#tp-pick');
+      if (pk && t.pick) {
+        var pbs = pk.querySelectorAll('button');
+        for (var i = 0; i < pbs.length; i++) {
+          (function (idx) {
+            pbs[idx].addEventListener('click', function () {
+              cfg.v[t.pick.into || 0] = t.pick.vals[idx];
+              paint();
+            });
+          })(i);
+        }
+      }
+      var tb = body.querySelector('#tp-trig');
+      if (tb) tb.addEventListener('click', function () {
+        pickTrigger(p).then(function (v) {
+          if (v) { cfg.trig.src = v.src; cfg.trig.follow = v.follow; }
+          paint();
+        });
+      });
+      body.querySelectorAll('[data-tb]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var i = +b.dataset.tb;
+          openTargetPane(p, function (code) { cfg.btns[i] = code; }, paint);
+        });
+      });
+      if (addBtn) addBtn.addEventListener('click', function () {
+        /* THE ROOT CAUSE OF THE DUPLICATE, and its whole fix.
+           ZS.sheetClose() only removes the `open` class; ZSM.attachSheet then
+           holds display:block for the ~260 ms spring-out, so #tp-add stays
+           laid out and hit-testable that whole time. A second tap in that
+           window — a double-tap, or the hand tremor this product exists to
+           accommodate — ran this handler again, and buildTemplate → normAction
+           mints a FRESH id, so the result was two byte-identical actions with
+           different ids that nothing downstream could tell apart.
+           One tap, one action. The same guard is on #sa-save and on the
+           recorder's two Use buttons. */
+        if (addBtn.disabled) return;
+        addBtn.disabled = true;
+        var made = buildTemplate(p, t, cfg);
+        if (hasErrors(made, p, null)) {
+          addBtn.disabled = false;
+          ZS.toast('Fix the problem above first');
+          return;
+        }
+        /* and give the name a fighting chance: a constant name per template is
+           what made two identical labels possible at all */
+        var already = templateCount(S, t.id);
+        if (already) made.name = made.name + ' ' + (already + 1);
+        S.actions.push(made);
+        saveAll(p, S);
+        ZS.sheetClose();
+        /* Land ON the button it now belongs to, with the editor sheet open
+           over it. The preset is not a thing floating in a list any more — it
+           is what that button does, and the screen that says so is the one you
+           arrive on. */
+        var landed = rowFor(p, S, emitSource(p, made.trigger) || '');
+        if (landed) {
+          S.inputSrc = landed.source;
+          S.screen = 'input'; S.mode = 'sequence';
+          S.editIdx = S.actions.length - 1;
+          S.draft = clone(made);
+          S.unsaved = false; S.sel = null; S.page = 0;
+        } else {
+          S.screen = S.smartTab || 'index';
+        }
+        draw(root || VIEW.lastRoot, p);
+        ZS.toast('"' + made.name + '" added — change anything you like');
+      });
+    }
+    paint();
+  }
+
+  /* what the other parts use from this one */
+  SEC.FAMILIES = FAMILIES;
+  SEC.TEMPLATES = TEMPLATES;
+  SEC.buildTemplate = buildTemplate;
+  SEC.heroTplIndex = heroTplIndex;
+  SEC.openTemplate = openTemplate;
+  SEC.openQuickAdd = openQuickAdd;
+  SEC.quickRange = quickRange;
+  SEC.quickBuild = quickBuild;
+  SEC.QUICK_ADD = QUICK_ADD;
+  SEC.openFeatured = openFeatured;
+  SEC.FEATURED = FEATURED;
+  SEC.templateCfg = templateCfg;
+  SEC.templateCount = templateCount;
+  SEC.templateWhere = templateWhere;
+  SEC.templatesHTML = templatesHTML;
+  SEC.tplIdOf = tplIdOf;
+});
