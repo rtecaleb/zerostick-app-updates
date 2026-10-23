@@ -1,0 +1,797 @@
+/* game-packs.js - the games a new config is born from (window.ZSPACKS). D115.
+ *
+ * ES5 ONLY, the same discipline as zs-profile-encode.js and zs-serial.js: no
+ * arrow function, template literal, let/const or class anywhere in this file.
+ * Promises and fetch are library, not syntax.
+ *
+ * -- What a game pack is ----------------------------------------------------
+ *
+ * The owner, 2026-09-22: every config is made from a game pack, a ready-made
+ * config for one game (its buttons, its Smart Actions, and aim and look
+ * sensitivity calibrated for that game), or from "Start from scratch" when
+ * the game is not on the list. Once made, the pack is fixed for the life of
+ * that config.
+ *
+ * A pack is ONE SMALL JSON FILE the owner can write, in game-packs/, listed
+ * in game-packs/index.json. game-packs/README.md says how to add one. This
+ * file reads them, checks them, and turns one into a config document. It
+ * never talks to the adapter; phone-sections.js does that through the same
+ * create path every config has always used.
+ *
+ * WHY FILES AND NOT A LIST IN CODE. The owner makes these. A pack he tuned by
+ * hand is saved out of the app as a file (fromConfig below), dropped in the
+ * folder and listed in the index, and tools/test-game-packs.js names every
+ * mistake in it before it ships. A list inside phone-sections.js would make
+ * every new game a code change.
+ *
+ * WHY index.json. The phone app and the exe both fetch these as plain files,
+ * and neither can list a folder over HTTP, so the index is the one place that
+ * says which packs exist and in what order the player sees them.
+ *
+ * -- What it refuses to pretend ---------------------------------------------
+ *
+ * Every pack says, for every way to play, whether its settings are
+ * calibrated. `calibrated: true` needs a `source` sentence and settings that
+ * say what was calibrated; `false` needs a `why`. The app prints which it is
+ * in the wizard, because a made-up sensitivity presented as a tuned one is
+ * exactly the lie D39 and D112 spent a week taking out of this product.
+ *
+ * -- The art ----------------------------------------------------------------
+ *
+ * A pack may name a picture in game-packs/art/ (D116, publisher artwork). The
+ * picture is only used once it has actually loaded here, so a pack whose
+ * picture has not been fetched yet, or was deleted, falls back to our own
+ * banner without ever drawing a broken image.
+ *
+ * ONE PICTURE PER SHAPE THE APP DRAWS (D121). The first version had one
+ * picture per game, Steam's wide 460 x 215 header, and every tile cropped it
+ * to fill: a square row tile or the tall HOME picture kept only the middle
+ * of a 2.14:1 banner, so Black Ops II (black in the middle, its title on the
+ * right) read as no picture at all and Warzone lost its name. So a pack now
+ * names a picture for each SHAPE: `wide` for the wide places (the Overview
+ * banner, the Configs list, the wizard's game list) and `tall` for the tall
+ * ones (HOME). `art: "x.png"` still works and means the wide one.
+ *
+ * A THIRD SHAPE, `panel` (D434). The owner, 2026-10-22: "make the UI look
+ * better with the artwork; find better artwork for the games if needed that
+ * will fit that aspect ratio". The simple settings menu's art panel is about
+ * square (365 x 300-420 on a phone) and drawn cover, so a 2:3 cover lost its
+ * title there. A panel picture is a 900 x 900 .jpg cropped from the
+ * publisher's square key art, and a pack without one falls back to its tall
+ * picture, then its wide one.
+ *
+ * artFor(config, shape) hands out the right one, falling back to the other
+ * shape when a pack lacks it. A fallback is never a crop: every slot draws
+ * its picture WHOLE, contained over a blurred copy of itself (phone.html,
+ * .art.fit), so the worst a missing shape costs is a smaller picture.
+ *
+ * NONE OF THIS REACHES AN ADAPTER (D120). A config records only
+ * gamePack {id, version}; the files, their names and this logic live in the
+ * app, on the PC and in the phone app, never on the Core.
+ */
+(function () {
+  'use strict';
+
+  var FORMAT = 1;
+  var DIR = 'game-packs/';
+  /* The pack id a config records when the player chose "Start from scratch".
+     It is how the app tells a config that CHOSE no game from one made before
+     game packs existed, which never got the chance (D115). Never a file. */
+  var SCRATCH = 'scratch';
+  /* schema.INPUT_TYPES, in the order phone.html's ZS.INPUT_TYPES holds them.
+     Written out rather than read from ZS because tools/test-game-packs.js
+     loads this file on its own; that test checks the two lists agree. */
+  var INPUTS = ['mnk', 'controller', 'stick_mouse'];
+  /* The config fields a pack may set. Everything else in a config is the
+     PLAYER'S: its id and name, the console and backend they picked, the way
+     they play, the game itself (which the pack sets from its own name), the
+     light, the photo, the device allowlist of their own rig, and the PSN
+     account Remote Play signs in as, which must never travel in a file
+     anybody can share. */
+  var CONFIG_KEYS = ['bindings', 'accessibilityActions', 'mouseTranslation',
+    'keyboardMovement', 'stick', 'deadZones', 'curves', 'smoothing',
+    'axisInvert', 'constraints', 'aiAdjustment', 'vision'];
+  var TOP_KEYS = ['zerostickGamePack', 'id', 'name', 'version', 'art', 'aimPreset',
+    'aimModel', 'aliases', 'notes', 'smartActions', 'config', 'inputs',
+    /* D394 */
+    'status', 'aiScripts', 'aimVariants',
+    /* D404: the Anti-Recoil Lab's trained spots */
+    'recoilSpots',
+    /* D425: "random" = no two magazines climb alike, so the Lab offers no
+       Automatic (nothing to trace), only the standard pull-down */
+    'recoilPattern',
+    /* D426: true = the Lab's Automatic has been set up for this game (its
+       ammo counter and fire-rate run proven); otherwise Automatic is greyed
+       and the player uses Manual */
+    'recoilAuto'];
+  /* D394: a game's STATUS, the picker's three sections. Derived from the
+     pack's own data and written down so a reader sees it:
+       ready       a measured translator AND its AI scripts (aiScripts true)
+       calibrated  a measured translator (aimModel, needsCalibration false),
+                   AI scripts not yet
+       notStarted  neither */
+  var STATUSES = ['ready', 'calibrated', 'notStarted'];
+  function statusOf(p) {
+    if (!isObj(p)) { return 'notStarted'; }
+    var measured = isObj(p.aimModel) && p.aimModel.needsCalibration === false;
+    if (measured && p.aiScripts === true) { return 'ready'; }
+    return measured ? 'calibrated' : 'notStarted';
+  }
+  var BLOCK_KEYS = ['calibrated', 'why', 'source', 'config'];
+  var ACTION_KEYS = ['template', 'enabled', 'values', 'buttons'];
+  var ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/;
+  /* .jpg for the panel pictures (D434): a 900 x 900 photo-like key art is
+     about 1 MB as a PNG and under 250 KB as a JPEG */
+  var ART_RE = /^[a-z0-9][a-z0-9._-]{0,62}\.(?:png|jpg)$/;
+  /* The picture shapes a pack may name (D121), and the shape of the slot the
+     app draws each in, as width over height. `wide` is Steam's header
+     capsule, 460 x 215, the one picture every Steam game has with its title
+     on it; a row thumbnail is drawn at exactly that shape so a header fills
+     it with nothing cut. `tall` is a portrait cover (Steam's 2:3 library
+     capsule, or the PlayStation Store's 2:3 portrait banner), for HOME's
+     picture, which is taller than it is wide on every phone. `panel` is a
+     1:1 crop of the publisher's square key art, for the simple settings
+     menu's art panel (D434), which is about square. */
+  var SHAPES = ['wide', 'tall', 'panel'];
+  var ASPECT = { wide: 460 / 215, tall: 2 / 3, square: 1, panel: 1 };
+  /* What a slot of each shape draws when the pack lacks that shape. The
+     square slot (the 42px door in the More menu) takes the portrait first:
+     contained in a square, a 2:3 cover is 28 x 42 and reads as a little
+     poster, where a 2.14:1 banner would be a 42 x 20 strip. A panel slot
+     with no panel picture takes the tall one it drew before D434. */
+  var FALLBACK = { wide: ['wide', 'tall'], tall: ['tall', 'wide'], square: ['tall', 'wide'],
+    panel: ['panel', 'tall', 'wide'] };
+  /* schema.validate's rule for a game name (control and format characters
+     refused), as near as an ES5 regular expression gets: this string
+     LATCHES, so an invisible one would lock a config to a name that displays
+     as nothing. Surrogates are left to the board: in UTF-16 every emoji is a
+     pair of them, and Python's "Cs" means only an UNPAIRED one. */
+  var UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f­؜᠎​-‏‪-‮⁠-⁤⁦-⁯﻿]/;
+
+  var S = {
+    state: 'idle',        /* idle | loading | ready | failed */
+    list: [],             /* good packs, in index order */
+    byId: {},
+    problems: [],         /* one sentence per thing that was wrong */
+    promise: null,
+    art: {},              /* pack id -> {shape: the picture's URL}, once loaded */
+    listeners: []
+  };
+
+  function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function each(list, fn) { for (var i = 0; i < list.length; i++) { fn(list[i], i); } }
+
+  /* A pack's pictures as {shape: file}, whichever way the file wrote them:
+     the old single string is the wide picture (D116's one shape). */
+  function artFiles(p) {
+    var a = p && p.art, out = {};
+    if (typeof a === 'string' && a) { out.wide = a; }
+    else if (isObj(a)) {
+      each(SHAPES, function (k) { if (typeof a[k] === 'string' && a[k]) { out[k] = a[k]; } });
+    }
+    return out;
+  }
+
+  /* ── checking a pack ─────────────────────────────────────────────── */
+
+  function blockProblems(c, where, say) {
+    if (c === undefined) { return; }
+    if (!isObj(c)) { say(where + ' must be an object of config fields.'); return; }
+    Object.keys(c).forEach(function (k) {
+      if (CONFIG_KEYS.indexOf(k) < 0) {
+        say(where + '.' + k + ' is not a field a game pack may set. A pack sets ' +
+            CONFIG_KEYS.join(', ') + '. The name, the console, the way to play, ' +
+            'the game, the light and the photo are always the player\'s.');
+      }
+    });
+  }
+
+  /* D404: ONE TRAINED SPOT of the Anti-Recoil Lab's Automatic (made by
+     Train this spot, written in by tools/add-recoil-spot.js). Like `art`, a
+     spot never goes into a config, so adding one needs no new version. */
+  var SPOTS_MAX = 8;
+  var SPOT_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+  var SPOT_PIC_RE = /^[a-z0-9][a-z0-9._-]{0,90}\.(?:png|jpg)$/;
+  var SPOT_REF_LEN = 1728;      /* a 48 x 27 grey thumbnail in base64 (zs_recoil_spot.h) */
+  var SPOT_KEYS = ['id', 'name', 'where', 'say', 'picture', 'ref', 'viewBox', 'box', 'thrLo', 'thrHi', 'minScore',
+    'tol', 'fov', 'distanceM', 'ads', 'adsMs', 'fireMaxMs', 'texture', 'trainedAt', 'source',
+    /* D408, the bullet trail: the wall the Core found (its line's
+       brightness floor, its own grey, its size at hip) and the ammo counter */
+    'wall', 'ammoBox'];
+  var SPOT_WALL_KEYS = ['lo', 'grey', 'hip'];
+  function boxOk(b) {
+    return Array.isArray(b) && b.length === 4 && b.every(function (v) { return typeof v === 'number' && isFinite(v); }) &&
+      b[0] >= 0 && b[1] >= 0 && b[2] >= 0.1 && b[3] >= 0.1 && b[0] + b[2] <= 1.0001 && b[1] + b[3] <= 1.0001;
+  }
+  function numIn(v, lo, hi) { return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi; }
+  function spotProblems(sp, at) {
+    var out = [];
+    function say(t) { out.push(at + t); }
+    if (!isObj(sp)) { say(' must be an object.'); return out; }
+    Object.keys(sp).forEach(function (k) {
+      if (SPOT_KEYS.indexOf(k) < 0) { say(' has a field this app does not know, "' + k + '".'); }
+    });
+    if (typeof sp.id !== 'string' || !SPOT_ID_RE.test(sp.id)) { say('.id must be lowercase letters, digits and dashes.'); }
+    if (typeof sp.name !== 'string' || !sp.name || sp.name.length > 64) { say('.name must be 1 to 64 characters.'); }
+    if (typeof sp.where !== 'string' || !sp.where || sp.where.length > 80) {
+      say('.where must say the map or mode, 1 to 80 characters.');
+    }
+    if (typeof sp.say !== 'string' || !sp.say || sp.say.length > 160) {
+      say('.say must be the one line players read, 1 to 160 characters.');
+    }
+    if (typeof sp.picture !== 'string' || !SPOT_PIC_RE.test(sp.picture)) {
+      say('.picture must be a .jpg or .png file in game-packs/spots/.');
+    }
+    if (typeof sp.ref !== 'string' || sp.ref.length !== SPOT_REF_LEN || !/^[A-Za-z0-9+\/]+={0,2}$/.test(sp.ref)) {
+      say('.ref must be the Core’s reference thumbnail, ' + SPOT_REF_LEN + ' characters of base64 (Train this spot makes it).');
+    }
+    if (sp.viewBox !== undefined && !boxOk(sp.viewBox)) { say('.viewBox must be [x, y, w, h], fractions inside the picture.'); }
+    if (sp.box !== undefined && !boxOk(sp.box)) { say('.box must be [x, y, w, h], fractions inside the picture.'); }
+    if (sp.thrLo !== undefined && !numIn(sp.thrLo, 6, 120)) { say('.thrLo must be 6 to 120 grey levels.'); }
+    if (sp.thrHi !== undefined && !numIn(sp.thrHi, 6, 120)) { say('.thrHi must be 6 to 120 grey levels.'); }
+    if (numIn(sp.thrLo, 6, 120) && numIn(sp.thrHi, 6, 120) && sp.thrLo > sp.thrHi) { say('.thrLo must not be over .thrHi.'); }
+    if (sp.minScore !== undefined && !numIn(sp.minScore, 0.3, 0.98)) { say('.minScore must be 0.3 to 0.98.'); }
+    if (sp.tol !== undefined && !numIn(sp.tol, 0.01, 0.2)) { say('.tol must be 0.01 to 0.2.'); }
+    if (!isObj(sp.fov) || !numIn(sp.fov.hip, 20, 170) || !numIn(sp.fov.ads, 20, 170)) {
+      say('.fov must be {"hip": degrees, "ads": degrees}, the field of view at this spot.');
+    }
+    if (sp.distanceM !== undefined && !numIn(sp.distanceM, 1, 100)) { say('.distanceM must be 1 to 100 metres.'); }
+    if (sp.ads !== undefined && typeof sp.ads !== 'boolean') { say('.ads must be true or false.'); }
+    if (sp.adsMs !== undefined && !numIn(sp.adsMs, 0, 2000)) { say('.adsMs must be 0 to 2000.'); }
+    if (sp.fireMaxMs !== undefined && !numIn(sp.fireMaxMs, 1000, 20000)) { say('.fireMaxMs must be 1000 to 20000.'); }
+    if (sp.texture !== undefined && !numIn(sp.texture, 0, 128)) { say('.texture must be a number.'); }
+    if (sp.wall !== undefined) {
+      if (!isObj(sp.wall)) { say('.wall must be {"lo": grey, "grey": grey, "hip": [w, h]}.'); }
+      else {
+        Object.keys(sp.wall).forEach(function (k) {
+          if (SPOT_WALL_KEYS.indexOf(k) < 0) { say('.wall has a field this app does not know, "' + k + '".'); }
+        });
+        if (sp.wall.lo !== undefined && !numIn(sp.wall.lo, 20, 250)) { say('.wall.lo must be 20 to 250 grey levels.'); }
+        if (sp.wall.grey !== undefined && !numIn(sp.wall.grey, 0, 255)) { say('.wall.grey must be 0 to 255.'); }
+        if (sp.wall.hip !== undefined && !(Array.isArray(sp.wall.hip) && sp.wall.hip.length === 2 &&
+            numIn(sp.wall.hip[0], 0.01, 1) && numIn(sp.wall.hip[1], 0.01, 1))) {
+          say('.wall.hip must be [w, h], the wall’s size at hip in fractions of the picture.');
+        }
+      }
+    }
+    if (sp.ammoBox !== undefined && !(Array.isArray(sp.ammoBox) && sp.ammoBox.length === 4 &&
+        sp.ammoBox.every(function (v) { return typeof v === 'number' && isFinite(v); }) &&
+        sp.ammoBox[0] >= 0 && sp.ammoBox[1] >= 0 && sp.ammoBox[2] > 0.005 && sp.ammoBox[3] > 0.005 &&
+        sp.ammoBox[0] + sp.ammoBox[2] <= 1.0001 && sp.ammoBox[1] + sp.ammoBox[3] <= 1.0001)) {
+      say('.ammoBox must be [x, y, w, h], where the ammo counter is, fractions inside the picture.');
+    }
+    if (typeof sp.trainedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sp.trainedAt)) {
+      say('.trainedAt must be the date it was trained, YYYY-MM-DD.');
+    }
+    if (typeof sp.source !== 'string' || !sp.source.replace(/\s+/g, '')) {
+      say('.source must say how it was trained (real frames from a Core).');
+    }
+    return out;
+  }
+
+  /* Every sentence is written for the owner, who is the one reading it: it
+     names the file, the field and what to do. `file` is the name the index
+     gave, without .json. */
+  function validate(p, file) {
+    var out = [];
+    var where = DIR + (file || (p && p.id) || '?') + '.json';
+    function say(t) { out.push(where + ': ' + t); }
+
+    if (!isObj(p)) { say('is not a JSON object.'); return out; }
+    Object.keys(p).forEach(function (k) {
+      if (TOP_KEYS.indexOf(k) < 0) {
+        say('has a field this app does not know, "' + k + '". Check its spelling ' +
+            'against game-packs/README.md.');
+      }
+    });
+    if (p.zerostickGamePack !== FORMAT) {
+      say('says zerostickGamePack ' + JSON.stringify(p.zerostickGamePack) +
+          '; this app reads format ' + FORMAT + '.');
+    }
+    if (typeof p.id !== 'string' || !ID_RE.test(p.id) || p.id === SCRATCH) {
+      say('id must be lowercase letters, digits and dashes, at most 48, and not "' +
+          SCRATCH + '".');
+    } else if (file && p.id !== file) {
+      say('id is "' + p.id + '" but the file is "' + file + '.json". They must match.');
+    }
+    if (typeof p.name !== 'string' || !p.name || p.name.length > 64 ||
+        p.name !== p.name.replace(/^\s+|\s+$/g, '') || UNPRINTABLE.test(p.name)) {
+      say('name must be 1 to 64 printable characters with no space at either ' +
+          'end. It becomes the config\'s game, locked for life.');
+    }
+    if (typeof p.version !== 'number' || p.version < 1 || Math.floor(p.version) !== p.version) {
+      say('version must be a whole number, 1 or more. Add 1 every time you change the pack.');
+    }
+    if (p.art !== undefined && p.art !== null) {
+      if (typeof p.art === 'string') {
+        if (!ART_RE.test(p.art)) { say('art must be null, a .png or .jpg file in game-packs/art/, or one per shape.'); }
+      } else if (isObj(p.art)) {
+        var shapes = Object.keys(p.art);
+        if (!shapes.length) { say('art names no picture. Use null for our own banner.'); }
+        each(shapes, function (k) {
+          if (SHAPES.indexOf(k) < 0) {
+            say('art.' + k + ' is not a picture shape this app draws (' + SHAPES.join(', ') + ').');
+          } else if (typeof p.art[k] !== 'string' || !ART_RE.test(p.art[k])) {
+            say('art.' + k + ' must be the name of a .png or .jpg file in game-packs/art/.');
+          }
+        });
+      } else {
+        say('art must be null, a .png or .jpg file in game-packs/art/, or {"wide": ..., "tall": ..., "panel": ...}.');
+      }
+    }
+    if (p.aimPreset !== undefined && p.aimPreset !== null &&
+        (typeof p.aimPreset !== 'string' || !p.aimPreset)) {
+      say('aimPreset must be null, or the id of a Match Your Game row.');
+    }
+    /* D164: the game's aim model (zs-aim-model.js, docs/AIM-MODEL.md). A pack
+       with a broken model is left out whole, like any other broken field:
+       half a translator is worse than the generic one. */
+    if (p.aimModel !== undefined && p.aimModel !== null) {
+      if (!window.ZSAIMMODEL) {
+        say('has an aimModel but zs-aim-model.js did not load.');
+      } else {
+        each(window.ZSAIMMODEL.validate(p.aimModel, 'aimModel'), say);
+        if (isObj(p.aimModel) && p.aimModel.id !== p.id) {
+          say('aimModel.id must be the pack’s own id, "' + p.id + '".');
+        }
+      }
+    }
+    /* D394: the status, the AI scripts flag and the translator variants */
+    if (p.aiScripts !== undefined && typeof p.aiScripts !== 'boolean') {
+      say('aiScripts must be true or false: are this game’s AI scripts done?');
+    }
+    if (p.status !== undefined) {
+      if (STATUSES.indexOf(p.status) < 0) {
+        say('status must be one of ' + STATUSES.join(', ') + '.');
+      } else if (p.status !== statusOf(p)) {
+        say('status says "' + p.status + '" but the pack’s data says "' + statusOf(p) +
+            '" (ready = a measured aimModel and aiScripts true; calibrated = a measured aimModel; else notStarted).');
+      }
+    }
+    if (p.aimVariants !== undefined) {
+      if (!Array.isArray(p.aimVariants) || p.aimVariants.length < 2 || p.aimVariants.length > 8) {
+        say('aimVariants must be a list of 2 to 8 {key, label, setting, aimModel}, one per in-game curve option.');
+      } else {
+        var keys = {}, hasDefault = false;
+        each(p.aimVariants, function (v, i) {
+          var at = 'aimVariants[' + i + ']';
+          if (!isObj(v) || typeof v.key !== 'string' || !/^[a-z0-9-]{1,32}$/.test(v.key) || keys[v.key]) {
+            say(at + '.key must be a unique lowercase word.'); return;
+          }
+          keys[v.key] = true;
+          if (typeof v.label !== 'string' || !v.label) { say(at + '.label must name the in-game option.'); }
+          if (v.setting !== null && v.setting !== undefined && typeof v.setting !== 'string') {
+            say(at + '.setting must be null or the in-game setting’s name.');
+          }
+          if (!window.ZSAIMMODEL) { return; }
+          each(window.ZSAIMMODEL.validate(v.aimModel, at + '.aimModel'), say);
+          if (isObj(v.aimModel) && v.aimModel.id !== p.id) {
+            say(at + '.aimModel.id must be the pack’s own id, "' + p.id + '".');
+          }
+          if (JSON.stringify(v.aimModel) === JSON.stringify(p.aimModel)) { hasDefault = true; }
+        });
+        if (!hasDefault) { say('aimModel must be one of aimVariants (the default variant).'); }
+      }
+    }
+    /* An alias is another name a player may have typed for the game before
+       game packs, matched the way names are (norm: case and punctuation do
+       not count). One that is nothing but punctuation would match nothing,
+       and one as long as a name must follow a name's rules. */
+    if (p.aliases !== undefined &&
+        (!Array.isArray(p.aliases) || p.aliases.some(function (a) {
+          return typeof a !== 'string' || !norm(a) || a.length > 64 || UNPRINTABLE.test(a);
+        }))) {
+      say('aliases must be a list of other names for the game, each 1 to 64 printable ' +
+          'characters with at least one letter or digit.');
+    }
+    if (p.notes !== undefined && typeof p.notes !== 'string') {
+      say('notes must be text.');
+    }
+    if (p.smartActions !== undefined) {
+      if (!Array.isArray(p.smartActions)) {
+        say('smartActions must be a list.');
+      } else {
+        each(p.smartActions, function (r, i) {
+          var at = 'smartActions[' + i + ']';
+          if (!isObj(r) || typeof r.template !== 'string' || !r.template) {
+            say(at + ' needs a "template": the id of a Ready-made Script.');
+            return;
+          }
+          Object.keys(r).forEach(function (k) {
+            if (ACTION_KEYS.indexOf(k) < 0) { say(at + ' has a field this app does not know, "' + k + '".'); }
+          });
+          if (r.enabled !== undefined && typeof r.enabled !== 'boolean') { say(at + '.enabled must be true or false.'); }
+          if (r.values !== undefined && (!Array.isArray(r.values) ||
+              r.values.some(function (v) { return typeof v !== 'number' || !isFinite(v); }))) {
+            say(at + '.values must be a list of numbers, one per slider, in order.');
+          }
+          if (r.buttons !== undefined && (!Array.isArray(r.buttons) ||
+              r.buttons.some(function (v) { return typeof v !== 'string' || !v; }))) {
+            say(at + '.buttons must be a list of control names.');
+          }
+        });
+      }
+    }
+    /* D426 */
+    if (p.recoilAuto !== undefined && typeof p.recoilAuto !== 'boolean') {
+      say('recoilAuto must be true or false: has the Lab\'s Automatic been set up for this game?');
+    }
+    /* D425 */
+    if (p.recoilPattern !== undefined && p.recoilPattern !== 'pattern' && p.recoilPattern !== 'random') {
+      say('recoilPattern must be "pattern" or "random".');
+    }
+    /* D404 */
+    if (p.recoilSpots !== undefined) {
+      if (!Array.isArray(p.recoilSpots) || p.recoilSpots.length > SPOTS_MAX) {
+        say('recoilSpots must be a list of at most ' + SPOTS_MAX + ' trained spots.');
+      } else {
+        var seen = {};
+        each(p.recoilSpots, function (sp, i) {
+          each(spotProblems(sp, 'recoilSpots[' + i + ']'), say);
+          if (isObj(sp) && typeof sp.id === 'string') {
+            if (seen[sp.id]) { say('recoilSpots[' + i + '].id "' + sp.id + '" is used twice.'); }
+            seen[sp.id] = true;
+          }
+        });
+      }
+    }
+    blockProblems(p.config, 'config', say);
+    if (!isObj(p.inputs)) {
+      say('inputs must hold one block for each way to play: ' + INPUTS.join(', ') + '.');
+    } else {
+      each(INPUTS, function (k) {
+        var b = p.inputs[k], at = 'inputs.' + k;
+        if (!isObj(b)) {
+          say(at + ' is missing. Every pack says, for every way to play, whether its ' +
+              'settings are calibrated.');
+          return;
+        }
+        Object.keys(b).forEach(function (f) {
+          if (BLOCK_KEYS.indexOf(f) < 0) { say(at + ' has a field this app does not know, "' + f + '".'); }
+        });
+        if (typeof b.calibrated !== 'boolean') {
+          say(at + '.calibrated must be true or false.');
+        } else if (b.calibrated) {
+          if (typeof b.source !== 'string' || !b.source.replace(/\s+/g, '')) {
+            say(at + ' says calibrated, so it needs a "source" sentence: who measured it, how, and when.');
+          }
+          if (!isObj(b.config) || !Object.keys(b.config).length) {
+            say(at + ' says calibrated but sets nothing. A calibrated block carries the settings it calibrated.');
+          }
+        } else if (typeof b.why !== 'string' || !b.why.replace(/\s+/g, '')) {
+          say(at + ' is not calibrated, so it needs a "why" sentence saying so.');
+        }
+        blockProblems(b.config, at + '.config', say);
+      });
+      Object.keys(p.inputs).forEach(function (k) {
+        if (INPUTS.indexOf(k) < 0) {
+          say('inputs.' + k + ' is not a way to play this app knows (' + INPUTS.join(', ') + ').');
+        }
+      });
+    }
+    return out;
+  }
+
+  /* ── loading ─────────────────────────────────────────────────────── */
+
+  function notify(kind) {
+    each(S.listeners.slice(), function (fn) {
+      try { fn(kind); } catch (e) { /* a listener's failure is its own */ }
+    });
+  }
+  /* Returns the way to stop listening, so a screen that comes and goes (the
+     wizard's game list) does not leave a listener behind every time. */
+  function onChange(fn) {
+    if (typeof fn !== 'function') { return function () {}; }
+    S.listeners.push(fn);
+    return function () {
+      var i = S.listeners.indexOf(fn);
+      if (i >= 0) { S.listeners.splice(i, 1); }
+    };
+  }
+
+  function fetchJSON(url) {
+    return window.fetch(url, { cache: 'no-cache' }).then(function (r) {
+      if (!r || !r.ok) { throw new Error(r && r.status ? 'it answered ' + r.status : 'no answer'); }
+      return r.json();
+    });
+  }
+
+  /* Once per page. A pack that fails its check is LEFT OUT and its sentences
+     go to the console and to problems(): one bad file must not take the other
+     games off the list, and tools/test-game-packs.js is where a bad file is
+     a failure. */
+  function load() {
+    if (S.promise) { return S.promise; }
+    if (typeof window.fetch !== 'function') {
+      S.state = 'failed';
+      S.problems.push('this app cannot fetch files here, so it has no game packs');
+      S.promise = Promise.resolve(false);
+      return S.promise;
+    }
+    S.state = 'loading';
+    S.promise = fetchJSON(DIR + 'index.json').then(function (ix) {
+      if (!isObj(ix) || !Array.isArray(ix.packs)) {
+        throw new Error('game-packs/index.json has no "packs" list');
+      }
+      return Promise.all(ix.packs.map(function (id) {
+        return fetchJSON(DIR + encodeURIComponent(String(id)) + '.json').then(
+          function (p) { return { id: String(id), p: p }; },
+          function (e) { return { id: String(id), err: e }; });
+      }));
+    }).then(function (rows) {
+      var names = {};
+      each(rows, function (row) {
+        if (row.err) {
+          S.problems.push(DIR + row.id + '.json could not be read: ' + row.err.message);
+          return;
+        }
+        var probs = validate(row.p, row.id);
+        if (!probs.length && has(S.byId, row.p.id)) {
+          probs.push(DIR + 'index.json lists "' + row.p.id + '" twice.');
+        }
+        if (!probs.length && names[norm(row.p.name)]) {
+          probs.push(DIR + row.id + '.json: another pack is already called "' + row.p.name + '".');
+        }
+        if (probs.length) { S.problems = S.problems.concat(probs); return; }
+        names[norm(row.p.name)] = 1;
+        S.byId[row.p.id] = row.p;
+        S.list.push(row.p);
+      });
+      S.state = 'ready';
+      if (S.problems.length && window.console && console.warn) {
+        console.warn('game packs left out:\n  ' + S.problems.join('\n  '));
+      }
+      probeArt();
+      notify('packs');
+      return true;
+    }).catch(function (e) {
+      S.state = 'failed';
+      S.problems.push('the game list could not be read: ' + (e && e.message ? e.message : e));
+      notify('packs');
+      return false;
+    });
+    return S.promise;
+  }
+
+  /* A picture counts only once it has LOADED. The folder is meant to be easy
+     to empty (D116), and the app must not answer that with a broken image.
+     Each shape is its own file and loads on its own, so a pack whose tall
+     picture has not been fetched yet still shows its wide one everywhere. */
+  function probeArt() {
+    if (typeof window.Image !== 'function') { return; }
+    each(S.list, function (p) {
+      var files = artFiles(p);
+      each(SHAPES, function (shape) {
+        if (!files[shape]) { return; }
+        var url = DIR + 'art/' + files[shape];
+        var im = new window.Image();
+        im.onload = function () {
+          if (!has(S.art, p.id)) { S.art[p.id] = {}; }
+          S.art[p.id][shape] = url;
+          notify('art');
+        };
+        im.onerror = function () { /* not fetched yet, or removed: the other shape, or our own banner */ };
+        im.src = url;
+      });
+    });
+  }
+
+  /* ── asking about a config ───────────────────────────────────────── */
+
+  /* The pack id a config (the full document, or the app's small object)
+     records, or ''. */
+  function packIdOf(x) {
+    if (!x) { return ''; }
+    if (typeof x.pack === 'string' && x.pack) { return x.pack; }
+    var gp = x.gamePack;
+    return (isObj(gp) && typeof gp.id === 'string') ? gp.id : '';
+  }
+  function forGame(name) {
+    var k = norm(name), i, j, p;
+    if (!k) { return null; }
+    for (i = 0; i < S.list.length; i++) {
+      p = S.list[i];
+      if (norm(p.name) === k) { return p; }
+      for (j = 0; p.aliases && j < p.aliases.length; j++) {
+        if (norm(p.aliases[j]) === k) { return p; }
+      }
+    }
+    return null;
+  }
+  /* The pack a config came from. A config made before game packs has no
+     record of one, so its locked game name is matched against the pack names
+     and their aliases instead ("Black Ops 2" is the BO2 pack's alias, never
+     its name). That match is COSMETIC (it only chooses a picture and a
+     preset to preselect); the lock itself is the board's, on the name. */
+  function ofConfig(x) {
+    var id = packIdOf(x);
+    if (id === SCRATCH) { return null; }
+    if (id && has(S.byId, id)) { return S.byId[id]; }
+    return forGame(x && x.game);
+  }
+  function isScratch(x) { return packIdOf(x) === SCRATCH; }
+  /* D406: an NBA 2K config (pack id nba-2k26, or any nba-2k* pack), from
+     the pack it records, else its game name matched like ofConfig (and,
+     before the pack list has loaded, the name itself: "NBA 2K26"). These
+     configs get Auto green and never the gun reader's screens. */
+  var NBA_RE = /^nba-2k/;
+  function isNba2k(x) {
+    if (!x) { return false; }
+    var id = packIdOf(x);
+    if (id) { return NBA_RE.test(id); }
+    var p = forGame(x.game);
+    if (p) { return NBA_RE.test(String(p.id || '')); }
+    return /^nba2k/.test(norm(x.game));
+  }
+  /* D406: the autoGreen block an NBA 2K config is made with (the contract,
+     section 1): off, every choice at its default. Its PRESENCE tells the
+     Core "this is a 2K config", so the Core keeps the gun reader off for it.
+     The advanced numbers (leadC, holdMs, box, colour...) are left out: the
+     encoder writes the Core's own defaults for anything absent. */
+  function autoGreenDefaults() {
+    return { enabled: false, nudgeMs: 0, strategy: 'auto', learnFromMeter: false,
+      blindPress: false, delayMs: 0, button: 'west' };
+  }
+  /* A pack's loaded picture for a slot of this shape (wide, tall or
+     square), through FALLBACK, or '' when none of its pictures has loaded. */
+  function artOfPack(id, shape) {
+    var got = has(S.art, id) ? S.art[id] : null;
+    var order = FALLBACK[shape] || FALLBACK.wide, i;
+    for (i = 0; got && i < order.length; i++) {
+      if (got[order[i]]) { return got[order[i]]; }
+    }
+    return '';
+  }
+  /* A config's picture for a slot of this shape. No shape is the wide one,
+     which is what the single-picture artFor(config) always meant. */
+  function artFor(x, shape) {
+    var p = ofConfig(x);
+    return p ? artOfPack(p.id, shape || 'wide') : '';
+  }
+
+  /* ── making a config from a pack ─────────────────────────────────── */
+
+  /* Objects merge, everything else (lists included) replaces. A pack's
+     `bindings` is the whole binding list, never a few rows spliced into
+     somebody else's. */
+  function merge(dst, src) {
+    if (!isObj(src)) { return dst; }
+    Object.keys(src).forEach(function (k) {
+      if (isObj(src[k]) && isObj(dst[k])) { merge(dst[k], src[k]); }
+      else { dst[k] = clone(src[k]); }
+    });
+    return dst;
+  }
+
+  /* Turn `doc` (the new config, already a copy of the template with its
+     name, console and way to play set) into the config this pack makes.
+     `pack` null is Start from scratch. `makeActions(doc, refs)` builds the
+     Ready-made Smart Actions (smart-actions.js owns them) and answers
+     {actions, problems}. Returns what the wizard tells the player. */
+  function build(doc, pack, input, makeActions) {
+    var out = { calibrated: false, said: '', actions: 0, problems: [] };
+    delete doc.gamePack;
+    if (!pack) {
+      doc.game = '';
+      doc.gamePack = { id: SCRATCH };
+      return out;
+    }
+    doc.game = pack.name;
+    merge(doc, pack.config);
+    var blk = (isObj(pack.inputs) && isObj(pack.inputs[input])) ? pack.inputs[input] : null;
+    if (blk) { merge(doc, blk.config); }
+    var own = !!(blk && isObj(blk.config) && Array.isArray(blk.config.accessibilityActions));
+    if (!own && makeActions && pack.smartActions && pack.smartActions.length) {
+      var made = makeActions(doc, pack.smartActions) || {};
+      var acts = Array.isArray(made.actions) ? made.actions : [];
+      doc.accessibilityActions =
+        (Array.isArray(doc.accessibilityActions) ? doc.accessibilityActions : []).concat(acts);
+      out.actions = acts.length;
+      out.problems = Array.isArray(made.problems) ? made.problems : [];
+    }
+    doc.gamePack = { id: pack.id, version: pack.version };
+    /* D406: a 2K config is born with its Auto green block (off) */
+    if (NBA_RE.test(String(pack.id || '')) && !isObj(doc.autoGreen)) { doc.autoGreen = autoGreenDefaults(); }
+    out.calibrated = !!(blk && blk.calibrated === true);
+    out.said = blk ? String((blk.calibrated ? blk.source : blk.why) || '') : '';
+    return out;
+  }
+
+  /* ── making a pack from a config ─────────────────────────────────── */
+
+  function slug(s) {
+    var t = String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '').slice(0, 48).replace(/-+$/g, '');
+    return (t && t !== SCRATCH) ? t : 'my-game';
+  }
+
+  /* "Save this config as a game pack" (Global Settings > Developer). The
+     config's own settings become the block for the way it is played; the
+     other two blocks are kept from the pack it came from, when it came from
+     one, so saving the controller tuning never wipes the mouse tuning. A
+     config made from a pack keeps that pack's id and takes the next version,
+     because a pack id is for ever.
+
+     The Smart Actions go in VERBATIM, inside the block, and not as template
+     references: sliders the owner moved are baked into their steps and
+     cannot be read back as slider values. Listing them in the block is also
+     what stops the pack's own smartActions being added a second time on top
+     (see build()).
+
+     Calibrated is the OWNER'S claim, never this function's: meta.calibrated
+     with meta.source, or the block says it is not. */
+  function fromConfig(doc, meta) {
+    meta = meta || {};
+    var input = INPUTS.indexOf(doc && doc.inputType) >= 0 ? doc.inputType : INPUTS[0];
+    var base = isObj(meta.base) ? clone(meta.base) : null;
+    var when = meta.when || new Date().toISOString().slice(0, 10);
+    var name = String(meta.name || (base && base.name) || doc.game || doc.name || 'My game')
+      .replace(/^\s+|\s+$/g, '').slice(0, 64);
+    var pack = {
+      zerostickGamePack: FORMAT,
+      id: base ? base.id : slug(meta.id || name),
+      name: name,
+      version: base ? (Number(base.version) || 0) + 1 : 1,
+      art: base ? (clone(base.art) || null) : null,
+      aimPreset: meta.aimPreset !== undefined ? (meta.aimPreset || null)
+        : (base ? (base.aimPreset || null) : null),
+      notes: base && typeof base.notes === 'string' ? base.notes
+        : 'Saved from the app on ' + when + '.',
+      smartActions: base && Array.isArray(base.smartActions) ? base.smartActions : [],
+      config: base && isObj(base.config) ? base.config : {},
+      inputs: base && isObj(base.inputs) ? base.inputs : {}
+    };
+    /* the pack's other names travel with it: saving the NBA 2K26 pack again
+       must not forget that "2K26" is what older configs called it (D121) */
+    if (base && Array.isArray(base.aliases) && base.aliases.length) { pack.aliases = clone(base.aliases); }
+    var cfg = {};
+    each(CONFIG_KEYS, function (k) { if (doc && doc[k] !== undefined) { cfg[k] = clone(doc[k]); } });
+    if (!Array.isArray(cfg.accessibilityActions)) { cfg.accessibilityActions = []; }
+    pack.inputs[input] = meta.calibrated
+      ? { calibrated: true, source: String(meta.source || ''), config: cfg }
+      : { calibrated: false,
+          why: 'Saved from the config "' + String(doc.name || doc.id || '') + '" on ' + when +
+               '. Not marked calibrated: set calibrated to true and write a source sentence ' +
+               'once these settings have been checked in the game.',
+          config: cfg };
+    each(INPUTS, function (k) {
+      if (!isObj(pack.inputs[k])) {
+        pack.inputs[k] = { calibrated: false,
+          why: 'Nothing saved for this way to play yet: the neutral settings every new config gets.',
+          config: {} };
+      }
+    });
+    return pack;
+  }
+
+  window.ZSPACKS = {
+    FORMAT: FORMAT, SCRATCH: SCRATCH, INPUTS: INPUTS, CONFIG_KEYS: CONFIG_KEYS,
+    SHAPES: SHAPES, ASPECT: ASPECT, FALLBACK: FALLBACK,
+    load: load,
+    state: function () { return S.state; },
+    list: function () { return S.list.slice(); },
+    get: function (id) { return has(S.byId, id) ? S.byId[id] : null; },
+    problems: function () { return S.problems.slice(); },
+    /* fn(kind): 'packs' once the list has loaded (or failed), 'art' each
+       time a picture turns out to be there. Returns the way to stop. */
+    onChange: onChange,
+    validate: validate,
+    /* D404 */
+    validateSpot: function (sp) { return spotProblems(sp, 'spot'); }, SPOT_REF_LEN: SPOT_REF_LEN,
+    /* D394 */
+    STATUSES: STATUSES.slice(), statusOf: statusOf,
+    /* the same normalising every name match uses, for the Configs search */
+    norm: norm,
+    packIdOf: packIdOf, ofConfig: ofConfig, forGame: forGame,
+    isScratch: isScratch, isNba2k: isNba2k, autoGreenDefaults: autoGreenDefaults, artFor: artFor, artOfPack: artOfPack, artFiles: artFiles,
+    build: build, merge: merge, fromConfig: fromConfig,
+    toText: function (pack) { return JSON.stringify(pack, null, 2) + '\n'; }
+  };
+
+  /* Start now: by the time anybody reaches ＋ New config, the list is here. */
+  load();
+})();
