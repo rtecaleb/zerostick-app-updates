@@ -1,0 +1,520 @@
+/* studio-room.js - the config editor's "EXO Studio" room (D215): the
+ * editor's `studio` screen, window.ZSSTUDIO.
+ *
+ * EXO Studio (studio/, D211) is the PC app for computer-vision scripts. This
+ * room is the app's side of it: what EXO Studio is doing on this Core, and on
+ * the PC exe a way to open it. It shows, from top to bottom:
+ *
+ *   1. D345 (owner, 2026-10-14: "needs to be more obvious, like THIS IS
+ *      ADVANCED FOR USERS WITH A GOOD PC"): the ADVANCED banner, a card with
+ *      a strong title ("Advanced: needs a good PC"), one line saying what
+ *      Studio is and what it needs (studio/docs/USER-GUIDE.md "What you
+ *      need": Windows 10 or 11 and the Core's USB-C cable; NO capture card:
+ *      the EXO has one built in (owner, 2026-10-14); no
+ *      PC numbers are written anywhere, so none are said), the longer
+ *      explanation behind a purple "?" (helpHTML), and "Learn about EXO
+ *      Studio": the website's page (LEARN_URL) in the system browser. On a
+ *      phone (Capacitor or a browser) that is window.open(_blank), which
+ *      Capacitor hands to the system browser; on the PC exe it is POST
+ *      /zs/studio/learn, so the PC's default browser opens it (src/studio.js),
+ *      window.open if that fails. Inside EXO Studio (ZSHOST) the banner is
+ *      not drawn: the person is already in it.
+ *   2. THE EXO STUDIO SWITCH (drawn by core-modes.js, ZSMODES, which it
+ *      shares with Legacy Devices' GPC script device switch: the two are
+ *      exclusive, and turning one on while the other is on first asks),
+ *      device-wide (not per config), OFF by default
+ *      (owner rule: nothing may cost the Core memory or processing unless it
+ *      is in use). GET /studio and POST /studio {"enabled": bool} (behind the
+ *      D87 write gate) both answer {"ok":true,"data":{"enabled":bool}}, and
+ *      /status carries "studio":{"enabled":bool}. The switch paints ONLY from
+ *      the Core's answer, never from the tap (D195's rule): a tap marks it
+ *      busy, and the answer, or the refusal sentence under it, is what shows.
+ *      A Core that does not know /studio (firmware before it) gets one
+ *      sentence, "This Core's firmware doesn't have EXO Studio support yet",
+ *      and no switch.
+ *   3. ON THIS CORE, three rows:
+ *      - the CV script: a script in the playing config whose bytecode says
+ *        it reads CV data (bit 28 of the feature word, gpc/src/gpc_feat.h
+ *        GCV, the bit zs_gpc.c active_uses_gcv() reads), and whether the
+ *        Core runs it (GET /gpc/status: `active`, `state`, the slot names).
+ *        Start and Stop are POST /gpc/slot {slot: n} and {slot: 0}, the
+ *        Core's own route (D209; Studio uses the same), and the row repaints
+ *        from the Core's next /gpc/status, not from the tap.
+ *      - CV results from EXO Studio: GET /gcv/status `fresh`, `rateHz`,
+ *        `ageMs` (components/zs_gcv/zs_gcv_api.c), asked only while the
+ *        switch is on; with it off the Core answers 409 and the row says Off.
+ *      - PC controller: /status `pcInput.active` when `features` lists
+ *        "pcInput" (components/zs_api/parts/sys.c); Off while the switch is.
+ *   4. On the PC exe only (?app=1, desktop.js): "Open EXO Studio" (a
+ *      secondary key since D345) when it is installed on this PC, or one line
+ *      saying it isn't. server.js answers GET
+ *      /zs/studio and POST /zs/studio/open (src/studio.js: the uninstall
+ *      key exo_studio.iss writes, then %LOCALAPPDATA%\Programs\EXO Studio).
+ *      A phone shows the status only.
+ *
+ * Every route used here exists in the firmware or the exe; nothing is
+ * invented. The room polls only while it is on screen (every 2 s: /status
+ * and /gpc/status, plus /gcv/status while the switch is on).
+ *
+ * An EXO (the A7S) has no EXO Studio: PRODUCTS.exo.lacks names `studio`, so
+ * the door is not drawn there. The room wears Screen Assist's cyan (a Core
+ * has no Screen Assist door; computer vision is the subject of both) and
+ * its door a plain placeholder picture (brand/zs-exo-studio.svg) until the
+ * owner supplies the artwork.
+ *
+ * ES5 ONLY, like every file phone.html loads; everything into innerHTML
+ * through esc(). Tests: tools/test-studio-room.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var CSS_ID = 'zs-studio-css';
+  var POLL_MS = 2000;
+  /* D345: the banner. Every claim is from studio/README.md and
+     studio/docs/USER-GUIDE.md; "free" is the owner's 2026-10-10 word
+     (studio/legal/LAWYER-REVIEW-CHECKLIST.md: free for now, no account). */
+  var LEARN_URL = 'https://zerostickgaming.com/pages/exo-studio';
+  var ADV_TITLE = 'Advanced: needs a good PC';
+  var LEAD = 'EXO Studio is a free PC app that runs the bigger AI features for your Core: ' +
+    'computer-vision aim assist, NBA 2K auto-green and CV scripts. You need a good Windows PC; the capture is built into your EXO.';
+  var ADV_HELP = '<b>Why a PC.</b> EXO Studio watches your game’s picture through the capture built into your EXO and ' +
+    'runs the AI on your PC, not on your Core. ' +
+    'It sends what it sees to your Core over the Core’s USB-C cable, every frame. ' +
+    '<b>What you need.</b> A Windows 10 or 11 PC and your Core’s USB-C cable to the PC. No capture ' +
+    'card: your EXO has one built in. A phone can’t run it. ' +
+    '<b>What it adds.</b> Aim assist in Call of Duty and Apex Legends, auto-green in NBA 2K26, and ' +
+    'Titan Two-style CV scripts, with the tools to write and test your own. ' +
+    '<b>The switch below.</b> It lets EXO Studio drive your Core. While it’s on, your Core’s own ' +
+    'AI Scripts pause; nothing is deleted. ' +
+    '<b>Free.</b> No account and no subscription.';
+  var OLD_FW = 'This Core’s firmware doesn’t have EXO Studio support yet.';
+  /* where to get Studio, said in words: there is no public download link to
+     point at yet (D215 leaves it for the owner) */
+  var GET_IT = 'EXO Studio isn’t installed on this PC. Learn about EXO Studio says how to get it ' +
+    '(EXO-Studio-Setup installs for your Windows user, no admin needed).';
+
+  /* ═════════════════════════════════════════════════════ the state ══ */
+  /* the switch's own state (on, off, busy, its refusal, the confirm) is
+     core-modes.js's (window.ZSMODES), shared with Legacy Devices' GPC
+     script device switch: the two are exclusive (D215) */
+  var S = {
+    gpc: null,          /* GET /gpc/status `data`, or null */
+    gcv: null,          /* GET /gcv/status `data`, or null */
+    gcvErr: '',
+    slotBusy: false, slotErr: '',
+    pc: null,           /* the exe's answer about Studio on this PC: { installed } */
+    pcSay: '', pcBusy: false,
+    timer: null, gen: 0
+  };
+  var ROOT = null;
+
+  function $(id) { return document.getElementById(id); }
+  function status() { return (ZS.live && ZS.live.status) || null; }
+  function online() { return !(ZS.live && ZS.live.online === false); }
+  function onPc() {
+    var q = String((window.location && window.location.search) || '');
+    var cap = window.Capacitor;
+    var native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+    /* D335: inside EXO Studio, Studio is already open (zs-host.js) */
+    if (window.ZSHOST && window.ZSHOST.hides('studioDoor')) { return false; }
+    return /[?&]app=1/.test(q) && !/[?&]ble=1/.test(q) && !native;
+  }
+  /* the PC exe (the Edge app window), host or not */
+  function onExe() {
+    var q = String((window.location && window.location.search) || '');
+    var cap = window.Capacitor;
+    var native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+    return /[?&]app=1/.test(q) && !/[?&]ble=1/.test(q) && !native;
+  }
+  /* D345: inside EXO Studio the banner says nothing new */
+  function inStudio() { return !!(window.ZSHOST && window.ZSHOST.hides('studioDoor')); }
+  function detailOpen() {
+    var d = $('detail');
+    return !d || d.classList.contains('open');
+  }
+  function onScreen() { return !!ROOT && $('studio-room') === ROOT && detailOpen(); }
+
+  /* ═══════════════════════════════════════ what the config carries ══
+     A slot's bytecode is base64 of the compiled script; bytes 16..19 are its
+     feature word, little-endian, and bit 28 (byte 19, 0x10) says the script
+     reads CV data (gpc_feat.h GCV; zs_gpc.c active_uses_gcv). Only the
+     first 24 bytes are decoded. */
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  function head24(b64) {
+    var s = String(b64 || '').slice(0, 32), out = [], acc = 0, bits = 0, i, v;
+    for (i = 0; i < s.length; i++) {
+      v = B64.indexOf(s.charAt(i));
+      if (v < 0) { break; }
+      acc = ((acc << 6) | v) & 0xffffff;
+      bits += 6;
+      if (bits >= 8) { bits -= 8; out.push((acc >> bits) & 0xff); }
+    }
+    return out;
+  }
+  function readsCv(slot) {
+    var b = head24(slot && slot.bytecode);
+    return b.length >= 20 && b[0] === 0x5A && b[1] === 0x47 && b[2] === 0x50 && b[3] === 0x43 &&
+      (b[19] & 0x10) !== 0;
+  }
+  /* the CV scripts of the config the Core is playing: [{slot, name}] */
+  function cvSlots() {
+    var id = ZS.activeId, full = id && ZS.live && ZS.live.full ? ZS.live.full[id] : null;
+    var sl = full && full.scripts && full.scripts.slots, out = [], i;
+    if (!sl || !sl.length) { return out; }
+    for (i = 0; i < sl.length; i++) {
+      if (sl[i] && readsCv(sl[i])) { out.push({ slot: Number(sl[i].slot), name: String(sl[i].name || '') }); }
+    }
+    return out;
+  }
+
+  /* ═══════════════════════════════════════════════════════ the CSS ══ */
+  function injectCss() {
+    if ($(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '#studio-room [hidden]{display:none!important}',
+      /* D345: the Advanced banner: a card with the room's cyan rail, a strong title */
+      '#studio-room .st-adv{background:var(--panel);border:1px solid var(--line);',
+      'border-left:3px solid var(--tint-vision,#5ccfd6);border-radius:var(--r-card,14px);padding:12px 14px;margin:4px 0 16px}',
+      '#studio-room .st-adv-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}',
+      '#studio-room .st-adv-top .qhrow{margin:0}',
+      '#studio-room .st-adv-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:var(--tr-label,.085em);',
+      'text-transform:uppercase;color:var(--tint-vision,#5ccfd6);border:1px solid currentColor;border-radius:999px;',
+      'padding:2px 8px;line-height:1.4}',
+      '#studio-room .st-adv-title{font-size:19px;font-weight:700;letter-spacing:var(--tr-title,-.016em);',
+      'line-height:var(--lh-title,1.24);color:var(--text);margin:0 0 6px}',
+      '#studio-room .st-adv-line{color:var(--zs-ink-2,var(--text));font-size:13.5px;line-height:1.5;margin:0 0 12px}',
+      '#studio-room .st-adv .qhfold{margin:0 0 12px}',
+      '#studio-room .st-adv a.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;',
+      'margin:0;text-decoration:none;box-sizing:border-box}',
+      '#studio-room .st-adv-url{color:var(--muted);font-size:12px;letter-spacing:var(--tr-caption,.004em);',
+      'text-align:center;margin:6px 0 0;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}',
+      '#studio-room .st-say{font-size:13.5px;line-height:1.5;margin:0 2px 12px}',
+      '#studio-room .st-err{color:var(--st-warn,var(--amber));font-size:13px;line-height:1.45;margin:8px 0 0}',
+      '#studio-room .st-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card,14px);',
+      'padding:12px 14px;margin:0 0 14px}',
+      '#studio-room .st-h{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;',
+      'color:var(--muted);margin:0 2px 8px}',
+      '#studio-room .st-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}',
+      '#studio-room .st-row:first-of-type{border-top:0}',
+      '#studio-room .st-row .t{flex:1;min-width:0}',
+      '#studio-room .st-row .k{font-size:13px;color:var(--muted)}',
+      '#studio-room .st-row .v{font-size:15px;color:var(--text);font-weight:600;overflow-wrap:anywhere}',
+      '#studio-room .st-row .v.off{color:var(--muted);font-weight:500}',
+      '#studio-room .st-row .btn{flex:0 0 auto;width:auto;min-height:44px;min-width:84px;margin:0;padding:0 16px}',
+      '#studio-room .st-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;',
+      'vertical-align:1px;background:var(--muted)}',
+      '#studio-room .st-dot.ok{background:var(--st-ok,var(--green))}',
+      '#studio-room .st-dot.warn{background:var(--st-warn,var(--amber))}',
+      '#studio-room .st-pc{margin:0 0 14px}',
+      '#studio-room .st-pc .btn{width:100%;min-height:48px;margin:0}',
+      '#studio-room .st-pc p{color:var(--muted);font-size:13px;line-height:1.5;margin:0}',
+      '#studio-room .st-pc p + .btn,#studio-room .st-pc .btn + p{margin-top:10px}'
+    ].join('')));
+    (document.head || document.body).appendChild(s);
+  }
+
+  /* ═══════════════════════════════════════════════════ the reading ══ */
+  function api(path, method, body) {
+    return ZS.api(path, method, body).then(function (j) { return j || { ok: false }; },
+      function () { return { ok: false, error: 'The Core did not answer.' }; });
+  }
+  function M() { return window.ZSMODES || null; }
+  /* the EXO Studio switch as the Core last said it: { known, enabled } */
+  function mst() { return M() ? M().state().studio : { known: false, enabled: null }; }
+  function enabled() { return !!(M() && M().studioOn()); }
+  function fromStatus() { if (M()) { M().fromStatus(); } }
+  function readStudio() { return M() ? M().read('studio') : Promise.resolve(); }
+  function readGpc() {
+    return api('/gpc/status').then(function (j) {
+      S.gpc = (j && j.ok && j.data) ? j.data : null;
+    });
+  }
+  function readGcv() {
+    if (!enabled()) { S.gcv = null; S.gcvErr = ''; return Promise.resolve(); }
+    return api('/gcv/status').then(function (j) {
+      S.gcv = (j && j.ok && j.data) ? j.data : null;
+      S.gcvErr = (j && j.ok === false && j.error) ? String(j.error) : '';
+    });
+  }
+  function readStatus() {
+    return (typeof ZS.refreshStatus === 'function' ? Promise.resolve(ZS.refreshStatus()) : Promise.resolve())
+      .then(function () { fromStatus(); }, function () { fromStatus(); });
+  }
+  function readAll() {
+    var g = ++S.gen;
+    return readStudio().then(function () { return Promise.all([readGpc(), readGcv()]); })
+      .then(function () { if (g === S.gen) { paint(); } });
+  }
+  function poll() {
+    S.timer = null;
+    if (!onScreen() || document.hidden) { return; }
+    var g = ++S.gen;
+    readStatus().then(function () { return Promise.all([readGpc(), readGcv()]); })
+      .then(function () {
+        if (g === S.gen) { paint(); }
+        schedule();
+      });
+  }
+  function schedule() {
+    if (S.timer || !onScreen()) { return; }
+    S.timer = setTimeout(poll, POLL_MS);
+  }
+
+  /* ═════════════════════════════════════════════════════ the writes ══ */
+  function setSlot(n) {
+    if (S.slotBusy) { return; }
+    S.slotBusy = true;
+    S.slotErr = '';
+    paint();
+    api('/gpc/slot', 'POST', { slot: n }).then(function (j) {
+      if (!j || !j.ok) { S.slotErr = (j && j.error) ? String(j.error) : 'The Core did not answer.'; }
+      return readGpc();
+    }).then(function () { S.slotBusy = false; ++S.gen; paint(); });
+  }
+  function readPc() {
+    if (!onPc() || typeof window.fetch !== 'function') { return; }
+    window.fetch('/zs/studio').then(function (r) { return r.json(); }).then(function (j) {
+      S.pc = (j && j.ok && j.data) ? { installed: !!j.data.installed } : null;
+      paint();
+    }, function () { S.pc = null; paint(); });
+  }
+  function openStudio() {
+    if (S.pcBusy) { return; }
+    S.pcBusy = true;
+    S.pcSay = '';
+    paint();
+    window.fetch('/zs/studio/open', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ZS-App': '1' },
+      body: '{}' }).then(function (r) { return r.json(); }).then(function (j) {
+      S.pcBusy = false;
+      S.pcSay = (j && j.ok) ? 'EXO Studio is starting.' : String((j && j.error) || 'EXO Studio did not start.');
+      if (j && !j.ok && /not installed/i.test(S.pcSay)) { S.pc = { installed: false }; }
+      paint();
+    }, function () { S.pcBusy = false; S.pcSay = 'EXO Studio did not start.'; paint(); });
+  }
+
+  /* D345: the website's page in the system browser. The exe asks its own
+     server (the PC's default browser, not another Edge app window); a
+     phone or a browser opens it with window.open, never a navigation
+     (leaving the page would end the app). */
+  function winOpen() {
+    try { window.open(LEARN_URL, '_blank', 'noopener'); } catch (e) { /* the address is shown under the key */ }
+  }
+  function openLearn() {
+    if (onExe() && typeof window.fetch === 'function') {
+      window.fetch('/zs/studio/learn', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ZS-App': '1' },
+        body: '{}' }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) { winOpen(); }
+      }, winOpen);
+      return;
+    }
+    winOpen();
+  }
+
+  /* ═══════════════════════════════════════════════════ the drawing ══ */
+  function row(k, v, off, extra, id) {
+    return '<div class="st-row"' + (id ? ' id="' + id + '"' : '') + '><div class="t"><div class="k">' + esc(k) + '</div>' +
+      '<div class="v' + (off ? ' off' : '') + '">' + v + '</div></div>' + (extra || '') + '</div>';
+  }
+  function dot(kind) { return '<span class="st-dot' + (kind ? ' ' + kind : '') + '" aria-hidden="true"></span>'; }
+  function rate(hz) {
+    var n = Number(hz);
+    if (!isFinite(n) || n <= 0) { return ''; }
+    return (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10) + ' a second';
+  }
+  function slotName(n) {
+    var s = (S.gpc && S.gpc.slots) || [], i;
+    for (i = 0; i < s.length; i++) { if (Number(s[i].slot) === n) { return String(s[i].name || ''); } }
+    return '';
+  }
+  function scriptRow() {
+    var cv = cvSlots(), g = S.gpc, i, pick = null, run = false;
+    if (!cv.length) {
+      return row('CV script', 'None in the config that is playing', true, '', 'st-script') +
+        '<p class="st-err" style="color:var(--muted);margin:0 0 4px">Send one from EXO Studio: it goes into a slot of the ' +
+        'config that is playing.</p>';
+    }
+    for (i = 0; i < cv.length && !pick; i++) {
+      if (g && Number(g.active) === cv[i].slot) { pick = cv[i]; }
+    }
+    pick = pick || cv[0];
+    run = !!(g && Number(g.active) === pick.slot && (g.running === true || g.state === 'running'));
+    var name = slotName(pick.slot) || pick.name || ('Slot ' + pick.slot);
+    /* D215 (firmware's answer): on a Core with the modes, the Studio-owned
+       script is started and stopped (/gpc/slot, /gpc/reset) while EXO
+       Studio is on; with the GPC script device on instead, this row says
+       EXO Studio is off; with both off the Core refuses the slot route.
+       A Core without the modes keeps the key. */
+    var modes = !!(M() && M().state().gpc.known === true && M().state().studio.known === true);
+    var keyOk = !modes || enabled();
+    var gpcMode = modes && !!M().state().gpc.enabled;
+    var state;
+    if (gpcMode) {
+      state = dot('') + 'EXO Studio is off';
+      run = false;
+    } else if (!g) {
+      state = 'The Core did not say whether it runs';
+    } else if (run) {
+      state = dot('ok') + 'Running' + (enabled() && S.gcv && S.gcv.fresh && rate(S.gcv.rateHz)
+        ? ' · CV ' + esc(rate(S.gcv.rateHz)) : '');
+    } else if (Number(g.active) === pick.slot && g.state === 'fault') {
+      state = dot('warn') + 'Stopped: ' + esc((g.fault && g.fault.text) || 'it hit a fault');
+    } else {
+      state = dot('') + 'Stopped';
+    }
+    var key = '';
+    if (g && keyOk) {
+      key = '<button type="button" class="btn' + (run ? '' : ' primary') + '" id="st-slot" data-slot="' + (run ? 0 : pick.slot) + '"' +
+        (S.slotBusy || !online() ? ' disabled' : '') + '>' + (run ? 'Stop' : 'Start') + '</button>';
+    }
+    return row('CV script · ' + name + ', slot ' + pick.slot, state, false, key, 'st-script') +
+      (S.slotErr ? '<p class="st-err" role="alert">' + esc(S.slotErr) + '</p>' : '');
+  }
+  function cvRow() {
+    if (!enabled()) { return row('CV results from EXO Studio', 'Off', true, '', 'st-cv'); }
+    var c = S.gcv;
+    if (!c) {
+      return row('CV results from EXO Studio', S.gcvErr ? esc(S.gcvErr) : 'Waiting for the Core', true, '', 'st-cv');
+    }
+    if (c.fresh) { return row('CV results from EXO Studio', dot('ok') + 'Arriving · ' + esc(rate(c.rateHz) || 'now'), false, '', 'st-cv'); }
+    var age = Number(c.ageMs);
+    return row('CV results from EXO Studio', dot('') + (age >= 0 && Number(c.frames) > 0
+      ? 'Not arriving (the last one ' + Math.max(1, Math.round(age / 1000)) + ' s ago)'
+      : 'Not arriving'), true, '', 'st-cv');
+  }
+  function pcRow() {
+    var st = status() || {}, f = st.features;
+    if (!enabled()) { return row('PC controller', 'Off', true, '', 'st-pcin'); }
+    if (!(f && f.indexOf && f.indexOf('pcInput') >= 0)) {
+      return row('PC controller', 'This Core’s firmware doesn’t take one', true, '', 'st-pcin');
+    }
+    var on = !!(st.pcInput && st.pcInput.active);
+    return row('PC controller', on ? dot('ok') + 'Active' : dot('') + 'Not active', !on, '', 'st-pcin');
+  }
+  function bodyHTML() {
+    if (!online()) {
+      return '<p class="st-say" id="st-say">Your Core is offline. Plug it in to see EXO Studio here.</p>';
+    }
+    var ms = mst();
+    if (ms.known === false) {
+      return '<p class="st-say" id="st-say">' + esc(OLD_FW) + '</p>';
+    }
+    if (ms.known !== true || typeof ms.enabled !== 'boolean') {
+      return '<p class="st-say" id="st-say" style="color:var(--muted)">Asking your Core…</p>';
+    }
+    return M().html('studio') +
+      '<div class="st-h">On this Core</div>' +
+      '<div class="st-card" id="st-status">' + scriptRow() + cvRow() + pcRow() + '</div>';
+  }
+  function pcHTML() {
+    if (!onPc()) { return ''; }
+    if (!S.pc) { return ''; }
+    var h = '<div class="st-pc' + (S.pc.installed ? '' : ' st-card') + '" id="st-pc">';
+    if (S.pc.installed) {
+      h += '<button type="button" class="btn" id="st-open"' + (S.pcBusy ? ' disabled' : '') + '>Open EXO Studio</button>';
+    } else {
+      h += '<p id="st-get">' + esc(GET_IT) + '</p>';
+    }
+    if (S.pcSay) { h += '<p id="st-pcsay" role="status">' + esc(S.pcSay) + '</p>'; }
+    return h + '</div>';
+  }
+  var lastBody = '', lastPc = '';
+  function paint() {
+    if (!ROOT || $('studio-room') !== ROOT) { return; }
+    var b = $('st-body'), pc = $('st-pcbox'), h = bodyHTML(), hp = pcHTML();
+    if (b && h !== lastBody) { b.innerHTML = h; lastBody = h; wireBody(b); }
+    if (pc && hp !== lastPc) { pc.innerHTML = hp; lastPc = hp; wirePc(pc); }
+  }
+  function wireBody(b) {
+    if (M()) { M().wire(b, 'studio'); }
+    var k = b.querySelector('#st-slot');
+    if (k) { k.addEventListener('click', function () { setSlot(Number(k.getAttribute('data-slot'))); }); }
+  }
+  function advHTML() {
+    if (inStudio()) { return ''; }
+    /* helpHTML is the "?" row then its fold: the "?" sits beside the tag,
+       the fold opens under the line */
+    var help = ZS.helpHTML ? ZS.helpHTML('st-adv-help', 'EXO Studio', ADV_HELP) : '';
+    var cut = help.indexOf('<div class="note qhfold"');
+    var chip = cut > 0 ? help.slice(0, cut) : help, fold = cut > 0 ? help.slice(cut) : '';
+    return '<div class="st-adv" id="st-adv" role="note" aria-labelledby="st-adv-title">' +
+      '<div class="st-adv-top"><span class="st-adv-tag">Advanced · PC</span>' + chip + '</div>' +
+      '<div class="st-adv-title" id="st-adv-title">' + esc(ADV_TITLE) + '</div>' +
+      '<p class="st-adv-line" id="st-lead">' + esc(LEAD) + '</p>' + fold +
+      '<a class="btn primary" id="st-learn" href="' + esc(LEARN_URL) + '" target="_blank" rel="noopener">' +
+        'Learn about EXO Studio</a>' +
+      '<p class="st-adv-url" id="st-learn-url">zerostickgaming.com/pages/exo-studio</p></div>';
+  }
+  function wireAdv(root) {
+    var a = root && root.querySelector('#st-learn');
+    if (a) {
+      a.addEventListener('click', function (e) {
+        if (e && e.preventDefault) { e.preventDefault(); }
+        openLearn();
+      });
+    }
+  }
+  function wirePc(pc) {
+    var o = pc.querySelector('#st-open');
+    if (o) { o.addEventListener('click', openStudio); }
+  }
+
+  function render(p) {
+    injectCss();
+    S.slotErr = ''; S.pcSay = '';
+    if (M()) { M().state().err.studio = ''; M().state().confirm = ''; }
+    lastBody = ''; lastPc = '';
+    fromStatus();
+    /* the official wordmark (owner, 2026-10-10): dark-ground and light-ground
+       versions, the theme shows one (zs-flat.css) */
+    return { html: '<div id="studio-room"><div class="st-mark" aria-hidden="true">' +
+      '<img class="st-wm st-wm-d" src="brand/zs-exo-studio-wordmark-dark.png" width="943" height="320" alt=""></div>' +
+      advHTML() +
+      '<div id="st-body"></div><div id="st-pcbox"></div></div>', after: function (body) {
+      body.setAttribute('data-tint', 'vision');
+      ROOT = body.querySelector('#studio-room');
+      wireAdv(ROOT);
+      paint();
+      if (online()) { readAll().then(schedule); }
+      readPc();
+    } };
+  }
+
+  /* the editor menu row's second line: from what /status already said */
+  function hint() {
+    var st = status(), on = null;
+    if (st && typeof st.mode === 'string') { on = st.mode === 'studio'; }
+    else if (st && st.studio && typeof st.studio.enabled === 'boolean') { on = st.studio.enabled; }
+    if (on !== null) { return on ? 'On · CV scripts from your PC' : 'Off · CV scripts from your PC'; }
+    return 'CV scripts from your PC';
+  }
+
+  /* the switch changed (here or in Legacy Devices): paint, and read the CV
+     results the moment EXO Studio is on (nothing is asked while it is off) */
+  if (M()) {
+    M().onChange(function () {
+      if (!ROOT || $('studio-room') !== ROOT) { return; }
+      paint();
+      if (enabled() && !S.gcv) { readGcv().then(paint); }
+      if (!enabled() && S.gcv) { S.gcv = null; S.gcvErr = ''; paint(); }
+    });
+  }
+
+  injectCss();
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.studio = render;
+
+  window.ZSSTUDIO = {
+    hint: hint,
+    readsCv: readsCv,
+    cvSlots: cvSlots,
+    onPc: onPc,
+    /* for the tests */
+    state: function () { return S; },
+    LEARN_URL: LEARN_URL,
+    COPY: { title: ADV_TITLE, lead: LEAD, help: ADV_HELP, old: OLD_FW, getIt: GET_IT }
+  };
+}());

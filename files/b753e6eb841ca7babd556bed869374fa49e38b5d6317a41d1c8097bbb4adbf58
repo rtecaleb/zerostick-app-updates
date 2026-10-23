@@ -1,0 +1,143 @@
+/* ds-live.js — the live DualSense picture (D238, owner 2026-10-09: "the
+ * DualSense one from the calibration UI 2024 we found on git").
+ *
+ * The drawing is dualshock-tools' `dualsense-controller.svg` (MIT, (c) 2024
+ * the_al — brand/devices/dualsense-live.svg; credited in Settings > Credits),
+ * coloured and driven the way that app drives it: every button's `<Name>_infill`
+ * group is filled when the button is down, the triggers fill in proportion to
+ * the pull, and the stick caps (g#L3 / g#R3) slide with the sticks (25 units,
+ * the drawing's own scale 0.70). Fed by ZS.liveInput (devbar.js), which is
+ * what the CONSOLE is being sent, so a remap shows as the button it became.
+ *
+ *   ZSDSLIVE.mount(host)   draws it into host (fetched once, cached)
+ *   ZSDSLIVE.update(host)  repaints host from ZS.liveInput
+ *
+ * ES5, like every file phone.html loads.
+ */
+(function () {
+  'use strict';
+  var SRC = 'brand/devices/dualsense-live.svg';
+  var SVG = null, waiting = [];
+  /* board / evdev codes -> the drawing's part names */
+  var PART = {
+    south: 'Cross', east: 'Circle', west: 'Square', north: 'Triangle',
+    a: 'Cross', b: 'Circle', x: 'Square', y: 'Triangle',
+    cross: 'Cross', circle: 'Circle', square: 'Square', triangle: 'Triangle',
+    l1: 'L1', r1: 'R1', tl: 'L1', tr: 'R1', lb: 'L1', rb: 'R1',
+    l2: 'L2', r2: 'R2', tl2: 'L2', tr2: 'R2', lt: 'L2', rt: 'R2', 'lt+': 'L2', 'rt+': 'R2',
+    l3: 'L3', r3: 'R3', thumbl: 'L3', thumbr: 'R3', ls: 'L3', rs: 'R3',
+    select: 'Create', share: 'Create', create: 'Create', back: 'Create', view: 'Create',
+    start: 'Options', options: 'Options', menu: 'Options',
+    guide: 'PS', mode: 'PS', ps: 'PS', home: 'PS',
+    dpad_up: 'Up', dpad_down: 'Down', dpad_left: 'Left', dpad_right: 'Right',
+    up: 'Up', down: 'Down', left: 'Left', right: 'Right',
+    touchpad: 'Trackpad', mute: 'Mute', misc: 'Mute', key_record: 'Mute'
+  };
+  var ALL = ['Cross', 'Circle', 'Square', 'Triangle', 'L1', 'R1', 'L2', 'R2', 'L3', 'R3',
+             'Create', 'Options', 'PS', 'Up', 'Down', 'Left', 'Right', 'Trackpad', 'Mute'];
+
+  function light() { return false; }   /* D444: the app is dark only */
+  function colours() {
+    return light()
+      ? { body: '#7ecbff', line: '#3399cc', idle: '#ffffff', down: '#1a237e' }
+      : { body: '#7ecbff', line: '#3399cc', idle: '#2b3035', down: '#58a6ff' };   /* D245: blue, not green */
+  }
+  function paintGroup(g, colour) {
+    if (!g) return;
+    var els = g.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon');
+    for (var i = 0; i < els.length; i++) {
+      if (!els[i].style.transition) els[i].style.transition = 'fill .1s, stroke .1s';
+      els[i].setAttribute('fill', colour);
+      els[i].setAttribute('stroke', colour);
+    }
+  }
+  function mix(a, b, t) {
+    function ch(h, i) { return parseInt(h.substr(1 + i * 2, 2), 16); }
+    var o = '#';
+    for (var i = 0; i < 3; i++) {
+      var v = Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t);
+      o += (v < 16 ? '0' : '') + v.toString(16);
+    }
+    return o;
+  }
+  function norm(c) { return String(c || '').toLowerCase().replace(/^btn_/, ''); }
+  /* sticks may arrive as -1..1 or as the raw signed 16-bit range */
+  function unit(v) {
+    v = +v || 0;
+    if (Math.abs(v) > 1.5) v = v / 32767;
+    return Math.max(-1, Math.min(1, v));
+  }
+  function pull(v) {
+    v = +v || 0;
+    if (v > 1.5) v = v / 255;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function load(cb) {
+    if (SVG) { cb(SVG); return; }
+    waiting.push(cb);
+    if (waiting.length > 1) return;
+    /* m46: a failed answer (a 404 page, a proxy's error text) is not the
+       picture; caching it showed a broken controller until a restart, so
+       only an ok answer that is an <svg> is kept, and anything else lets the
+       next call try again */
+    fetch(SRC).then(function (r) {
+      if (!r || r.ok === false) throw new Error('no picture');
+      return r.text();
+    }).then(function (t) {
+      if (!/<svg[\s>]/i.test(String(t || ''))) throw new Error('not a picture');
+      SVG = t;
+      waiting.splice(0).forEach(function (f) { try { f(t); } catch (e) {} });
+    })['catch'](function () { waiting.length = 0; });
+  }
+
+  function update(host) {
+    if (!host) return;
+    var svg = host.querySelector('svg');
+    if (!svg) return;
+    var C = colours(), li = (window.ZS && ZS.liveInput) || {};
+    var on = {}, i;
+    (li.buttons || []).forEach(function (b) { var p = PART[norm(b)]; if (p) on[p] = true; });
+    var st = li.sticks || {};
+    var lt = pull(st.lt), rt = pull(st.rt);
+    for (i = 0; i < ALL.length; i++) {
+      var n = ALL[i], col = on[n] ? C.down : C.idle;
+      if (n === 'L2' && !on.L2 && lt > 0) col = mix(C.idle, C.down, lt);
+      if (n === 'R2' && !on.R2 && rt > 0) col = mix(C.idle, C.down, rt);
+      paintGroup(host.querySelector('#' + n + '_infill'), col);
+    }
+    /* the caps slide with the sticks: the calibrator's own numbers */
+    var l3 = host.querySelector('g#L3'), r3 = host.querySelector('g#R3');
+    /* the Core's y rises UPWARD; the picture's rises downward (D246) */
+    if (l3) l3.setAttribute('transform', 'translate(' + unit(st.lx) * 25 + ',' + (-unit(st.ly) * 25) + ') scale(0.70)');
+    if (r3) r3.setAttribute('transform', 'translate(' + unit(st.rx) * 25 + ',' + (-unit(st.ry) * 25) + ') scale(0.70)');
+  }
+
+  function mount(host) {
+    if (!host) return;
+    load(function (t) {
+      if (!host.isConnected && host.ownerDocument && !host.ownerDocument.contains(host)) return;
+      host.innerHTML = t;
+      var svg = host.querySelector('svg');
+      if (!svg) return;
+      svg.removeAttribute('id');               /* several pages may hold one */
+      svg.removeAttribute('style');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', 'Your controller, live');
+      var C = colours();
+      paintGroup(host.querySelector('#Controller'), C.body);
+      ['Button_outlines', 'L3_outline', 'R3_outline', 'Trackpad_outline'].forEach(function (id) {
+        paintGroup(host.querySelector('#' + id), C.line);
+      });
+      ['Button_infills', 'L3_infill', 'R3_infill', 'Trackpad_infill'].forEach(function (id) {
+        paintGroup(host.querySelector('#' + id), C.idle);
+      });
+      /* the trigger percentages are the calibrator's, not ours */
+      var tp = host.querySelector('#TriggerPercentages');
+      if (tp) tp.setAttribute('display', 'none');
+      update(host);
+    });
+  }
+
+  window.ZSDSLIVE = { mount: mount, update: update, PART: PART };
+}());

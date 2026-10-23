@@ -1,0 +1,81 @@
+/* shell/14-access.js — Ease of Access.
+ *
+ * Bigger targets, contrast, reduced motion (applyAccess), and the theme's
+ * system match (D185).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── Ease of Access engine ─────────────────────────────────────── */
+  var accessBooted = false;
+  function applyAccess(){
+    var v = STORE.vals;
+    /* THE THEME (D444, owner 2026-10-23): the app is DARK ONLY; the light
+       theme was removed. "OLED black" is the one appearance switch. A store
+       that still says Theme = "OLED black" (before D185) is carried over as
+       the switch on; a stored Light or Match system becomes Dark. */
+    if(v['global/global|Theme'] === 'OLED black'){
+      v['global/global|OLED black'] = '1';
+    }
+    if(v['global/global|Theme'] && v['global/global|Theme'] !== 'Dark'){
+      v['global/global|Theme'] = 'Dark';
+      persist();
+    }
+    applyTheme(v);
+    var scr = document.querySelector('.screen');
+    var ts = v['global/global|Text size'] || 'Default';
+    scr.style.zoom = ts==='XL' ? 1.16 : ts==='Large' ? 1.08 : 1;
+    /* zoom is invisible to CSS — name the state so stylesheets can relayout
+       rows that stop fitting at Large/XL (zs-kit.css wraps the Aim rows) */
+    document.body.classList.toggle('a11y-text', ts!=='Default');
+    document.body.classList.toggle('a11y-contrast', v['global/global|High contrast']==='1');
+    document.body.classList.toggle('a11y-motion',   v['global/global|Reduce motion']==='1');
+    document.body.classList.toggle('a11y-big',      v['global/global|Bigger touch targets']==='1');
+    /* D236: the "?" help buttons, on unless the player switched them off */
+    document.body.classList.toggle('zs-nohelp',     v['global/global|Show help buttons']==='0');
+    accessBooted = true;
+  }
+  /* dark only (D444): this paints the OLED black switch */
+  function applyTheme(v){
+    var T = window.zsTheme;
+    if(T) T.apply(v);
+  }
+
+  /* Re-run whatever section is on screen. Swapping an Xbox pad for a DualSense
+     has to change every button drawn in front of you, and a section that was
+     rendered before the swap is holding the wrong family. */
+  var lastDetail = null;
+  /* NEVER UNDER SOMEONE'S FINGERS (owner, 2026-10-13: "the Debug box doesn't
+     let me type anything"). A live change (a pad swap, the device list, a
+     config read) redrew the open screen while a text box on it had focus, so
+     every keystroke landed in a box that was then thrown away. While a typing
+     field on the screen has focus, the redraw waits and runs once the field
+     is left. */
+  var redrawWaiting = false;
+  function typingHere(){
+    var a = document.activeElement, body = document.getElementById('dbody');
+    if(!a || !body || !body.contains(a)) return false;
+    if(a.tagName === 'TEXTAREA' || a.isContentEditable) return true;
+    return a.tagName === 'INPUT' &&
+      !/^(button|checkbox|radio|range|submit|reset|color|file|image)$/i.test(a.type || 'text');
+  }
+  function redrawOpenScreen(){
+    if(!lastDetail) return;
+    if(!document.getElementById('detail').classList.contains('open')) return;
+    if(typingHere()){
+      if(!redrawWaiting){
+        redrawWaiting = true;
+        document.activeElement.addEventListener('blur', function(){
+          redrawWaiting = false;
+          setTimeout(redrawOpenScreen, 0);
+        }, { once: true });
+      }
+      return;
+    }
+    openDetail(lastDetail.s, lastDetail.p);
+  }
+

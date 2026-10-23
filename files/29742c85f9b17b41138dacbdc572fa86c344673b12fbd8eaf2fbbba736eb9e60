@@ -1,0 +1,585 @@
+/* zs-flat.css - the 8K look on EVERY screen (D259).
+ *
+ * The owner, 2026-10-10: "add the same art style to the exit-without-saving
+ * buttons and the script and AI mapping options - same art style across the
+ * whole app, make sure it doesn't look AI". D243-D251 put the ZS8K
+ * Configurator's look on the screens inside a config (#dbody.zkaim); the
+ * sheets, the script editor, the app bar, the device dock and HOME still
+ * wore the older kit: a gloss gradient on every control, glows under the
+ * primary buttons, frosted glass with deep drop shadows, coloured rails down
+ * the left of callouts, wide-tracked capitals with a bracket in front.
+ * Those are the tells of a generated UI. The 8K app has none of them:
+ *
+ *   one ground, one card, one control face - solid, never a gradient
+ *   a 1px hairline is the only edge; nothing floats on a shadow
+ *   one blue accent for "on", "selected" and "press this"
+ *   labels are small capitals at a normal spacing, no ornaments
+ *
+ * HOW. Most of the old look is drawn through the kit's tokens, so the flat
+ * look is first a token layer: the gloss stops are made equal, the shadow
+ * tokens become nothing, the sheared corners become one radius, and the
+ * surfaces become the 8K charcoal (the --zk-* palette, phone.html). Then a
+ * short list of rules for what the run-time renderers paint with literals.
+ * It is linked LAST in the head, after zs-light.css, and its rules carry
+ * `html body` so they outrank the kit's (0,1,x) rules; the few !important
+ * ones are decoration kills that a run-time <style> would otherwise win.
+ *
+ * WHAT IT NEVER TOUCHES (DESIGN.md "decoration does not get to overwrite a
+ * signal"): the config hero's console-colour edge (.cfg's left rail), the
+ * family colours, the status dots, pictures and anything riding on them,
+ * and the GPC room's picture of a device (.gpc-dev).
+ *
+ * tools/lib/style-probe.js (theme-shots.js --probe) lists anything that
+ * still looks generated; test-flat.js holds the rules below in place.
+ */
+
+/* ══ 1. the palette, app-wide ═══════════════════════════════════════════ */
+html body {
+  --zk-ground:#1b1d20; --zk-card:#26282d; --zk-card2:#1b1e22; --zk-card3:#2d3036; --zk-stage:#202327;
+  --zk-line:#3a3e45; --zk-text:#eef1f4; --zk-dim:#9aa3ad; --zk-accent:#58a6ff; --zk-ink:#06172e;
+  --zk-amber:#ffb454; --zk-danger:#ff6259; --zk-danger-ink:#2a0505;
+
+  /* the surfaces: the 8K charcoal instead of the navy ladder */
+  --zs-page:var(--zk-ground); --zs-card:var(--zk-card); --zs-raised:var(--zk-card3);
+  --zs-control:var(--zk-card2); --frame:var(--zk-ground);
+  --line:var(--zk-line); --zs-edge:#5a616b; --zs-edge-hi:#6a717b;
+  /* the aliases are resolved where they are declared (:root), so they are
+     declared again here or they would keep the old navy */
+  --bg:var(--zs-page); --panel:var(--zs-card); --panel2:var(--zs-control);
+
+  /* the accent: the 8K blue, one blue for everything that is on */
+  --zs-ion:var(--zk-accent); --zs-ion-ink:var(--zk-ink); --accent:var(--zk-accent); --accent-ink:var(--zk-ink);
+  --zs-ion-wash:rgba(88,166,255,.12); --zs-ion-edge:rgba(88,166,255,.45); --zs-ion-glow:transparent;
+  --zs2-ion-tint:rgba(88,166,255,.12); --zs2-ion-line:rgba(88,166,255,.55); --zs2-ion-dash:rgba(88,166,255,.45);
+
+  /* the gloss: both stops of every control and card gradient are one colour */
+  --zs2-card-a:transparent; --zs2-card-b:transparent;
+  --zs2-ctl-a:transparent;  --zs2-ctl-b:transparent;
+  --zs2-sel:rgba(88,166,255,.16);
+
+  /* the shadows: a token used inside a list must stay a valid shadow */
+  --zs2-sheen:0 0 0 0 transparent; --zs2-lit:0 0 0 0 transparent;
+  --zs2-groove:0 0 0 0 transparent; --zs2-wall:0 0 0 0 transparent;
+  --zs2-sunk:0 0 0 0 transparent; --edge-lit:0 0 0 0 transparent;
+  --mat-dock-shadow:0 0 0 0 transparent;
+
+  /* the glass: solid, so nothing is frosted */
+  --mat-thin:none; --mat-thick:none;
+  --mat-bar-a:var(--zk-ground); --mat-bar-b:var(--zk-ground);
+  --mat-dock-a:var(--zk-ground); --mat-dock-b:var(--zk-ground);
+  --mat-sheet-a:var(--zk-card); --mat-sheet-b:var(--zk-card);
+  --mat-toast:var(--zk-card3); --mat-rim:var(--zk-line); --mat-dock-rim:var(--zk-line);
+  --mat-fade:transparent; --mat-fade-0:transparent;
+
+  /* the four button roles: flat faces, no wall under a key, no lit top */
+  --btn-1-bg:var(--zk-accent); --btn-1-ink:var(--zk-ink); --btn-1-edge:var(--zk-accent); --btn-1-wall:transparent;
+  --cap-a:var(--zk-accent); --cap-b:var(--zk-accent); --cap-c:var(--zk-accent); --cap-p:var(--zk-accent);
+  --btn-2-bg:var(--zk-card2); --btn-2-ink:var(--zk-text); --btn-2-edge:var(--zk-line);
+  --btn-3-bg:var(--zk-danger); --btn-3-ink:var(--zk-danger-ink); --btn-3-edge:var(--zk-danger);
+  --btn-4-edge:var(--zk-line);
+  --btn-wall:0 0 0 0 transparent; --btn-lit:0 0 0 0 transparent; --btn-sunk:0 0 0 0 transparent;
+  --sel:rgba(88,166,255,.16); --sel-ink:var(--zk-text);
+
+  /* the chrome: the ground, solid */
+  --desk-a:var(--zk-ground); --desk-b:var(--zk-ground);
+  --chrome-a:var(--zk-ground); --chrome-b:var(--zk-ground);
+  --bar-a:var(--zk-ground); --bar-b:var(--zk-ground);
+  --rule:var(--zk-line); --toast-bg:var(--zk-card3);
+  --scrim-a:rgba(0,0,0,.6); --scrim-b:rgba(0,0,0,.6);
+
+  /* one corner radius instead of the sheared one */
+  --zs-cut:10px;
+  --zs-shear-ctl:10px; --zs-shear-rail:12px;
+
+  /* labels at a normal spacing */
+  --tr-label:.06em;
+
+  /* Passthrough Mode's colour is yellow (owner, 2026-10-10) */
+  --nav-y:#e3b341; --nav-y-ink:#1a1200; --nav-ink:#e3b341; --nav-ink-2:#f0d58a;
+  /* the config-status purple (PC Mode on HOME), lifted to clear AA on the
+     8K card (#a371f7 measured 3.94:1 on #2d3036) */
+  --st-config-hi:#c2a4ff;
+}
+
+html body.zs-oled { --zk-ground:#000000; --zs-page:#000000; --frame:#000000; }
+
+/* ══ 2. the ground and the chrome ═══════════════════════════════════════ */
+html body, html body .phone, html body #home, html body #editor, html body #detail {
+  background-color: var(--zk-ground);
+}
+html body .appbar, html body .phead, html body #devbar, html body .devbar, html body #hfoot {
+  background: var(--zk-ground) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html body .appbar, html body .phead { border-bottom: 1px solid var(--zk-line); }
+html body #devbar, html body .devbar { border-top: 1px solid var(--zk-line); }
+html body .phead::after, html body .appbar::after { display: none !important; }
+/* the phone on the desk (a desktop browser): a hairline, not a floating slab */
+html body .phone { box-shadow: 0 0 0 1px var(--zk-line) !important; }
+/* the room wash behind a screen (a tint gradient): the ground is the ground */
+html body #dbody, html body #dbody[data-tint] { background-image: none !important; }
+
+/* ══ 3. sheets, the script editor, the toast ════════════════════════════ */
+html body .sheet, html body #sapanel, html body .sapanel {
+  background: var(--zk-card) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: 1px solid var(--zk-line) !important;
+}
+html body #sheettitle, html body #sap-title { box-shadow: none !important; }
+html body .scrim, html body #sheetscrim { background: rgba(0,0,0,.6) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+html body .toast {
+  background: var(--zk-card3) !important; color: var(--zk-text);
+  border: 1px solid var(--zk-line) !important; box-shadow: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+
+/* ══ 4. buttons ═════════════════════════════════════════════════════════ */
+/* a control face: flat, one hairline, the 8K radius */
+html body .btn:not(.primary):not(.danger), html body .pback, html body .appbar .cogbtn, html body .sclose,
+html body .sapx, html body .gact, html body .pbtn, html body .sapill, html body .satile, html body .pk,
+html body .ah, html body .cogbtn, html body .ib, html body .mechpill {
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none;
+}
+html body .btn:not(.primary):not(.danger), html body .pback, html body .appbar .cogbtn, html body .sclose,
+html body .sapx, html body .gact, html body .pbtn, html body .sapill, html body .ib, html body .mechpill {
+  background-color: var(--zk-card2) !important;
+  border: 1px solid var(--zk-line) !important;
+}
+html body .pback { border-radius: 10px !important; color: var(--zk-text); }
+/* the one thing to press: a flat blue face, no glow under it */
+html body .btn.primary, html body .newcfg, html body .addbtn {
+  background: var(--zk-accent) !important; color: var(--zk-ink) !important;
+  border: 0 !important; box-shadow: none !important; text-shadow: none !important;
+}
+html body .btn.primary::after, html body .btn.primary::before,
+html body .newcfg::after, html body .addbtn::after { box-shadow: none !important; background: none !important; }
+html body .btn.primary svg, html body .newcfg svg, html body .addbtn svg { color: var(--zk-ink); fill: currentColor; }
+/* the destructive answer: solid red, no hazard stripes */
+html body .btn.danger {
+  background: var(--zk-danger) !important; color: var(--zk-danger-ink) !important;
+  border: 0 !important; box-shadow: none !important; text-shadow: none !important;
+}
+html body .btn { border-radius: 10px; }
+/* two answers side by side are the same size */
+html body .sapair { display: flex; gap: 10px; }
+html body .sapair > .btn { flex: 1 1 0; min-height: 48px; font-weight: 700; }
+
+/* ══ 5. segmented controls and tabs ═════════════════════════════════════ */
+html body .seg2, html body .subtabs, html body .sabseg {
+  background: var(--zk-card2) !important; border: 1px solid var(--zk-line) !important;
+  border-radius: 12px !important; box-shadow: none !important; padding: 3px; gap: 3px;
+}
+html body .subtabs::before, html body .seg2::before { display: none !important; box-shadow: none !important; }
+/* a key's press halo */
+html body .pk::after { box-shadow: none !important; }
+html body .seg2 button, html body .subtabs button {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  color: var(--zk-dim) !important; border-radius: 9px !important; font-weight: 600; text-shadow: none;
+}
+html body .seg2 button.on, html body .subtabs button.on,
+html body .seg2 button[aria-pressed="true"], html body .seg2 button[aria-selected="true"] {
+  background: var(--zk-accent) !important; color: var(--zk-ink) !important;
+}
+
+/* ══ 6. cards, rows, tiles ══════════════════════════════════════════════ */
+html body .item, html body .card, html body .satpl, html body .acc, html body .vizbox,
+html body .lrow, html body .gdev, html body .gpc-slot, html body .safam, html body .samapbanner {
+  background-image: none !important; box-shadow: none !important;
+}
+html body .item, html body .card, html body .satpl, html body .gdev {
+  background-color: var(--zk-card) !important; border: 1px solid var(--zk-line) !important;
+  border-radius: 14px;
+}
+html body .acc, html body .vizbox { background-color: var(--zk-card) !important; border: 1px solid var(--zk-line) !important; }
+/* callouts and families: no coloured bar down the left */
+html body .item.zs-in, html body .acc, html body .satpl, html body .safam, html body .gdev,
+html body .gpc-slot, html body .lrow.inrow, html body .pk-live {
+  border-left-width: 1px !important; border-left-color: var(--zk-line) !important;
+}
+html body .safam { border-left: 0 !important; padding-left: 2px; }
+html body .lrow.inrow { box-shadow: none !important; border-color: var(--zk-accent) !important; }
+/* a step tile, a key in a picker: a flat key with a hairline */
+html body .satile, html body .pk {
+  background-color: var(--zk-card2) !important; border: 1px solid var(--zk-line) !important;
+}
+html body .satile.sel, html body .pk.sel, html body .pk.on {
+  border-color: var(--zk-accent) !important; background-color: rgba(88,166,255,.10) !important;
+}
+html body .pkhint { box-shadow: none !important; }
+/* the "press the button you want" line: a plain card with a live dot */
+html body .pk-live { background: var(--zk-card2) !important; border: 1px solid var(--zk-line) !important; box-shadow: none !important; }
+
+/* ══ 7. inputs, switches, sliders ═══════════════════════════════════════ */
+html body input.txt, html body .txt, html body .stp, html body .sabname, html body #cfgsearch {
+  background: var(--zk-card2) !important; border: 1px solid var(--zk-line) !important; box-shadow: none !important;
+}
+html body .sabname.ph { border-style: solid !important; }
+html body .sw { background: var(--zk-card2) !important; border: 1px solid var(--zk-line); box-shadow: none !important; }
+html body .sw.on { background: var(--zk-accent) !important; border-color: var(--zk-accent); }
+html body .sw::after { background: var(--zk-dim) !important; box-shadow: none !important; }
+html body .sw.on::after { background: var(--zk-ink) !important; }
+html body input[type="range"] { accent-color: var(--zk-accent); }
+
+/* ══ 8. section labels ══════════════════════════════════════════════════ */
+/* small capitals at a normal spacing; no bracket in front, a plain hairline after */
+html body .sh, html body .pkh, html body .grp, html body .flab, html body .smtitle, html body .zksub,
+html body .zksec, html body .xsec {
+  letter-spacing: .06em !important;
+}
+html body .sh, html body .pkh, html body .grp { color: var(--zk-dim) !important; font-size: 11px; font-weight: 700; }
+html body .sh::before, html body .pkh::before, html body .grp::before { display: none !important; }
+html body .sh::after, html body .pkh::after { background: var(--zk-line) !important; }
+html body .livedot { letter-spacing: 0 !important; }
+
+/* ══ 9. the last few ═════════════════════════════════════════════════════ */
+/* a config's card keeps its console-colour edge (a signal), not the gloss */
+html body .cfg { background-image: none !important; box-shadow: none !important; }
+html body .cfg .cstate, html body .cfg .cstate .tick { color: var(--zk-text) !important; }
+/* the new-config wizard's step pips */
+html body .wzpip, html body .wzpip.now { box-shadow: none !important; }
+/* a slider's knob: a solid blue disc with a hairline ring, no knurl, no lift */
+html body input[type=range].rng::-webkit-slider-thumb, html body [data-tint] input[type=range].rng::-webkit-slider-thumb {
+  background: var(--zk-accent) !important;
+  box-shadow: 0 0 0 3px var(--zk-card), 0 0 0 4px var(--zk-line) !important;
+}
+html body input[type=range].rng::-moz-range-thumb, html body [data-tint] input[type=range].rng::-moz-range-thumb {
+  background: var(--zk-accent) !important; box-shadow: 0 0 0 3px var(--zk-card) !important;
+}
+/* a red or warning button: solid, no hazard stripes */
+html body .btn.caution { background-image: none !important; background-color: transparent !important;
+  border: 1px solid var(--zk-danger) !important; color: var(--zk-danger) !important; }
+html body .ib.danger { background-image: none !important; background-color: var(--zk-danger) !important; }
+/* a question in a sheet is plain text, not a quote with a bar */
+html body .sheet .note, html body #sheetbody .note { border-left: 0 !important; padding-left: 0 !important;
+  background: none !important; color: var(--zk-text) !important; font-size: 15px; }
+/* two answers sit on one line: no press-depth offset on either */
+html body .sapair > .btn { margin: 0 !important; transform: none !important; }
+/* a note is plain secondary text: no bar down its left. A warning keeps its
+   box (D70: it is the one note with one), with an even amber hairline */
+html body .note:not(.warn) { border-left: 0 !important; padding-left: 2px !important; }
+html body .note.warn { border-left-width: 1px !important; }
+/* the red Save chip's dot: dark ink on the bright red, white on the light theme's deep red */
+
+
+/* ══ 10. Passthrough Mode is yellow ═════════════════════════════════════ */
+/* Global Settings wraps its Passthrough card and shortcuts in .gnavzone:
+   every "on", "press this" and edge inside reads yellow, not the blue */
+html body .gnavzone { --zk-accent: var(--nav-y); --zk-ink: var(--nav-y-ink);
+  --accent: var(--nav-y); --accent-ink: var(--nav-y-ink); --tint: var(--nav-y);
+  --zs2-ion-tint: rgba(227,179,65,.12); --zs2-ion-line: rgba(227,179,65,.5); }
+
+html body .gnavzone .grp-card { border-top-color: var(--nav-y) !important; }
+html body .gnavzone .sw.on { background: var(--nav-y) !important; border-color: var(--nav-y); }
+html body .gnavzone .sw.on::after { background: var(--nav-y-ink) !important; }
+
+/* ══ 11. the panel header: back · name · ✓ (D272, owner 2026-10-10) ═════
+   "the back arrow blue on the top left, remove the BOARD green on the top
+   right and just put the check mark there; the profile name way smaller and
+   lower, between the back button and the check, and leave a gap above it for
+   iPhone notches and punch-holes."
+   One row, three columns: the back key (44px, its chevron the accent blue),
+   the title centred in the middle column (15.5px / 650, one line, ellipsis),
+   the ✓ save chip (D257 states untouched). The side columns are equal and
+   at least 44px, so the title sits on the true centre of the screen; a long
+   name takes the middle and ellipsises before it touches either key. The
+   board chip is the first device on the bottom bar now (#dvb-board).
+   Gap above: the browser preview keeps the 34px that clears its drawn notch;
+   the app (body.zs-app: the exe and the phone app) gets a small base plus
+   the phone's own safe-area inset, so a notch or camera hole is cleared on a
+   phone and the PC exe (no inset) stays compact. */
+html body .panel > .phead {
+  display: grid !important;
+  grid-template-columns: minmax(44px, 1fr) minmax(0, max-content) minmax(44px, 1fr);
+  /* owner, 2026-10-10: "move the config name as low as possible against the
+     line to avoid the notches" - the row rides the bottom line (2px above
+     it), and every spare pixel is above, where a notch or camera hole is */
+  align-items: end; column-gap: 8px;
+  padding: 34px 12px 2px;
+}
+html body.zs-app .panel > .phead {
+  padding-top: calc(10px + env(safe-area-inset-top, 0px)); padding-bottom: 2px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+html body .panel > .phead > .pback {
+  grid-column: 1; justify-self: start; align-self: end;
+  width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px;
+  margin: 0 !important; padding: 0 !important; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--zk-accent) !important;
+}
+html body .panel > .phead > .pback .pbtx { display: none; }
+/* the chevron: a drawn stroke in the accent, not a font's "‹" */
+html body .panel > .phead > .pback::before {
+  content: ''; display: block; width: 11px; height: 19px; margin-left: -2px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 19'%3E%3Cpath d='M9.2 1.6 1.9 9.5l7.3 7.9' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 19'%3E%3Cpath d='M9.2 1.6 1.9 9.5l7.3 7.9' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+html body .panel > .phead > .ptitle {
+  grid-column: 2; min-width: 0; text-align: center; align-self: end;
+  /* the name's line sits level with the keys' middle, as low as they are */
+  padding-bottom: 12px;
+}
+html body .panel > .phead > .ptitle > h2 {
+  font-size: 15.5px !important; font-weight: 650 !important; line-height: 1.25 !important;
+  margin: 0; letter-spacing: 0 !important; text-transform: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--zk-text);
+}
+/* D340 (owner, 2026-10-14): a screen's title wears its room's picture,
+   30 px, rounded like the menu's tiles, to the left of the name. The pair is
+   centred as one; the name still ellipsizes, never the picture. The bottom
+   padding drops by the picture's extra height over the text line, so the
+   pair's middle stays level with the keys' middle (44 px keys: 22 px up). */
+html body .panel > .phead > .ptitle.has-pic {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding-bottom: 7px;
+}
+html body .panel > .phead > .ptitle > .dtpic {
+  flex: none; width: 30px; height: 30px; border-radius: 8px;
+  object-fit: cover; object-position: center; background: var(--zk-card3, var(--panel2));
+  box-shadow: 0 0 0 1px var(--zk-line, rgba(255,255,255,.12));
+}
+html body .panel > .phead > .ptitle > .dtpic[hidden] { display: none; }
+html body .panel > .phead > .ptitle.has-pic > h2 { min-width: 0; }
+html body .panel > .phead > .savechip {
+  grid-column: 3; justify-self: end; align-self: end; margin: 0 !important;
+  min-width: 44px; min-height: 44px;
+}
+
+/* ══ 12. the board on the device bar (D272) ═════════════════════════════
+   The first chip on the bar: the EXO's picture, its name, and the state in
+   words and glyph (● Connected green / ○ Offline amber) - never colour
+   alone. A real button (44px tall, the touch floor) that opens the same
+   board-facts sheet the header chip did. */
+html body .dvb-list { display: contents; }
+html body .dvb-board {
+  min-height: 44px; cursor: pointer; font: inherit; color: var(--zk-text);
+  background: var(--zk-card) !important; border: 1px solid var(--zk-line);
+  text-align: left;
+}
+html body .dvb-board.up { border-color: var(--green); }
+html body .dvb-board.down { border-color: var(--zk-amber, var(--amber)); }
+html body .dvb-board .dvb-pic { border-radius: 4px; }
+html body .dvb-board .dvb-st { font-weight: 650; }
+html body .dvb-board.up .dvb-st { color: var(--green); }
+html body .dvb-board.down .dvb-st { color: var(--zk-amber, var(--amber)); }
+html body .dvb-board:active, html body .dvb-board.zs-pressing { background: var(--zk-card3) !important; }
+html body .dvb-board:focus-visible { outline: 2px solid var(--zk-accent); outline-offset: 2px; }
+
+/* ══ 13. HOME's top bar rides its bottom line (owner, 2026-10-10) ═══════
+   "the controller images and device images for connected devices: squeeze
+   them as low as possible so they don't interfere with phone notches" - the
+   logo, the device pictures and the menu key sit on the bar's line, and the
+   free room (plus the phone's safe-area inset in app mode) is above them. */
+html body .appbar { align-items: flex-end !important; padding-bottom: 4px !important; }
+html body .appbar .devpills { align-self: flex-end; }
+html body.zs-app .appbar { padding-top: calc(14px + env(safe-area-inset-top, 0px)) !important; }
+
+/* HOME's config-status word (PC Mode) on the 8K card: the lifted purple in
+   dark (#a371f7 measured 3.94:1 on #2d3036); light keeps its own */
+
+
+/* ══ 14. the console logos (owner, 2026-10-10) ══════════════════════════
+   A line icon comes in two inks; the theme picks one. The pictures keep
+   their own colours and are never stretched. */
+html body img.cpic { object-fit: contain; flex: none; vertical-align: middle; }
+html body img.cpic-l { display: none; }
+
+
+/* the new-config rows' › keeps the family hue but on the 8K card the violet
+   measured 4.25:1; the arrow takes the text ink, the row's edge keeps the hue */
+html body .wzrows .tile .wzgo { color: var(--zk-dim) !important; }
+
+/* ══ 15. the official EXO Studio logo (owner, 2026-10-10) ═══════════════
+   The wordmark heads the EXO Studio room in the ink for the theme; the
+   emblem is the door picture (editor menu, AI and Legacy Devices). */
+html body .st-mark { display: flex; justify-content: center; margin: 6px 0 4px; }
+html body .st-mark img.st-wm { width: min(220px, 60vw); height: auto; }
+
+
+
+/* == 16. HOME's device pictures a little smaller (owner, 2026-10-10) =====
+   "make the controller icon and devices icons on the home screen slightly
+   smaller so it fits better": each picture key starts at 62x43 instead of
+   72x50 (-14%) and still shares the row the same way; the touch area
+   reaches past the paint so the key is still 44+ px tall. */
+html body .devpills .dp:has(.dpic) { flex-basis: 62px; max-height: 43px; border-radius: 12px; }
+html body .devpills .dp:has(.dpic)::after { top: -1px; bottom: -1px; }
+/* ...and the two cards' pictures below the config art (the EXO Core and the
+   active weapon) shrink by the same ~14%: 116 -> 100 and 126 -> 108 wide.
+   The cards keep their own height and their text keeps its place. */
+html body .hs-link .hd-pic { width: 100px; min-height: 100px; }
+html body .hs-gun .gi { width: 108px; }
+/* == 17. the connected-devices bar lists only what is PLUGGED IN (owner,
+   2026-10-10: "remove EXO Core from the connected devices"). The board
+   chip (#dvb-board, D272) is hidden, not deleted: paintBoardChips() still
+   writes it, so nothing else moves. The Core's own link status and its
+   details sheet stay on HOME's device card (D196). */
+html body #dvb-board { display: none !important; }
+
+/* == 18. EXO Studio's door (owner, 2026-10-13) ===========================
+   The ZS EXO STUDIO wordmark is the door's picture, centred in the picture
+   slot on the left (no fade: the mark is the picture), and the right side
+   reads like every other door: "CV Assisted Aimbots & Timings" over the
+   hint. The theme picks the wordmark's ink. */
+html body #edmenu .item.studio-wm .ico.st-row-pic { display: flex; align-items: center; justify-content: center;
+  background: none; -webkit-mask-image: none; mask-image: none; padding: 0 6px; box-sizing: border-box; }
+html body #edmenu .item.studio-wm img.st-row-wm { width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block; }
+
+
+
+/* == 19. HOME's top bar a little bigger again (owner, 2026-10-13: "make the
+   controller and devices icon bigger on the top middle and the EXO logo
+   slightly bigger"): each device key starts at 78x54 (was 62x43), the
+   logo 38 px tall (was 34). */
+html body .devpills .dp:has(.dpic) { flex-basis: 78px; max-height: 54px; border-radius: 14px; }
+html body .appbar .applogo .brandlogo { height: 38px; }
+
+html body #edmenu .item.studio-wm .lab.st-row-title { white-space: normal; overflow: visible; line-height: 1.15; }
+/* D345 (owner, 2026-10-14): the door says "Advanced · PC" over its title,
+   a small outlined tag in the room's cyan (the light theme's cyan is the
+   5.4:1 --tint-vision), so the menu itself says it wants a good PC */
+html body #edmenu .item.studio-wm .st-row-tag { display: inline-block; align-self: flex-start; margin: 0 0 3px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: var(--tr-label, .085em); text-transform: uppercase;
+  line-height: 1.35; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor;
+  color: var(--tint-vision, #5ccfd6); white-space: nowrap; }
+
+/* == 20. the owner's mouse and keyboard (D290, owner 2026-10-13) =========
+   Every mouse or keyboard shown as a DEVICE is his own picture
+   (brand/devices/mouse-*.webp, keyboard-*.webp): HOME's pills and the
+   devices sheet (devbar.js devicePic), the set's `mouse` / `keycap` names
+   (pic(): Device's Connection line, the Aim doors and cards), the Aim and
+   Mappings choosers and the wizard. They are black with a silver rim, so
+   in the dark theme their outer black edge would sink into the card: a thin
+   light rim (a drop shadow that follows the picture's own outline) lifts
+   them. The light theme shows them as drawn. Flat: no tile, no glow. */
+
+/* the Aim stance page's Mouse card heads with the mouse itself, where the
+   8K look drew a ring (D247) */
+html body #dbody.zkaim .xcard[data-xcard="hip"] .xtitle::before,
+html body #dbody.zkaim .xcard[data-xcard="ads"] .xtitle::before {
+  background: url("brand/devices/mouse-256.webp") center / contain no-repeat;
+  border-radius: 0;
+}
+
+/* the Aim chooser's Mouse & Keyboard half: both pictures side by side, as
+   Mappings' chooser has them (.samapch2) */
+html body .aimch .aimch2 { display: flex; gap: 10px; align-items: center; justify-content: center; }
+html body .aimch .aimch2 img { width: auto; height: 84px; max-width: 150px; object-fit: contain; }
+html body .aimch .aimch2 img[src*="mouse-"] { height: 84px; width: 58px; }
+html body .samapch .samapch2 img[src*="mouse-"] { width: 58px; }
+/* the wizard's DPI page: the mouse heads its card */
+html body #wz-dpicard .wz-dpipic { display: flex; justify-content: center; margin: 14px 0 2px; }
+/* Device's Connection line: the keyboard is wide, so its slot is too */
+html body .ovconn-box .ovconn-icos img.ico3d-keycap { width: 34px; }
+/* the "Showing Mouse & Keyboard" key of Aim and Mappings: the two pictures
+   lead it, small */
+html body .mkbhead { display: inline-flex; align-items: center; gap: 5px; font-style: normal; flex: none; }
+html body .mkbhead img { height: 22px; width: auto; display: block; }
+
+/* == 21. the Recoil Workshop is purple (owner, 2026-10-13: "make the Recoil
+   Workshop a purple highlighted button, just how Passthrough Mode is yellow,
+   so it sticks out"). Both doors to it (the Scripts room's and the fire
+   button's) wear the family purple: a tinted fill, a purple edge and purple
+   ink, the way Passthrough wears yellow. Light theme takes the darker ink so
+   the words keep their contrast. */
+html body #sa-recoil, html body #sa-recoilws {
+  background: rgba(163,113,247,.16) !important; border: 1px solid var(--purple) !important;
+  color: var(--st-config-hi) !important; }
+html body #sa-recoil svg, html body #sa-recoilws svg,
+html body #sa-recoil .ico, html body #sa-recoilws .ico { color: var(--st-config-hi) !important; }
+
+
+
+/* == 22. every "?" is purple (owner, 2026-10-14: "change the colour of the
+   question marks all to purple"). The ring, the glyph and the open state. */
+html body .qh { color: var(--st-config-hi) !important; border-color: var(--purple) !important; }
+html body .qh[aria-expanded="true"] { background: rgba(163,113,247,.18) !important; }
+
+
+/* == 23. the Gun reader frame is purple (D398, owner 2026-10-16: "change
+   the accent of the gun reader frame to purple"). Its door in AI Scripts and
+   its whole step-by-step screen wear the "?" purple of section 22 the way
+   .gnavzone wears yellow: every "press this", the frame on the picture and
+   the step marks. Dark: #b98cff (--purple-ink, 5.17:1 on a control face;
+   its dark ink 7+:1); light: #6e40cf with white ink (6.37:1). */
+html body .gfzone { --zk-accent: #b98cff; --zk-ink: #04120f; --accent: #b98cff; --accent-ink: #04120f;
+  --tint: #c2a4ff; --tint-wash: rgba(163,113,247,.13); --tint-strong: rgba(163,113,247,.30);
+  --tint-edge: rgba(163,113,247,.55); --zs2-ion-tint: rgba(163,113,247,.12); --zs2-ion-line: rgba(163,113,247,.5); }
+
+html body .sadesc { display: block; margin-top: 2px; }
+html body .sadesc .qhrow { margin: 0; }
+
+/* == 24. the Advanced Script Maker's ways in (D398, owner 2026-10-16: "as
+   user-friendly and dummy-proof as possible"). Biggest first: the
+   Anti-Recoil Lab (purple, section 21), then "Paste ready-made script" with a
+   quiet sheen, then Record script in its own record colour (not the blue,
+   not the purple: a warm coral, 6.60:1 on a card; light #a8380f, 6.49:1 on
+   white). New script (advanced) is last and plain. */
+/* the sheen's lights (used by smart-actions/04-styling.js, never here) */
+html body { --sheen-hi: rgba(255,255,255,.10); --sheen-0: rgba(255,255,255,0); --sheen-pass: rgba(255,255,255,.16);
+  --sheen-edge: rgba(255,255,255,.16); --sheen-drop: 0 0 0 0 transparent; }
+
+html body { --rec: #ff8f6b; --rec-wash: rgba(255,143,107,.12); --rec-edge: rgba(255,143,107,.55); }
+
+html body .saroomtop { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px; }
+html body .saroomtop > .btn { margin: 0 !important; width: 100%; display: flex; align-items: center; gap: 12px;
+  text-align: left; justify-content: flex-start; }
+html body .saroomtop > .btn > svg, html body .saroomtop > .btn > img, html body .saroomtop > .btn > .ico { flex: none; }
+html body .saroomtop .satopt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+html body .saroomtop .satopt b { font-weight: 750; letter-spacing: -.01em; }
+html body .saroomtop .satopt em { font-style: normal; font-weight: 500; font-size: 12.5px; line-height: 1.35;
+  color: var(--zk-dim); white-space: normal; }
+html body #sa-recoil.satop1 { min-height: 96px; padding: 18px 18px; border-radius: 16px !important;
+  border-width: 2px !important; }
+html body #sa-recoil.satop1 .satopt b { font-size: 22px; }
+html body #sa-recoil.satop1 svg, html body #sa-recoil.satop1 img { width: 38px; height: 38px; }
+html body #sa-recoil.satop1 .satopt em { color: inherit; opacity: .85; }
+/* the sheen of "Paste ready-made script" is NOT here: this sheet stays
+   flat (tools/test-flat.js: no gradient, no deep shadow). It is the one
+   material the owner asked for, so it lives with the room's own styles
+   (smart-actions/04-styling.js, D398). */
+html body #sa-readymade.sashine { min-height: 80px; padding: 16px 18px; border-radius: 15px !important;
+  border: 1.5px solid var(--zs2-ion-line, rgba(111,155,255,.5)) !important; color: var(--zk-text); }
+html body #sa-readymade.sashine .satopt b { font-size: 19px; }
+html body #sa-readymade.sashine svg, html body #sa-readymade.sashine img { color: var(--zk-accent); width: 34px; height: 34px; }
+html body #sa-record-seq.sarec img, html body #sa-record-seq.sarec svg { width: 28px; height: 28px; }
+html body #sa-record-seq.sarec { min-height: 52px; font-weight: 700; background-color: var(--rec-wash) !important;
+  border: 1px solid var(--rec-edge) !important; color: var(--rec) !important; }
+html body #sa-record-seq.sarec svg, html body #sa-record-seq.sarec img { color: var(--rec); }
+html body #sa-record-seq.sarec { padding: 10px 16px; }
+html body #sa-record-seq.sarec .satopt em { color: inherit; opacity: .85; }
+/* a gun page's three one-tap ready-mades, under the Lab */
+html body .saquickrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+html body .saquickrow > .btn.saquick { margin: 0 !important; min-height: 74px; padding: 10px 6px; display: flex;
+  flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+  border-radius: 13px !important; border: 1.5px solid var(--zs2-ion-line, rgba(111,155,255,.5)) !important; }
+html body .saquickrow > .btn.saquick b { font-size: 14.5px; font-weight: 750; line-height: 1.15; }
+html body .saquickrow > .btn.saquick svg, html body .saquickrow > .btn.saquick img { width: 26px; height: 26px;
+  color: var(--zk-accent); }
+/* New script (advanced): last, small and quiet, with its "?" beside it.
+   Owner 2026-10-16: "remove new scripts from being so bright and blue, make
+   it smaller at the bottom as that's advanced; the focus is READY MADE
+   SCRIPTS and the lab should be front and center". So: no fill, no blue, a
+   faint outline, small type, centred under everything else. */
+html body .sanewadv { margin: 22px 0 6px; }
+html body .sanewadv .sanewrow { display: flex; align-items: center; justify-content: center; gap: 8px; }
+html body .sanewadv .sanewrow > .btn { flex: 0 1 auto; width: auto !important; margin: 0 !important; min-height: 36px; padding: 6px 14px !important;
+  font-size: 13.5px; font-weight: 600; color: var(--zk-dim) !important; background: transparent !important;
+  border: 1px solid var(--zk-line, rgba(255,255,255,.12)) !important; box-shadow: none !important; }
+html body .sanewadv .sanewrow > .btn svg, html body .sanewadv .sanewrow > .btn img { width: 14px; height: 14px; opacity: .7; }
+html body .sanewrow > .qhrow { margin: 0; flex: none; }
+/* 2026-10-22 (owner: "in Advanced Script Maker the New script button should
+   be front and center"): the main room's New script (.sanewmain) is the
+   room's primary, full width, first; the quiet one above is a gun page's */
+html body .sanewmain { margin: 2px 0 14px; }
+html body .sanewmain .sanewrow { display: flex; align-items: center; gap: 10px; }
+html body .sanewmain .sanewrow > .btn { flex: 1; min-height: 52px; font-size: 16px; margin: 0 !important; }
+html body .sanewadv > .qhfold { margin: 8px 0 0; }
