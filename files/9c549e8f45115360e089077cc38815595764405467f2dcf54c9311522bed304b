@@ -1,0 +1,284 @@
+# Where the Battlefield 6 catalog comes from
+
+The list was first read on **2026-10-10** (checked a second time that day
+against EA's own pages) and brought up to Season 5, with pictures, on
+**2026-10-21**. `catalog.json` is the single-kind form
+(`kind: "weapons"`, Warzone's shape): Battlefield 6 is not built around
+characters. Its four classes (Assault, Engineer, Support, Recon) each have a
+signature weapon class under closed-weapon rules, but most playlists let any
+class carry any gun, and the class shows only as a small icon in the squad
+list, so the guns are the list.
+
+**Pictures: real EA art for every weapon (D471, 2026-10-24, the owner's call;
+it widens D116 for this game).** Every picture in `weapons/` is EA's own art:
+EA's Battlefield Portal icons, gadget renders and in-game armory renders as the
+Battlefield wiki hosts them (each tagged `{{EA}}` / `{{Fairuse}}` there), or EA's
+own site pictures from drop-assets.ea.com where nothing better exists. Each row
+of the Pictures table names its source file. They are EA's copyright, used in
+the app to identify the weapon; **the owner settles the licence** (flagged in
+D471). Delete a `.png` and set that weapon's `image` to `null` and the app shows
+the class symbol instead. 78 of the 84 items have one; the six without are
+named under Pictures.
+
+## What is in Battlefield 6 today
+
+- **Season 5, "Siege of Vegas"**, live since **2026-10-13** with Game
+  Update 2.1.1.0 ([EA's 2.1.1.0 notes](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-game-update-2-1-1-0),
+  dated 2026-10-12, read 2026-10-21; [EA's Season 5 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-season-5-roadmap)).
+  Its four guns are in the catalog, each at the end of its group:
+  **Mk 24** (Assault Rifle), **RSPR** (SMG; the notes call it a Personal
+  Defence Weapon), **Z84M** (LMG; "belt-fed", so `fireMode` auto like the
+  other belt-fed LMGs) and **ELR-40** (bolt-action Sniper Rifle). The Dead
+  Space event's DS-23 Pulse Rifle (from 2026-10-20) is a Battle Pickup and,
+  like Season 1's, is left out. EA's Loadout Creation page still says
+  "Recently Updated for Season 4" and does not list the Season 5 guns yet.
+- Before it, **Season 4**, whose third and last phase was **Tidal Strike**
+  (from 2026-09-15). The season's phases were Pacific Front (2026-07-21), Top Gun
+  (2026-08-18) and Tidal Strike ([EA's Season 4 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know),
+  [EA's Tidal Strike guide](https://www.ea.com/games/battlefield/redsec/news/battlefield-season-4-update-event-guide)).
+  `season` is now "Season 5: Siege of Vegas".
+- **84 items in 10 groups**: Assault Rifles 12, Carbines 9, SMGs 11, LMGs 11,
+  DMRs 6, Sniper Rifles 7, Shotguns 4, Sidearms 7, Gadget weapons 11 (the
+  launchers and the SS26, which replace the gun in the player's hands and the
+  HUD's weapon panel), Melee 6.
+
+### The names: EA's own weapon list
+
+EA's [Loadout Creation and Weapon Classes](https://www.ea.com/games/battlefield/battlefield-6/news/loadout-creation-and-weapon-classes)
+page ("Recently Updated for Season 4", 2026-07-21) lists every gun by class
+with its unlock. It is the first source of every gun and sidearm, and its
+spelling wins. It settled every name the first pass had marked uncertain:
+
+| Was uncertain | EA writes | Other spellings seen |
+|---|---|---|
+| NVO-228E | NVO-228E | NVO-228 (beta lists) |
+| M277 | M277 (Career Rank 11) | M227 |
+| SOR-300SC | SOR-300SC | SOR-300C (EA's own Season 1 roadmap) |
+| BROD 3 | BROD 3 (also EA's Season 4 roadmap, "Carbine Rifle") | BRD 3, BREN 3 |
+| Mini Scout | Mini Scout (also EA's Season 1 roadmap) | Mini Fix |
+| GRT-CPS | GRT-CPS (also EA's Season 2 roadmap) | CRT-CPS |
+| M357 Trait | M357 TRAIT | M327 Trait (EA's Season 1 roadmap) |
+| SL9 | SL9, under SMG | - |
+| Interdictor | Interdictor, Sniper Rifle, "Available During Season 4 Event" (Top Gun) | - |
+| VZ.61 | vz. 61, under Secondary (EA's Season 2 roadmap: "NEW SIDEARM: VZ.61", a machine pistol) | VZ.61 |
+
+It also changed three names: **M60 is "M/60"**, **L115 is "L115A3"** and
+**18.5 KS-K is "18.5KS-K"** (ids changed with them; nothing has shipped).
+Where EA's roadmaps spelt a gun differently from the newer loadout page
+(SOR-300C, M327 Trait), the newer page is taken as the game's current name.
+
+Settled on 2026-10-21 from EA's own pages:
+
+- **RPKM** (launch LMG): EA's [Progression in Battlefield 6](https://www.ea.com/games/battlefield/battlefield-6/news/progression-in-battlefield-6)
+  lists "RPKM, Weapon, LMG" at Rank 30, and EA's [Season 3 roadmap](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)
+  calls the RPK-74M "a powerful complement to the RPKM". No longer uncertain.
+- **X95 BRE** (Assault gadget, was "X95 BRM"): EA writes "X95 BRE Breaching
+  Projectile Launcher" in the [1.1.2.0 notes](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-game-update-1-1-2-0)
+  and "Gadget Skin - X95 BRE" in the [Season 3 Battle Pass page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-redsec-season-3-battle-pass-everything-you-need-to-know).
+  The name changed; the id `gadget_weapons.x95_brm` did not (ids never
+  change), and "X95 BRM" stays as an alias for search.
+- **Royal Navy Dive Knife**: EA's [Season 4 page](https://www.ea.com/games/battlefield/battlefield-6/seasons/bf6-season-4)
+  calls it "the new Royal Navy Dive Knife" and the roadmap files its picture
+  as `..._NewMelee_DiveKnife.jpg`, so it is a melee weapon, not a skin. The
+  2.1.1.0 notes add to Portal "the Season 4 Battle Pass weapons: EF88 ...
+  Interdictor ... and Hadal NV-08 Knife"; that list also names the Interdictor,
+  an event reward, and no other Season 4 knife exists, so **"Hadal NV-08
+  Knife" is taken as its in-game name** and added as an alias (still marked
+  uncertain: not seen on screen).
+
+Still uncertain:
+- **Melee.** EA's loadout page lists COMBAT KNIFE, HUNTING KNIFE, NOMAD CX-12
+  ICE-CLIMBING AXE and SLEDGEHAMMER. The axe is "Ice Climbing Axe" in the
+  Season 1 roadmap and "NOMAD CX-12 Ice Axe" in Season 2's. The Season 2
+  machete was announced as the "KAPOK 14” Machete", but the
+  [Hunter / Prey bonus path](https://www.ea.com/games/battlefield/battlefield-6/news/season-2-hunter-prey-bonus-path-free-challenges-guide)
+  that delivered it names its reward "Ripper 14”" (a "Serrated Blade"); they
+  are taken as one weapon. The Royal Navy Dive Knife is the Deep Six event's
+  final reward (EA: 2026-09-15 to 09-29); EA does not say whether it is a
+  weapon or a skin. Guides call the default knife the KBR Mark II.
+
+Battle Pickups (Season 1's Rorsch Mk-2 SMRW railgun and MP-RMG minigun) are
+found on the map, not equipped, and are left out.
+
+- **Gadgets** are from [MP1st's launch gadget list](https://mp1st.com/news/battlefield-6-gadgets-list-for-all-classes-available-at-launch)
+  (EA publishes none); the 9K38 IGLA from EA's Season 2 roadmap ("9K38 IGLA
+  ACTIVE LOCKING AIR-DEFENSE LAUNCHER", Engineer).
+- **Fire modes** are set only where the class settles it (bolt snipers, semi
+  DMRs and sidearms, pump shotguns, belt-fed LMGs) and for the M16A4 (burst,
+  full-auto only with an attachment). Battlefield's guns switch modes in game
+  and no source lists them gun by gun.
+- The Battlefield wiki (HTTP 402) and EA's forums (HTTP 403) would not load.
+
+| Class | Signature (closed weapons) |
+|---|---|
+| Assault | Assault Rifles |
+| Engineer | SMGs |
+| Support | LMGs |
+| Recon | Sniper Rifles |
+
+([EA's class guide](https://help.ea.com/en/articles/battlefield/battlefield-6/class-guide/))
+
+## Pictures (D471, 2026-10-24: real EA art for every weapon)
+
+**The owner's decision (2026-10-24, D471):** use real official EA / Battlefield 6
+art for every weapon, take the best real image found, and record its source; the
+licence is his to settle later. So, for Battlefield 6 only, a picture may come
+from the Battlefield wiki (battlefield.fandom.com, files served from
+static.wikia.nocookie.net) **when the file is EA's own art**: the wiki tags
+these files `{{EA}}` / `{{Fairuse}}`. **All of them are EA-owned art: flag for
+the owner.** The order taken, best first:
+
+1. **EA's Battlefield Portal weapon icons** ("BF6 <gun> Portal Icon.png",
+   512 x 256, transparent side views, the same look as the other games' pictures);
+2. **EA's gadget renders** ("Battlefield 6 <gadget>.png", transparent);
+3. **the in-game armory renders** of the default finish ("<gun> Factory BF6.png",
+   "<melee> Standard Issue BF6.png"), on the armory's curtain;
+4. **EA's own site pictures** (drop-assets.ea.com, the 2026-10-21 pass), where
+   nothing above exists (Season 2 to 5 guns that Portal does not show yet).
+
+Each is trimmed to the weapon, fitted inside 480 x 300 and saved as a 128-colour
+PNG (78 pictures, about 1.9 MB; the 31 before were 5.5 MB). The 2026-10-21
+crops of EA's promotional screenshots (M4A1, M87A1 in a soldier's hands) were
+replaced by Portal icons. **No picture (image: null):** Mk 24, RSPR, Z84M, M136 AT, Ripper 14", Hunting Knife. Mk 24, RSPR and
+Z84M (Season 5, 2026-10-13) have no EA picture anywhere yet; the M136 AT's
+render is referenced on the wiki but never uploaded; the Ripper 14" and the
+Hunting Knife have none.
+
+**M320A1 HE** shows EA's M320A1 THRM render: it is the same launcher (HE, THRM
+and SMK are its rounds). **Combat Knife** shows the KBR Mark II, the default
+knife (the catalog's uncertain note).
+
+| file | weapon | picture (source URL) | kind | page | fetched |
+|---|---|---|---|---|---|
+| weapons/assault_rifles_m433.png | M433 | https://static.wikia.nocookie.net/battlefield/images/1/16/BF6_M433_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M433_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_b36a4.png | B36A4 | https://static.wikia.nocookie.net/battlefield/images/9/90/BF6_B36A4_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_B36A4_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_sor_556_mk2.png | SOR-556 MK2 | https://static.wikia.nocookie.net/battlefield/images/b/b3/BF6_SOR-556_Mk2_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SOR-556_Mk2_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_ak4d.png | AK4D | https://static.wikia.nocookie.net/battlefield/images/a/a8/BF6_AK4D_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_AK4D_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_tr_7.png | TR-7 | https://static.wikia.nocookie.net/battlefield/images/8/82/BF6_TR-7_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_TR-7_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_kord_6p67.png | KORD 6P67 | https://static.wikia.nocookie.net/battlefield/images/1/1d/BF6_KORD_6P67_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_KORD_6P67_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_nvo_228e.png | NVO-228E | https://static.wikia.nocookie.net/battlefield/images/b/b6/BF6_NVO-228E_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_NVO-228E_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_l85a3.png | L85A3 | https://static.wikia.nocookie.net/battlefield/images/6/64/BF6_L85A3_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_L85A3_Portal_Icon.png) | 2026-10-24 |
+| weapons/assault_rifles_vcr_2.png | VCR-2 | https://static.wikia.nocookie.net/battlefield/images/3/3d/VCR-2_Factory_BF6.png | the in-game armory render of the default ('Factory') finish | [page](https://battlefield.fandom.com/wiki/File:VCR-2_Factory_BF6.png) | 2026-10-24 |
+| weapons/assault_rifles_m16a4.png | M16A4 | https://drop-assets.ea.com/images/3CIU22lwhsy0D5iNJ5DK5u/3d8d9a4755c9fd45ec6cdbb5677ca369/BF6_S3_M16A4_NewWeapon_M16A3.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/assault_rifles_ef88.png | EF88 | https://drop-assets.ea.com/images/7GXfyrDpLtXmeq1PAwppxd/632bfa2312b0c50a63123beff0f4de9b/BF6_S4_EF88_NewWeapon_WEP_AssaultRifle_EF88.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/carbines_m4a1.png | M4A1 | https://static.wikia.nocookie.net/battlefield/images/c/ca/BF6_M4A1_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M4A1_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_m277.png | M277 | https://static.wikia.nocookie.net/battlefield/images/b/b4/BF6_M277_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M277_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_ak_205.png | AK-205 | https://static.wikia.nocookie.net/battlefield/images/e/ed/BF6_AK-205_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_AK-205_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_m417_a2.png | M417 A2 | https://static.wikia.nocookie.net/battlefield/images/4/4c/BF6_M417_A2_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M417_A2_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_grt_bc.png | GRT-BC | https://static.wikia.nocookie.net/battlefield/images/4/46/BF6_GRT-BC_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_GRT-BC_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_qbz_192.png | QBZ-192 | https://static.wikia.nocookie.net/battlefield/images/f/f2/BF6_QBZ-192_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_QBZ-192_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_sg_553r.png | SG 553R | https://static.wikia.nocookie.net/battlefield/images/2/2d/BF6_SG_553R_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SG_553R_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_sor_300sc.png | SOR-300SC | https://static.wikia.nocookie.net/battlefield/images/3/33/BF6_SOR-300SC_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SOR-300SC_Portal_Icon.png) | 2026-10-24 |
+| weapons/carbines_brod_3.png | BROD 3 | https://drop-assets.ea.com/images/11IqS3wKfGPVtKUTo0gW5w/8e174313fd489c68faf0f9c979b5afd8/BF6_S4_Brod3_NewWeapon_WEP_Carbine_Bren3.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/smgs_sgx.png | SGX | https://static.wikia.nocookie.net/battlefield/images/2/20/BF6_SGX_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SGX_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_pw5a3.png | PW5A3 | https://static.wikia.nocookie.net/battlefield/images/5/5d/BF6_PW5A3_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_PW5A3_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_pw7a2.png | PW7A2 | https://static.wikia.nocookie.net/battlefield/images/0/0d/BF6_PW7A2_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_PW7A2_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_umg_40.png | UMG-40 | https://static.wikia.nocookie.net/battlefield/images/2/2a/BF6_UMG-40_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_UMG-40_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_usg_90.png | USG-90 | https://static.wikia.nocookie.net/battlefield/images/2/22/BF6_USG-90_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_USG-90_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_kv9.png | KV9 | https://static.wikia.nocookie.net/battlefield/images/1/12/BF6_KV9_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_KV9_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_scw_10.png | SCW-10 | https://static.wikia.nocookie.net/battlefield/images/6/63/BF6_SCW-10_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SCW-10_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_sl9.png | SL9 | https://static.wikia.nocookie.net/battlefield/images/3/3a/BF6_SL9_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SL9_Portal_Icon.png) | 2026-10-24 |
+| weapons/smgs_cz3a1.png | CZ3A1 | https://static.wikia.nocookie.net/battlefield/images/2/2e/CZ3A1_Factory_BF6.png | the in-game armory render of the default ('Factory') finish | [page](https://battlefield.fandom.com/wiki/File:CZ3A1_Factory_BF6.png) | 2026-10-24 |
+| weapons/smgs_pp_19.png | PP-19 | https://drop-assets.ea.com/images/3Z690v7EtbHPduKMvdprVz/a1195a4e542e10480510cd1424484e10/BF6_S3_PP-19_NewWeapon_SMG_PP19.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/lmgs_l110.png | L110 | https://static.wikia.nocookie.net/battlefield/images/c/c5/BF6_L110_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_L110_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_drs_iar.png | DRS-IAR | https://static.wikia.nocookie.net/battlefield/images/5/55/BF6_DRS-IAR_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_DRS-IAR_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_m_60.png | M/60 | https://static.wikia.nocookie.net/battlefield/images/7/75/BF6_M60_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M60_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_rpkm.png | RPKM | https://static.wikia.nocookie.net/battlefield/images/0/03/BF6_RPKM_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_RPKM_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_m123k.png | M123K | https://static.wikia.nocookie.net/battlefield/images/e/ec/BF6_M123K_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M123K_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_m250.png | M250 | https://static.wikia.nocookie.net/battlefield/images/5/51/BF6_M250_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M250_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_kts100_mk8.png | KTS100 MK8 | https://static.wikia.nocookie.net/battlefield/images/b/b6/BF6_KTS100_MK8_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_KTS100_MK8_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_m240l.png | M240L | https://static.wikia.nocookie.net/battlefield/images/5/58/BF6_M240L_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M240L_Portal_Icon.png) | 2026-10-24 |
+| weapons/lmgs_m121_a2.png | M121 A2 | https://static.wikia.nocookie.net/battlefield/images/a/a3/M121_A2_Factory_BF6.png | the in-game armory render of the default ('Factory') finish | [page](https://battlefield.fandom.com/wiki/File:M121_A2_Factory_BF6.png) | 2026-10-24 |
+| weapons/lmgs_rpk_74m.png | RPK-74M | https://drop-assets.ea.com/images/2O90SHeUCpLIZ9Ciwcid0D/fc206bd4c66c21960f59402f0a98bfd3/BF6_S3_RPK-74M_NewWeapon_WEP_MG_RPK74M.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/dmrs_m39_emr.png | M39 EMR | https://static.wikia.nocookie.net/battlefield/images/6/69/BF6_M39_EMR_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M39_EMR_Portal_Icon.png) | 2026-10-24 |
+| weapons/dmrs_lmr27.png | LMR27 | https://static.wikia.nocookie.net/battlefield/images/f/f8/BF6_LMR27_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_LMR27_Portal_Icon.png) | 2026-10-24 |
+| weapons/dmrs_svk_8_6.png | SVK-8.6 | https://static.wikia.nocookie.net/battlefield/images/a/a0/BF6_SVK_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SVK_Portal_Icon.png) | 2026-10-24 |
+| weapons/dmrs_svdm.png | SVDM | https://static.wikia.nocookie.net/battlefield/images/d/d4/BF6_SVDM_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SVDM_Portal_Icon.png) | 2026-10-24 |
+| weapons/dmrs_grt_cps.png | GRT-CPS | https://static.wikia.nocookie.net/battlefield/images/a/a4/GRT-CPS_Factory_BF6.png | the in-game armory render of the default ('Factory') finish | [page](https://battlefield.fandom.com/wiki/File:GRT-CPS_Factory_BF6.png) | 2026-10-24 |
+| weapons/dmrs_vssm.png | VSSM | https://drop-assets.ea.com/images/1tRDl7xOOyoZQkPbKFNPKO/67fc88e7af45b535c15ea529fd0a2168/BF6_S4_VSSM_NewWeapon_VSSM.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/sniper_rifles_m2010_esr.png | M2010 ESR | https://static.wikia.nocookie.net/battlefield/images/1/18/BF6_M2010_ESR_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M2010_ESR_Portal_Icon.png) | 2026-10-24 |
+| weapons/sniper_rifles_sv_98.png | SV-98 | https://static.wikia.nocookie.net/battlefield/images/d/d0/BF6_SV-98_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_SV-98_Portal_Icon.png) | 2026-10-24 |
+| weapons/sniper_rifles_psr.png | PSR | https://static.wikia.nocookie.net/battlefield/images/3/3a/BF6_PSR_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_PSR_Portal_Icon.png) | 2026-10-24 |
+| weapons/sniper_rifles_mini_scout.png | Mini Scout | https://static.wikia.nocookie.net/battlefield/images/b/ba/BF6_Mini_Scout_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_Mini_Scout_Portal_Icon.png) | 2026-10-24 |
+| weapons/sniper_rifles_l115a3.png | L115A3 | https://drop-assets.ea.com/images/2LaZ7xsQ8fcDKkd561QI0P/afaea9b2db9a2b305f5a178d477c9a36/BF6_S3_L115_NewWeapon_L115A3.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-3-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/sniper_rifles_interdictor.png | Interdictor | https://drop-assets.ea.com/images/1Rkwcb7UVdQbajxtjD41nl/498dfc15c44eebbe31beac13a111706f/BF6_S4_Interdictor_NewWeapon_DesertTechHTI.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/sniper_rifles_elr_40.png | ELR-40 | https://drop-assets.ea.com/images/wG423wuIsxa1Hox8SvE8J/2fb4bbbf4738f37e1143737d17037def/BF6_S5_ELR-40_NewWeapon_CDX40.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-season-5-roadmap)) | 2026-10-24 |
+| weapons/shotguns_m87a1.png | M87A1 | https://static.wikia.nocookie.net/battlefield/images/7/75/BF6_M87A1_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M87A1_Portal_Icon.png) | 2026-10-24 |
+| weapons/shotguns_m1014.png | M1014 | https://static.wikia.nocookie.net/battlefield/images/a/ab/BF6_M1014_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M1014_Portal_Icon.png) | 2026-10-24 |
+| weapons/shotguns_18_5ks_k.png | 18.5KS-K | https://static.wikia.nocookie.net/battlefield/images/d/d6/BF6_18.5KS-K_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_18.5KS-K_Portal_Icon.png) | 2026-10-24 |
+| weapons/shotguns_db_12.png | DB-12 | https://static.wikia.nocookie.net/battlefield/images/8/89/BF6_DB-12_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_DB-12_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_p18.png | P18 | https://static.wikia.nocookie.net/battlefield/images/1/17/BF6_P18_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_P18_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_es_5_7.png | ES 5.7 | https://static.wikia.nocookie.net/battlefield/images/9/93/BF6_ES_5.7_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_ES_5.7_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_m45a1.png | M45A1 | https://static.wikia.nocookie.net/battlefield/images/d/d6/BF6_M45A1_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M45A1_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_m44.png | M44 | https://static.wikia.nocookie.net/battlefield/images/7/71/BF6_M44_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M44_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_ggh_22.png | GGH-22 | https://static.wikia.nocookie.net/battlefield/images/3/3c/BF6_GGH-22_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_GGH-22_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_m357_trait.png | M357 TRAIT | https://static.wikia.nocookie.net/battlefield/images/4/46/BF6_M357_Trait_Portal_Icon.png | EA's Battlefield Portal weapon icon (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:BF6_M357_Trait_Portal_Icon.png) | 2026-10-24 |
+| weapons/sidearms_vz_61.png | vz. 61 | https://static.wikia.nocookie.net/battlefield/images/1/1d/Vz._61_Factory_BF6.png | the in-game armory render of the default ('Factory') finish | [page](https://battlefield.fandom.com/wiki/File:Vz._61_Factory_BF6.png) | 2026-10-24 |
+| weapons/gadget_weapons_rpg_7v2.png | RPG-7V2 | https://static.wikia.nocookie.net/battlefield/images/e/e3/Battlefield_6_RPG-7V2.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_RPG-7V2.png) | 2026-10-24 |
+| weapons/gadget_weapons_mbt_law.png | MBT-LAW | https://static.wikia.nocookie.net/battlefield/images/c/c5/Battlefield_6_MBT-LAW.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_MBT-LAW.png) | 2026-10-24 |
+| weapons/gadget_weapons_mas_148.png | MAS 148 | https://static.wikia.nocookie.net/battlefield/images/f/fe/Battlefield_6_MAS_148_Glaive.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_MAS_148_Glaive.png) | 2026-10-24 |
+| weapons/gadget_weapons_slm_93a.png | SLM-93A | https://static.wikia.nocookie.net/battlefield/images/6/6e/Battlefield_6_SLM-93A_Spire.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_SLM-93A_Spire.png) | 2026-10-24 |
+| weapons/gadget_weapons_9k38_igla.png | 9K38 IGLA | https://drop-assets.ea.com/images/4IrZXWQbdGD5vhG4U23637/d5d7a8f0e92071b240a898f68707be64/bf6-s2-roadmap-SA18IGLA.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/battlefield-6-and-redsec-season-2-roadmap-everything-you-need-to-know)) | 2026-10-24 |
+| weapons/gadget_weapons_m320a1_he.png | M320A1 HE | https://static.wikia.nocookie.net/battlefield/images/1/1c/Battlefield_6_M320A1_THRM.png | EA's gadget render (transparent side view); the same M320A1 launcher (HE is its ammunition); EA's picture is filed under THRM | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_M320A1_THRM.png) | 2026-10-24 |
+| weapons/gadget_weapons_m320a1_thrm.png | M320A1 THRM | https://static.wikia.nocookie.net/battlefield/images/1/1c/Battlefield_6_M320A1_THRM.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_M320A1_THRM.png) | 2026-10-24 |
+| weapons/gadget_weapons_m320a1_smk.png | M320A1 SMK | https://static.wikia.nocookie.net/battlefield/images/f/fa/Battlefield_6_M320A1_SMK.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_M320A1_SMK.png) | 2026-10-24 |
+| weapons/gadget_weapons_x95_brm.png | X95 BRE | https://static.wikia.nocookie.net/battlefield/images/2/27/Battlefield_6_X95_BRE.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_X95_BRE.png) | 2026-10-24 |
+| weapons/gadget_weapons_ss26_fire_shotgun.png | SS26 Fire Shotgun | https://static.wikia.nocookie.net/battlefield/images/7/71/Battlefield_6_SS26.png | EA's gadget render (transparent side view) | [page](https://battlefield.fandom.com/wiki/File:Battlefield_6_SS26.png) | 2026-10-24 |
+| weapons/melee_combat_knife.png | Combat Knife | https://static.wikia.nocookie.net/battlefield/images/5/5e/KBR_Mark_II_Standard_Issue_BF6.png | the in-game armory render of the default ('Standard Issue') finish | [page](https://battlefield.fandom.com/wiki/File:KBR_Mark_II_Standard_Issue_BF6.png) | 2026-10-24 |
+| weapons/melee_sledgehammer.png | Sledgehammer | https://static.wikia.nocookie.net/battlefield/images/0/0e/14lb_Sledgehammer_Standard_Issue_BF6.png | the in-game armory render of the default ('Standard Issue') finish | [page](https://battlefield.fandom.com/wiki/File:14lb_Sledgehammer_Standard_Issue_BF6.png) | 2026-10-24 |
+| weapons/melee_nomad_cx_12_ice_climbing_axe.png | NOMAD CX-12 Ice-Climbing Axe | https://static.wikia.nocookie.net/battlefield/images/3/3d/Nomad_CX-12_Standard_Issue_BF6.png | the in-game armory render of the default ('Standard Issue') finish | [page](https://battlefield.fandom.com/wiki/File:Nomad_CX-12_Standard_Issue_BF6.png) | 2026-10-24 |
+| weapons/melee_royal_navy_dive_knife.png | Royal Navy Dive Knife | https://drop-assets.ea.com/images/6fz0pRNeHpfGjwMeG3oy7V/6bc6dbaf2a23e22ed68a895c47bae11a/BF6_S4_DiversKnife_NewMelee_DiveKnife.jpg | EA's own site picture, cropped (workbench render) | [page]([page](https://www.ea.com/games/battlefield/battlefield-6/news/season-4-roadmap-everything-you-need-to-know), [page](https://www.ea.com/games/battlefield/redsec/news/battlefield-season-4-update-event-guide)) | 2026-10-24 |
+
+## Rarity (REDSEC only): `tiers`
+
+REDSEC, the free battle royale, has six weapon rarities, named and coloured by
+EA in [Battlefield REDSEC Battle Royale 101](https://www.ea.com/games/battlefield/redsec/news/battlefield-redsec-battle-royale-101),
+lowest first: Common (white), Uncommon (green), Rare (blue), Advanced
+(purple), Superior (orange), Unique (red). Checked again 2026-10-10. Weapon
+Upgrade Kits raise a gun up to Advanced; Superior is "extremely rare; only a
+few per match"; Unique are the player's own favourited Custom Weapons, from
+Custom Weapon Drops. The `colour` values are the app's chips only, chosen from
+EA's colour words, **not sampled from a frame** (D134: the Core learns each
+tier's colour from the owner's crops). Where the colour shows on the REDSEC
+HUD is not yet known.
+
+## HUD states
+
+*From public sources, not checked on a real frame.* What the screen shows in
+each state, and what the Core could read there:
+
+| State | What shows | What the Core could read |
+|---|---|---|
+| Deploy screen | Full-screen map, squad list, class and loadout picker | Not a play state: hold all Smart Actions. The loadout's gun names are printed here as text, the one place they surely are |
+| On foot | Bottom right: the held gun's silhouette, magazine / reserve count, fire-mode icon. Bottom left: health (REDSEC: armour bar above it), backpack button | The gun's silhouette (picture teaching); the fire-mode icon; the ammo digits |
+| Gadget held (launcher, SS26, M320A1) | The weapon panel switches to the gadget's icon and ammo | A gadget silhouette: the Gadget weapons group exists so a Smart Action can stand down |
+| Scoped / ADS | Panel stays; a scope overlay fills the centre on high-zoom optics | Same panel |
+| In a vehicle | The panel is replaced by the vehicle's HUD (seat, weapons, health) | "Not on foot": hold gun Smart Actions |
+| Dead / spectating | Kill card, then the deploy screen | Hold everything |
+| REDSEC | As on foot, plus the backpack, armour bar and ring timer; a gun's rarity colour (where on screen is unknown) | Rarity tier (D134) once its place is known |
+
+**Does the HUD print the gun's name?** Probably not. An EA forum request
+titled "Feature Request: Show weapon name on HUD (PS5 / console)"
+([thread](https://forums.ea.com/discussions/battlefield-6-general-discussion-en/feature-request-show-weapon-name-on-hud-ps5--console/12899537),
+read from search snippets only, HTTP 403) says only the weapon **icon and ammo
+count** are shown. A [TechWiser icon guide](https://techwiser.com/battlefield-6-icons-symbols-meaning/)
+describes the ammo readout as a weapon icon with numbers and a separate
+fire-mode icon, and no name. A forum bug report places the weapon icon and
+ammo bottom right. The first pass said the name "flashes for a moment on a
+swap"; no source for that was found on recheck, so it is **unconfirmed**.
+
+So Battlefield 6 is **not a name-reading game** on present evidence: the
+route is **picture teaching** of the silhouette in the bottom-right panel. One
+real frame of a weapon swap settles it; if a name does flash,
+recognition.json's `"blank": "hold"` covers a name that fades.
+
+## Update the list each season
+
+Add each new gun at the end of its group with the season as `from` and the
+season's roadmap or notes as `sources`; check EA's loadout page (it is updated
+each season) for spellings; set `asOf` and `season`. For its picture, look in
+the season roadmap for the `..._NewWeapon_...` workbench render on
+drop-assets.ea.com, crop it to the weapon at most 480 x 300, save it as
+`weapons/<id with the dot as _>.png` and add its row to the Pictures table.
+Then run `node dashboard/tools/test-game-data.js`. Mk 24, RSPR and Z84M have
+no EA picture yet; check EA's Season 5 phase 2 pages (from 2026-11-10).
