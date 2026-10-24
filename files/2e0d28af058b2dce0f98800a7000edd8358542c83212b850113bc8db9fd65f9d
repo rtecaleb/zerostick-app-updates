@@ -1,0 +1,1153 @@
+/* shell/09-home.js — HOME.
+ *
+ * renderHome and everything on it: who is plugged in (the device pills, the
+ * mouse's Check rate D188), what you are pressing right now, the gun that
+ * is out and the Active Weapon card (D192, the AI Scripts it turns on),
+ * Passthrough Mode on HOME, the calibration-running line (D202-D204), and
+ * HOME's one entrance (homeEnter).
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── HOME ──────────────────────────────────────────────────────── */
+  /* the engine names its output driver "uinput"/"null" — say what that MEANS.
+     "null" is not an error: the engine is running, nothing is plugged in to
+     receive the inputs yet. Never show a user the word "null". */
+  function backendText(b){
+    var n = (b && b.name) || '';
+    if(n==='null') return 'waiting for a console';
+    if(!n) return 'checking output…';
+    if(b && b.healthy===false) return esc(n)+' output — not healthy';
+    return 'sending inputs';
+  }
+  window.ZS_backendText = backendText;
+  /* The identity line under a config's name: the family mark, then the console
+     and input NAMED IN TEXT. The mark is decorative here precisely because the
+     words beside it already say it — a screen reader gets the sentence once,
+     not a badge and then the same word again. Replaces the old pair of outline
+     badges, whose colour was the only thing distinguishing them. */
+  /* `short` swaps the console's full name for the badge word ("PlayStation 5"
+     → "PS5"). The hero has 300px for this line and can afford the long name;
+     a row in a sixteen-config list has 150px for a string that wants 188, so
+     six of sixteen rows clipped mid-word at "… Mouse + Keyb…" — and that
+     line is the only thing telling several similarly-named configs apart, so
+     it was the worst possible thing to cut. The accessible label on the row
+     is built separately and still says PlayStation 5 in full. */
+  function idLine(p, short){
+    var mk = window.ZSMARK
+      ? '<span class="mk">'+ZSMARK.badge(markKey(p), {size:20, decorative:true})+'</span>' : '';
+    var con = short ? ((PB[p.platform]&&PB[p.platform].t) || CON[p.platform] || p.platform)
+                    : (CON[p.platform] || p.platform);
+    /* .gm marks a game-bearing line: the one-line ellipsis contract must win
+       even on the hero, whose gameless idline is allowed to wrap (see the
+       .hero .idline .mt.gm rule in the style block above) */
+    return '<span class="idline">'+mk+'<span class="mt'+(p.game?' gm':'')+'">'+
+           esc(con)+' · '+esc(INP[p.input]||p.input)+
+           /* the locked game rides the identity line; the .mt ellipsis rule
+              (style block above) keeps a long name from wrapping the row */
+           (p.game ? ' · '+esc(p.game) : '')+
+           '</span></span>';
+  }
+  function kb(el){ el.setAttribute('tabindex','0');
+    if(!el.hasAttribute('role')) el.setAttribute('role','button');
+    el.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } }); }
+
+  /* keep covered layers out of the tab order */
+  var lastNavKey=null;   /* editor/detail open state at the last syncInert */
+  function syncInert(){
+    var ed=document.getElementById('editor'), dt=document.getElementById('detail');
+    var edOpen=ed.classList.contains('open'), dtOpen=dt.classList.contains('open');
+    /* REAL NAVIGATION DISMISSES THE TOAST. Keyed on the panel state, not on
+       this call: sheetOpen/sheetClose run syncInert too, and a toast raised
+       just before a sheet closes ("Up and down now matches…") must survive
+       that. The first call (boot) only records the state. */
+    var navKey=(edOpen?1:0)+'/'+(dtOpen?1:0);
+    if(lastNavKey!==null && navKey!==lastNavKey) hideToast();
+    lastNavKey=navKey;
+    /* The depth cue: while any panel covers it, HOME recedes and dims (the
+       .zs-covered CSS), then settles back as the panel slides away. Toggled
+       here because this function already runs on every open AND every close
+       — tap, swipe and spring all converge on the same back buttons — and
+       never on the poll, which is the whole animation constraint in one
+       line: this class can only ever change on real navigation. */
+    var scr=document.querySelector('.screen');
+    /* .zs-covered is the depth SETTLE, and it may only ever change on real
+       navigation — a sheet is an overlay on the same screen, not a new one,
+       so it deliberately does not toggle it. Only the inert half below
+       follows the sheet. */
+    if(scr) scr.classList.toggle('zs-covered', edOpen||dtOpen);
+    /* THE TOAST'S BAND FOLLOWS THE SCREEN. HOME's foot is what is under a
+       toast on HOME; the device bar is what is under one anywhere else, and
+       it has its own 14px. Cleared rather than recomputed, so the value can
+       never outlive the surface it was measured from. */
+    if(scr){
+      if(edOpen||dtOpen) scr.style.removeProperty('--toast-lift');
+      else syncFootLift();
+    }
+    /* A SHEET IS MODAL. aria-modal alone does not stop a finger or a Tab
+       reaching HOME and the app bar behind the scrim, so the layers a sheet
+       covers go inert with it (WCAG 2.4.3 / 2.4.11: what is behind a modal is
+       neither operable nor in the tab order). The trap in sheetOpen's keydown
+       handler is the belt to this brace. */
+    var sw=document.getElementById('sheetwrap');
+    var shOpen = !!(sw && sw.classList.contains('open'));
+    try{
+      ed.inert = !edOpen || dtOpen;
+      dt.inert = !dtOpen;
+      document.getElementById('home').inert = edOpen || dtOpen || shOpen;
+      document.querySelector('.appbar').inert = edOpen || dtOpen || shOpen;
+    }catch(e){}
+  }
+
+  /* D348: HOME's Tournament chip. Its rule is injected once, from here, the
+     way core-wifi.js carries its own; ink and edge are theme tokens so the
+     light theme needs nothing of its own. */
+  function tournChipHTML(){
+    if(!document.getElementById('zs-tourn-css')){
+      var s = document.createElement('style');
+      s.id = 'zs-tourn-css';
+      s.textContent =
+        '.hs-tourn{display:flex;justify-content:center;margin-top:6px}'+
+        '.tourn-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;'+
+        'border:1.5px solid var(--amber);border-radius:999px;background:var(--panel);'+
+        'color:var(--text);font-size:12px;font-weight:700;letter-spacing:.02em}'+
+        '.tourn-chip svg{width:13px;height:13px;flex:none;color:var(--amber)}';
+      document.head.appendChild(s);
+    }
+    return '<div class="hs-sub hs-tourn"><span class="tourn-chip" id="hstourn" role="status" '+
+      'aria-label="Tournament Mode is on: scripts, Smart Actions and AI are off">'+
+      '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 1h8v2h2.5v1.5'+
+      'A3.5 3.5 0 0 1 11.6 8 4 4 0 0 1 9 10v2h2v2H5v-2h2v-2a4 4 0 0 1-2.6-2A3.5 3.5 0 0 1 1.5 4.5V3H4z'+
+      'M3 4.5A2 2 0 0 0 4.2 6.3 6 6 0 0 1 4 4.5zm10 0h-1a6 6 0 0 1-.2 1.8A2 2 0 0 0 13 4.5z"/></svg>'+
+      'Tournament</span></div>';
+  }
+
+  function renderHome(){
+    /* The stripe promises "this is the colour your pad glows", so it has to
+       re-read lighting.color every draw — the Lighting screen's colour wheel
+       changes that field too, and a promise that only held when you used the
+       swatches would be worse than not making it. */
+    PROFILES.forEach(function(p,i){
+      if(LIVE.full[p.id]) p.color = profileColor(LIVE.full[p.id], i);
+    });
+    var a = prof(activeId);
+    /* D435: HOME's ambient light wears the live config's colour */
+    if(typeof zsAmbient === 'function') zsAmbient(a.color);
+    var h = '';
+    /* THE LIVE LINE LEFT THE HERO (owner, 2026-08-17: "board connected and
+       sending inputs up 103 mins — that is a debug fact, maybe make it pop
+       up if someone clicks board on the top right"). Online, the hero says
+       what is PLAYING and nothing about the link; the link facts moved
+       behind the ● board chip, which is now a real <button> opening
+       openBoardSheet(). OFFLINE is different in kind and stays loud on the
+       hero: amber guidance telling a user what to DO — check the power,
+       check the Wi-Fi — is help, not telemetry. */
+    /* ONE OFFLINE STATE (D192, the owner). HOME used to say it four times at
+       once: the chip's "Offline", a "Can't reach your ZeroStick / check the
+       Wi-Fi" paragraph, the weapon card's "can't read it" and the presses
+       row's "Reconnect to see your presses". Now the chip IS the state
+       ("EXO Core Offline") and ONE sentence sits under it: the fact that
+       stops a player re-doing work they think was lost, then the one check
+       that fits how THIS app reaches the hardware (linkVia), and no other. */
+    var offline = (LIVE.online===false);
+    var via = linkVia();
+    var offMsg = 'Settings will sync automatically when your device reconnects.'+
+      (via==='usb' && window.ZSHOST && ZSHOST.studio
+         ? ' It is reached over EXO Studio’s USB connection: check its USB cable.'
+       : via==='usb' ? ' Check its USB cable.'
+       : via==='bluetooth' ? ' Check Bluetooth is on.'
+       : ' Check it’s on the same Wi‑Fi as this device.');
+    /* THE ONLY LIVE AFFORDANCE ON HOME. aria-haspopup says a dialog is behind
+       it; aria-expanded says whether that dialog is open RIGHT NOW, and
+       without it a screen-reader user pressing it twice is told nothing
+       either time. It is written false here and flipped by sheetOpen /
+       sheetClose, which are the only two places the sheet's state changes. */
+    /* THE LINK LINE. The board chip used to be an eyebrow control on a row of
+       its own ("ACTIVE CONFIG ........ * board"); it is a centred line under
+       the device pills now, which is where the reference puts it and where
+       the eye already is on the way down. Same <button>, same sheet, same
+       aria contract - openBoardSheet() and the aria-expanded flip below are
+       untouched, so the only thing that moved is the pixel. */
+    /* D194: the line became the DEVICE CARD (the owner's mockup) - the EXO's
+       picture, its name and state, its firmware, its mode and its link -
+       and it is still this one <button>, so the sheet, the aria contract and
+       the poll's re-pointing below are all unchanged. */
+    /* THE NAME OVER THE PICTURE, CENTRED (the reference's shape, and the
+       right one: the config's name is a title for the picture under it, not
+       a row in a list). Under it, ONLY WHAT NOTHING ELSE SAYS (D192): the
+       console is the badge on the picture and the input is the chip under
+       it, so "PC \u00b7 Mouse + Keyboard \u00b7 <game>" said two of its three facts
+       a second time. The game is the one left, and it goes too when the
+       config's own name already says it. */
+    var pb = PB[a.platform] || null;
+    h += '<div class="hs-name">'+esc(a.name)+'</div>';
+    var gameLine = a.game && String(a.name||'').toLowerCase().indexOf(String(a.game).toLowerCase()) < 0
+      ? a.game : '';
+    if(gameLine) h += '<div class="hs-sub">'+esc(gameLine)+'</div>';
+    /* D300 amended: a config for an unfinished game says "Coming soon" here
+       too. It keeps playing (nothing is sent to the device); without
+       developer mode only its Settings refuse to open (openEditor). */
+    var soonB = (window.ZS && ZS.configSoonBadge) ? ZS.configSoonBadge(a) : '';
+    if(soonB) h += '<div class="hs-sub hs-soon">'+soonB+'</div>';
+    /* D348: TOURNAMENT MODE is on (the Core's /status "tournament"): one
+       small chip under the name, in words, so nobody wonders why a macro
+       did nothing. Global Settings is where it is switched. */
+    if(!offline && LIVE.status && LIVE.status.tournament === true) h += tournChipHTML();
+    /* D124: a config listed without a readable copy says so where it is
+       shown, and Settings is where the sentence and the way on are */
+    if(a.unreadable) h += '<div class="hs-sub hs-warn">'+
+      'Its settings cannot be opened here. Tap Settings to see why.</div>';
+
+    /* THE PICTURE IS THE CENTRE BLOCK, with the door to its settings riding
+       its foot, so it costs the photo no height. (The console badge that sat
+       beside it left in D196: the device card says the mode.) */
+    /* D205: born in its Navigate state, so a redraw never replays the fade */
+    var navOnNow = navIsOn(navLive());
+    h += '<div class="hs-art'+(navOnNow?' navon':'')+'" id="hsart" style="--cfg:'+esc(a.color||'#4a5568')+
+           (pb?';--pc:'+pb.c:'')+'">'+
+           /* the TALL picture: this box is taller than wide on a phone (D121) */
+           artHTML(a, 300, {eager:true, shape:'tall'})+
+           /* ONE ROW ALONG THE FOOT OF THE PICTURE: which console this drives,
+              then the way into its settings. The settings control was a 44px
+              puck in the far corner and read as decoration; owner, 2026-09-04:
+              "make the settings thing way wider ... and is obvious you click
+              that for settings". So it is a labelled pill that takes all the
+              width the badge does not, which also puts the two controls in
+              one line the eye reads left to right. */
+           '<div class="hs-artfoot">'+
+             '<button class="hs-cog" id="hscog" '+
+               'aria-label="Settings for this config">'+
+               icoSVG('sliders', 22)+'<span class="cw">Settings</span>'+
+               '<span class="cv" aria-hidden="true">›</span>'+
+             '</button>'+
+           '</div>'+
+           /* D205: PASSTHROUGH MODE ACTIVE over the greyed picture, with the
+              way out; it swallows taps on the picture, but (D205 amended,
+              owner) the Settings bar under it stays visible and opens
+              Settings */
+           navCoverHTML()+
+         '</div>';
+
+    /* D196 (owner): THE DEVICE CARD SITS UNDER THE PICTURE, where the
+       input chip was. It now carries the console mode AND the input, so
+       the picture's console badge and the chip under it both went: one
+       place says what the device is doing. */
+    h += '<div class="hs-link'+(offline?' off':'')+(navOnNow?' navon':'')+'">'+
+           '<button class="lk '+(offline?'down':'up')+'" id="livechip" '+
+             'aria-haspopup="dialog" aria-expanded="false" '+
+             'aria-label="'+esc(linkChipLabel(!offline))+'">'+
+             linkChipInner(!offline)+
+           '</button>'+
+           /* D343: the Wi-Fi light's own door, laid over the glyph (a
+              button cannot hold a button); '' offline or without Wi-Fi */
+           (!offline && window.ZS_WIFI && ZS_WIFI.hitHTML ? ZS_WIFI.hitHTML() : '')+
+           (offline ? '<p class="hs-offmsg">'+esc(offMsg)+'</p>' : '')+
+           /* D343: the Core's Wi-Fi row (core-wifi.js), on the card under
+              its button; '' offline or on a Core without Wi-Fi */
+           (!offline && window.ZS_WIFI ? ZS_WIFI.rowHTML() : '')+
+         '</div>';
+    /* D352: A RUNNING SCRIPT'S SCREEN (home-oled.js), under the device card,
+       only while /status says a running script drew on it; '' otherwise (an
+       older Core, no script, offline). The picture gives it the height. */
+    if(!offline && window.ZS_HOLED) h += ZS_HOLED.cardHTML();
+
+    var home = document.getElementById('home');
+    /* A redraw is NOT an entrance. renderHome runs on the ~8s poll and on
+       board events, and innerHTML makes every child brand-new — if the boot
+       entrance class survived here, each refresh would replay the whole
+       stagger and the screen would flicker constantly. Strip it first: a
+       refresh may cut the entrance short, it can never replay it. Only
+       homeEnter() — boot, once — ever puts it on. */
+    /* D448 (owner: "it's all laggy"): THE POLL DOES NOT REBUILD WHAT IT
+       WOULD BUILD AGAIN. The 8 s /status tick used to throw HOME away and
+       parse it back from the same string, re-creating every picture (on a
+       phone: a fresh decode of the game art) for no change at all. When the
+       markup is the one this function wrote last and that DOM is still the
+       one on screen, it is kept, with its handlers; the live painters below
+       still run, so everything they own stays current. */
+    var sameHome = home._zsHtml === h && home.firstChild && home.firstChild === home._zsFirst;
+    if(!sameHome){
+    home.classList.remove('zs-enter');
+    home.innerHTML = h;
+    home._zsHtml = h; home._zsFirst = home.firstChild;
+    /* D352: the screen card is brand-new: repaint its last frame, keep its
+       10 Hz poll running while it is on screen */
+    if(window.ZS_HOLED) ZS_HOLED.wire();
+    wireArt(home);        /* a 404'd photo becomes the family mark, never a
+                             broken-image icon — this is the offline path */
+    /* EDIT CONFIG HAS TWO HANDLES NOW and both are the same door: the pencil
+       in the app bar (wired once at boot - it is static markup) and the gear
+       on the picture. The full-width EDIT CONFIG slab is gone; the reference
+       does not have one and it was eating 64px of the photo to say what the
+       pencil says in 19. */
+    var cogEl=document.getElementById('hscog');
+    if(cogEl){ cogEl.addEventListener('click', function(){ openEditor(activeId); });
+               if(window.ZSM && ZSM.pressable) ZSM.pressable(cogEl); }
+    /* the ● board chip is the door to the board-facts sheet; a real <button>,
+       so no kb() shim. Re-wired on every redraw because innerHTML above made
+       it brand-new; the sheet itself lives in #sheetwrap, OUTSIDE #home, so
+       the ~8s poll's redraw can never repaint it out from under a finger. */
+    var lc=document.getElementById('livechip');
+    if(lc){
+      lc.addEventListener('click', function(){ openBoardSheet(lc); });
+      /* D194: the card answers the finger on pointer-down (DESIGN.md, Press) */
+      if(window.ZSM && ZSM.pressable) ZSM.pressable(lc);
+      /* the box was rebuilt with the card: paint it now, whatever it held */
+      paintHomeNavBox(true);
+      /* THE POLL REPLACES THE CHIP WHILE THE SHEET IS OPEN. The sheet itself
+         is safe — it lives in #sheetwrap, outside #home — but the button that
+         opened it has just been thrown away and rebuilt, so the remembered
+         opener is a detached node and the new chip says "closed" while the
+         dialog is on screen. Re-point both at the chip that now exists: this
+         is the one seam between the 8 s redraw and the popover, and it is
+         cheap to hold here and invisible to fix anywhere else. */
+      var swOpen=document.getElementById('sheetwrap');
+      if(swOpen && swOpen.classList.contains('open') && sheetOpener &&
+         sheetOpener.getAttribute && sheetOpener.getAttribute('id')==='livechip'){
+        sheetOpener = lc;
+        lc.setAttribute('aria-expanded','true');
+      }
+    }
+    /* D343: the Wi-Fi row's door, re-wired every draw like the chip; and,
+       while its sheet is open, the sheet's opener is the row that exists
+       now (the chip's rule above) */
+    if(window.ZS_WIFI){
+      /* the row, the light's door and the first-run prompt (core-wifi.js) */
+      if(ZS_WIFI.wireHome) ZS_WIFI.wireHome(home); else ZS_WIFI.wireRow(home);
+      var swW=document.getElementById('sheetwrap');
+      var opId = (sheetOpener && sheetOpener.getAttribute) ? sheetOpener.getAttribute('id') : '';
+      /* connected, the row is gone (D343 amended): the light is the door */
+      var wfNow = (opId==='hswifi' || opId==='hdwifihit') ?
+        (document.getElementById(opId) || document.getElementById('hdwifihit')) : null;
+      if(swW && swW.classList.contains('open') && wfNow){
+        sheetOpener = wfNow;
+        wfNow.setAttribute('aria-expanded','true');
+      }
+    }
+    } else {
+      /* kept: what the rebuild's wiring also did that is not about new
+         nodes - the screen card's poll, and the Wi-Fi first-run prompt,
+         which waits for a draw to come up (core-wifi.js) */
+      if(window.ZS_HOLED) ZS_HOLED.wire();
+      if(window.ZS_WIFI && ZS_WIFI.maybePrompt) ZS_WIFI.maybePrompt();
+    }   /* end of the rebuild (D448) */
+    /* The three doors live in the ⋯ menu now (see openMoreMenu), so HOME's
+       only wiring is its one action. The tap handlers that used to live here
+       — switch, reorder, edit, new — moved WITH their rows into R.profiles
+       long before that; they are the same code, one screen along. */
+    /* HOME is not the only screen drawing this array any more. Last, so the
+       Configs panel — if that is what is open — is redrawn from the colours
+       this function just re-read, never from yesterday's. */
+    syncProfileList();
+    /* the two live surfaces the poll also owns. Cheap, and they must agree
+       with the config this draw just painted. */
+    paintDevPills();
+    paintHomeKeys();
+    paintHomeNav();
+    paintHomeGun();
+    paintHomeCal();
+    checkHomeCal();
+  }
+
+  /* == WHO IS PLUGGED IN, top middle ================================
+     ONE PILL PER ATTACHED DEVICE, AND NOTHING FOR WHAT IS NOT (owner,
+     2026-09-04: "you only show a mouse if a mouse is connected"). The first
+     draft drew all three greyed out, which reads as "your keyboard is broken"
+     rather than "you have not plugged one in" - a dim control is a control
+     that failed, and this is an accessibility product where that difference
+     costs a support ticket.
+
+     Each pill is a real <button>, because the board's own answer to "what IS
+     this thing" is worth a tap: openDevicesSheet() names what it recognised
+     (an Xbox pad, a Ducky keyboard) rather than making the user infer it from
+     an icon. That is the same reason the board chip is a button and not a dot.
+
+     ZS.userDevices() is the device bar's own filtered list, not the raw
+     enumeration - the board's ADC channels and its power button are not
+     things anyone plugged in. */
+  var PILL_KIND = {
+    mouse:    { cls:'ms',  ico:'mouse',  lab:'Mouse' },
+    keyboard: { cls:'kb',  ico:'keycap', lab:'Keyboard' },
+    gamepad:  { cls:'pad', ico:'pad',    lab:'Controller' }
+  };
+  /* the order the row reads in, so plugging a mouse in never reshuffles the
+     pills that were already there */
+  var PILL_ORDER = ['mouse','keyboard','gamepad'];
+
+  function homeDevices(){
+    if(LIVE.online===false) return [];
+    var raw = (window.ZS && ZS.devices) ? ZS.devices : null;
+    if(!raw) return [];
+    /* ZS.userDevices is devbar.js's own filter and it TAKES THE LIST - it
+       drops the board's own evdev nodes (the A733's ADC channels, the PMIC
+       power button) and collapses the three nodes one physical pad arrives
+       as into one. Reusing it is the point: two copies of "what counts as a
+       device someone plugged in" would drift the first time either was
+       fixed, and this screen and the device bar must never disagree about
+       how many controllers are attached. */
+    return (window.ZS && ZS.userDevices) ? ZS.userDevices(raw) : raw;
+  }
+  /* attached devices, grouped into the three kinds the row can show */
+  function pillGroups(){
+    var out = {}, list = homeDevices(), i, d, k;
+    for(i=0;i<list.length;i++){
+      d = list[i];
+      /* D217: a "not opened" interface is never a pill (ZS.userDevices
+         already leaves it out; this is the same rule without devbar.js) */
+      if(!d || d.connected===false || d.opened===false) continue;
+      k = String(d.kind||'');
+      if(!PILL_KIND[k]) continue;
+      if(!out[k]) out[k] = [];
+      out[k].push(d);
+    }
+    return out;
+  }
+  function paintDevPills(){
+    var host = document.getElementById('devpills');
+    if(!host) return;
+    var groups = pillGroups(), h = '', names = [], i, k, g, n;
+    for(i=0;i<PILL_ORDER.length;i++){
+      k = PILL_ORDER[i];
+      g = groups[k];
+      if(!g || !g.length) continue;          /* not plugged in: draw nothing */
+      n = PILL_KIND[k];
+      names.push(g.length > 1 ? g.length+' '+n.lab.toLowerCase()+'s' : n.lab);
+      /* D188: hold the MOUSE (about a second) for XIM's Mouse Sensor Test;
+         said in its label, and the devices sheet's \u2022\u2022\u2022 is the same door
+         without the hold */
+      h += '<button class="dp '+n.cls+'" data-kind="'+k+'" '+
+             'aria-label="'+esc(n.lab+(g.length>1?' \u00d7'+g.length:'')+
+               ' \u2014 what the board recognised'+
+               (k==='mouse' && window.ZS_MRATE ? '. Press and hold for the mouse sensor test' : ''))+'">'+
+             /* D233 (owner): the pill is a PICTURE of what is plugged in -
+                the PS5 pad for anything Sony, the Xbox pad for every other
+                pad, the keyboard, the mouse (devbar.js ZS.devicePicFor) */
+             ((window.ZS && ZS.devicePicFor && ZS.devicePicFor(g[0]))
+               ? '<img class="dpic" src="'+esc(ZS.devicePicFor(g[0]))+'" alt="" aria-hidden="true">'
+               : icoSVG(n.ico, 22))+
+             (g.length>1 ? '<span class="dpn">'+g.length+'</span>' : '')+
+           '</button>';
+    }
+    host.innerHTML = h;
+    /* THE EMPTY ROW STILL SAYS SOMETHING, IN WORDS A PERSON USES (D192, the
+       owner: "devices unknown" read as a debug variable). With nothing
+       plugged into it, the middle of the bar names the HARDWARE this app is
+       talking to ("EXO Core"); with no hardware at all it says exactly that,
+       "No device connected". Never a raw key, never a status code. */
+    var off = (LIVE.online===false);
+    /* D257 (owner, 2026-10-09: "when nothing is plugged in it just says EXO
+       Core - make it say nothing is plugged into the adapter, like the
+       bottom of Settings"): the same words the device bar uses */
+    if(!h){
+      /* the device bar's look - a dot and the words - in red (owner,
+         2026-10-09: "make it red with the red dot next to it") */
+      host.innerHTML = off ? '<span class="dpnone">No device connected</span>'
+        : '<span class="dpnone dpempty" title="No device plugged into the adapter">No device plugged in</span>';
+    }
+    host.setAttribute('aria-label',
+      off ? 'No device connected'
+        : (names.length ? names.join(', ')+' connected'
+                        : productShort()+' connected, nothing plugged into it'));
+    /* rebuilt every draw, so the handlers are re-attached every draw - the
+       same rule the board chip follows one function up. */
+    host.querySelectorAll('.dp').forEach(function(el){
+      /* the hold FIRST, so the click its release sends is swallowed before
+         the tap's handler below can open the devices sheet too */
+      if(el.getAttribute('data-kind')==='mouse' && window.ZS_MRATE)
+        ZS_MRATE.holdable(el, function(){ ZS_MRATE.open({ opener: el }); });
+      el.addEventListener('click', function(){
+        openDevicesSheet(el, el.getAttribute('data-kind'));
+      });
+      if(window.ZSM && ZSM.pressable) ZSM.pressable(el);
+    });
+  }
+
+  /* D217: THE INTERFACES THE CORE DID NOT OPEN, said quietly under the
+     devices and never as one. A keyboard's NKRO path or its built-in mouse
+     beside a real one is not a second device, and a person reading "4
+     devices" with two plugged in would go looking for the other two. The
+     Core's own words name each one ("0416:0123 interface 1 (mouse): a mouse
+     is plugged in"), so the reason is never a guess made here. */
+  function notOpenedNote(){
+    var raw = (LIVE.online!==false && window.ZS && ZS.devices) ? ZS.devices : null;
+    var rows = (raw && ZS.notOpened) ? ZS.notOpened(raw) : [];
+    if(!rows.length) return '';
+    return '<div class="devskip"><b>Not opened</b> \u00b7 '+
+      rows.map(function(d){
+        return esc(ZS.notOpenedWords ? ZS.notOpenedWords(d) : String(d.suppressedReason||d.ident||''));
+      }).join('<br>')+'</div>';
+  }
+
+  /* WHAT THE BOARD RECOGNISED, in the board's own words. The pill says a
+     mouse is attached; this says WHICH, which is the question a person
+     actually has when two pads are plugged in or a keyboard is not behaving.
+     Nothing here is inferred - name, kind and path come straight from the
+     agent's enumeration, and a device that reports no path says so rather
+     than being given a plausible one. */
+  function openDevicesSheet(opener, kind){
+    var groups = pillGroups(), order = kind ? [kind] : PILL_ORDER;
+    var h = '', i, j, k, g, d, n, sub;
+    for(i=0;i<order.length;i++){
+      k = order[i]; g = groups[k]; n = PILL_KIND[k];
+      if(!g || !g.length || !n) continue;
+      for(j=0;j<g.length;j++){
+        d = g[j];
+        /* the connection, said plainly. `path` is the kernel node, which is
+           the honest answer to "which one" and useless as a NAME - so it is
+           the sub-line, never the title. */
+        sub = [n.lab];
+        if(d.role && d.role !== 'auto') sub.push(String(d.role));
+        if(d.path) sub.push(String(d.path));
+        /* D233 (owner): the card wears the same PICTURE as the pill, and a
+           name a person reads - "Keyboard", not the Core's lowercase
+           "keyboard" (a real product name is kept, first letter raised) */
+        var pic = (window.ZS && ZS.devicePicFor) ? ZS.devicePicFor(d) : '';
+        var nm = String(d.name || '').trim();
+        if(!nm || nm.toLowerCase() === k || nm.toLowerCase() === n.lab.toLowerCase()) nm = n.lab;
+        else nm = nm.charAt(0).toUpperCase() + nm.slice(1);
+        /* the kind is the sub-line only when the name does not already say it */
+        if(nm === n.lab && sub[0] === n.lab){ sub.shift(); if(!sub.length) sub.push('Connected'); }
+        h += '<div class="devcard">'+
+               (pic
+                 ? '<span class="ico devpic"><img src="'+esc(pic)+'" alt="" aria-hidden="true"></span>'
+                 : '<span class="ico ico-'+n.cls+'">'+icoSVG(n.ico, 24)+'</span>')+
+               '<span class="t">'+
+                 '<div class="lab">'+esc(nm)+'</div>'+
+                 '<div class="hint">'+esc(sub.join(' \u00b7 '))+'</div>'+
+               '</span>'+
+               /* D188: the mouse sensor test, the hold's accessible twin */
+               (k==='mouse' && window.ZS_MRATE ? ZS_MRATE.moreHTML() : '')+
+             '</div>';
+      }
+    }
+    if(!h){
+      h = '<div class="devnone">Nothing is plugged into the adapter right now. '+
+          'Plug in a controller, mouse or keyboard and it appears here.</div>';
+    }
+    h += notOpenedNote();
+    sheetOpen(kind && PILL_KIND[kind] ? PILL_KIND[kind].lab : 'Your devices',
+            h, null, opener);
+  }
+
+  /* == WHAT YOU ARE PRESSING, RIGHT NOW ==============================
+     One box per button currently held, drawn with the SAME glyphs the
+     Buttons screen uses (glyphSVG in phone-sections.js), so a symbol means
+     the same thing everywhere in the app. Empty when nothing is held - that
+     is the owner's brief and it is also the honest picture: the board is
+     sending nothing, so the screen shows nothing.
+
+     Codes come from /output/live, i.e. WHAT THE CONSOLE IS BEING TOLD, not
+     what the pad's plastic reported. On a remapped config those differ, and
+     the console's copy is the one worth showing: it is the thing the adapter
+     did. Held buttons persist because the feed reports them every poll;
+     releasing drops the code and the box goes with it. */
+  var KEY_GLYPH_PS = {
+    south:'ps-cross', east:'ps-circle', west:'ps-square', north:'ps-triangle',
+    start:'ps-options', select:'ps-share', guide:'ps-home'
+  };
+  var KEY_GLYPH_XB = {
+    south:'xb-a', east:'xb-b', west:'xb-x', north:'xb-y',
+    start:'xb-menu', select:'xb-view', guide:'xb-guide'
+  };
+  var KEY_GLYPH_ANY = {
+    l1:'l1', r1:'r1', l2:'l2', r2:'r2', lt:'l2', rt:'r2',
+    l3:'l3', r3:'r3',
+    dpad_up:'dp-up', dpad_down:'dp-down',
+    dpad_left:'dp-left', dpad_right:'dp-right',
+    touchpad:'touchpad'
+  };
+  /* the words under the glyphs. A symbol nobody has met is not an answer, and
+     this is an accessibility product: the name is what makes the box legible
+     to someone who does not already know the shape. */
+  var KEY_NAME_PS = { south:'Cross', east:'Circle', west:'Square', north:'Triangle',
+    start:'Options', select:'Share', guide:'PS' };
+  var KEY_NAME_XB = { south:'A', east:'B', west:'X', north:'Y',
+    start:'Menu', select:'View', guide:'Guide' };
+  var KEY_NAME_ANY = { l1:'L1', r1:'R1', l2:'L2', r2:'R2', lt:'L2', rt:'R2',
+    l3:'L3', r3:'R3', dpad_up:'Up', dpad_down:'Down',
+    dpad_left:'Left', dpad_right:'Right', touchpad:'Touchpad' };
+
+  var keySig = null;
+  function keyFamily(){
+    /* the plastic in your hand first, the config's console second - the
+       glyphs should match the pad the player is looking at. */
+    var f = (window.ZS && ZS.lastPadFamily) || null;
+    if(!f){ var a = prof(activeId); f = a && a.platform; }
+    return (window.ZSART ? ZSART.family(f) : 'generic');
+  }
+  /* == THE GUN THAT IS OUT, ON HOME ==================================
+     From the Core's "weapon" block in /output/live (devbar publishes it as
+     ZS.liveInput.weapon). The reader names guns folded, spaces out
+     ("REMINGTON870MCS"); the game's catalog gives the name to show. */
+  var gunSig = null, GUN_NAMES = null, GUN_IDS = {};
+  function gunFold(s){ return String(s||'').toUpperCase().replace(/\s+/g,''); }
+  function gunNames(){
+    if(GUN_NAMES) return GUN_NAMES;
+    GUN_NAMES = {};
+    /* the bench reader is Black Ops II's (D141); the other packs' names
+       join this map when their readers exist. The catalog id rides along
+       (GUN_IDS) so the card can say which Auto Actions the gun turns on. */
+    fetch('game-data/'+GUN_PACK+'/catalog.json').then(function(r){ return r.json(); })
+      .then(function(cat){
+        var groups = (cat.groups||[]).slice();
+        (cat.kinds||[]).forEach(function(k){
+          groups = groups.concat(k.groups||[], [{items:k.items||[]}]);
+        });
+        groups.forEach(function(g){ (g.items||[]).forEach(function(it){
+          if(it && it.name){
+            GUN_NAMES[gunFold(it.name)] = it.name;
+            if(it.id) GUN_IDS[gunFold(it.name)] = it.id;
+          }
+        }); });
+        gunSig = null; paintHomeGun();
+      })['catch'](function(){});
+    return GUN_NAMES;
+  }
+  function gunShown(folded){
+    if(!folded) return '';
+    var n = gunNames()[gunFold(folded)];
+    return n || folded;
+  }
+  /* HOW MANY OF THIS CONFIG'S AUTO ACTIONS THE GUN TURNS ON (D122, D134):
+     the switched-on Auto Actions whose reach takes in this gun's catalog
+     entry. The REAL state behind "Profile loaded" (D192), read from the
+     config the app already holds; 0 when it cannot tell (no catalog yet, no
+     auto-actions.js, an unreadable config), which falls back to the plain
+     "Profile loaded" rather than guessing a number. */
+  function gunAutoCount(name){
+    try{
+      var id = GUN_IDS[gunFold(name)];
+      var full = LIVE.full[activeId];
+      var A = window.ZSAUTO;
+      if(!id || !full || !A || !A.isAuto) return 0;
+      var n = 0;
+      (full.accessibilityActions||[]).forEach(function(a){
+        if(!A.isAuto(a) || (a.auto && a.auto.on===false)) return;
+        var c = A.catalog ? A.catalog(a.auto.pack) : null;
+        var ids = A.reachOf ? A.reachOf(a, (c && c.state==='ready') ? c.data : null).ids
+                            : [a.auto.item];
+        if(ids.indexOf(id) >= 0) n++;
+      });
+      return n;
+    }catch(e){ return 0; }
+  }
+  /* THE LAST GUN SEEN, so the card can still answer offline ("Last
+     detected: PDW-57"). This app's own store, per device; a viewer
+     convenience, never a setting, so a blocked store simply forgets it. */
+  var LAST_GUN_KEY = 'zs-last-gun';
+  var GUN_PACK = 'cod-bo2';   /* the game whose names the reader knows (gunNames) */
+  var lastGun = (function(){ try{ return localStorage.getItem(LAST_GUN_KEY) || ''; }catch(e){ return ''; } })();
+  var gunSeen = false;        /* a reader has answered in THIS session */
+  /* offline, the card is only worth drawing where a weapon could be read:
+     a reader answered this session, or the playing config is the reader's
+     game and a gun is remembered. An NBA config never grows a weapon card
+     just because a Black Ops gun was seen last week. */
+  function gunOfflineCard(){
+    if(gunSeen) return true;
+    var a = prof(activeId);
+    /* owner, 2026-10-13: a phone that has never seen a gun (a new phone, or
+       one not paired yet) still shows the card for the reader's game, with
+       "Weapon detection unavailable", instead of no AI Scripts at all */
+    return !!a && a.pack === GUN_PACK;
+  }
+  function noteLastGun(name){
+    gunSeen = true;
+    if(!name || name === lastGun) return;
+    lastGun = name;
+    try{ localStorage.setItem(LAST_GUN_KEY, name); }catch(e){}
+  }
+  /* == THE ACTIVE WEAPON CARD (D192, the owner: "one of the strongest
+     features - make it premium") ======================================
+     Three lines and one picture, and NEVER TWO STATES THAT CONTRADICT EACH
+     OTHER. The reader's own verdict ("can't read it") used to sit beside
+     the gun it was still holding, which read as "detected AND not
+     detected". The gun the Core HOLDS is the one its scripts follow, so
+     that is the card; whether this frame's text was legible is telemetry
+     and lives in the reader's own tools, not on HOME.
+
+       state     reticle    name                           status line
+       ok        locked     PDW-57                          Profile loaded | 2 Auto Actions on
+       looking   scanning   Looking for your weapon…   Reading the screen
+       none      idle       No weapon out                   Auto Actions paused
+       unloaded  idle       Detection not set up            No game's weapon names on your Core
+       offline   idle       Weapon detection unavailable    Last detected: PDW-57
+       pc        idle       Weapon detection: on your PC (EXO Studio)   (D215: the Core's
+                            /status says EXO Studio has the capture picture; the
+                            PC runs the vision, AI Scripts are off on the Core)
+
+     The status dot is the HOME colour code (DESIGN.md, D192): green =
+     working, grey = information. Offline is grey here on purpose: the ONE
+     offline state is the link chip at the top, and an amber card down here
+     would be the second alarm the owner asked to remove. */
+  /* D201 (owner): the card wears AI Scripts' picture, not the reticle; the
+     state still reads from the words and the status dot, and the picture is
+     dimmed whenever nothing is locked on */
+  function gunCardHTML(state, name, status, pic){
+    /* 2026-10-23 (owner: "for the home screen image of AI Scripts maybe use
+       one of the longer banner versions"): the wide banner (the gun scanned
+       and named), half the card wide */
+    var mark = '<img class="gi-pic" src="brand/zs-ai-scripts-banner.jpg" alt="" decoding="async" draggable="false">';
+    return '<span class="gi" aria-hidden="true">'+mark+'</span>'+
+      '<span class="gt"><span class="gl">Active weapon</span>'+
+        /* 2026-10-23 (owner): the gun in hand's own small picture beside its
+           name, only when the game's catalog has one */
+        '<span class="gnrow"><span class="gn" role="status" aria-live="polite">'+esc(name)+'</span>'+
+          (pic ? '<img class="gn-pic" src="'+esc(pic)+'" alt="" aria-hidden="true" decoding="async" draggable="false" '+
+            'onerror="this.remove()">' : '')+'</span>'+
+        (status ? '<span class="gs"><span class="gd" aria-hidden="true"></span>'+esc(status)+'</span>' : '')+
+      '</span>';
+  }
+  /* the capture card is plugged in but has shown no game picture (nothing,
+     or one flat shade) for 10 s straight, in normal mode on a Core: a
+     loading screen is black for a moment, a wrong video mode is black for
+     good */
+  var noPicSince = 0;
+  function noGamePicture(){
+    var st = LIVE.status || {}, cap = st.capture || null;
+    var sig = cap && String(cap.signal || '');
+    var bad = productId() === 'core' && LIVE.online !== false && cap &&
+              cap.owner !== 'parked' && cap.owner !== 'pc' &&
+              (sig === 'flat' || sig === 'no frames');
+    if(!bad){ noPicSince = 0; return false; }
+    if(!noPicSince) noPicSince = Date.now();
+    return Date.now() - noPicSince >= 10000;
+  }
+  /* the Core's screen state (firmware zs_textread_hunt.h, "screen" in the
+     weapon block, Call of Duty configs only) in the card's words; '' when
+     the Core says none, one this app does not know, or "nohud" (no weapon
+     HUD: the reader's own NO WEAPON OUT says that, a moment later) */
+  var SCREEN_WORDS = { match: 'In match', range: 'Firing range', menu: 'Menu or paused' };
+  function screenWords(w){
+    var s = w && typeof w.screen === 'string' ? w.screen : '';
+    return Object.prototype.hasOwnProperty.call(SCREEN_WORDS, s) ? SCREEN_WORDS[s] : '';
+  }
+  function paintHomeGun(){
+    var host = document.getElementById('hsgun');
+    if(!host) return;
+    var li = (window.ZS && ZS.liveInput) || null;
+    var off = (LIVE.online===false);
+    var w  = (!off && li && li.weapon) ? li.weapon : null;
+    var state, name, status, pic = '';
+    if(isNbaConfig(prof(activeId))){
+      /* D406 (owner, 2026-10-18: "If auto green is on, gun detection isn't
+         even a thing on 2K profiles"): an NBA 2K config has no weapon, so
+         HOME has no weapon card, online or off */
+      state = 'hide';
+    } else if(off){
+      /* only where a weapon could be read gets the card offline */
+      if(!gunOfflineCard()){ state = 'hide'; }
+      else {
+        state = 'offline'; name = 'Weapon detection unavailable';
+        status = lastGun ? 'Last detected: '+lastGun : '';
+      }
+    } else if(window.ZSMODES && ZSMODES.studioMode()){
+      /* D215 (owner): with EXO Studio on, the Core hands the capture picture
+         to the PC and its own AI Scripts are off; said where the card would
+         be, from the Core's own /status, never "unavailable" */
+      if(!w && !gunOfflineCard()){ state = 'hide'; }
+      else { state = 'pc'; name = 'Weapon detection: on your PC (EXO Studio)'; status = ''; }
+    } else if(window.ZSMODES && ZSMODES.gpcMode && ZSMODES.gpcMode()){
+      /* D218 (owner): GPC mode makes the EXO a Cronus Zen, which has no CV:
+         the Core's capture is parked and AI Scripts are off, said where the
+         card would be, from the Core's own /status */
+      if(!w && !gunOfflineCard()){ state = 'hide'; }
+      else { state = 'gpc'; name = 'Weapon detection: off in GPC mode'; status = ''; }
+    } else if(noGamePicture()){
+      /* NO EDID CHIP ON THE BOARD (owner, 2026-10-02): the console reads
+         the TV's own EDID, so on a 4K TV or a 1440p 144 Hz monitor it can
+         pick a mode the capture chip cannot read (its datasheet: up to 1080p60,
+         1440p60 and 4K30; 1080p120 is unproven until a bench test). The TV is fine; capture sees nothing.
+         Say exactly what to change, here where the weapon would be. */
+      state = 'nosignal'; name = 'No game picture';
+      status = 'Set your console to 1080p or 1440p, at 60 Hz';
+    } else if(!w){
+      state = 'hide';
+    } else if(w.loaded === false){
+      gunSeen = true;
+      state = 'unloaded'; name = 'Detection not set up';
+      status = 'No game’s weapon names on your Core';
+    } else if(w.active){
+      name = gunShown(w.active);
+      noteLastGun(name);
+      pic = (window.ZSWEAPONLIVE && ZSWEAPONLIVE.picSrc) ? ZSWEAPONLIVE.picSrc(w.active) : '';
+      var n = gunAutoCount(name);
+      state = 'ok';
+      status = n ? n+' AI Script'+(n>1?'s':'')+' on' : 'Profile loaded';
+      /* THE SCREEN (owner, 2026-10-19, Call of Duty: the Core reads the
+         bottom quarter and says where the gun's name was found): "In match ·
+         2 AI Scripts on", "Firing range · ...", "Menu or paused · ..." (the
+         gun is held through a menu). Said only when the Core says it. */
+      if(screenWords(w)) status = screenWords(w)+' · '+status;
+    } else if(w.screen === 'menu'){
+      gunSeen = true;
+      state = 'looking'; name = 'Menu or paused';
+      status = w.noWeapon ? 'AI Scripts paused' : 'Waiting for your weapon';
+    } else if(w.noWeapon){
+      gunSeen = true;
+      state = 'none'; name = 'No weapon out'; status = 'AI Scripts paused';
+    } else {
+      gunSeen = true;
+      state = 'looking'; name = 'Looking for your weapon…'; status = 'Reading the screen';
+    }
+    var sig = [state, name, status, pic].join('|');
+    if(sig === gunSig) return;
+    gunSig = sig;
+    var wasHidden = host.hidden;
+    if(state === 'hide'){
+      host.hidden = true;
+      if(!wasHidden) syncFootLift();
+      return;
+    }
+    host.className = 'hs-gun is-'+state;
+    host.innerHTML = gunCardHTML(state, name, status, pic);
+    /* D439: the card is the door to the live AI Scripts view
+       (weapon-live.js), a tap, Enter or a controller's A */
+    if(window.ZSWEAPONLIVE){
+      host.setAttribute('data-wl','1');
+      host.setAttribute('role','button');
+      host.setAttribute('tabindex','0');
+      host.insertAdjacentHTML('beforeend','<span class="wl-cardchev" aria-hidden="true">›</span>');
+    }
+    host.hidden = false;
+    if(wasHidden) syncFootLift();
+  }
+  function paintHomeKeys(){
+    var host = document.getElementById('hskeys');
+    if(!host) return;
+    var li  = (window.ZS && ZS.liveInput) || null;
+    var off = (LIVE.online===false);
+    var btns = (!off && li && li.buttons) ? li.buttons.slice() : [];
+    /* THE TRIGGERS ARE AXES, NOT BUTTONS, and that is why pulling one showed
+       nothing (owner, 2026-09-04: "when I click the triggers it doesn't
+       register"). L2/R2 report a 0..1 pressure on `sticks.lt`/`rt` and never
+       appear in `buttons` at all, so a readout that only walks `buttons` is
+       blind to a third of the pad. Synthesised here rather than in the feed:
+       devbar publishes what the board said, and "how far down counts as
+       pressed" is this screen's question, not the board's.
+       0.12 is above the resting noise of a worn trigger and well below the
+       point a game would act on one, so the box appears when the player
+       feels the pull start. */
+    var st = (!off && li && li.sticks) ? li.sticks : null;
+    var TRIG_ON = 0.12;
+    if(st){
+      /* a pad that DOES report them as buttons must not get two boxes */
+      if(st.lt > TRIG_ON && btns.indexOf('l2') < 0 && btns.indexOf('lt') < 0)
+        btns.push('l2');
+      if(st.rt > TRIG_ON && btns.indexOf('r2') < 0 && btns.indexOf('rt') < 0)
+        btns.push('r2');
+    }
+    var fam  = keyFamily();
+    /* PASSTHROUGH MODE SHOWS THE REAL KEYS (owner, 2026-10-02: "in navigate
+       mode it still shows space as a button; I want it to show space bar,
+       and mouse right click isn't LT, now it's right click; when I get out
+       of passthrough mode it goes back to normal"). While Navigate is on, the
+       keyboard and mouse go to the PC as themselves, so the row names what
+       is physically held (ZS.liveHeld, the Core's heldSources) with the
+       keycap art, and leaves out the pad buttons a profile would map those
+       presses to. A pad pressed on its own still shows as before. */
+    var navKeys = [];
+    if(!off && navIsOn(navLive())){
+      navKeys = ((window.ZS && ZS.liveHeld && ZS.liveHeld.codes) || []).filter(function(c){
+        return /^KEY_/.test(c) || /^BTN_(LEFT|RIGHT|MIDDLE|SIDE|EXTRA|FORWARD|BACK)$/.test(c);
+      });
+      if(navKeys.length) btns = [];
+    }
+    /* THE STICKS ARE AXES TOO, and HOME never drew them (owner, 2026-10-10:
+       "when I move my sticks it should show that. It only displays button
+       clicks - until I click Settings"). The poll was always running here;
+       only Settings' controller picture (ds-live.js) read lx/ly/rx/ry. A
+       deflected stick gets a box of its own, beside the presses, with a dot
+       that follows the stick. Which boxes exist is in the signature; where
+       the dot sits is not, so a moving stick moves one dot in place
+       (paintStickDots) instead of rebuilding the row eight times a second. */
+    var sticks = (!off && !navKeys.length) ? homeSticks(st) : [];
+    var sig  = (off?'off':'on')+'|'+fam+'|'+btns.join(',')+'|'+navKeys.join(',')+'|'+
+               sticks.map(function(k){ return k.id; }).join(',');
+    if(sig === keySig){ paintStickDots(host, sticks); return; }   /* nothing a person could see has changed */
+    keySig = sig;
+
+    var keysWas = host.offsetHeight;
+    if(off){
+      /* EMPTY, NOT A SECOND OFFLINE MESSAGE (D192). "Reconnect to see your
+         presses" was the fourth way HOME said the same thing; the one state
+         at the top already says it, and an empty row is the honest picture
+         of no input. The row keeps its height (CSS), so nothing jumps. */
+      host.innerHTML = '';
+      host.setAttribute('aria-label','No presses while your device is offline');
+      glideKeys(host, keysWas);
+      return;
+    }
+    var gmap = (fam==='xb') ? KEY_GLYPH_XB : KEY_GLYPH_PS;
+    var nmap = (fam==='xb') ? KEY_NAME_XB  : KEY_NAME_PS;
+    var h = '', names = [], i, code, key, nm;
+    for(i=0;i<navKeys.length;i++){
+      code = navKeys[i];
+      nm = NAV_KEY_WORD[code] || navWord(code, fam);
+      names.push(nm);
+      h += '<span class="hs-key hs-kkey">'+
+             (window.ZSKEYS && ZSKEYS.has(code) ? ZSKEYS.svg(code)
+                                                : '<span class="kt">'+esc(nm.slice(0,3))+'</span>')+
+             '<span class="kn">'+esc(nm)+'</span>'+
+           '</span>';
+    }
+    for(i=0;i<btns.length;i++){
+      code = String(btns[i]||'').toLowerCase();
+      key  = gmap[code] || KEY_GLYPH_ANY[code] || '';
+      nm   = nmap[code] || KEY_NAME_ANY[code] || code.replace(/_/g,' ');
+      names.push(nm);
+      h += '<span class="hs-key">'+
+             /* an unauthored code still gets a box: its own short text, so a
+                button the app has never met is visible rather than silently
+                dropped - the same rule the device bar's prettyCode follows. */
+             (key && window.glyphSVG ? glyphSVG(key)
+                                     : '<span class="kt">'+esc(nm.slice(0,3))+'</span>')+
+             '<span class="kn">'+esc(nm)+'</span>'+
+           '</span>';
+    }
+    for(i=0;i<sticks.length;i++){
+      names.push(sticks[i].word);
+      h += '<span class="hs-key hs-stick" data-stick="'+sticks[i].id+'">'+
+             '<svg viewBox="0 0 26 26" aria-hidden="true">'+
+               '<circle class="sw" cx="13" cy="13" r="11.5"/>'+
+               '<circle class="sd" cx="13" cy="13" r="4.5"/>'+
+             '</svg>'+
+             '<span class="kn">'+esc(sticks[i].name)+'</span>'+
+           '</span>';
+    }
+    host.innerHTML = h;
+    paintStickDots(host, sticks);
+    /* aria-live is OFF (see the markup): a screen reader must not narrate
+       every press of a game being played. The label carries the state for
+       anyone who goes looking for it. */
+    host.setAttribute('aria-label',
+      names.length ? 'Pressing '+names.join(', ') : 'No buttons pressed');
+    glideKeys(host, keysWas);
+    syncFootLift();
+  }
+
+  /* WHICH STICKS ARE OUT OF THE MIDDLE. The feed is -1..1 with y rising
+     UPWARD (the Core's convention, D246); a board that sends raw 16-bit
+     counts is folded to the same range, as ds-live.js does. 0.2 of the
+     throw is past any worn stick's drift at rest (a deadzone-less pad
+     reads up to ~0.1) and well inside the first nudge a player makes. */
+  var STICK_ON = 0.2;
+  function stickUnit(v){
+    v = +v || 0;
+    if(Math.abs(v) > 1.5) v = v / 32767;
+    return Math.max(-1, Math.min(1, v));
+  }
+  function homeSticks(st){
+    var out = [];
+    if(!st) return out;
+    [['ls','L stick','Left stick',st.lx,st.ly],['rs','R stick','Right stick',st.rx,st.ry]]
+      .forEach(function(s){
+        var x = stickUnit(s[3]), y = stickUnit(s[4]);
+        if(Math.sqrt(x*x + y*y) > STICK_ON) out.push({ id:s[0], name:s[1], word:s[2], x:x, y:y });
+      });
+    return out;
+  }
+  /* the dot rides 7 units from the middle of a 26-unit well at full throw;
+     the picture's y runs DOWN, the Core's runs up */
+  function paintStickDots(host, sticks){
+    for(var i=0;i<sticks.length;i++){
+      var box = host.querySelector('[data-stick="'+sticks[i].id+'"] .sd');
+      if(box) box.setAttribute('transform',
+        'translate('+(sticks[i].x*7).toFixed(1)+','+(-sticks[i].y*7).toFixed(1)+')');
+    }
+  }
+
+  /* the words HOME uses for a key held in Passthrough mode, where the device
+     card's navWord() is too terse ("Space") or names a pad button */
+  var NAV_KEY_WORD = { KEY_SPACE:'Space bar', KEY_LEFTMETA:'Windows', KEY_RIGHTMETA:'Windows',
+                       KEY_ESC:'Esc', KEY_ENTER:'Enter', KEY_BACKSPACE:'Backspace',
+                       KEY_CAPSLOCK:'Caps Lock', KEY_TAB:'Tab',
+                       KEY_UP:'Up', KEY_DOWN:'Down', KEY_LEFT:'Left', KEY_RIGHT:'Right',
+                       BTN_LEFT:'Left click', BTN_RIGHT:'Right click', BTN_MIDDLE:'Middle click',
+                       BTN_SIDE:'Mouse 4', BTN_EXTRA:'Mouse 5', BTN_BACK:'Mouse 4', BTN_FORWARD:'Mouse 5' };
+
+  /* THE ROW ONLY MOVES FOR A SECOND ROW. One row of boxes always fits in
+     the reserved height (CSS min-height), so a press inside it changes
+     nothing around it. When the boxes wrap to a second row, or fall back to
+     one, the foot glides between the two heights instead of jumping: the
+     row is pinned at the height it had, then let go to its new one, and the
+     inline height is dropped once it lands so the CSS owns it again. A new
+     press mid-glide starts from wherever the row is (offsetHeight reads the
+     transitioned value). Reduced motion: the CSS drops the transition, so
+     it lands at once. */
+  var keysGlideTimer = null;
+  function glideKeys(host, from){
+    if(!host || !host.style) return;
+    host.style.height = '';
+    var to = host.offsetHeight;
+    if(!from || !to || from === to){
+      if(host.classList) host.classList.remove('zs-growing');
+      return;
+    }
+    host.classList.add('zs-growing');
+    host.style.height = from + 'px';
+    void host.offsetHeight;            /* commit the start before the change */
+    host.style.height = to + 'px';
+    if(keysGlideTimer) clearTimeout(keysGlideTimer);
+    keysGlideTimer = setTimeout(function(){
+      keysGlideTimer = null;
+      host.classList.remove('zs-growing');
+      host.style.height = '';
+    }, 320);
+  }
+
+  /* == PASSTHROUGH MODE, ON HOME ========================================
+     While it is on, the pad drives the console's MENUS instead of the game.
+     That is a fact about what the adapter is doing right now, so it belongs
+     on the screen that says what the adapter is doing - not only on the
+     device bar, which HOME hides. Same source as the bar (ZS.navState), so
+     the two can never disagree.
+
+     AND IT SAYS WHAT TURNED IT ON. A player who hit the combo by accident is
+     the whole reason this banner exists; "PASSTHROUGH MODE" alone tells them
+     they are stuck without telling them the way out. `via` is the combo the
+     board itself matched, named with the same glyph vocabulary the boxes
+     below use, so the words match the buttons under their thumbs. */
+  /* D200 (owner): THE BANNER IS GONE. "Remove the Passthrough mode banner that
+     says Alt and M4": the device card says "Passthrough mode", the shortcut
+     that turned it on and the yellow Turn off key, so a second line on HOME
+     only repeated it. The element stays (other code measures the foot) and
+     is simply kept hidden. */
+  function paintHomeNav(){
+    var el = document.getElementById('hsnav');
+    if(!el || el.hidden) return;
+    el.hidden = true; el.innerHTML = '';
+    syncFootLift();
+  }
+
+  /* D203 (owner): A CALIBRATION RUNNING ON THE CORE. The Translation
+     room's Calibrate card starts it, and it holds every input while it
+     measures - but the Core keeps measuring if the app is closed, and the
+     owner came back to a controller and mouse that "did nothing". HOME now
+     asks GET /calibrate/status (a Core only, online only, at most once per
+     few seconds on HOME's own redraws; every second while it is running and
+     HOME is showing) and, while the state is "running", says so, shows the
+     step and a Stop key that POSTs /calibrate/cancel. It never paints a
+     guess: the line goes the moment the Core says anything but running. */
+  var calHome = { d:null, at:0, inflight:false, busy:false, err:'', timer:null };
+  function homeShowing(){
+    var ed = document.getElementById('editor'), dt = document.getElementById('detail');
+    return !(ed && ed.classList.contains('open')) && !(dt && dt.classList.contains('open'));
+  }
+  function checkHomeCal(force){
+    if(calHome.inflight) return;
+    if(productId() !== 'core' || LIVE.online === false){
+      if(calHome.d){ calHome.d = null; paintHomeCal(); }
+      return;
+    }
+    var now = Date.now();
+    if(!force && calHome.at && now - calHome.at < 3000) return;
+    calHome.at = now; calHome.inflight = true;
+    api('/calibrate/status').then(function(j){
+      calHome.inflight = false;
+      calHome.d = (j && j.ok && j.data && j.data.state === 'running') ? j.data : null;
+      if(!calHome.d){ calHome.busy = false; }
+      paintHomeCal();
+      clearTimeout(calHome.timer); calHome.timer = null;
+      if(calHome.d) calHome.timer = setTimeout(function(){
+        calHome.timer = null;
+        if(homeShowing()) checkHomeCal(true);
+      }, 1000);
+    });
+  }
+  function paintHomeCal(){
+    var el = document.getElementById('hscal');
+    if(!el) return;
+    var d = calHome.d;
+    if(!d){
+      if(!el.hidden || el.innerHTML){ el.hidden = true; el.innerHTML = ''; }
+      calHome.err = '';
+      return;
+    }
+    var steps = Math.max(0, Number(d.steps) || 0);
+    /* the Core's step is the index of the step it is on (0 = the first) */
+    var cur = Math.min(steps || 1, Math.max(1, (Number(d.step) || 0) + 1));
+    var frac = d.totalMs > 0 ? Math.max(0, Math.min(1, (Number(d.doneMs) || 0) / d.totalMs))
+             : steps ? (cur - 1) / steps : 0;
+    el.hidden = false;
+    el.innerHTML =
+      '<span class="clt">'+
+        '<span class="clh">Calibration running – your controller and mouse are paused</span>'+
+        '<span class="cls">'+(steps ? 'Step '+cur+' of '+steps : 'Measuring')+
+          (calHome.err ? ' · '+esc(calHome.err) : '')+'</span>'+
+        '<span class="clbar" aria-hidden="true"><i style="width:'+Math.round(frac * 100)+'%"></i></span>'+
+      '</span>'+
+      '<button class="clstop" id="hscalstop" aria-label="Stop the calibration"'+
+        (calHome.busy ? ' disabled' : '')+'>'+(calHome.busy ? 'Stopping…' : 'Stop')+'</button>';
+    var b = document.getElementById('hscalstop');
+    if(b) b.addEventListener('click', function(){
+      if(calHome.busy) return;
+      calHome.busy = true; calHome.err = ''; paintHomeCal();
+      api('/calibrate/cancel', 'POST', {}).then(function(j){
+        calHome.busy = false;
+        if(!(j && j.ok)) calHome.err = 'It did not stop. Try again.';
+        checkHomeCal(true);
+      });
+    });
+  }
+
+  /* IT CLEARS THE MARK, AND ONLY THE MARK. zs-fixes.css parks the toast in
+     the bottom band on purpose - that band is ambient, so a toast there
+     cannot cover a control; the worst it can do is hide status for three
+     seconds. HOME's foot is ambient in exactly the same way (what you are
+     pressing, and the mark), so that reasoning survives the redesign. What
+     it must not do is land on the product's mark, which 14px did. Lifting by
+     the WHOLE foot instead would push the toast onto the picture - covering
+     the subject of the screen to protect a strip of ambient text. */
+  function syncFootLift(){
+    var scr = document.querySelector('.screen');
+    /* the mark moved to the app bar's top left (D185), so the foot has no
+       mark for a toast to land on and the default parking (14px) is right
+       again; this stays for any build that still draws one down there */
+    var mk  = document.querySelector('#hfoot #brand');
+    if(scr && !mk && scr.style && typeof scr.style.removeProperty === 'function'){
+      scr.style.removeProperty('--toast-lift');
+    }
+    if(!scr || !mk) return;
+    /* offsetHeight, not getBoundingClientRect: this runs right after an
+       innerHTML write and we want the laid-out box, not a transformed one. */
+    var h = mk.offsetHeight;
+    /* THE MARK IS AN IMAGE. On a cold start (the exe's fresh Edge profile)
+       this can run before zs-logo.png has loaded, when the mark is a few
+       pixels tall — and a lift measured from that lands the toast ON the
+       logo. Re-measure when the picture arrives, and never lift by less
+       than the logo's own 40px in the meantime. */
+    var img = mk.querySelector('img');
+    if(img && !(img.complete && img.naturalHeight > 0)){
+      img.addEventListener('load', syncFootLift, { once: true });
+    }
+    if(h < 40) h = 40;
+    /* the harness DOM has no setProperty; a browser always does */
+    if(scr.style && typeof scr.style.setProperty === 'function'){
+      scr.style.setProperty('--toast-lift', (h + 16) + 'px');
+    }
+  }
+
+  /* HOME's one entrance. HOME has no data-ns to discriminate navigation
+     from refresh, so the rule is held structurally instead: this is called
+     from exactly one place — boot — and renderHome() strips the class on
+     every redraw. Returning from a panel is NOT an entrance (the screen was
+     visibly there beneath the panel the whole time); that case gets the
+     .zs-covered depth settle in syncInert() instead. No reduced-motion
+     check here on purpose: both signals — prefers-reduced-motion and
+     body.a11y-motion — are checked LIVE by the CSS itself, which a cached
+     JS answer could only ever get wrong. */
+  var homeEnterTimer = null;
+  function homeEnter(){
+    var home = document.getElementById('home');
+    home.classList.add('zs-enter');
+    if(homeEnterTimer) clearTimeout(homeEnterTimer);
+    /* the class must not outlive the entrance: a later redraw arriving
+       while it was still on would replay the stagger on brand-new children.
+       900ms clears the longest delay (.34s) plus the duration (.38s). */
+    homeEnterTimer = setTimeout(function(){ home.classList.remove('zs-enter'); }, 900);
+  }
+
