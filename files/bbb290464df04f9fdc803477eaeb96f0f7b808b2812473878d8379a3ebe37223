@@ -1,0 +1,566 @@
+/* game-settings-games.js - D468: each game's OWN in-game settings, for the
+   form game-settings.js draws (window.ZSGAMESCHEMA).
+
+   Owner, 2026-10-24: "make sure all game settings that it asks for make sense
+   according to the settings in that game." And: every game's settings page
+   has two tabs, Controller and Keyboard & Mouse (Native Mouse & Keyboard:
+   a keyboard and mouse on the Core reach the game as a real keyboard and
+   mouse; the scripts and AI still run on top of it).
+
+   A game is { name, ctl, kbm, src }:
+     ctl / kbm  a tab: { fields, model(v), help }
+       fields   what the game's own menu calls each setting, in its order:
+                { k, lab, say, help, type: 'num' | 'sel' | 'key',
+                  min, max, step, int, dflt, need, when, old, opts }
+                  dflt  the game's FACTORY default, only when a source says so;
+                        a blank field with a dflt reads as the default
+                  need  false: may be left blank (dflt, or nothing)
+                  when  { k, v: [..] }: shown only when field k is one of v
+                        (Apex's ALC fields, Fortnite's Advanced ones)
+                  old   the D431 key (sensX, sensY, ads, deadzone,
+                        deadzoneMax, curve) a v1 save is read back from
+                  type 'key': a keybind (Keyboard & Mouse tab), stored in
+                        gameSettings.kbm.keys under k
+       model(v) the game's numbers -> the D432 scaling model:
+                  controller { sensX, sensY, ads, adsY?, deadzone,
+                               deadzoneMax, curve }
+                  keyboard   { sensX, sensY, ads, dpi }
+                One sensitivity in the game -> both X and Y. A game with no
+                ADS slider -> ads 1. A game with no deadzone slider -> its
+                published or measured zone, fixed (it is the same for the
+                maker and the player, so it never changes a script).
+     src        where the names, ranges and defaults come from (the report in
+                docs/DECISIONS.md D468 has the table and confidence).
+
+   Numbers: a range or default is written only when a source gives it.
+   Unknown ranges have no max; unknown defaults have no dflt (the field shows
+   an example instead). The aim research is
+   ZeroStick Model Library/AIM-CURVES-RESEARCH.md (2026-10-23). */
+(function (root) {
+  'use strict';
+
+  function n(v, d) { var x = Number(v); return isFinite(x) ? x : d; }
+  function ext(a, b) { for (var x in b) { if (Object.prototype.hasOwnProperty.call(b, x)) { a[x] = b[x]; } } return a; }
+  function ratio(a, b) { a = n(a, NaN); b = n(b, NaN); return (b > 0 && isFinite(a)) ? a / b : 1; }
+
+  /* ── shared field makers ───────────────────────────────────────────── */
+  function num(k, lab, say, o) {
+    var f = { k: k, lab: lab, say: say, type: 'num', min: 0, need: true };
+    for (var x in o) { if (Object.prototype.hasOwnProperty.call(o, x)) { f[x] = o[x]; } }
+    return f;
+  }
+  function sel(k, lab, say, opts, o) {
+    var f = { k: k, lab: lab, say: say, type: 'sel', opts: opts, need: true };
+    for (var x in o) { if (Object.prototype.hasOwnProperty.call(o, x)) { f[x] = o[x]; } }
+    /* `dflt` given = the game's own default (labelled so); none given = the
+       first option is only where the list starts, not a claim */
+    f.known = f.dflt != null;
+    if (f.dflt == null) { f.dflt = opts[0][0]; }
+    return f;
+  }
+  function key(k, lab, dflt, help) { return { k: k, lab: lab, type: 'key', dflt: dflt, need: false, help: help }; }
+  var ONOFF = [['off', 'Off'], ['on', 'On']];
+
+  /* the Keyboard & Mouse tab's mouse DPI: the mouse's own, not the game's */
+  var DPI = num('dpi', 'Mouse DPI', 'Your mouse’s own DPI', {
+    min: 50, max: 64000, step: 50, int: true, dflt: 800,
+    help: 'DPI is set on the mouse (its button or its software), not in the game. 800 is the most common.'
+  });
+
+  /* keybinds every shooter has. TODO(D466, core/hotbar-keybinds): these are
+     the keys the Core's keybind -> slot system reads (which key equips which
+     gun slot). They are stored in gameSettings.kbm.keys as KeyboardEvent.code
+     names (Digit1, KeyE, WheelUp, WheelDown, Mouse4, Mouse5) by
+     ZSGAMESET.hotbarKeys(p); the wire to the Core is the hotbar agent's to
+     add, nothing here sends them. Controller-side hotbar binds (Rust's and
+     Fortnite's cycle buttons) wait for that branch's fields too. */
+  function slotKeys(names) {
+    return names.map(function (s, i) {
+      return key('slot' + (i + 1), s, 'Digit' + (i + 1), null);
+    });
+  }
+  var WHEEL = [
+    key('next', 'Next weapon', 'WheelDown', 'Most games scroll the mouse wheel to change weapon. Type “wheel down”, “wheel up”, “mouse 4” or a key.'),
+    key('prev', 'Previous weapon', 'WheelUp')
+  ];
+
+  /* ── Call of Duty (one form, each game's scale) ────────────────────── */
+  var COD_CURVES = [['standard', 'Standard'], ['linear', 'Linear'], ['dynamic', 'Dynamic']];
+  function codCtl(o) {
+    return {
+      fields: [
+        num('hs', 'Horizontal Stick Sensitivity', 'Looking left and right', { min: o.min, max: o.max, step: o.step, dflt: o.dflt, old: 'sensX',
+          help: o.scaleHelp }),
+        num('vs', 'Vertical Stick Sensitivity', 'Looking up and down', { min: o.min, max: o.max, step: o.step, dflt: o.dflt, old: 'sensY' }),
+        num('ads', 'ADS Sens. Multiplier', 'While aiming down sights (Low Zoom)', { min: 0, max: 2, step: 0.01, dflt: 1, old: 'ads',
+          help: 'ADS Sens. Multiplier: 1.00 means aiming turns at the same rate as your stick sensitivity. If Custom Sensitivity Per Zoom is on, use your Low Zoom value.' }),
+        sel('curve', 'Aim Response Curve Type', 'How the stick builds speed', COD_CURVES, { old: 'curve', dflt: 'standard',
+          help: 'Standard is the game’s default. Linear turns in a straight line with the stick, which is what the Core’s scripts are made on. Dynamic starts fast and eases.' }),
+        num('dzMin', 'Right Stick Min', 'Deadzone: the aim stick’s inner zone', { max: 99, step: 1, int: true, dflt: o.dzMin, old: 'deadzone',
+          help: 'Deadzone Inputs > Right Stick Min: how far the aim stick moves before the game turns at all.' + (o.dzHelp ? ' ' + o.dzHelp : '') }),
+        num('dzMax', 'Right Stick Max', 'Deadzone: where the stick counts as full', { min: 1, max: 99, step: 1, int: true, dflt: 99, need: false, old: 'deadzoneMax',
+          help: 'Right Stick Max: where the game treats the stick as fully pushed. 99 is the default.' })
+      ],
+      model: function (v) {
+        return { sensX: v.hs, sensY: v.vs, ads: v.ads, deadzone: v.dzMin, deadzoneMax: v.dzMax == null ? 99 : v.dzMax, curve: v.curve };
+      }
+    };
+  }
+  function codKbm(o) {
+    return {
+      fields: [
+        num('mSens', 'Mouse Sensitivity', 'In Mouse settings', { min: 0.01, max: 100, step: 0.01, dflt: o && o.mDflt, need: true,
+          help: 'Mouse Sensitivity, from the game’s Mouse settings.' }),
+        num('mAds', 'ADS Sens. Multiplier', 'Mouse, while aiming (Low Zoom)', { min: 0, max: 2, step: 0.01, dflt: 1, need: false }),
+        DPI,
+        num('fov', 'Field of View', 'Graphics > View', { min: 60, max: 120, step: 1, int: true, dflt: 80, need: false,
+          help: 'Field of View changes how far a mouse move turns you while aiming. 80 is the default.' })
+      ].concat(slotKeys(['Primary Weapon', 'Secondary Weapon'])).concat(WHEEL).concat([
+        key('interact', 'Interact', 'KeyF')
+      ]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: v.mAds == null ? 1 : v.mAds, dpi: v.dpi }; }
+    };
+  }
+  var COD_NEW = {
+    min: 0, max: 4, step: 0.01, dflt: 1,
+    scaleHelp: 'Since Black Ops 6 Season 1 Reloaded (Dec 2024) the stick sensitivity is a decimal from 0.00 to 4.00; 4.00 is the old “20”.'
+  };
+  var COD_SRC = [
+    'ZeroStick Model Library/AIM-CURVES-RESEARCH.md §2-4 (0.0-4.0 scale, Right Stick Min/Max, ADS 1.00)',
+        'https://www.dexerto.com/call-of-duty/best-controller-settings-black-ops-6-2884192/'
+  ];
+  function cod(name, o) {
+    return { name: name, ctl: codCtl(o), kbm: codKbm(o), src: COD_SRC, kbmConsole: true };
+  }
+
+  /* ── the games ─────────────────────────────────────────────────────── */
+  var G = {};
+
+  G['cod-bo7'] = cod('Black Ops 7', ext({ dzMin: 10, dzHelp: 'Black Ops 7 has been measured at 10.' }, COD_NEW));
+  G['cod-bo6'] = cod('Black Ops 6', ext({ dzMin: 10 }, COD_NEW));
+  G['cod-warzone'] = cod('Warzone', ext({ dzMin: 10, dzHelp: 'Warzone uses its host game’s menu (Black Ops 7 now, Modern Warfare 4 from its Season 1).' }, COD_NEW));
+  G['cod-mw4'] = cod('Modern Warfare 4', ext({ dzMin: 15, dzHelp: 'Modern Warfare 4 ships with Right Stick Min at 15.' }, COD_NEW));
+  G['cod-mw3'] = cod('Modern Warfare III', { min: 1, max: 20, step: 0.01, dflt: 6, dzMin: 10,
+    scaleHelp: 'Modern Warfare III uses the 1 to 20 scale.' });
+
+  /* Black Ops II: one Look Sensitivity, no ADS slider, and no deadzone
+     setting on a console (the game's own 0.20). Plutonium on PC has one. */
+  G['cod-bo2'] = {
+    name: 'Black Ops II',
+    ctl: {
+      fields: [
+        sel('where', 'Where you play', 'Console, or PC through Plutonium', [['console', 'Console (PS3, Xbox 360, Xbox backward compatible)'], ['plutonium', 'PC (Plutonium)']],
+          { help: 'On a console Black Ops II has no deadzone setting: the game’s own is 0.20 of the stick. Plutonium on PC has a deadzone slider.' }),
+        num('look', 'Look Sensitivity', 'One setting for both directions', { min: 1, max: 14, step: 1, int: true, old: 'sensX',
+          help: 'Look Sensitivity runs from 1 to 14 (14 is Insane). It turns left/right and up/down alike, and aiming down sights follows it.' }),
+        num('dzMin', 'Stick deadzone', 'Plutonium’s menu, in percent', { max: 100, step: 1, dflt: 20, need: false, old: 'deadzone',
+          when: { k: 'where', v: ['plutonium'] },
+          help: 'Plutonium’s stick deadzone in percent. The game’s default is 20.' })
+      ],
+      model: function (v) {
+        return { sensX: v.look, sensY: v.look, ads: 1, deadzone: v.where === 'plutonium' ? n(v.dzMin, 20) : 20, deadzoneMax: 100, curve: '' };
+      }
+    },
+    kbm: {
+      fields: [
+        num('mSens', 'Mouse Sensitivity', 'Plutonium’s Mouse settings', { min: 0.01, step: 0.01, need: true }),
+        DPI,
+        num('fov', 'Field of View', 'Plutonium allows 65 to 120', { min: 65, max: 120, step: 1, int: true, dflt: 65, need: false })
+      ].concat(slotKeys(['Primary weapon', 'Secondary weapon'])).concat(WHEEL).concat([key('interact', 'Use', 'KeyF')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: 1, dpi: v.dpi }; }
+    },
+    src: ['AIM-CURVES-RESEARCH.md §5: the 1-14 scale (Medium), gpad_stick_deadzone_min 0.20 (High)',
+          'https://forum.plutonium.pw/topic/14420/stick-deadzone-options'],
+    kbmConsole: false
+  };
+
+  /* Apex Legends: Classic menus (1-8 presets, five curves, Look Deadzone
+     None/Small/Large) or Advanced Look Controls (its own fields). The
+     presets ARE turn speeds (looksensitivity.txt), so the model uses them. */
+  var APEX_HIP = [[50, 50], [80, 50], [160, 120], [240, 200], [380, 240], [450, 300], [500, 500], [500, 500]];
+  /* ADS presets: only 3 (110/75) and 7, 8 (500/500) are published
+     (looksensitivity_zoomed.txt); the rest scale the hip preset by
+     preset 3's ADS share. Low until measured. */
+  var APEX_ADS = { 3: [110, 75], 7: [500, 500], 8: [500, 500] };
+  function apexAds(i) { return APEX_ADS[i] || [APEX_HIP[i - 1][0] * 110 / 160, APEX_HIP[i - 1][1] * 75 / 120]; }
+  var APEX_DZ = { none: 2, small: 10, large: 20 };
+  G['apex-legends'] = {
+    name: 'Apex Legends',
+    ctl: {
+      fields: [
+        sel('alc', 'Advanced Look Controls', 'Controller > Advanced Look Controls', ONOFF,
+          { dflt: 'off', help: 'Advanced Look Controls off: the game uses Look Sensitivity 1 to 8 and a Response Curve. On: it uses its own Yaw/Pitch speeds, Deadzone, Outer Threshold and Response Curve number, and only those count.' }),
+        num('look', 'Look Sensitivity', '1 to 8', { min: 1, max: 8, step: 1, int: true, dflt: 3, old: 'sensX', when: { k: 'alc', v: ['off'] },
+          help: 'Look Sensitivity 1 to 8; 3 is the default. Each step is a fixed turn speed in the game’s own table.' }),
+        num('lookAds', 'Look Sensitivity (ADS)', '1 to 8', { min: 1, max: 8, step: 1, int: true, dflt: 3, when: { k: 'alc', v: ['off'] } }),
+        sel('curve', 'Response Curve', 'How the stick builds speed',
+          [['classic', 'Classic'], ['steady', 'Steady'], ['fineaim', 'Fine Aim'], ['highvel', 'High Velocity'], ['linear', 'Linear']],
+          { dflt: 'classic', when: { k: 'alc', v: ['off'] }, help: 'Classic is the default (speed grows with the square of the push). Steady is gentler (cube), Linear is a straight line.' }),
+        sel('lookDz', 'Look Deadzone', 'The aim stick’s inner zone', [['small', 'Small'], ['none', 'None'], ['large', 'Large']],
+          { dflt: 'small', when: { k: 'alc', v: ['off'] }, help: 'Small is the default. The game does not publish their sizes; the Core uses about 2 %, 10 % and 20 %.' }),
+        num('dz', 'Deadzone', 'ALC, in percent', { max: 50, step: 2.5, dflt: 15, old: 'deadzone', when: { k: 'alc', v: ['on'] },
+          help: 'ALC Deadzone, 0 to 50 %; 15 % is the default.' }),
+        num('outer', 'Outer Threshold', 'ALC, in percent', { min: 1, max: 30, step: 1, dflt: 2, when: { k: 'alc', v: ['on'] },
+          help: 'Outer Threshold: how close to the edge counts as a full push. 1 to 30 %, default 2 %.' }),
+        num('alcCurve', 'Response Curve', 'ALC, a number', { max: 30, step: 1, int: true, dflt: 10, when: { k: 'alc', v: ['on'] },
+          help: 'The ALC Response Curve number; 10 is the default. 0 is the straightest.' }),
+        num('yaw', 'Yaw Speed', 'ALC, left and right', { max: 500, step: 10, dflt: 160, old: 'sensX', when: { k: 'alc', v: ['on'] } }),
+        num('pitch', 'Pitch Speed', 'ALC, up and down', { max: 500, step: 10, dflt: 120, old: 'sensY', when: { k: 'alc', v: ['on'] } }),
+        num('extraYaw', 'Turning Extra Yaw', 'ALC, extra speed at a full push', { max: 250, step: 10, dflt: 220, when: { k: 'alc', v: ['on'] },
+          help: 'Turning Extra adds speed only near a full push, after the ramp-up time. Scripts make small pushes, so the Core scales them without it.' }),
+        num('extraPitch', 'Turning Extra Pitch', 'ALC', { max: 250, step: 10, dflt: 0, when: { k: 'alc', v: ['on'] } }),
+        num('adsYaw', 'ADS Yaw Speed', 'ALC, while aiming', { max: 500, step: 10, dflt: 110, when: { k: 'alc', v: ['on'] } }),
+        num('adsPitch', 'ADS Pitch Speed', 'ALC, while aiming', { max: 500, step: 10, dflt: 75, when: { k: 'alc', v: ['on'] } })
+      ],
+      model: function (v) {
+        if (v.alc === 'on') {
+          return { sensX: v.yaw, sensY: v.pitch, ads: ratio(v.adsYaw, v.yaw), adsY: ratio(v.adsPitch, v.pitch),
+                   deadzone: v.dz, deadzoneMax: 100 - n(v.outer, 2), curve: 'alc-' + n(v.alcCurve, 10) };
+        }
+        var h = APEX_HIP[n(v.look, 3) - 1] || APEX_HIP[2], a = apexAds(n(v.lookAds, 3));
+        return { sensX: h[0], sensY: h[1], ads: ratio(a[0], h[0]), adsY: ratio(a[1], h[1]),
+                 deadzone: APEX_DZ[v.lookDz] == null ? 10 : APEX_DZ[v.lookDz], deadzoneMax: 100, curve: v.curve || 'classic' };
+      }
+    },
+    kbm: {
+      fields: [
+        num('mSens', 'Mouse Sensitivity', 'Mouse/Keyboard settings', { min: 0.1, step: 0.1, need: true }),
+        num('mAds', 'ADS Mouse Sensitivity Multiplier', 'Per Optic off: one value', { min: 0.1, step: 0.1, dflt: 1, need: false }),
+        DPI,
+        num('fov', 'Field of View', 'Video settings', { min: 70, max: 110, step: 1, int: true, need: false })
+      ].concat(slotKeys(['Equip Weapon 1', 'Equip Weapon 2'])).concat([key('holster', 'Holster Weapons', 'Digit3')]).concat(WHEEL)
+        .concat([key('interact', 'Interact / Pick Up', 'KeyE')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: v.mAds == null ? 1 : v.mAds, dpi: v.dpi }; }
+    },
+    src: ['AIM-CURVES-RESEARCH.md §6: shipped files (looksensitivity.txt, aimcurve_look_0..4, advanced_look_controls.res)',
+          'https://github.com/CafeFPS/r5_flowstate/blob/main/resource/ui/menus/panels/advanced_look_controls.res',
+          'https://github.com/240hz/ApexConfigs/blob/master/cvar.txt'],
+    kbmConsole: false
+  };
+
+  /* Fortnite: Look and ADS Sensitivity, or (Use Advanced Options) the % sliders */
+  G.fortnite = {
+    name: 'Fortnite',
+    ctl: {
+      fields: [
+        sel('adv', 'Use Advanced Options', 'Controller Sensitivity > Advanced', ONOFF,
+          { dflt: 'off', help: 'Use Advanced Options on replaces Look and ADS Sensitivity with the % speeds, boosts and Look Dampening Time.' }),
+        num('look', 'Look Sensitivity', '1 to 10', { min: 1, max: 10, step: 1, int: true, old: 'sensX', when: { k: 'adv', v: ['off'] } }),
+        num('lookAds', 'ADS Sensitivity', 'Aim Down Sight, 1 to 10', { min: 1, max: 10, step: 1, int: true, when: { k: 'adv', v: ['off'] } }),
+        num('lookH', 'Look Horizontal Speed', 'Percent', { max: 100, step: 1, old: 'sensX', when: { k: 'adv', v: ['on'] } }),
+        num('lookV', 'Look Vertical Speed', 'Percent', { max: 100, step: 1, old: 'sensY', when: { k: 'adv', v: ['on'] } }),
+        num('boostH', 'Turning Horizontal Boost', 'Percent (0 turns it off)', { max: 100, step: 1, need: false, when: { k: 'adv', v: ['on'] },
+          help: 'Turning Boost adds speed only at a full push, after the Ramp Time. 0 % turns it off; scripts are scaled without it.' }),
+        num('boostV', 'Turning Vertical Boost', 'Percent', { max: 100, step: 1, need: false, when: { k: 'adv', v: ['on'] } }),
+        num('adsH', 'ADS Look Horizontal Speed', 'Percent', { max: 100, step: 1, when: { k: 'adv', v: ['on'] } }),
+        num('adsV', 'ADS Look Vertical Speed', 'Percent', { max: 100, step: 1, when: { k: 'adv', v: ['on'] } }),
+        num('damp', 'Look Dampening Time', 'Seconds (0.00 turns it off)', { step: 0.01, need: false, when: { k: 'adv', v: ['on'] },
+          help: 'Look Dampening Time slows how fast the camera reaches its speed. 0.00 turns it off, which suits scripts best.' }),
+        sel('curve', 'Look Input Curve', 'Linear or Exponential', [['exponential', 'Exponential'], ['linear', 'Linear']], { old: 'curve', dflt: 'exponential',
+          help: 'Exponential (small pushes turn less) or Linear (a straight line).' }),
+        num('dzR', 'Right Stick Deadzone', 'Percent', { max: 100, step: 1, old: 'deadzone',
+          help: 'Right Stick Deadzone in percent; 10 % is a common setting.' })
+      ],
+      model: function (v) {
+        if (v.adv === 'on') {
+          return { sensX: v.lookH, sensY: v.lookV, ads: ratio(v.adsH, v.lookH), adsY: ratio(v.adsV, v.lookV),
+                   deadzone: v.dzR, deadzoneMax: 100, curve: v.curve };
+        }
+        return { sensX: v.look, sensY: v.look, ads: ratio(v.lookAds, v.look), deadzone: v.dzR, deadzoneMax: 100, curve: v.curve };
+      }
+    },
+    kbm: {
+      fields: [
+        num('mSensX', 'X-Axis Sensitivity', 'Mouse, percent', { min: 0.1, step: 0.1, need: true }),
+        num('mSensY', 'Y-Axis Sensitivity', 'Mouse, percent', { min: 0.1, step: 0.1, need: true }),
+        num('mAds', 'Targeting Sensitivity', 'Percent, while aiming', { min: 1, max: 100, step: 1, need: false }),
+        DPI
+      ].concat(slotKeys(['Weapon Slot 1', 'Weapon Slot 2', 'Weapon Slot 3', 'Weapon Slot 4', 'Weapon Slot 5'])).concat(WHEEL).concat([
+        key('pickaxe', 'Harvesting Tool', 'KeyF'), key('interact', 'Use', 'KeyE')
+      ]),
+      model: function (v) { return { sensX: v.mSensX, sensY: v.mSensY, ads: v.mAds == null ? 1 : n(v.mAds) / 100, dpi: v.dpi }; }
+    },
+    src: ['AIM-CURVES-RESEARCH.md §7 (names; Epic publishes no factory defaults)',
+          'https://mp1st.com/news/fortnite-aim-assist-settings-update-detailed-new-combine-mode-available',
+          'https://prosettings.net/guides/fortnite-controller-settings/'],
+    kbmConsole: true
+  };
+
+  /* Rust Console Edition */
+  G.rust = {
+    name: 'Rust',
+    ctl: {
+      fields: [
+        sel('ctype', 'Camera Control Type', 'Digital Boost or Analog Acceleration', [['digital', 'Digital Boost'], ['analog', 'Analog Acceleration']],
+          { help: 'Digital Boost turns at one speed, with a boost at a full push (Boost Multiplier). Analog Acceleration speeds the camera up the longer you hold. Digital Boost suits scripts best.' }),
+        num('cam', 'Camera Sensitivity', 'Percent', { step: 1, old: 'sensX' }),
+        num('vert', 'Vertical Sensitivity', 'Percent of Camera Sensitivity', { step: 1, dflt: 100, need: false,
+          help: 'Vertical Sensitivity scales up/down against left/right. 100 % is equal.' }),
+        num('aim', 'Camera Sensitivity (Aiming)', 'Percent', { step: 1, old: 'ads' }),
+        num('boost', 'Boost Multiplier', 'Percent, Digital Boost only', { min: 100, step: 1, dflt: 100, need: false, when: { k: 'ctype', v: ['digital'] },
+          help: 'Boost Multiplier speeds up a full push in Digital Boost. 100 % means no boost.' }),
+        num('inertia', 'Camera Inertia', '0 turns it off', { step: 0.1, dflt: 0, need: false,
+          help: 'Camera Inertia keeps the camera moving after you let go. 0 turns it off; scripts stop cleanly at 0.' }),
+        num('dzR', 'Dead Zone Right', 'Percent', { max: 100, step: 1, old: 'deadzone' })
+      ],
+      model: function (v) {
+        var cam = n(v.cam, 0);
+        return { sensX: cam, sensY: cam * n(v.vert, 100) / 100, ads: ratio(v.aim, cam), deadzone: v.dzR, deadzoneMax: 100, curve: v.ctype };
+      }
+    },
+    kbm: {
+      fields: [
+        num('mSens', 'Mouse Sensitivity', 'Options > Controls', { min: 0.01, step: 0.01, need: true }),
+        DPI,
+        num('fov', 'Field of View', 'Options > Graphics', { min: 70, max: 90, step: 1, int: true, dflt: 75, need: false })
+      ].concat(slotKeys(['Hotbar Slot 1', 'Hotbar Slot 2', 'Hotbar Slot 3', 'Hotbar Slot 4', 'Hotbar Slot 5', 'Hotbar Slot 6']))
+        .concat(WHEEL).concat([key('interact', 'Use', 'KeyE')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: 1, dpi: v.dpi }; }
+    },
+    src: ['AIM-CURVES-RESEARCH.md §8 (Camera Control Type, Boost Multiplier 100-400 %, Camera Inertia)',
+          'https://gamerant.com/rust-console-edition-settings-guide/', 'https://rust.double11.com/news/update-107-patch-notes'],
+    kbmConsole: false
+  };
+
+  /* Rainbow Six Siege X */
+  G['rainbow-six-siege'] = {
+    name: 'Rainbow Six Siege',
+    ctl: {
+      fields: [
+        num('hs', 'Horizontal Sensitivity', '1 to 100', { min: 1, max: 100, step: 1, int: true, old: 'sensX' }),
+        num('vs', 'Vertical Sensitivity', '1 to 100', { min: 1, max: 100, step: 1, int: true, old: 'sensY' }),
+        num('ads', 'ADS Sensitivity', 'Aim down sights (1x)', { min: 1, step: 1, old: 'ads',
+          help: 'Your ADS sensitivity for the 1x sights; the Core compares it to your Horizontal Sensitivity.' }),
+        num('dzR', 'Aim Dead Zone', 'Percent (blank if your menu has none)', { max: 100, step: 1, need: false, old: 'deadzone' })
+      ],
+      model: function (v) { return { sensX: v.hs, sensY: v.vs, ads: ratio(v.ads, v.hs), deadzone: v.dzR == null ? 10 : v.dzR, deadzoneMax: 100, curve: '' }; }
+    },
+    kbm: {
+      fields: [
+        num('mSensX', 'Mouse Sensitivity Horizontal', '1 to 100', { min: 1, max: 100, step: 1, int: true, need: true }),
+        num('mSensY', 'Mouse Sensitivity Vertical', '1 to 100', { min: 1, max: 100, step: 1, int: true, need: true }),
+        num('mAds', 'ADS Sensitivity (1x)', 'Mouse', { min: 1, step: 1, need: false }),
+        DPI
+      ].concat(slotKeys(['Primary Weapon', 'Secondary Weapon', 'Gadget'])).concat(WHEEL).concat([key('interact', 'Interact', 'KeyF')]),
+      model: function (v) { return { sensX: v.mSensX, sensY: v.mSensY, ads: v.mAds == null ? 1 : ratio(v.mAds, v.mSensX), dpi: v.dpi }; }
+    },
+    src: ['https://www.ubisoft.com/en-us/help/rainbow-six-siege/gameplay/article/adjusting-aim-down-sight-sensitivity-in-rainbow-six-siege/000101246',
+          'game-packs/rainbow-six-siege.json (its aim model settings: Horizontal/Vertical Look Sensitivity, ADS every sight)'],
+    kbmConsole: false
+  };
+
+  /* VALORANT console (and the KBM tab for PC) */
+  G.valorant = {
+    name: 'VALORANT',
+    ctl: {
+      fields: [
+        num('hs', 'Base Horizontal Sensitivity', 'Looking left and right', { step: 0.1, old: 'sensX' }),
+        num('vs', 'Base Vertical Sensitivity', 'Looking up and down', { step: 0.1, old: 'sensY' }),
+        num('adsH', 'ADS Horizontal Sensitivity', 'Focus and ADS', { step: 0.1, old: 'ads' }),
+        num('adsV', 'ADS Vertical Sensitivity', 'Focus and ADS', { step: 0.1, need: false }),
+        num('dz', 'Inner Deadzone', '0.00 to 1.00', { max: 1, step: 0.01, old: 'deadzone',
+          help: 'Inner Deadzone is a decimal: 0.10 is 10 % of the stick.' }),
+        num('dzOut', 'Outer Deadzone', '0.00 to 1.00 (blank if none)', { max: 1, step: 0.01, need: false })
+      ],
+      model: function (v) {
+        return { sensX: v.hs, sensY: v.vs, ads: ratio(v.adsH, v.hs), adsY: v.adsV == null ? ratio(v.adsH, v.hs) : ratio(v.adsV, v.vs),
+                 deadzone: n(v.dz, 0) * 100, deadzoneMax: v.dzOut == null ? 100 : n(v.dzOut, 1) * 100, curve: '' };
+      }
+    },
+    kbm: {
+      fields: [
+        num('mSens', 'Sensitivity: Aim', 'Settings > General > Mouse', { min: 0.001, step: 0.001, need: true }),
+        num('mAds', 'Scoped Sensitivity Multiplier', 'Mouse, scoped', { min: 0.01, step: 0.01, dflt: 1, need: false }),
+        DPI
+      ].concat(slotKeys(['Equip Primary Weapon', 'Equip Secondary Weapon', 'Equip Melee Weapon', 'Equip Spike'])).concat(WHEEL)
+        .concat([key('interact', 'Use Object', 'KeyF')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: v.mAds == null ? 1 : v.mAds, dpi: v.dpi }; }
+    },
+    src: ['https://www.charlieintel.com/valorant/best-valorant-console-controller-settings-329370/',
+          'https://gamerant.com/valorant-best-controller-settings-console/'],
+    kbmConsole: false
+  };
+
+  G.overwatch = {
+    name: 'Overwatch',
+    ctl: {
+      fields: [
+        num('hs', 'Horizontal Sensitivity', '0 to 100', { max: 100, step: 1, old: 'sensX' }),
+        num('vs', 'Vertical Sensitivity', '0 to 100', { max: 100, step: 1, old: 'sensY' }),
+        num('zoom', 'Relative Aim Sensitivity While Zoomed', 'Percent', { max: 100, step: 1, old: 'ads' }),
+        sel('curve', 'Aim Technique', 'How the stick builds speed', [['dualzone', 'Dual-Zone'], ['linear', 'Linear Ramp'], ['exponential', 'Exponential Ramp']],
+          { old: 'curve', dflt: 'dualzone', help: 'Dual-Zone is the default. Linear Ramp with Aim Ease In 0 is the straightest. Overwatch has no deadzone slider.' }),
+        num('ease', 'Aim Ease In', '0 to 100', { max: 100, step: 1, need: false })
+      ],
+      model: function (v) { return { sensX: v.hs, sensY: v.vs, ads: n(v.zoom, 100) / 100, deadzone: 10, deadzoneMax: 100, curve: v.curve }; }
+    },
+    kbm: {
+      fields: [
+        num('mSens', 'Sensitivity', 'Controls > Mouse', { min: 0.01, max: 100, step: 0.01, need: true }),
+        num('mAds', 'Relative Aim Sensitivity While Zoomed', 'Percent', { max: 100, step: 1, need: false }),
+        DPI
+      ].concat(slotKeys(['Weapon 1', 'Weapon 2'])).concat(WHEEL).concat([key('interact', 'Interact', 'KeyF')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: v.mAds == null ? 1 : n(v.mAds) / 100, dpi: v.dpi }; }
+    },
+    src: ['https://us.forums.blizzard.com/en/overwatch/t/aim-settings-on-console/864957', 'docs/GAME-CURVES-RESEARCH.md §2.6'],
+    kbmConsole: false
+  };
+
+  G['marvel-rivals'] = {
+    name: 'Marvel Rivals',
+    ctl: {
+      fields: [
+        num('hs', 'Horizontal Sensitivity', 'Looking left and right', { step: 1, old: 'sensX' }),
+        num('vs', 'Vertical Sensitivity', 'Looking up and down', { step: 1, old: 'sensY' }),
+        sel('curve', 'Aim Sensitivity Curve Type', 'How the stick builds speed', [['linear', 'Linear Curve'], ['dualzone', 'Dual-Zone S-Curve']], { old: 'curve' }),
+        num('dzMin', 'Minimum Input Deadzone', 'The aim stick’s inner zone', { max: 100, step: 1, old: 'deadzone' }),
+        num('dzMax', 'Maximum Input Deadzone', 'The edge’s zone (blank if 0)', { max: 100, step: 1, need: false,
+          help: 'Maximum Input Deadzone: how much of the edge already counts as a full push.' }),
+        num('boost', 'Max Deadzone Sensitivity Boost', 'Extra speed at a full push', { step: 1, need: false,
+          help: 'The boost adds speed only at a full push; scripts are scaled without it.' })
+      ],
+      model: function (v) { return { sensX: v.hs, sensY: v.vs, ads: 1, deadzone: v.dzMin, deadzoneMax: 100 - n(v.dzMax, 0), curve: v.curve }; }
+    },
+    kbm: {
+      fields: [num('mSens', 'Mouse Sensitivity', 'Keyboard & Mouse settings', { min: 0.01, step: 0.01, need: true }), DPI]
+        .concat(WHEEL).concat([key('interact', 'Interact', 'KeyF')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: 1, dpi: v.dpi }; }
+    },
+    src: ['https://turbosmurfs.gg/article/marvel-rivals-controller-settings', 'docs/GAME-CURVES-RESEARCH.md §2.8'],
+    kbmConsole: false
+  };
+
+  G['battlefield-6'] = {
+    name: 'Battlefield 6',
+    ctl: {
+      fields: [
+        num('sens', 'Infantry Aim Sensitivity', 'One setting for both directions', { step: 0.1, dflt: 20, old: 'sensX' }),
+        num('vRatio', 'Vertical Aim Ratio', 'Percent of the aim sensitivity', { step: 0.1, dflt: 100, need: false }),
+        num('zoom', 'Infantry Zoom Aim Sensitivity', 'While aiming down sights', { step: 0.1, old: 'ads' }),
+        sel('curve', 'Soldier Aim Input Curve', 'How the stick builds speed', [['standard', 'Standard'], ['linear', 'Linear'], ['dynamic', 'Dynamic'], ['bf4', 'BF4'], ['bf1', 'BF1']],
+          { old: 'curve', dflt: 'standard' }),
+        num('dzC', 'Center Deadzone', 'Right stick, 0 to 100', { max: 100, step: 1, old: 'deadzone' }),
+        num('dzA', 'Axial Deadzone', 'Right stick (blank if 0)', { max: 100, step: 1, need: false }),
+        num('maxIn', 'Max Input Threshold', 'Right stick (blank if 100)', { max: 100, step: 1, need: false, old: 'deadzoneMax' })
+      ],
+      model: function (v) {
+        var s = n(v.sens, 0);
+        return { sensX: s, sensY: s * n(v.vRatio, 100) / 100, ads: ratio(v.zoom, s), deadzone: v.dzC, deadzoneMax: v.maxIn == null ? 100 : v.maxIn, curve: v.curve };
+      }
+    },
+    kbm: {
+      fields: [num('mSens', 'Soldier Mouse Aim Sensitivity', 'Mouse', { min: 0.01, step: 0.01, need: true }), DPI]
+        .concat(slotKeys(['Primary Weapon', 'Secondary Weapon'])).concat(WHEEL).concat([key('interact', 'Interact', 'KeyE')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: 1, dpi: v.dpi }; }
+    },
+    src: ['https://mp1st.com/news/battlefield-6-best-settings-consoles-pc-controllers', 'docs/GAME-CURVES-RESEARCH.md §2.7'],
+    kbmConsole: true
+  };
+
+  G['arc-raiders'] = {
+    name: 'ARC Raiders',
+    ctl: {
+      fields: [
+        num('hs', 'Horizontal Sensitivity', 'Looking left and right', { step: 1, dflt: 80, old: 'sensX' }),
+        num('vs', 'Vertical Sensitivity', 'Looking up and down', { step: 1, dflt: 60, old: 'sensY' }),
+        num('zoom', 'Zoom Sensitivity Multiplier', 'While aiming', { step: 1, dflt: 25, old: 'ads' }),
+        sel('curve', 'Look Response Curve', 'How the stick builds speed', [['exponential', 'Exponential'], ['linear', 'Linear'], ['sinusoidal', 'Sinusoidal']], { old: 'curve' }),
+        num('dz', 'Look Inner Deadzone', 'The aim stick’s inner zone', { max: 100, step: 1, dflt: 5, old: 'deadzone' })
+      ],
+      model: function (v) { return { sensX: v.hs, sensY: v.vs, ads: n(v.zoom, 100) / 100, deadzone: v.dz, deadzoneMax: 100, curve: v.curve }; }
+    },
+    kbm: {
+      fields: [num('mSens', 'Mouse Sensitivity', 'Mouse', { min: 0.01, step: 0.01, need: true }), DPI]
+        .concat(slotKeys(['Weapon 1', 'Weapon 2'])).concat(WHEEL).concat([key('interact', 'Interact', 'KeyE')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: 1, dpi: v.dpi }; }
+    },
+    src: ['https://www.dexerto.com/wikis/arc-raiders/best-controller-settings-arc-raiders', 'https://www.u7buy.com/blog/arc-raiders-controller-settings/'],
+    kbmConsole: false
+  };
+
+  G['destiny-2'] = {
+    name: 'Destiny 2',
+    ctl: {
+      fields: [
+        num('look', 'Look Sensitivity', '1 to 20, both directions', { min: 1, max: 20, step: 1, int: true, old: 'sensX' }),
+        num('adsMod', 'ADS Sensitivity Modifier', '0.5 to 1.5', { min: 0.5, max: 1.5, step: 0.1, old: 'ads' })
+      ],
+      model: function (v) { return { sensX: v.look, sensY: v.look, ads: v.adsMod, deadzone: 20, deadzoneMax: 100, curve: '' }; }
+    },
+    src: ['https://www.destructoid.com/destiny-2-is-drastically-changing-controller-sensitivity-options/'],
+    kbmConsole: false
+  };
+
+  G['halo-infinite'] = {
+    name: 'Halo Infinite',
+    ctl: {
+      fields: [
+        num('hs', 'Look Sensitivity (Horizontal)', 'Looking left and right', { min: 1, max: 10, step: 0.1, old: 'sensX' }),
+        num('vs', 'Look Sensitivity (Vertical)', 'Looking up and down', { min: 1, max: 10, step: 0.1, old: 'sensY' }),
+        num('zoom', 'Zoom Sensitivity', 'While zoomed (all levels)', { step: 0.1, dflt: 1, need: false, old: 'ads' }),
+        num('dzC', 'Center Deadzone', 'Right stick, percent', { max: 100, step: 1, old: 'deadzone' }),
+        num('maxIn', 'Max Input Threshold', 'Right stick (blank if 100)', { max: 100, step: 1, need: false, old: 'deadzoneMax' })
+      ],
+      model: function (v) { return { sensX: v.hs, sensY: v.vs, ads: v.zoom == null ? 1 : v.zoom, deadzone: v.dzC, deadzoneMax: v.maxIn == null ? 100 : v.maxIn, curve: '' }; }
+    },
+    src: ['https://support.halowaypoint.com/hc/en-us/articles/4407649252116-Guide-to-Halo-Infinite-Game-Settings'],
+    kbmConsole: true
+  };
+
+  /* NBA 2K: no aim to scale; the Core's Auto green needs only how you shoot */
+  var NBA = {
+    name: 'NBA 2K',
+    noScale: true,
+    ctl: {
+      fields: [
+        sel('meter', 'Shot Meter', 'Controller Settings', [['on', 'On'], ['off', 'Off']],
+          { help: 'Auto green reads the shot meter on screen, so keep the Shot Meter on.' }),
+        sel('shootWith', 'Shoot with', 'The button or the Pro Stick', [['button', 'Shoot button (Square / X)'], ['prostick', 'Pro Stick']])
+      ],
+      model: function () { return null; }
+    },
+    kbm: {
+      fields: [key('shoot', 'Shoot', 'KeyE', 'The key you shoot with. Tap the box, then press it.')],
+      model: function () { return null; }
+    },
+    src: ['docs/DECISIONS.md D99, D406 (Auto green, no AI Scripts)'],
+    kbmConsole: false
+  };
+
+  /* any other game: the D431 questions, in plain words */
+  var GENERIC = {
+    name: '',
+    ctl: {
+      fields: [
+        num('hs', 'Horizontal sensitivity', 'Looking left and right', { step: 0.01, old: 'sensX' }),
+        num('vs', 'Vertical sensitivity', 'Looking up and down (blank if one setting)', { step: 0.01, need: false, old: 'sensY' }),
+        num('ads', 'Aim (ADS) sensitivity', 'While aiming, as your game shows it', { step: 0.01, dflt: 1, need: false, old: 'ads' }),
+        num('dz', 'Deadzone min', 'The aim stick’s inner deadzone', { max: 100, step: 1, old: 'deadzone' }),
+        num('dzMax', 'Deadzone max', 'Outer deadzone (blank if none)', { min: 1, max: 100, step: 1, need: false, old: 'deadzoneMax' })
+      ],
+      model: function (v) {
+        return { sensX: v.hs, sensY: v.vs == null ? v.hs : v.vs, ads: v.ads == null ? 1 : v.ads, deadzone: v.dz,
+                 deadzoneMax: v.dzMax == null ? 100 : v.dzMax, curve: '' };
+      }
+    },
+    kbm: {
+      fields: [num('mSens', 'Mouse sensitivity', 'As your game shows it', { min: 0.001, step: 0.01, need: true }),
+               num('mAds', 'ADS multiplier', 'Mouse, while aiming', { min: 0, step: 0.01, dflt: 1, need: false }), DPI]
+        .concat(slotKeys(['Weapon 1', 'Weapon 2'])).concat(WHEEL).concat([key('interact', 'Interact', 'KeyE')]),
+      model: function (v) { return { sensX: v.mSens, sensY: v.mSens, ads: v.mAds == null ? 1 : v.mAds, dpi: v.dpi }; }
+    },
+    src: ['docs/DECISIONS.md D431'],
+    kbmConsole: false
+  };
+  /* games with no camera to scale and no keybinds the Core reads */
+  var NONE = { 'rocket-league': 1, 'mlb-the-show-25': 1 };
+
+  function forPack(id) {
+    id = String(id || '');
+    if (!id || NONE[id]) { return null; }
+    if (/^nba-2k/.test(id)) { return NBA; }
+    return G[id] || GENERIC;
+  }
+
+  root.ZSGAMESCHEMA = { games: G, generic: GENERIC, nba: NBA, forPack: forPack, APEX_HIP: APEX_HIP };
+})(typeof window !== 'undefined' ? window : this);
