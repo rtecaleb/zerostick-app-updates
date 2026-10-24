@@ -1,0 +1,215 @@
+# Where the Counter-Strike 2 weapon catalog comes from
+
+Everything here was read on **2026-10-24** (decision **D473**). `catalog.json` is the
+single-kind form (`kind: "weapons"`), **held for the owner's review** (`review`,
+D132): nothing of it reaches a Core's AI Scripts until he deletes that line.
+
+CS2 is a PC game (Steam), so this game is mainly for **Native Keyboard & Mouse**
+(a real keyboard and mouse reach the game, the AI scripts run on top), not for a
+console. Valve makes and publishes it.
+
+## The list: the game's own files
+
+The names, classes and sides are the game's own, read from the owner's CS2 install
+(`D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive`, build
+**2000559**, PatchVersion 1.40.8.6, 2025-07-07) with a small VPK reader
+(Model Library `Counter-Strike 2/tools/vpkread.py`; nothing downloaded, nothing run
+from the game):
+
+- `scripts/items/items_game.txt` (in `pak01_dir.vpk`): every `weapon_*` item, its
+  `item_type_name` (the class), `used_by_classes` (which team can buy it), its
+  `item_gear_slot` and its in-game price.
+- `resource/csgo_english.txt`: each item's `item_name` string, which is exactly
+  what the HUD prints under the weapon's icon ("AK-47", "SG 553", "Zeus x27",
+  "High Explosive Grenade").
+
+**Is that build current?** Valve's patch notes (Steam's official announcements for
+app 730, `https://store.steampowered.com/news/app/730`, read through
+`api.steampowered.com/ISteamNews/GetNewsForApp`) from 2025-07-02 to 2026-10-22 add
+**no weapon**, remove none, rename none and change no side. They change prices only:
+**2026-01-21** MP7 and MP5-SD $100 cheaper, PP-Bizon $100 cheaper. New finishes,
+collections and stickers are skins on the same weapons and change nothing here.
+So the list is complete for 2026-10-24.
+
+**65 items in 10 groups**, every one with a picture:
+
+- 10 pistols, 7 SMGs, 4 shotguns, 2 machine guns, 7 rifles, 4 sniper rifles: both
+  teams' buy menus (Pistols, Mid-Tier and Rifles tabs).
+- 6 grenades (Utility), the Zeus x27 and the Medi-Shot (Equipment; the Medi-Shot is
+  bought in no competitive mode, it is given in Deathmatch and some community
+  modes; kept because the HUD names it).
+- 22 knives: the two default knives (CT and T; the HUD calls both "Knife") and the
+  20 knife models the game holds. A knife with a finish prints with a star
+  ("★ Karambit | Doppler").
+- the C4 (slot 5, Terrorists only).
+
+**Not weapons:** Kevlar Vest, Kevlar + Helmet, the Defuse Kit and the Rescue Kit are
+bought in the Utility tab but are never held, so no Script can tie to them. The
+Gun Game knife (`weapon_knifegg`), the bump mine, the breach charge, the tablet,
+the shield, the fists, the axe, the hammer, the spanner and the snowball are
+Danger Zone / retired items no current mode hands out; they are not listed.
+
+### Ids, aliases, fire modes, sides
+
+- Ids are `<group>.<slug of the HUD name>` (README.md), except the two default
+  knives, `knives.knife_ct` and `knives.knife_t` (one HUD name, two models).
+- `aliases`: the names players use (Scout, Deag, Krieg, CT auto); search only.
+- `fireMode`: `auto`, `semi`, `bolt` (AWP, SSG 08), `pump` (Nova, Sawed-Off,
+  MAG-7). The Glock-18 and the FAMAS have a burst switch (right mouse button);
+  they are marked by their default (`semi`, `auto`).
+- `side` (new, D473): which team can BUY it: `ct`, `t` or `both`. Either team can
+  PICK UP any gun, so `side` is the buy-phase prior of the round memory only
+  (recognition.json), never a filter on what is read.
+
+| group | weapon | buy side |
+|---|---|---|
+| Pistols | Glock-18 | T |
+| Pistols | USP-S | CT |
+| Pistols | P2000 | CT |
+| Pistols | Dual Berettas | both |
+| Pistols | P250 | both |
+| Pistols | Tec-9 | T |
+| Pistols | Five-SeveN | CT |
+| Pistols | CZ75-Auto | both |
+| Pistols | Desert Eagle | both |
+| Pistols | R8 Revolver | both |
+| SMGs | MAC-10 | T |
+| SMGs | MP9 | CT |
+| SMGs | MP7 | both |
+| SMGs | MP5-SD | both |
+| SMGs | UMP-45 | both |
+| SMGs | P90 | both |
+| SMGs | PP-Bizon | both |
+| Shotguns | Nova | both |
+| Shotguns | XM1014 | both |
+| Shotguns | Sawed-Off | T |
+| Shotguns | MAG-7 | CT |
+| Machine Guns | M249 | both |
+| Machine Guns | Negev | both |
+| Rifles | Galil AR | T |
+| Rifles | FAMAS | CT |
+| Rifles | AK-47 | T |
+| Rifles | M4A4 | CT |
+| Rifles | M4A1-S | CT |
+| Rifles | SG 553 | T |
+| Rifles | AUG | CT |
+| Sniper Rifles | SSG 08 | both |
+| Sniper Rifles | AWP | both |
+| Sniper Rifles | G3SG1 | T |
+| Sniper Rifles | SCAR-20 | CT |
+| Grenades | High Explosive Grenade | both |
+| Grenades | Flashbang | both |
+| Grenades | Smoke Grenade | both |
+| Grenades | Molotov | T |
+| Grenades | Incendiary Grenade | CT |
+| Grenades | Decoy Grenade | both |
+| Equipment | Zeus x27 | both |
+| Equipment | Medi-Shot | both |
+| Knives | Knife | CT |
+| Knives | Knife | T |
+| Knives | Bayonet | both |
+| Knives | Classic Knife | both |
+| Knives | Flip Knife | both |
+| Knives | Gut Knife | both |
+| Knives | Karambit | both |
+| Knives | M9 Bayonet | both |
+| Knives | Huntsman Knife | both |
+| Knives | Falchion Knife | both |
+| Knives | Bowie Knife | both |
+| Knives | Butterfly Knife | both |
+| Knives | Shadow Daggers | both |
+| Knives | Paracord Knife | both |
+| Knives | Survival Knife | both |
+| Knives | Ursus Knife | both |
+| Knives | Navaja Knife | both |
+| Knives | Nomad Knife | both |
+| Knives | Stiletto Knife | both |
+| Knives | Talon Knife | both |
+| Knives | Skeleton Knife | both |
+| Knives | Kukri Knife | both |
+| C4 | C4 Explosive | T |
+
+## Pictures: Valve's own renders from the game files (owner, 2026-10-24)
+
+Every picture in `weapons/` is the game's own base weapon render (the one the game's
+inventory and loadout screens draw for a weapon with no finish), read from the
+owner's CS2 install: `pak01_dir.vpk`, `panorama/images/econ/weapons/base_weapons/
+<weapon>_png.vtex_c`, a 512 x 384 BGRA8888 texture, decoded (LZ4 mips) by
+Model Library `Counter-Strike 2/tools/vtex.py`, cropped to the weapon (transparent
+border removed, 4 px kept) and fitted to 480 x 300, transparency kept.
+
+**This is Valve art (flagged).** The owner decided on 2026-10-24 to use the real
+official CS2 weapon art and handle the licence himself ("licensing isn't a
+blocker"). No Valve web page we found publishes these base renders, so each
+picture's source is the exact game file it came from (the test accepts a
+`cs2-vpk:` path for Valve, `test-game-data.js` PUBLISHERS). Nothing came from a
+fan wiki, a skin site or an image search, and none is generated. Delete a `.png`
+and set that weapon's `image` to `null` and the app shows the class symbol.
+
+| picture | weapon | source (CS2 game file) | build | read |
+|---|---|---|---|---|
+| weapons/glock_18.png | Glock-18 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_glock_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/usp_s.png | USP-S | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_usp_silencer_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/p2000.png | P2000 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_hkp2000_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/dual_berettas.png | Dual Berettas | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_elite_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/p250.png | P250 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_p250_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/tec_9.png | Tec-9 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_tec9_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/five_seven.png | Five-SeveN | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_fiveseven_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/cz75_auto.png | CZ75-Auto | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_cz75a_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/desert_eagle.png | Desert Eagle | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_deagle_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/r8_revolver.png | R8 Revolver | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_revolver_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/mac_10.png | MAC-10 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_mac10_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/mp9.png | MP9 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_mp9_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/mp7.png | MP7 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_mp7_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/mp5_sd.png | MP5-SD | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_mp5sd_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/ump_45.png | UMP-45 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_ump45_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/p90.png | P90 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_p90_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/pp_bizon.png | PP-Bizon | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_bizon_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/nova.png | Nova | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_nova_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/xm1014.png | XM1014 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_xm1014_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/sawed_off.png | Sawed-Off | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_sawedoff_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/mag_7.png | MAG-7 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_mag7_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/m249.png | M249 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_m249_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/negev.png | Negev | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_negev_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/galil_ar.png | Galil AR | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_galilar_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/famas.png | FAMAS | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_famas_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/ak_47.png | AK-47 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_ak47_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/m4a4.png | M4A4 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_m4a1_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/m4a1_s.png | M4A1-S | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_m4a1_silencer_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/sg_553.png | SG 553 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_sg556_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/aug.png | AUG | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_aug_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/ssg_08.png | SSG 08 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_ssg08_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/awp.png | AWP | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_awp_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/g3sg1.png | G3SG1 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_g3sg1_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/scar_20.png | SCAR-20 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_scar20_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/high_explosive_grenade.png | High Explosive Grenade | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_hegrenade_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/flashbang.png | Flashbang | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_flashbang_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/smoke_grenade.png | Smoke Grenade | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_smokegrenade_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/molotov.png | Molotov | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_molotov_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/incendiary_grenade.png | Incendiary Grenade | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_incgrenade_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/decoy_grenade.png | Decoy Grenade | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_decoy_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/zeus_x27.png | Zeus x27 | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_taser_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/medi_shot.png | Medi-Shot | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_healthshot_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/knife_ct.png | Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/knife_t.png | Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_t_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/bayonet.png | Bayonet | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_bayonet_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/classic_knife.png | Classic Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_css_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/flip_knife.png | Flip Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_flip_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/gut_knife.png | Gut Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_gut_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/karambit.png | Karambit | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_karambit_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/m9_bayonet.png | M9 Bayonet | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_m9_bayonet_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/huntsman_knife.png | Huntsman Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_tactical_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/falchion_knife.png | Falchion Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_falchion_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/bowie_knife.png | Bowie Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_survival_bowie_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/butterfly_knife.png | Butterfly Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_butterfly_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/shadow_daggers.png | Shadow Daggers | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_push_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/paracord_knife.png | Paracord Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_cord_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/survival_knife.png | Survival Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_canis_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/ursus_knife.png | Ursus Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_ursus_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/navaja_knife.png | Navaja Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_gypsy_jackknife_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/nomad_knife.png | Nomad Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_outdoor_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/stiletto_knife.png | Stiletto Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_stiletto_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/talon_knife.png | Talon Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_widowmaker_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/skeleton_knife.png | Skeleton Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_skeleton_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/kukri_knife.png | Kukri Knife | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_knife_kukri_png.vtex_c` | 2000559 | 2026-10-24 |
+| weapons/c4_explosive.png | C4 Explosive | `cs2-vpk:panorama/images/econ/weapons/base_weapons/weapon_c4_png.vtex_c` | 2000559 | 2026-10-24 |

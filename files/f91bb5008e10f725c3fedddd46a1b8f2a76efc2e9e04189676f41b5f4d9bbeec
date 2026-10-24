@@ -1,0 +1,199 @@
+# Where the PUBG: BATTLEGROUNDS catalog comes from
+
+Everything here was read on **2026-10-24** (D474). `catalog.json` is the single-kind
+form (`kind: "weapons"`). The game is **PUBG: BATTLEGROUNDS** on PC and console
+(PlayStation 4/5, Xbox One/Series), NOT PUBG Mobile (another game).
+
+## The list: pubg.com's Arsenal page
+
+KRAFTON's own [Arsenal page](https://pubg.com/en/game-info/weapons) lists every
+current weapon with its ammo, a render and a per-weapon "last update" date (the
+newest, 08-12-2026, is the RPD). The catalog is that list (58 items: 13 assault
+rifles, 7 DMRs, 8 SMGs, 5 sniper rifles, 6 shotguns, 5 handguns, 3 LMGs, the
+launchers, Crossbow, Stun Gun, Flare Gun and 5 melee weapons). Throwables
+(grenades, smokes, Molotov, ...) are not in it: the Core's reader reads the gun
+slots (D474), and a throwable in hand reads as nothing.
+
+- **Latest update:** [43.2](https://pubg.com/en/news/11136), live on PC
+  2026-10-14 and on console 2026-10-22. No weapon change.
+- **Newest gun:** the **RPD** (LMG, 7.62 mm, full auto), [42.3](https://pubg.com/en/news/10885),
+  PC 2026-08-12, console 2026-08-20; the 2026 roadmap's "August weapon".
+- **Removed** in [42.1](https://pubg.com/en/news/10179) (announced in
+  [41.1](https://pubg.com/en/news/9926) and [41.2](https://pubg.com/en/news/10080)),
+  so NOT in the catalog:
+
+| Weapon | Class | Removed in | Console date |
+|---|---|---|---|
+| Mosin-Nagant | SR | 42.1 | 2026-06-25 |
+| R45 | Pistol | 42.1 | 2026-06-25 |
+| DP-28 | LMG | 42.1 | 2026-06-25 |
+| PP-19 Bizon | SMG | 42.1 | 2026-06-25 |
+| P1911 | Pistol | 42.1 | 2026-06-25 |
+| QBU | DMR | 42.1 | 2026-06-25 |
+
+- **Meta Rotation** ([42.3](https://pubg.com/en/news/10885)) changes which weapon
+  CLASS is in focus about every four months, by balance; it takes no gun out of
+  loot. [43.1](https://pubg.com/en/news/11057) cut RPD and M249 world spawns by 30%.
+- **BZ Grenade Launcher** ([39.1](https://pubg.com/news/9466)) was an Erangel: Subzero
+  item; 40.1 removed that map's items, so it is not in the catalog (58 items). It comes
+  back here if a winter map returns.
+
+### Console versus PC
+
+PUBG publishes ONE patch note for PC and console; console goes live about 8 days
+after PC. On 2026-10-24 both run 43.2 and **no weapon is on one platform only**.
+The console differences are not weapons (bigger console hitboxes in 43.1, vehicle
+recoil left unchanged on console in 42.3). **Mouse and keyboard on console are not
+allowed:** KRAFTON calls them "unauthorized" and set harsher penalties from
+2024-11-27 ([news/7986](https://pubg.com/en/news/7986)).
+
+### Fire modes
+
+pubg.com publishes no fire-mode table. `fireMode` is the gun's fastest mode
+(`auto` when it has one), so a rapid-fire Smart Action knows the gun CAN be
+switched; the full set is below. The HUD shows the current mode as a small icon
+left of the ammo count (D474 HUD notes). Low and medium confidence are community
+knowledge, marked `uncertain` on the item.
+
+| Weapon | Class | Ammo | Modes | Confidence | Where |
+|---|---|---|---|---|---|
+| M16A4 | Assault Rifles | 5.56mm | single/burst | high | world |
+| M416 | Assault Rifles | 5.56mm | single/auto | high | world |
+| SCAR-L | Assault Rifles | 5.56mm | single/auto | high | world |
+| G36C | Assault Rifles | 5.56mm | single/auto | high | map:Vikendi |
+| QBZ | Assault Rifles | 5.56mm | single/auto | high | world |
+| K2 | Assault Rifles | 5.56mm | single/burst/auto | high | world |
+| AUG A3 | Assault Rifles | 5.56mm | single/auto | high | world |
+| FAMAS | Assault Rifles | 5.56mm | single/burst/auto | high | care package |
+| AKM | Assault Rifles | 7.62mm | single/auto | high | world |
+| Beryl M762 | Assault Rifles | 7.62mm | single/burst/auto | high | world |
+| Mk47 Mutant | Assault Rifles | 7.62mm | single/burst | high | world |
+| Groza | Assault Rifles | 7.62mm | single/auto | high | care package |
+| ACE32 | Assault Rifles | 7.62mm | single/auto | high | world |
+| Mini 14 | DMRs | 5.56mm | single | high | world |
+| Mk12 | DMRs | 5.56mm | single | high | world |
+| SKS | DMRs | 7.62mm | single | high | world |
+| SLR | DMRs | 7.62mm | single | high | world |
+| Mk14 | DMRs | 7.62mm | single/auto | high | care package |
+| VSS | DMRs | 9mm | single/auto | high | world |
+| Dragunov | DMRs | 7.62mm | single | high | world |
+| Tommy Gun | SMGs | 9mm | single/auto | high | world |
+| UMP45 | SMGs | 9mm | single/burst/auto | medium | world |
+| Micro Uzi | SMGs | 9mm | single/auto | high | world |
+| Vector | SMGs | 9mm | single/burst/auto | high | world |
+| MP5K | SMGs | 9mm | single/burst/auto | medium | world |
+| MP9 | SMGs | 9mm | single/auto | medium | world |
+| P90 | SMGs | 5.7mm | auto | low | care package |
+| JS9 | SMGs | 9mm | single/auto | medium | world |
+| Kar98k | Sniper Rifles | 7.62mm | bolt | high | world |
+| M24 | Sniper Rifles | 7.62mm | bolt | high | world |
+| AWM | Sniper Rifles | .300 Magnum | bolt | high | care package |
+| Win94 | Sniper Rifles | .45 ACP | lever | high | map:Karakin |
+| Lynx AMR | Sniper Rifles | .50 Caliber | bolt | high | care package |
+| S12K | Shotguns | 12 Gauge | single | high | world |
+| S1897 | Shotguns | 12 Gauge | pump | high | world |
+| S686 | Shotguns | 12 Gauge | single | high | world |
+| DBS | Shotguns | 12 Gauge | pump | high | care package |
+| Sawed-Off | Shotguns | 12 Gauge | single | high | world |
+| O12 | Shotguns | 12 Gauge Slug | single/auto | low | world |
+| M249 | LMGs | 5.56mm | auto | high | world |
+| MG3 | LMGs | 7.62mm | auto | medium | care package |
+| RPD | LMGs | 7.62mm | auto | high | world |
+| P18C | Handguns | 9mm | single/auto | high | world |
+| P92 | Handguns | 9mm | single | high | world |
+| Skorpion | Handguns | 9mm | single/auto | high | world |
+| Deagle | Handguns | .45 ACP | single | high | world |
+| R1895 | Handguns | 7.62mm | single | high | world |
+| M79 | Launchers | 40mm Smoke Grenade | single | high | world |
+| Panzerfaust | Launchers | None | single | high | world |
+| Mortar | Launchers | 60mm Mortar Shell | single | high | world |
+| BZ Grenade Launcher (not in the catalog) | Launchers | 40mm BZ Grenade | single | - | rotated out |
+| Crossbow | Other | Bolt | single | high | world |
+| Stun Gun | Other | None | single | high | world |
+| Flare Gun | Other | Flare | single | - | world |
+| Crowbar | Melee | None | - | - | world |
+| Machete | Melee | None | - | - | world |
+| Pan | Melee | None | - | - | world |
+| Sickle | Melee | None | - | - | world |
+| Pickaxe | Melee | None | - | - | world |
+
+Care-package and map-only status is from launch notes and community trackers
+(only Win94 on Karakin and G36C on Vikendi are official, [36.1](https://pubg.com/en/news/8725));
+the 43.2 map rotation has no Vikendi or Deston ([news/11137](https://pubg.com/en/news/11137)).
+
+## Pictures: KRAFTON's own renders (D116, D474)
+
+Every picture in `weapons/` is the render pubg.com's Arsenal page shows for the
+weapon, from KRAFTON's host `wstatic-prod.pubg.com` (WebP, 1600 x 1096 RGBA),
+cropped to the weapon (transparent border off, 4 px kept) and scaled to fit
+480 x 300 as PNG, transparency kept. None is generated or from a fan site.
+They are KRAFTON's copyright, used in the app to identify the weapon; the owner
+decided on 2026-10-24 to use the real official art and handle licensing later
+(D474). The Flare Gun has no Arsenal render: its picture is KRAFTON's own item art from
+PUBG's official developer repository [github.com/pubg/api-assets](https://github.com/pubg/api-assets)
+(`Assets/Item/Weapon/Handgun/Item_Weapon_FlareGun_C.png`, served by GitHub's
+raw host), the same art the PUBG API's telemetry names.
+
+The Core never receives any of these (pictures stay in the app). Its reader
+learns from real gameplay frames only (D474, ZeroStick Model Library\PUBG).
+
+| Picture | Weapon | Source | Page | Size | Read |
+|---|---|---|---|---|---|
+| weapons/m16a4.png | M16A4 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-m16a4.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 221 | 2026-10-24 |
+| weapons/m416.png | M416 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-m416.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 225 | 2026-10-24 |
+| weapons/scar_l.png | SCAR-L | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-scar-l.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 255 | 2026-10-24 |
+| weapons/g36c.png | G36C | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-g36c.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 274 | 2026-10-24 |
+| weapons/qbz.png | QBZ | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-qbz95.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 277 | 2026-10-24 |
+| weapons/k2.png | K2 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-k2.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 233 | 2026-10-24 |
+| weapons/aug_a3.png | AUG A3 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-aug_a3.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 287 | 2026-10-24 |
+| weapons/famas.png | FAMAS | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-famas_g2.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 279 | 2026-10-24 |
+| weapons/akm.png | AKM | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-akm.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 231 | 2026-10-24 |
+| weapons/beryl_m762.png | Beryl M762 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-beryl_m762.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 262 | 2026-10-24 |
+| weapons/mk47_mutant.png | Mk47 Mutant | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mk47_mutant.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 258 | 2026-10-24 |
+| weapons/groza.png | Groza | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-groza.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 453 x 300 | 2026-10-24 |
+| weapons/ace32.png | ACE32 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-ace32.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 230 | 2026-10-24 |
+| weapons/mini_14.png | Mini 14 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mini14.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 236 | 2026-10-24 |
+| weapons/mk12.png | Mk12 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mk12.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 236 | 2026-10-24 |
+| weapons/sks.png | SKS | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-sks.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 243 | 2026-10-24 |
+| weapons/slr.png | SLR | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-slr.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 214 | 2026-10-24 |
+| weapons/mk14.png | Mk14 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mk14.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 243 | 2026-10-24 |
+| weapons/vss.png | VSS | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-vss.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 251 | 2026-10-24 |
+| weapons/dragunov.png | Dragunov | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-dragunov.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 224 | 2026-10-24 |
+| weapons/tommy_gun.png | Tommy Gun | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-tommy_gun.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 273 | 2026-10-24 |
+| weapons/ump45.png | UMP45 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-ump45.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 286 | 2026-10-24 |
+| weapons/micro_uzi.png | Micro Uzi | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-micro_uzi.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 320 x 300 | 2026-10-24 |
+| weapons/vector.png | Vector | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-vector.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 449 x 300 | 2026-10-24 |
+| weapons/mp5k.png | MP5K | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mp5k.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 329 x 300 | 2026-10-24 |
+| weapons/mp9.png | MP9 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mp9.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 403 x 300 | 2026-10-24 |
+| weapons/p90.png | P90 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-p90.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 285 | 2026-10-24 |
+| weapons/js9.png | JS9 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-js9.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 411 x 300 | 2026-10-24 |
+| weapons/kar98k.png | Kar98k | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-kar98k.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 241 | 2026-10-24 |
+| weapons/m24.png | M24 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-m24.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 229 | 2026-10-24 |
+| weapons/awm.png | AWM | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-awm.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 227 | 2026-10-24 |
+| weapons/win94.png | Win94 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-win94.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 260 | 2026-10-24 |
+| weapons/lynx_amr.png | Lynx AMR | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-lynx_amr.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 222 | 2026-10-24 |
+| weapons/s12k.png | S12K | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-s12k.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 226 | 2026-10-24 |
+| weapons/s1897.png | S1897 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-s1897.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 254 | 2026-10-24 |
+| weapons/s686.png | S686 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-s686.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 238 | 2026-10-24 |
+| weapons/dbs.png | DBS | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-dbs.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 270 | 2026-10-24 |
+| weapons/sawed_off.png | Sawed-Off | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-sawed_off.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 285 | 2026-10-24 |
+| weapons/o12.png | O12 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-o12.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 458 x 300 | 2026-10-24 |
+| weapons/m249.png | M249 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-m249.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 241 | 2026-10-24 |
+| weapons/mg3.png | MG3 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mg3.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 199 | 2026-10-24 |
+| weapons/rpd.png | RPD | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/img-weapons-rpd.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 242 | 2026-10-24 |
+| weapons/p18c.png | P18C | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-p18c.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 289 x 300 | 2026-10-24 |
+| weapons/p92.png | P92 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-p92.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 304 x 300 | 2026-10-24 |
+| weapons/skorpion.png | Skorpion | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-skorpion.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 300 x 300 | 2026-10-24 |
+| weapons/deagle.png | Deagle | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-deagle.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 325 x 300 | 2026-10-24 |
+| weapons/r1895.png | R1895 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-r1895.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 326 x 300 | 2026-10-24 |
+| weapons/m79.png | M79 | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-m79.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 316 x 300 | 2026-10-24 |
+| weapons/panzerfaust.png | Panzerfaust | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-panzerfaust.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 212 | 2026-10-24 |
+| weapons/mortar.png | Mortar | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-mortar.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 255 x 300 | 2026-10-24 |
+| weapons/crossbow.png | Crossbow | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-crossbow.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 278 | 2026-10-24 |
+| weapons/stun_gun.png | Stun Gun | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-stun_gun.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 326 x 300 | 2026-10-24 |
+| weapons/crowbar.png | Crowbar | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-crowbar.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 182 | 2026-10-24 |
+| weapons/machete.png | Machete | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-machete.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 213 | 2026-10-24 |
+| weapons/pan.png | Pan | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-pan.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 391 x 300 | 2026-10-24 |
+| weapons/sickle.png | Sickle | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-sickle.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 480 x 245 | 2026-10-24 |
+| weapons/pickaxe.png | Pickaxe | https://wstatic-prod.pubg.com/web/live/static/game-info/weapons/images/viewer/img-weapons-pickaxe.webp | [pubg.com Arsenal](https://pubg.com/en/game-info/weapons) | 434 x 300 | 2026-10-24 |
+| weapons/flare_gun.png | Flare Gun | https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Item/Weapon/Handgun/Item_Weapon_FlareGun_C.png | [PUBG api-assets](https://github.com/pubg/api-assets) | 152 x 201 | 2026-10-24 |

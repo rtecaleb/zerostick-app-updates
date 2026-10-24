@@ -1,0 +1,210 @@
+# Where the Overwatch catalog comes from
+
+Everything here was checked on **2026-10-10**. `catalog.json` is the two-kind
+form (`kinds`: Heroes, then their Weapons; `../README.md`), the same shape as
+Rainbow Six Siege's operators and guns (D125): the owner picks the hero he is
+playing, then that hero's own weapons. It carries a `review` line (D132): the
+app holds it off until the owner has checked it.
+
+**The game's name.** Blizzard's own patch notes are titled "Overwatch 2 Retail
+Patch Notes" up to December 2025 and "Overwatch Retail Patch Notes" from the
+Season 1 notes of 2026-02-10 on ([Dec 2025](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2025/12/),
+[Feb 2026](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/)),
+so the pack id is `overwatch` and "Overwatch 2" is an alias.
+
+**Pictures: every hero has Blizzard's own portrait (D472, 2026-10-24).** The
+owner decided on 2026-10-24 to show the real official hero art in the AI
+Scripts room; the licence question is his, for later. The table at the end
+says where each one came from. Weapons still have no picture (class code).
+
+## What is in Overwatch today
+
+- **Season: "Reign of Talon - Season 5: A Grim Doctrine"**, live since
+  2026-10-06 (the [patch notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/),
+  "Overwatch Retail Patch Notes – October 6, 2026"). It added **Doctrine**
+  (Support) and **moved Sombra from Damage to Support** ("Moved from Damage to
+  Support role. Moved from Recon subrole to Tactician subrole."). The previous
+  catalog still had Sombra under Damage; fixed (`support.sombra`,
+  `support_weapons.machine_pistol`).
+- **Roster: 54 heroes**, every name spelt as on Blizzard's
+  [heroes page](https://overwatch.blizzard.com/en-us/heroes/), with each
+  hero's role read from that page's own role tags (`data-role`):
+  **15 Tank, 23 Damage, 16 Support**.
+- **When each recent hero arrived** (the `from` field), from Blizzard's monthly
+  patch-note pages:
+
+  | Hero | Season | Patch notes |
+  |---|---|---|
+  | Vendetta | Overwatch 2 Season 20, 2025-12-09 | [2025/12](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2025/12/) (her trial and balance notes; the 12-09 date also from press, e.g. esports.gg) |
+  | Anran, Domina, Emre, Jetpack Cat, Mizuki | Reign of Talon Season 1: Conquest, 2026-02-10 ("Added all 5 new heroes") | [2026/02](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/) |
+  | Sierra | Reign of Talon - Season 2: Summit, 2026-04-14 | [2026/04](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/04/) |
+  | Shion | Reign of Talon - Season 3: Into the Tiger's Den, 2026-06-16 | [2026/06](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/06/) |
+  | D.Mon | Reign of Talon - Season 4: Heroes of Busan, 2026-08-11 | [2026/08](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/) |
+  | Doctrine | Reign of Talon - Season 5: A Grim Doctrine, 2026-10-06 | [2026/10](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/) |
+
+  The older heroes' `from` (launch 2016 to Wuyang, Overwatch 2 Season 18,
+  2025) are the long-established release seasons; they were **not re-read**
+  from a source today.
+- **Sub-roles** (the format has no field for them), as the heroes page tags
+  them today. Tank: Bruiser, Initiator, Stalwart. Damage: Flanker, Recon,
+  Sharpshooter, Specialist. Support: Medic, Survivor, Tactician.
+
+## The weapons (66)
+
+Each hero's `loadout.weapons` lists the weapons the HUD can show for him: the
+primary weapon, and a second one only where the hero really swaps weapon or
+form. **All 54 hero pages on overwatch.blizzard.com were read on 2026-10-10**
+(every hero's first source is its page); every weapon name below is spelt
+as it appears there. The ten heroes with more than one:
+
+| Hero | Weapons |
+|---|---|
+| Bastion | Configuration: Recon, Configuration: Assault, Configuration: Artillery (the ultimate) |
+| D.Va | Fusion Cannons (in the mech), Light Gun (out of it) |
+| D.Mon | Plasma Saber, Portable Fusion Repeater, Fusion Repeater (the page's order; how they map to the HUD is unconfirmed, both marked `uncertain`) |
+| Genji | Shuriken, Dragonblade (the ultimate) |
+| Mercy | Caduceus Staff (beam, no ammo), Caduceus Blaster (ammo shows) |
+| Torbjörn | Rivet Gun, Forge Hammer |
+| Ramattra | Void Accelerator (the page: "(Omnic Form)"), Pummel ("(Nemesis Form)") |
+| Mauga | Incendiary Chaingun, Volatile Chaingun (both at once, two counters) |
+| Kiriko | Healing Ofuda, Kunai |
+| Lifeweaver | Healing Blossom, Thorn Volley |
+
+Notes from the check:
+
+- **Freja**: her page's ability list starts with Bola Shot and has no weapon
+  heading; "Revdraw Crossbow" is named in the same page's perk and Stadium
+  Power text as her automatic weapon, so it stays.
+- **Mauga**: his page's ability list has no weapons; "Incendiary Chaingun" is
+  named in its perk text. "Volatile Chaingun" is not on the page; it is named
+  in Blizzard's [December 2023 notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2023/12/),
+  and the [September 2026 notes](https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/09/)
+  still tune his two Chainguns, so both stay.
+- **Jetpack Cat** (Biotic Pawjectiles, "mid-range projectile spread that heals
+  allies and damages enemies") and **Mizuki** (Spirit Glaive, "bouncing
+  projectile that damages enemies") are the first ability on each page, as a
+  weapon normally is; the previous `uncertain` notes are cleared. Guides
+  (mobalytics.gg, screenhype) also call Spirit Glaive his primary fire.
+- **Sombra**'s Season 5 rework keeps her Machine Pistol (on her page today).
+  **Roadhog** was reworked the same day and keeps the Scrap Gun (on his page).
+- The previous catalog cited gameluster.com, pcgamer.com and
+  windowscentral.com for D.Mon, Shion and Doctrine; those are replaced by
+  Blizzard's patch notes for the same season.
+
+**Marked `uncertain` (2):** D.Mon's Plasma Saber and Fusion Repeater: the page
+names both, but which of the three the HUD shows when is not known without a
+real frame.
+
+Ids: a hero's starts with his role (`tank.d_va`, `support.lucio`), a weapon's
+with its hero's role (`support_weapons.caduceus_blaster`). The weapons kind is
+called `hero_weapons` so the app says "weapon", not "gun".
+
+## HUD states
+
+From public guides and Blizzard's pages, **not checked on a real frame**.
+Positions are for the default HUD at 1080p; players can scale or hide HUD
+parts, so the player's own box matters.
+
+| State | What is on screen | What the Core could read |
+|---|---|---|
+| Hero select / hero swap | Full-screen hero gallery; the chosen hero's name in large text and their portrait | The hero, once, by its name or portrait; the cleanest moment to learn who is being played (also after every mid-match swap) |
+| In play | Hero portrait and health bar bottom-left; ability icons and ammo count bottom-right; ultimate meter bottom-centre; crosshair centre | The hero by its portrait or ability row (no name as text); the weapon only where its icon or ammo counter changes (the ten heroes above); ammo count as digits |
+| Scoped | Widowmaker's and Ana's scope overlay, Freja's Take Aim, Sojourn's charge; the HUD dims or is covered | That the player is scoped (the overlay itself); little else |
+| Ultimate active | Ability row changes (Genji's Dragonblade, Bastion's Artillery, Mercy's Valkyrie, D.Va's mech gone after Self-Destruct); some ultimates change the whole screen | That the ultimate is live, from the ultimate icon or the changed ability row |
+| Dead / kill cam | Kill cam replay from the killer's view, then a respawn timer; the HUD shown is the killer's | Nothing of the player's own: the Core must treat it as "not in play", or it will read the killer's hero |
+| Spectating / round transition | Assemble / setup timers, round-won banners | Nothing to act on |
+| Menus | Main menu, perk choice (mid-match), scoreboard (Tab), Stadium's Armory between rounds, settings | Nothing to act on; perk menu and scoreboard cover the HUD mid-match |
+
+**Font:** Blizzard's own italic display face, used for names on the select
+screen only.
+
+## Class: Rainbow-style
+
+Overwatch is **Rainbow-style** (character-picker driven, like Siege's
+operators): the Core is taught each hero's picture (the portrait or the
+ability row, D122), and the weapon's picture only for the ten heroes whose
+HUD changes with the weapon. Evidence: in play the HUD prints **no weapon
+name and no hero name** as text (only ammo digits and ability icons); every
+hero has a fixed, unique kit, so knowing the hero is knowing the weapon; the
+only screen with the hero's name as text is hero select, which is a
+character picker. Name-reading would have nothing to read in play, and the
+game is not a "pass" because the hero changes everything an AI Script needs.
+
+## Update the list when a season adds a hero
+
+1. Open the season's patch notes
+   (`https://overwatch.blizzard.com/en-us/news/patch-notes/live/<yyyy>/<mm>/`)
+   and the new hero's page on overwatch.blizzard.com/en-us/heroes/.
+2. Check each hero's role on the heroes page too: Sombra changed role in
+   Season 5, so a role can move. A hero who moves gets a new id in the new
+   role's group (only while nothing has shipped; after that, ids never change).
+3. Add the hero at the end of his role's group, with `loadout.weapons`, and
+   each weapon at the end of the role's weapon group with `usedBy` naming him.
+4. Set `asOf` and `season`, then run `node dashboard/tools/test-game-data.js`.
+
+## Pictures (D472)
+
+Every hero portrait was fetched on **2026-10-24** from Blizzard's heroes page,
+[overwatch.blizzard.com/en-us/heroes](https://overwatch.blizzard.com/en-us/heroes/): the
+256 x 256 portrait each hero's card shows there. Blizzard serves the page's pictures from
+its own CloudFront distribution `d15f34w2p8l1cc.cloudfront.net/overwatch/` (the page's
+own `<img src>`). Kept at 256 x 256, transparency kept, reduced to a 256-colour palette
+(about 28 KB each). Copyright Blizzard Entertainment; shown to identify the hero, the
+owner's call (D116, D472).
+
+| file | hero | picture | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| heroes/d_mon.png | D.Mon | https://d15f34w2p8l1cc.cloudfront.net/overwatch/a46c60b8562fdbd0b8308396d0808f7606fba208bc67cccf3f82fe56d2c73b9d.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/dmon/) | 2026-10-24 |
+| heroes/d_va.png | D.Va | https://d15f34w2p8l1cc.cloudfront.net/overwatch/df5a5532862d9292634fb3dc0e51a4705aa601de65e5e815513ccc663d84de56.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/dva/) | 2026-10-24 |
+| heroes/domina.png | Domina | https://d15f34w2p8l1cc.cloudfront.net/overwatch/1161c112292c56c052c0ae711792fcde06e3251b98bc9709e582dd7585b5dcd6.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/domina/) | 2026-10-24 |
+| heroes/doomfist.png | Doomfist | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ff5c54f43ad253c7faeda9c4ed31d42582ea6b19205d197866f3dd0c0aa14c16.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/doomfist/) | 2026-10-24 |
+| heroes/hazard.png | Hazard | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ca48b96dbae6ea7f58ce8a5e73513c8c62b1685bdbf258020fb78bb21a008b5f.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/hazard/) | 2026-10-24 |
+| heroes/junker_queen.png | Junker Queen | https://d15f34w2p8l1cc.cloudfront.net/overwatch/06eeecb359f311f43a8f5121d4f9f3a93c565d70b30e94ef543c05596c9a39dc.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/junker-queen/) | 2026-10-24 |
+| heroes/mauga.png | Mauga | https://d15f34w2p8l1cc.cloudfront.net/overwatch/33d39bb439c08975197fc52eff4874716839711b5356c4fdc174f9c24bac1d0e.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/mauga/) | 2026-10-24 |
+| heroes/orisa.png | Orisa | https://d15f34w2p8l1cc.cloudfront.net/overwatch/a73958a28551f5254f3ab3f97c5f5f8d698a95c0b6a515d1a2b1caac169205a6.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/orisa/) | 2026-10-24 |
+| heroes/ramattra.png | Ramattra | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ddef7c9fb8ce4256e8508196b486f81950efe7aaa6cf27fec4668beb4cd15774.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/ramattra/) | 2026-10-24 |
+| heroes/reinhardt.png | Reinhardt | https://d15f34w2p8l1cc.cloudfront.net/overwatch/551fbe070c16fdfcc17f7f1de63af22c53e7d2f1340fc2f3172441504527bc4e.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/reinhardt/) | 2026-10-24 |
+| heroes/roadhog.png | Roadhog | https://d15f34w2p8l1cc.cloudfront.net/overwatch/89ddf07e4b619ed96169042e296a1b8856d102746f35add88284b44a9a5a6a03.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/roadhog/) | 2026-10-24 |
+| heroes/sigma.png | Sigma | https://d15f34w2p8l1cc.cloudfront.net/overwatch/a4c032fa466c9a6d9c6974747635d7ef910027f91cd58892af0c899db565f92d.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/sigma/) | 2026-10-24 |
+| heroes/winston.png | Winston | https://d15f34w2p8l1cc.cloudfront.net/overwatch/46a10db3aa908c590ddc4e7606376a88143d1f1306ecfbea043263040f9529a5.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/winston/) | 2026-10-24 |
+| heroes/wrecking_ball.png | Wrecking Ball | https://d15f34w2p8l1cc.cloudfront.net/overwatch/9ef1d58867136e0b26f928d896000b9dab216118f6e2f59e53f2e975e1e27afa.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/wrecking-ball/) | 2026-10-24 |
+| heroes/zarya.png | Zarya | https://d15f34w2p8l1cc.cloudfront.net/overwatch/9b6f63cc66ddf9d5e0862173c733cc0d2e574c5c89357798d91b93b2f95a7080.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/zarya/) | 2026-10-24 |
+| heroes/anran.png | Anran | https://d15f34w2p8l1cc.cloudfront.net/overwatch/2c38b41d79a1ce9a08b9ad8eb7edf3ff819bd448af16a5815be8c7fdb7203aa0.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/anran/) | 2026-10-24 |
+| heroes/ashe.png | Ashe | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4076bbaa2eb52a0bfe612434071e56e7702d5454473dbbea2f9e392a9d997a94.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/ashe/) | 2026-10-24 |
+| heroes/bastion.png | Bastion | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4ede795c2a681aaccfa72d0c901cba0cb8a2c292fd6a97b2ba9faed161c2d184.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/bastion/) | 2026-10-24 |
+| heroes/cassidy.png | Cassidy | https://d15f34w2p8l1cc.cloudfront.net/overwatch/9240cd64cc8ef58df9acbf55204ab1b5d8578f743fda5931f0dbccbd75ab841b.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/cassidy/) | 2026-10-24 |
+| heroes/echo.png | Echo | https://d15f34w2p8l1cc.cloudfront.net/overwatch/d4f2d5b0c2b7e82d61353186c5f23152ccba9d3569b50839aa580dca3e9114ba.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/echo/) | 2026-10-24 |
+| heroes/emre.png | Emre | https://d15f34w2p8l1cc.cloudfront.net/overwatch/c51e2f698138861c0e3b6cfab3c3ca9d67fd709be175e7c397aa6f2649712a30.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/emre/) | 2026-10-24 |
+| heroes/freja.png | Freja | https://d15f34w2p8l1cc.cloudfront.net/overwatch/811963897c352d9f178bec882d94bd0281074feee7c429c5145b6b8ea8ebe862.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/freja/) | 2026-10-24 |
+| heroes/genji.png | Genji | https://d15f34w2p8l1cc.cloudfront.net/overwatch/156b12c20b1aea872c1eeb5bb37a7de1047b2ab30ecefd0663a8925badde1ea8.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/genji/) | 2026-10-24 |
+| heroes/hanzo.png | Hanzo | https://d15f34w2p8l1cc.cloudfront.net/overwatch/78b61c3e806fb26b02b8980fba62189155074fc15bd865b0883268e546030be5.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/hanzo/) | 2026-10-24 |
+| heroes/junkrat.png | Junkrat | https://d15f34w2p8l1cc.cloudfront.net/overwatch/7660b9fc6f25f30858fdd8797fe0d52b2306f1e78fef99843f58a274e69af046.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/junkrat/) | 2026-10-24 |
+| heroes/mei.png | Mei | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4a55ced3bd597fb08e0fde9dc007f8543ac616ba98ca3db9b0e4d871a8ae17f8.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/mei/) | 2026-10-24 |
+| heroes/pharah.png | Pharah | https://d15f34w2p8l1cc.cloudfront.net/overwatch/60ac2d5de4a6d34644d8872233da402f1436c87f804bb11a21661bb30bf4a51f.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/pharah/) | 2026-10-24 |
+| heroes/reaper.png | Reaper | https://d15f34w2p8l1cc.cloudfront.net/overwatch/dc6ff07ac790c00dc95a40882449617bb6e0e38906b353a630cffe0c815270a9.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/reaper/) | 2026-10-24 |
+| heroes/shion.png | Shion | https://d15f34w2p8l1cc.cloudfront.net/overwatch/070481cf871590a2b45a51d1335f9fe3d65eb4e4d361ecdd998b34fae2ed65d5.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/shion/) | 2026-10-24 |
+| heroes/sierra.png | Sierra | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4bfd3d8b95844231115cb5bf4db03344c71bc3e865189c52403b2dc51438e63a.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/sierra/) | 2026-10-24 |
+| heroes/sojourn.png | Sojourn | https://d15f34w2p8l1cc.cloudfront.net/overwatch/82b8c1b8765dcb9a0ba16e343c3516bf324c771ac81e9878473280216e70a889.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/sojourn/) | 2026-10-24 |
+| heroes/soldier_76.png | Soldier: 76 | https://d15f34w2p8l1cc.cloudfront.net/overwatch/c93b5f0a528c40473188f77cc2a267aee7d5b6cf5c9e104105d634b4388674e2.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/soldier-76/) | 2026-10-24 |
+| heroes/symmetra.png | Symmetra | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ebec57e8bd68b3d4383edfeb34f8f52dd0b94a6467d594c2fee722e8a97c32aa.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/symmetra/) | 2026-10-24 |
+| heroes/torbjorn.png | Torbjörn | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ce17118cedc29b0d2ac1e059666bed36b9531c85079b0b894bb402d12c917ba9.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/torbjorn/) | 2026-10-24 |
+| heroes/tracer.png | Tracer | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4504f6f15cb3feaa92ecd38e01dcf751cb5abdac2e0bb52d0555727e53277502.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/tracer/) | 2026-10-24 |
+| heroes/vendetta.png | Vendetta | https://d15f34w2p8l1cc.cloudfront.net/overwatch/cf8ffb52b6f315546d5e94e9d6defad5a2c570798776956de23f47536f9529da.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/vendetta/) | 2026-10-24 |
+| heroes/venture.png | Venture | https://d15f34w2p8l1cc.cloudfront.net/overwatch/dcab9123f5f55df22e54d4e797de43c71b917e0149dd059a7fd6136f48464cd0.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/venture/) | 2026-10-24 |
+| heroes/widowmaker.png | Widowmaker | https://d15f34w2p8l1cc.cloudfront.net/overwatch/6e4702b45f196aaf51555cf57327322721f45458b17f5f0643ed008a88378259.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/widowmaker/) | 2026-10-24 |
+| heroes/ana.png | Ana | https://d15f34w2p8l1cc.cloudfront.net/overwatch/985b06beae46b7ba3ca87d1512d0fc62ca7f206ceca58ef16fc44d43a1cc84ed.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/ana/) | 2026-10-24 |
+| heroes/baptiste.png | Baptiste | https://d15f34w2p8l1cc.cloudfront.net/overwatch/d4e6f1ca45d9f88fa89260787397f141a6f007b14e5b26698883b6a17bab9680.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/baptiste/) | 2026-10-24 |
+| heroes/brigitte.png | Brigitte | https://d15f34w2p8l1cc.cloudfront.net/overwatch/795fba91376d87d441a7f359ae12a3175dfa95825ccc4414cc6b95b129fc4cb0.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/brigitte/) | 2026-10-24 |
+| heroes/doctrine.png | Doctrine | https://d15f34w2p8l1cc.cloudfront.net/overwatch/2492a15c575c12314907d0d77501ec337b4d56796bc7f03e5dfb50d415612bae.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/doctrine/) | 2026-10-24 |
+| heroes/illari.png | Illari | https://d15f34w2p8l1cc.cloudfront.net/overwatch/ce42d1455e03e79f321345fea84b27a8918b5db8bd7ab9b2ca9e569606ede9e4.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/illari/) | 2026-10-24 |
+| heroes/jetpack_cat.png | Jetpack Cat | https://d15f34w2p8l1cc.cloudfront.net/overwatch/03a184cd0de27091e0099ac22635ad9615a8f6997881a5c25cc5f2444764f729.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/jetpack-cat/) | 2026-10-24 |
+| heroes/juno.png | Juno | https://d15f34w2p8l1cc.cloudfront.net/overwatch/c0167d251e57b0aa2b1e16c37d87f0e7c77263db9dd0503d77b5f2589bf3e4a0.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/juno/) | 2026-10-24 |
+| heroes/kiriko.png | Kiriko | https://d15f34w2p8l1cc.cloudfront.net/overwatch/408603fe037e8576078eaac5eab2fb251489ced4003b11f5f522776d43d0b83d.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/kiriko/) | 2026-10-24 |
+| heroes/lifeweaver.png | Lifeweaver | https://d15f34w2p8l1cc.cloudfront.net/overwatch/3376515cebed0904012e67e956f6d1b9c12e03da642845eeaf787b7e4c7b339d.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/lifeweaver/) | 2026-10-24 |
+| heroes/lucio.png | Lúcio | https://d15f34w2p8l1cc.cloudfront.net/overwatch/040bb13f5123ab93faad2f95627ba184608aef4b2469a4d3003859c7087df044.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/lucio/) | 2026-10-24 |
+| heroes/mercy.png | Mercy | https://d15f34w2p8l1cc.cloudfront.net/overwatch/3bfb8bd8ec827e53d870f1238ab73d8aa1f5dbfbcfaaf7f96ffcd35b5c6102ab.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/mercy/) | 2026-10-24 |
+| heroes/mizuki.png | Mizuki | https://d15f34w2p8l1cc.cloudfront.net/overwatch/a9733c2367e0cbd70b9316fd2e1e17028653ec56d0051ea6ff098531dc4f99fc.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/mizuki/) | 2026-10-24 |
+| heroes/moira.png | Moira | https://d15f34w2p8l1cc.cloudfront.net/overwatch/f48f8485056d5d00dad195859188d23e50f7126b8b08b5646f46ef1b42f5e1de.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/moira/) | 2026-10-24 |
+| heroes/sombra.png | Sombra | https://d15f34w2p8l1cc.cloudfront.net/overwatch/47727b02a16e3bd7b2447d86ae1edf11587bc320b2aecb4f2f16a7ca4ad4e8a0.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/sombra/) | 2026-10-24 |
+| heroes/wuyang.png | Wuyang | https://d15f34w2p8l1cc.cloudfront.net/overwatch/4959500b495b35c0908be2abda56b53f2601b2c5cc39a1cfde8df1bffd38d66d.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/wuyang/) | 2026-10-24 |
+| heroes/zenyatta.png | Zenyatta | https://d15f34w2p8l1cc.cloudfront.net/overwatch/7d1546b1541a8afc39353f9337a408d6275a141b0432b7e560ef61579996b0fc.png | portrait, 256 x 256 | [page](https://overwatch.blizzard.com/en-us/heroes/zenyatta/) | 2026-10-24 |

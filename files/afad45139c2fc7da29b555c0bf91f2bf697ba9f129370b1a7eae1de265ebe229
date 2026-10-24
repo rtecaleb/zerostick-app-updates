@@ -1,0 +1,188 @@
+# Where the VALORANT catalog comes from
+
+Everything here was checked on **2026-10-10**. `catalog.json` is the two-kind form
+(`kinds`: Agents, then Guns; `../README.md`) in Fortnite's shape (D126), not
+Siege's: in VALORANT **any agent can buy any gun**, so each agent's
+`loadout.pool` is every gun, plus the agent's own ability weapon, and the Guns
+kind has `"all": "All guns"`. A gun's Smart Actions set under All guns run
+whatever agent is out; those set on an agent's page run only with that agent.
+The catalog carries `review` (held for the owner's check, D132).
+
+**Pictures (D476, 2026-10-24): Riot's own art from the game files.** The owner:
+"use the real official Riot art for every Valorant weapon" (the licence is his
+to settle later; it is Riot's copyright, used to identify the weapon, as D116
+accepted for the other publishers). Every gun's picture is the game's own
+**display icon**, the white silhouette its HUD and buy menu draw, and each
+agent weapon's is that ability's own icon. They are taken from
+`media.valorant-api.com`, a mirror of the game's files (build release-13.08,
+2026-10-15), because Riot's Arsenal page (playvalorant.com) shows renders that
+are not labelled per gun and has no Warden or Outlaw. Nothing was redrawn,
+recoloured or cut; the eight wider than the app's 480 px were scaled down.
+Each **agent's** picture is the game's own agent icon (1024 x 1024, scaled to 256 x 256 and
+saved with a 256-colour palette to keep the app small). Delete a `.png` and set its `image` to `null` and the app
+shows the class symbol instead.
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/classic.png | Classic | https://media.valorant-api.com/weapons/29a0cfab-485b-f5d5-779a-b59f85e204a8/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/shorty.png | Shorty | https://media.valorant-api.com/weapons/42da8ccc-40d5-affc-beec-15aa47b42eda/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/frenzy.png | Frenzy | https://media.valorant-api.com/weapons/44d4e95c-4157-0037-81b2-17841bf2e8e3/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/ghost.png | Ghost | https://media.valorant-api.com/weapons/1baa85b4-4c70-1284-64bb-6481dfc3bb4e/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/bandit.png | Bandit | https://media.valorant-api.com/weapons/410b2e0b-4ceb-1321-1727-20858f7f3477/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/sheriff.png | Sheriff | https://media.valorant-api.com/weapons/e336c6b8-418d-9340-d77f-7a9e4cfe0702/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/stinger.png | Stinger | https://media.valorant-api.com/weapons/f7e1b454-4ad4-1063-ec0a-159e56b58941/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/spectre.png | Spectre | https://media.valorant-api.com/weapons/462080d1-4035-2937-7c09-27aa2a5c27a7/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/bucky.png | Bucky | https://media.valorant-api.com/weapons/910be174-449b-c412-ab22-d0873436b21b/displayicon.png | HUD / inventory icon, 508 x 100 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/judge.png | Judge | https://media.valorant-api.com/weapons/ec845bf4-4f79-ddda-a3da-0db3774b2794/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/bulldog.png | Bulldog | https://media.valorant-api.com/weapons/ae3de142-4d85-2547-dd26-4e90bed35cf7/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/guardian.png | Guardian | https://media.valorant-api.com/weapons/4ade7faa-4cf1-8376-95ef-39884480959b/displayicon.png | HUD / inventory icon, 508 x 108 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/phantom.png | Phantom | https://media.valorant-api.com/weapons/ee8e8d15-496b-07ac-e5f6-8fae5d4c7b1a/displayicon.png | HUD / inventory icon, 508 x 120 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/vandal.png | Vandal | https://media.valorant-api.com/weapons/9c82e19d-4575-0200-1a81-3eacf00cf872/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/warden.png | Warden | https://media.valorant-api.com/weapons/8db0a1bf-4a50-832a-4566-faaaa6d250ca/displayicon.png | HUD / inventory icon, 512 x 140 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/marshal.png | Marshal | https://media.valorant-api.com/weapons/c4883e50-4494-202c-3ec3-6b8a9284f00b/displayicon.png | HUD / inventory icon, 508 x 92 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/outlaw.png | Outlaw | https://media.valorant-api.com/weapons/5f0aaf7a-4289-3998-d5ff-eb9a5cf7ef5c/displayicon.png | HUD / inventory icon, 512 x 108 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/operator.png | Operator | https://media.valorant-api.com/weapons/a03b24d3-4319-996d-0f8c-94bbfba1dfc7/displayicon.png | HUD / inventory icon, 504 x 104 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/ares.png | Ares | https://media.valorant-api.com/weapons/55d8a0f4-4274-ca67-fe2c-06ab45efdf58/displayicon.png | HUD / inventory icon, 484 x 100 scaled to 480 wide | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/odin.png | Odin | https://media.valorant-api.com/weapons/63e6c2b6-4a8e-869c-3d4c-e38355226584/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/tactical_knife.png | Tactical Knife | https://media.valorant-api.com/weapons/2f59173c-4bed-b6c3-2191-dea9b58be9c7/displayicon.png | HUD / inventory icon | [game data](https://valorant-api.com/v1/weapons) | 2026-10-24 |
+| weapons/blade_storm.png | Blade Storm | https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/abilities/ultimate/displayicon.png | ability icon (128 x 128) | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| weapons/headhunter.png | Headhunter | https://media.valorant-api.com/agents/22697a3d-45bf-8dd7-4fec-84a9e28c69d7/abilities/ability1/displayicon.png | ability icon (128 x 128) | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| weapons/tour_de_force.png | Tour De Force | https://media.valorant-api.com/agents/22697a3d-45bf-8dd7-4fec-84a9e28c69d7/abilities/ultimate/displayicon.png | ability icon (128 x 128) | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| weapons/showstopper.png | Showstopper | https://media.valorant-api.com/agents/f94c3b30-42be-e959-889c-5aa313dba261/abilities/ultimate/displayicon.png | ability icon (128 x 128) | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| weapons/overdrive.png | Overdrive | https://media.valorant-api.com/agents/bb2a4828-46eb-8cd1-e765-15848195d751/abilities/ultimate/displayicon.png | ability icon (128 x 128) | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/phoenix.png | Phoenix | https://media.valorant-api.com/agents/eb93336a-449b-9c1b-0a54-a891f7921d69/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/jett.png | Jett | https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/raze.png | Raze | https://media.valorant-api.com/agents/f94c3b30-42be-e959-889c-5aa313dba261/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/reyna.png | Reyna | https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/yoru.png | Yoru | https://media.valorant-api.com/agents/7f94d92c-4234-0a36-9646-3a87eb8b5c89/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/neon.png | Neon | https://media.valorant-api.com/agents/bb2a4828-46eb-8cd1-e765-15848195d751/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/iso.png | Iso | https://media.valorant-api.com/agents/0e38b510-41a8-5780-5e8f-568b2a4f2d6c/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/waylay.png | Waylay | https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/sova.png | Sova | https://media.valorant-api.com/agents/320b2a48-4d9b-a075-30f1-1f93a9b638fa/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/breach.png | Breach | https://media.valorant-api.com/agents/5f8d3a7f-467b-97f3-062c-13acf203c006/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/skye.png | Skye | https://media.valorant-api.com/agents/6f2a04ca-43e0-be17-7f36-b3908627744d/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/kay_o.png | KAY/O | https://media.valorant-api.com/agents/601dbbe7-43ce-be57-2a40-4abd24953621/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/fade.png | Fade | https://media.valorant-api.com/agents/dade69b4-4f5a-8528-247b-219e5a1facd6/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/gekko.png | Gekko | https://media.valorant-api.com/agents/e370fa57-4757-3604-3648-499e1f642d3f/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/tejo.png | Tejo | https://media.valorant-api.com/agents/b444168c-4e35-8076-db47-ef9bf368f384/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/brimstone.png | Brimstone | https://media.valorant-api.com/agents/9f0d8ba9-4140-b941-57d3-a7ad57c6b417/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/viper.png | Viper | https://media.valorant-api.com/agents/707eab51-4836-f488-046a-cda6bf494859/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/omen.png | Omen | https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/astra.png | Astra | https://media.valorant-api.com/agents/41fb69c1-4189-7b37-f117-bcaf1e96f1bf/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/harbor.png | Harbor | https://media.valorant-api.com/agents/95b78ed7-4637-86d9-7e41-71ba8c293152/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/clove.png | Clove | https://media.valorant-api.com/agents/1dbf2edd-4729-0984-3115-daa5eed44993/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/miks.png | Miks | https://media.valorant-api.com/agents/7c8a4701-4de6-9355-b254-e09bc2a34b72/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/cypher.png | Cypher | https://media.valorant-api.com/agents/117ed9e3-49f3-6512-3ccf-0cada7e3823b/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/sage.png | Sage | https://media.valorant-api.com/agents/569fdd95-4d10-43ab-ca70-79becc718b46/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/killjoy.png | Killjoy | https://media.valorant-api.com/agents/1e58de9c-4950-5125-93e9-a0aee9f98746/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/chamber.png | Chamber | https://media.valorant-api.com/agents/22697a3d-45bf-8dd7-4fec-84a9e28c69d7/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/deadlock.png | Deadlock | https://media.valorant-api.com/agents/cc8b64c8-4b25-4ff9-6e7f-37b4da43d235/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/vyse.png | Vyse | https://media.valorant-api.com/agents/efba5359-4016-a1e5-7626-b1ae76895940/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+| agents/veto.png | Veto | https://media.valorant-api.com/agents/92eeef5d-43b5-1d4a-8d03-b3927a09034b/displayicon.png | agent icon (the game's own), 1024 x 1024 scaled to 256 | [game data](https://valorant-api.com/v1/agents) | 2026-10-24 |
+
+
+## Sources used
+
+- Riot: the [agents page](https://playvalorant.com/en-us/agents/) (29 names),
+  the [Arsenal](https://playvalorant.com/en-us/arsenal/), the
+  [patch-notes list](https://playvalorant.com/en-us/news/tags/patch-notes/) and
+  the notes for 10.00, 10.04, 11.08, 12.00, 12.05, 13.00, 13.01, 13.04 and 13.06.
+  Riot's agent pages render most ability names as unlabeled icons, so they
+  confirm roles but not every ability name.
+- [valorant-api.com](https://valorant-api.com/v1/version), a community mirror of
+  the game's own files, read at build **release-13.06** (built 2026-09-25):
+  [agents](https://valorant-api.com/v1/agents?isPlayableCharacter=true) (29,
+  with role and every ability name) and
+  [weapons](https://valorant-api.com/v1/weapons) (21, with class and fire mode).
+  Not Riot's site, but it is the game data itself; used for names, classes and
+  fire modes, never for pictures.
+- Press, only where Riot's pages are silent: [Liquipedia, Patch 9.04](https://liquipedia.net/valorant/Patch_9.04)
+  (Vyse) and [Sheep Esports](https://www.sheepesports.com/articles/valorant-everything-about-veto-the-new-senegalese-agent/en)
+  (Veto). Liquipedia's other pages and valorant.fandom returned 403.
+- Dropped: TheSpike's weapons list, which the previous draft cited. It still
+  lacks the Outlaw, Bandit and Warden, so it is out of date.
+
+## What is in VALORANT today
+
+- **Patch 13.06**, 2026-09-22, in **Season 2026 Act 5** (Riot: "Stage V26A5",
+  which began with [13.04](https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-04/)
+  on 2026-08-18). [13.06](https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-06/)
+  added the **Warden** rifle, Agent Mastery and a menu revamp. No 13.07 notes
+  were published by 2026-10-10.
+- **29 agents**, the same 29 on Riot's agents page and in the 13.06 game data:
+  8 Duelists, 7 Initiators, 7 Controllers, 7 Sentinels. Since mid-2024:
+  Vyse (Episode 9 Act 2, patch 9.04; the previous draft said Act 1, fixed),
+  Tejo (patch 10.00, Season 2025), Waylay (patch 10.04, Riot: "our newest
+  Duelist"), Veto (Sentinel, Season 2025 Act 6 / patch 11.08, `uncertain`:
+  Riot's 11.08 notes do not name him), Miks (Controller, patch 12.05, Riot:
+  "Act 2 starts now with the arrival of Miks"). The launch and episode acts of
+  the older agents are the long-standing ones, not re-read today.
+- **21 guns**, the same 21 in the 13.06 game data. Riot's Arsenal lists 20: the
+  **Warden** is not on it yet, but Riot's 13.06 notes describe it ("Weapon
+  Class: Rifle", "the latest automatic Rifle", 2x scope), so it is not marked
+  uncertain. The **Bandit** sidearm arrived in
+  [patch 12.00](https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-00/)
+  (2026-01-06, start of Season 2026).
+- **Class names.** Riot's Arsenal says Sidearms, SMGs, Shotguns, Rifles,
+  Snipers, Heavies, Melee; the game data says Sidearms, SMGs, Shotguns,
+  Assault Rifles (Warden: Rifles), Sniper Rifles, Heavy Weapons. The groups use
+  the game data's words where both Riot sources agree in substance: the old
+  "Machine Guns" group (in neither) is now **Heavy Weapons**, id
+  `heavy_weapons` (nothing has shipped, so the ids moved). "Rifles" is kept
+  because the Arsenal and the Warden both use it.
+- **5 agent weapons**, the abilities that put a weapon in the agent's hands and
+  swap the HUD's ammo for theirs: Jett's Blade Storm, Chamber's Headhunter and
+  Tour De Force, Raze's Showstopper, Neon's Overdrive (spellings from the game
+  data). The four agents since 2025 add none: Tejo (Armageddon), Waylay
+  (Convergent Paths), Veto (Evolution) and Miks (Bassquake) have no weapon
+  ultimate. Miks's Harmonize is an equipped ability, but it targets an ally
+  (Riot: "Fire on an ally ... Combat Stim"), not a gun, so it is not listed.
+  "Agent weapons" is our group name, not Riot's.
+
+**Fire modes** (`fireMode`) are each gun's primary fire. The game data marks
+Classic, Shorty, Ghost, Sheriff, Bandit, Bucky, Guardian, Marshal, Outlaw and
+Operator semi-automatic and leaves the rest as automatic; the catalog writes
+the bolt-action Marshal and Operator as `bolt` and the Bucky as `pump`.
+Headhunter (`semi`) and Tour De Force (`bolt`) are from guides only, so both
+carry `uncertain`. No stats or prices are in the format.
+
+## HUD states
+
+From public guides (e.g. [ONE Esports, understanding the HUD](https://www.oneesports.gg/valorant/valorant-beginners-guide-understanding-the-hud/)),
+**not checked on a real frame**. HUD scale, colours and crosshair are the
+player's own settings, so every position below is approximate.
+
+| state | what is on screen | what the Core could read |
+|---|---|---|
+| **Buy phase** | Round start; the buy menu (full-screen grid of guns by class, with prices) opens on a key; a countdown at the top; barriers hold players in spawn | The buy menu covers the HUD: read nothing for aim. The gun the player ends up holding is read once the menu closes. Could mark "round starting" |
+| **In round** | Bottom-centre: health, armour, the agent's ability row (C, Q, E with charge pips, ultimate X with its point ring). Bottom-right: credits, and above them the weapon inventory (gun silhouettes, the held one highlighted; spike icon on top for the carrier). Ammo near the ability row. Top: round timer, score, both teams' portraits. Minimap top-left | The **agent** from the ability row (always shown, unique per agent: D122 picture teaching). The **gun** from its silhouette in the inventory column, or its ammo count; there is **no gun name as text**. An agent weapon replaces the ammo display while it is out |
+| **Scoped** | Right-click with a scoped gun: Operator, Marshal, Outlaw, Warden (2x) and rifle/SMG ADS zoom; snipers show a full-screen scope overlay | A full scope overlay hides the HUD centre; the gun is the one read just before. Scoped is itself a cue (useful for a sniper's Smart Action) |
+| **Flashed** | Flashes (e.g. Phoenix, Breach, Skye, KAY/O, Reyna, Yoru) white the screen out for a moment | Nothing is readable; hold the last answer, do not re-detect |
+| **Dead / spectating** | The view follows a teammate; that player's name and agent show at the bottom; the HUD shows **their** abilities and gun | Must not be read as the player's own agent or gun. Needs its own cue (the spectating label) before anything acts |
+| **Round banners** | Full-width banners: round won / lost, spike planted, last player standing, match point | Cover the centre for a second or two; a cue that the round state changed, nothing to read for aim |
+| **Menus** | Pause/settings, the agent select screen (before the match: every agent's portrait, the locked-in one highlighted), scoreboard (Tab), map | Agent select is the one place the agent is **named as text** (and shown large): a possible one-time read at match start. Otherwise read nothing |
+
+## Class: Rainbow-style
+
+VALORANT is **Rainbow-style** (picker driven), confirmed:
+
+- The **agent** is what the owner picks, as he picks a Siege operator. Its
+  ability row is always on screen in play and unique to the agent, so it can be
+  taught as a picture (D122); agent select names it as text once per match.
+- The **gun** is never printed as a name in play (guides above): only its
+  silhouette in the inventory column and its ammo. So it is **not name-reading**;
+  a gun is taught as a picture, or picked from All guns.
+- It is **not "pass"**: both agents and guns are fixed, published lists.
+
+Unlike Siege, the agent does not limit the guns (any agent buys any gun), which
+is why the guns are a Fortnite-style pool with All guns.
+
+## Update the list
+
+- **A new agent:** add it at the end of its role's group with
+  `loadout.pool` = every gun id (and its own ability weapon, if any), and add
+  its id to every gun's `usedBy`. Check its ultimate in the game data
+  (valorant-api.com agents) for a new agent weapon.
+- **A new gun:** add it at the end of its class, put its id in every agent's
+  pool, and give it `usedBy` = every agent.
+- Then `asOf`, `season`, and `node dashboard/tools/test-game-data.js`.

@@ -1,0 +1,169 @@
+# Where the ARC Raiders catalog comes from
+
+Everything here was read on **2026-10-10**. `catalog.json` is the single-kind
+form (`kind: "weapons"`, Warzone's shape). ARC Raiders has **no characters or
+classes**: a raider's look is cosmetic, and what he plays with is his loadout
+(two weapon slots, an augment, a shield, quick-use items).
+
+**Pictures:** the in-game item icons, see Pictures at the end (D474).
+
+## What is in ARC Raiders today
+
+- **Frozen Trail (the 2.0 update)**, live since 2026-10-08
+  ([Embark's patch notes](https://www.arcraiders.com/news/frozen-trail-2-0-update)).
+  It added the **Stiletto** (battle rifle) and the **Bantam** ("the uncommon
+  hand cannon"), changed the Anvil's rarity "from Green to Blue", and added
+  Amplified Weapons, a fifth quality level for 15 weapons
+  ([content preview, 2026-09-23](https://www.arcraiders.com/news/frozen-trail-content-preview)).
+- **26 weapons in 9 classes**, from the community [ARC Raiders wiki's weapon
+  table](https://arcraiders.wiki/wiki/Weapons) (last edited 2026-10-09; Embark
+  publishes no weapon list). Every name, class and fire mode in the catalog
+  matches that table, checked 2026-10-10.
+- Guns added after launch, with where `from` comes from:
+
+| Gun | `from` | Source |
+|---|---|---|
+| Aphelion | North Line (1.2.0), 2025-11-13 | wiki history "Added to the game" under 1.2.0; Embark's [1.2.0 notes](https://arcraiders.com/news/north-line-patch-notes) do **not** name it, so the item is `uncertain` |
+| Canto, Dolabra | Flashpoint (1.22.0), 2026-03-31 | Embark's [1.22.0 notes](https://arcraiders.com/news/patch-notes-1-22-0): "Rare Medium Ammo SMG - Canto", "Legendary Energy shotgun - Dolabra" |
+| Rascal | Update 1.29.0, 2026-05-19 | Embark's [1.29.0 notes](https://arcraiders.com/news/patch-notes-1-29-0) (a grenade launcher; the update has no name) |
+| Stiletto, Bantam | Frozen Trail (2.0), 2026-10-08 | Embark's 2.0 notes and preview |
+
+- The other 20 are `Launch (2025)`. **Bettina** is `from: null` and
+  `uncertain`: guides list it by December 2025 and Embark's 1.7.0 (Cold Snap)
+  notes rebalance it, but no source found says it was there on 2025-10-30.
+- Class names are the wiki's. Guides from 2025 filed the Anvil under Pistols;
+  Embark's 2.0 notes call the Bantam a "hand cannon", and the wiki now files
+  both there.
+
+## Rarity: one per gun, so no `tiers`
+
+Every ARC Raiders gun has **one** rarity, which is part of the gun: the
+format's `tiers` (D134) are for a game where the same gun comes in several
+rarities (Warzone), so a Smart Action for "Epic" would be the same as one
+linked to the Epic guns. They are listed here instead, and the owner can link
+an action to these guns by name (D134's linking):
+
+| Rarity | Guns |
+|---|---|
+| Common | Kettle, Rattler, Ferro, Stitcher, Hairpin |
+| Uncommon | Arpeggio, Stiletto, Il Toro, Burletta, Bantam |
+| Rare | Renegade, Canto, Venator, Anvil (since 2.0), Torrente, Osprey, Rascal |
+| Epic | Tempest, Bettina, Bobcat, Vulcano, Hullcracker |
+| Legendary | Aphelion, Dolabra, Jupiter, Equalizer |
+
+Checked 2026-10-10 against the wiki's rarity categories (Common, Uncommon,
+Rare, Epic and Legendary Weapons: 5, 5, 7, 5, 4 guns, exactly the table) and,
+where Embark says it, its notes: Bantam uncommon and Anvil Green to Blue (2.0),
+Canto Rare and Dolabra Legendary (1.22.0). Embark's notes call Uncommon
+"green" and Rare "blue"; guides give Common grey, Epic purple, Legendary
+orange. Whether the in-raid weapon panel shows the colour at all is unknown.
+
+**Levels.** A gun's level is a Roman numeral after its name (Ferro I to IV;
+legendaries have none), plus "Amplified" since 2.0. The catalog lists each gun
+once; a level is not a different gun. If the HUD prints "FERRO IV", the
+reader's `--span words` (the gun is the first words of the line) reads Ferro.
+
+`fireMode` is set where it is one of the format's five; break-action (Ferro,
+Rascal), lever-action (Renegade) and slide-action (Hairpin) guns have none.
+The wiki calls the Bantam double-action and the Anvil single-action; both are
+filed `semi` (one shot per trigger pull); the Aphelion's 2-round burst is
+`burst`.
+The format's `ammo` words are Apex Legends' and have no "medium", so ammo
+(Light, Medium, Heavy, Shotgun, Energy Clip, Launcher) is not in the catalog.
+
+## On the HUD (how each thing shows)
+
+From the wiki's [Game UI page](https://arcraiders.wiki/wiki/Game_UI) and
+[Settings page](https://arcraiders.wiki/wiki/Settings), and Embark's 1.22.0
+notes; **the weapon panel itself is not described anywhere public**:
+
+- Third-person camera. **Bottom-right: the equipment panel**, which "shows the
+  weapon currently in use along with ammunition remaining and the item
+  equipped in the last accessed quick use slot" (wiki). Whether the gun's
+  **name is text**, its case and font, whether it fades, and whether a rarity
+  colour shows there are all **unconfirmed**: no guide, review, wiki page or
+  settings page found on 2026-10-10 says so, and none describes a screenshot
+  of it.
+- Also bottom-right, per Steam players (not Embark): a small session-ID number
+  string that cannot be hidden. A name reader must not take it for the gun.
+- Bottom-left: shield and health bars (a squad's too). Top-centre: compass and
+  round timer. Centre: reticle (a circle for shotguns) and the reload circle
+  ("Show Reload Progress", on by default).
+- "HUD Position" (Stretched by default), "Font Size" (Small by default, needs
+  a restart), and HUD visibility ("Visible", "Crosshair and Interactions Only",
+  "Crosshair Only", "Hidden"; F10 on PC, a Gameplay setting on console since
+  1.22.0) move or remove things; going by their names, every mode but "Visible"
+  hides the panel (not checked).
+
+## HUD states
+
+**From public sources, not checked on a real frame.** What the Core could read
+in each state, if the panel turns out to print the name:
+
+| State | What is on screen | What the Core could read |
+|---|---|---|
+| In raid, on foot | Full HUD: equipment panel bottom-right, bars bottom-left, compass top-centre | The gun's name (or icon) and ammo in the panel; the compass bar as a "topside" sign |
+| Aiming (weapon raised) | Reticle appears at centre; the HUD stays (third-person, no full-screen scope found described) | Same as on foot; the reticle shape tells shotgun (circle) from the rest |
+| Menu / inventory open | The five-tab menu (Inventory, Crafting, Map, Logbook, plus settings) over the game; the inventory opens on its own when searching a container | Nothing: hold the last gun. Swapping weapons happens here, so re-read once it closes |
+| Quick-use / ping / emote wheel | A radial menu at centre | Nothing new; hold the last gun |
+| Downed | Not described publicly beyond settings being locked "while downed" | Unknown; treat as no gun |
+| Extraction | Extraction timing is on the Map, not the HUD; the lift and the round-end screens are not described | Unknown; treat as no gun |
+| Hideout / lobby (Speranza) | Menus between raids (stash, workshop, traders); no in-raid HUD | Nothing; a sign that no raid is running |
+
+## Which reading: name reading, or pass
+
+**Name reading if the panel prints the name**, else **picture teaching** of
+the gun's icon; not Rainbow-style, because ARC Raiders has no characters to
+pick. Evidence: the wiki says the bottom-right panel shows "the weapon
+currently in use" but not how. Confidence that it is text: **low to medium**,
+unconfirmed. One real frame settles it, and the catalog carries `review` until
+then.
+
+## Update the list
+
+Add a new gun at the end of its class with the update as `from` and Embark's
+notes as a source; set `asOf` and `season`; run
+`node dashboard/tools/test-game-data.js`.
+
+## Pictures (D474, 2026-10-24)
+
+Embark publishes no weapon catalogue: the only official weapon renders on its own
+host are the Frozen Trail bumpers of the Bantam and Stiletto
+(`assets.arcraiders.com/media/...AR_Bumper_Weapon_Bantam_16_9.jpg`,
+`...Stiletto_16_9.jpg`), 16:9 scenes rather than item pictures. So every picture
+in `weapons/` is the game's own **in-game item icon** (Embark's art, the level IV
+icon where the gun has levels), as the community wiki arcraiders.wiki serves it
+on the gun's page, cropped to the weapon and scaled to fit 480 x 300, transparency
+kept. The host is the wiki's, not Embark's: the owner decided on 2026-10-24 to use
+the real official weapon art and handle licensing later (D474), and the test's
+publisher rule for ARC Raiders accepts arcraiders.wiki for this reason. Delete a
+`.png` and set the gun's `image` to `null` and the app draws the class symbol.
+
+| Picture | Weapon | Source | Page | Size | Read |
+|---|---|---|---|---|---|
+| weapons/kettle.png | Kettle | https://arcraiders.wiki/w/images/0/0f/Kettle_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Kettle) | 480 x 228 | 2026-10-24 |
+| weapons/rattler.png | Rattler | https://arcraiders.wiki/w/images/3/3e/Rattler_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Rattler) | 480 x 132 | 2026-10-24 |
+| weapons/arpeggio.png | Arpeggio | https://arcraiders.wiki/w/images/b/b9/Arpeggio_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Arpeggio) | 480 x 173 | 2026-10-24 |
+| weapons/tempest.png | Tempest | https://arcraiders.wiki/w/images/b/b2/Tempest_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Tempest) | 480 x 158 | 2026-10-24 |
+| weapons/bettina.png | Bettina | https://arcraiders.wiki/w/images/3/32/Bettina_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Bettina) | 480 x 131 | 2026-10-24 |
+| weapons/ferro.png | Ferro | https://arcraiders.wiki/w/images/f/f9/Ferro_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Ferro) | 480 x 100 | 2026-10-24 |
+| weapons/stiletto.png | Stiletto | https://arcraiders.wiki/w/images/7/78/Stiletto_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Stiletto) | 480 x 141 | 2026-10-24 |
+| weapons/renegade.png | Renegade | https://arcraiders.wiki/w/images/a/a8/Renegade_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Renegade) | 480 x 125 | 2026-10-24 |
+| weapons/aphelion.png | Aphelion | https://arcraiders.wiki/w/images/8/88/Aphelion.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Aphelion) | 480 x 98 | 2026-10-24 |
+| weapons/stitcher.png | Stitcher | https://arcraiders.wiki/w/images/5/55/Stitcher_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Stitcher) | 480 x 227 | 2026-10-24 |
+| weapons/canto.png | Canto | https://arcraiders.wiki/w/images/c/c7/Canto_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Canto) | 479 x 300 | 2026-10-24 |
+| weapons/bobcat.png | Bobcat | https://arcraiders.wiki/w/images/7/78/Bobcat_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Bobcat) | 480 x 234 | 2026-10-24 |
+| weapons/il_toro.png | Il Toro | https://arcraiders.wiki/w/images/a/ad/Il_Toro_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Il_Toro) | 480 x 154 | 2026-10-24 |
+| weapons/vulcano.png | Vulcano | https://arcraiders.wiki/w/images/5/5b/Vulcano_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Vulcano) | 480 x 140 | 2026-10-24 |
+| weapons/dolabra.png | Dolabra | https://arcraiders.wiki/w/images/b/bc/Dolabra.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Dolabra) | 480 x 185 | 2026-10-24 |
+| weapons/hairpin.png | Hairpin | https://arcraiders.wiki/w/images/b/b8/Hairpin_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Hairpin) | 480 x 187 | 2026-10-24 |
+| weapons/burletta.png | Burletta | https://arcraiders.wiki/w/images/8/8c/Burletta_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Burletta) | 389 x 300 | 2026-10-24 |
+| weapons/venator.png | Venator | https://arcraiders.wiki/w/images/9/9f/Venator_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Venator) | 324 x 227 | 2026-10-24 |
+| weapons/bantam.png | Bantam | https://arcraiders.wiki/w/images/7/7c/Bantam_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Bantam) | 279 x 275 | 2026-10-24 |
+| weapons/anvil.png | Anvil | https://arcraiders.wiki/w/images/2/2d/Anvil_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Anvil) | 480 x 252 | 2026-10-24 |
+| weapons/torrente.png | Torrente | https://arcraiders.wiki/w/images/3/35/Torrente_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Torrente) | 480 x 174 | 2026-10-24 |
+| weapons/osprey.png | Osprey | https://arcraiders.wiki/w/images/c/ce/Osprey_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Osprey) | 480 x 112 | 2026-10-24 |
+| weapons/jupiter.png | Jupiter | https://arcraiders.wiki/w/images/6/68/Jupiter.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Jupiter) | 480 x 135 | 2026-10-24 |
+| weapons/rascal.png | Rascal | https://arcraiders.wiki/w/images/b/b6/Rascal_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Rascal) | 480 x 197 | 2026-10-24 |
+| weapons/hullcracker.png | Hullcracker | https://arcraiders.wiki/w/images/e/ea/Hullcracker_IV.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Hullcracker) | 480 x 149 | 2026-10-24 |
+| weapons/equalizer.png | Equalizer | https://arcraiders.wiki/w/images/9/96/Equalizer.png | [arcraiders.wiki](https://arcraiders.wiki/wiki/Equalizer) | 480 x 146 | 2026-10-24 |

@@ -1,0 +1,39 @@
+{
+  "zerostickGamePack": 1,
+  "id": "counter-strike-2",
+  "name": "Counter-Strike 2",
+  "aliases": [
+    "CS2",
+    "Counter Strike 2",
+    "Counter-Strike"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": null,
+  "aimPreset": null,
+  "defaultPlay": {
+    "input": "mnk",
+    "nativeKbm": true
+  },
+  "notes": "Counter-Strike 2 (Valve), PC only, D473 (2026-10-24). A draft for the owner: its catalog is held for review (game-data/counter-strike-2/catalog.json `review`). Made for NATIVE Keyboard & Mouse (defaultPlay): the player's real keyboard and mouse reach the game, the AI scripts run on top, so no aim translator is needed and none is set (a translated stick has nothing to drive on PC). The held weapon is read from the weapon panel's icon (game-data/counter-strike-2/recognition.json, the TEXT finder, D473) and kept by the round memory (recognition.json `round`). The game's real settings (sensitivity, zoom_sensitivity_ratio, m_yaw, raw input, the slot keys) are listed in docs/DECISIONS.md D473 for D468's settings forms. No pack picture yet: art is null, so the app draws our own banner (Steam's app 730 capsules wait for the owner's yes).",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "Counter-Strike 2 is played with a keyboard and mouse on PC; nothing is measured for a controller. This block sets nothing.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "Native Keyboard & Mouse: the mouse reaches the game as a mouse, so there is no translator to tune. Nothing in this block is set.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "Counter-Strike 2 has no console version to translate a mouse onto a stick for. This block sets nothing.",
+      "config": {}
+    }
+  }
+}

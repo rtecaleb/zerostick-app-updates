@@ -1,0 +1,2099 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "valorant",
+  "title": "VALORANT",
+  "asOf": "2026-10-10",
+  "season": "Season 2026 Act 5 (V26A5), patch 13.06",
+  "review": "Waiting for the owner's check (D132): agents, roles and guns verified on playvalorant.com and the 13.06 game data on 2026-10-10; the HUD (agent ability row, gun silhouettes) is not checked on a real frame yet.",
+  "integrated": [],
+  "kinds": [
+    {
+      "kind": "agents",
+      "name": "Agents",
+      "groups": [
+        {
+          "id": "duelists",
+          "name": "Duelists",
+          "items": [
+            {
+              "id": "duelists.phoenix",
+              "name": "Phoenix",
+              "from": "Launch (2020)",
+              "image": "agents/phoenix.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "duelists.jett",
+              "name": "Jett",
+              "from": "Launch (2020)",
+              "image": "agents/jett.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife",
+                  "agent_weapons.blade_storm"
+                ]
+              }
+            },
+            {
+              "id": "duelists.raze",
+              "name": "Raze",
+              "from": "Launch (2020)",
+              "image": "agents/raze.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife",
+                  "agent_weapons.showstopper"
+                ]
+              }
+            },
+            {
+              "id": "duelists.reyna",
+              "name": "Reyna",
+              "from": "Launch (2020)",
+              "image": "agents/reyna.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "duelists.yoru",
+              "name": "Yoru",
+              "from": "Episode 2 Act 1",
+              "image": "agents/yoru.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "duelists.neon",
+              "name": "Neon",
+              "from": "Episode 4 Act 1",
+              "image": "agents/neon.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife",
+                  "agent_weapons.overdrive"
+                ]
+              }
+            },
+            {
+              "id": "duelists.iso",
+              "name": "Iso",
+              "from": "Episode 7 Act 3",
+              "image": "agents/iso.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "duelists.waylay",
+              "name": "Waylay",
+              "from": "Season 2025 Act 2 (patch 10.04)",
+              "image": "agents/waylay.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-10-04/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "initiators",
+          "name": "Initiators",
+          "items": [
+            {
+              "id": "initiators.sova",
+              "name": "Sova",
+              "from": "Launch (2020)",
+              "image": "agents/sova.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.breach",
+              "name": "Breach",
+              "from": "Launch (2020)",
+              "image": "agents/breach.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.skye",
+              "name": "Skye",
+              "from": "Episode 1 Act 3",
+              "image": "agents/skye.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.kay_o",
+              "name": "KAY/O",
+              "from": "Episode 2 Act 3",
+              "image": "agents/kay_o.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.fade",
+              "name": "Fade",
+              "from": "Episode 4 Act 3",
+              "image": "agents/fade.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.gekko",
+              "name": "Gekko",
+              "from": "Episode 6 Act 2",
+              "image": "agents/gekko.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "initiators.tejo",
+              "name": "Tejo",
+              "from": "Season 2025 Act 1 (patch 10.00)",
+              "image": "agents/tejo.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-10-00/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "controllers",
+          "name": "Controllers",
+          "items": [
+            {
+              "id": "controllers.brimstone",
+              "name": "Brimstone",
+              "from": "Launch (2020)",
+              "image": "agents/brimstone.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.viper",
+              "name": "Viper",
+              "from": "Launch (2020)",
+              "image": "agents/viper.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.omen",
+              "name": "Omen",
+              "from": "Launch (2020)",
+              "image": "agents/omen.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.astra",
+              "name": "Astra",
+              "from": "Episode 2 Act 2",
+              "image": "agents/astra.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.harbor",
+              "name": "Harbor",
+              "from": "Episode 5 Act 2",
+              "image": "agents/harbor.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.clove",
+              "name": "Clove",
+              "from": "Episode 8 Act 2",
+              "image": "agents/clove.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "controllers.miks",
+              "name": "Miks",
+              "from": "Season 2026 Act 2 (patch 12.05)",
+              "image": "agents/miks.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://playvalorant.com/en-us/agents/miks/",
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-05/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sentinels",
+          "name": "Sentinels",
+          "items": [
+            {
+              "id": "sentinels.cypher",
+              "name": "Cypher",
+              "from": "Launch (2020)",
+              "image": "agents/cypher.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.sage",
+              "name": "Sage",
+              "from": "Launch (2020)",
+              "image": "agents/sage.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.killjoy",
+              "name": "Killjoy",
+              "from": "Episode 1 Act 2",
+              "image": "agents/killjoy.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.chamber",
+              "name": "Chamber",
+              "from": "Episode 3 Act 3",
+              "image": "agents/chamber.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife",
+                  "agent_weapons.headhunter",
+                  "agent_weapons.tour_de_force"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.deadlock",
+              "name": "Deadlock",
+              "from": "Episode 7 Act 1",
+              "image": "agents/deadlock.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.vyse",
+              "name": "Vyse",
+              "from": "Episode 9 Act 2",
+              "image": "agents/vyse.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://liquipedia.net/valorant/Patch_9.04"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            },
+            {
+              "id": "sentinels.veto",
+              "name": "Veto",
+              "from": "Season 2025 Act 6 (patch 11.08)",
+              "image": "agents/veto.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://playvalorant.com/en-us/agents/veto/",
+                "https://www.sheepesports.com/articles/valorant-everything-about-veto-the-new-senegalese-agent/en"
+              ],
+              "uncertain": "Riot's 11.08 patch notes (2025-10-14, Stage V25A6) do not name Veto; that he arrived with that patch and act comes from press coverage, not a Riot page.",
+              "loadout": {
+                "pool": [
+                  "sidearms.classic",
+                  "sidearms.shorty",
+                  "sidearms.frenzy",
+                  "sidearms.ghost",
+                  "sidearms.bandit",
+                  "sidearms.sheriff",
+                  "smgs.stinger",
+                  "smgs.spectre",
+                  "shotguns.bucky",
+                  "shotguns.judge",
+                  "rifles.bulldog",
+                  "rifles.guardian",
+                  "rifles.phantom",
+                  "rifles.vandal",
+                  "rifles.warden",
+                  "sniper_rifles.marshal",
+                  "sniper_rifles.outlaw",
+                  "sniper_rifles.operator",
+                  "heavy_weapons.ares",
+                  "heavy_weapons.odin",
+                  "melee.tactical_knife"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "weapons",
+      "name": "Guns",
+      "all": "All guns",
+      "groups": [
+        {
+          "id": "sidearms",
+          "name": "Sidearms",
+          "items": [
+            {
+              "id": "sidearms.classic",
+              "name": "Classic",
+              "from": null,
+              "image": "weapons/classic.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sidearms.shorty",
+              "name": "Shorty",
+              "from": null,
+              "image": "weapons/shorty.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sidearms.frenzy",
+              "name": "Frenzy",
+              "from": null,
+              "image": "weapons/frenzy.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sidearms.ghost",
+              "name": "Ghost",
+              "from": null,
+              "image": "weapons/ghost.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sidearms.bandit",
+              "name": "Bandit",
+              "from": "Season 2026 (patch 12.00)",
+              "image": "weapons/bandit.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-00/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sidearms.sheriff",
+              "name": "Sheriff",
+              "from": null,
+              "image": "weapons/sheriff.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "smgs",
+          "name": "SMGs",
+          "items": [
+            {
+              "id": "smgs.stinger",
+              "name": "Stinger",
+              "from": null,
+              "image": "weapons/stinger.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "smgs.spectre",
+              "name": "Spectre",
+              "from": null,
+              "image": "weapons/spectre.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "shotguns",
+          "name": "Shotguns",
+          "items": [
+            {
+              "id": "shotguns.bucky",
+              "name": "Bucky",
+              "from": null,
+              "image": "weapons/bucky.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "pump",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "shotguns.judge",
+              "name": "Judge",
+              "from": null,
+              "image": "weapons/judge.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "rifles",
+          "name": "Rifles",
+          "items": [
+            {
+              "id": "rifles.bulldog",
+              "name": "Bulldog",
+              "from": null,
+              "image": "weapons/bulldog.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "rifles.guardian",
+              "name": "Guardian",
+              "from": null,
+              "image": "weapons/guardian.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "rifles.phantom",
+              "name": "Phantom",
+              "from": null,
+              "image": "weapons/phantom.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "rifles.vandal",
+              "name": "Vandal",
+              "from": null,
+              "image": "weapons/vandal.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "rifles.warden",
+              "name": "Warden",
+              "from": "Season 2026 Act 5 (patch 13.06)",
+              "image": "weapons/warden.png",
+              "sources": [
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-06/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sniper_rifles",
+          "name": "Sniper Rifles",
+          "items": [
+            {
+              "id": "sniper_rifles.marshal",
+              "name": "Marshal",
+              "from": null,
+              "image": "weapons/marshal.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "bolt",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sniper_rifles.outlaw",
+              "name": "Outlaw",
+              "from": null,
+              "image": "weapons/outlaw.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-01/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "semi",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "sniper_rifles.operator",
+              "name": "Operator",
+              "from": null,
+              "image": "weapons/operator.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "bolt",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heavy_weapons",
+          "name": "Heavy Weapons",
+          "items": [
+            {
+              "id": "heavy_weapons.ares",
+              "name": "Ares",
+              "from": null,
+              "image": "weapons/ares.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            },
+            {
+              "id": "heavy_weapons.odin",
+              "name": "Odin",
+              "from": null,
+              "image": "weapons/odin.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "fireMode": "auto",
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "melee",
+          "name": "Melee",
+          "items": [
+            {
+              "id": "melee.tactical_knife",
+              "name": "Tactical Knife",
+              "from": null,
+              "image": "weapons/tactical_knife.png",
+              "sources": [
+                "https://playvalorant.com/en-us/arsenal/",
+                "https://valorant-api.com/v1/weapons"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "duelists.phoenix",
+                "duelists.jett",
+                "duelists.raze",
+                "duelists.reyna",
+                "duelists.yoru",
+                "duelists.neon",
+                "duelists.iso",
+                "duelists.waylay",
+                "initiators.sova",
+                "initiators.breach",
+                "initiators.skye",
+                "initiators.kay_o",
+                "initiators.fade",
+                "initiators.gekko",
+                "initiators.tejo",
+                "controllers.brimstone",
+                "controllers.viper",
+                "controllers.omen",
+                "controllers.astra",
+                "controllers.harbor",
+                "controllers.clove",
+                "controllers.miks",
+                "sentinels.cypher",
+                "sentinels.sage",
+                "sentinels.killjoy",
+                "sentinels.chamber",
+                "sentinels.deadlock",
+                "sentinels.vyse",
+                "sentinels.veto"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "agent_weapons",
+          "name": "Agent weapons",
+          "items": [
+            {
+              "id": "agent_weapons.blade_storm",
+              "name": "Blade Storm",
+              "from": null,
+              "image": "weapons/blade_storm.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "duelists.jett"
+              ]
+            },
+            {
+              "id": "agent_weapons.headhunter",
+              "name": "Headhunter",
+              "from": null,
+              "image": "weapons/headhunter.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+              ],
+              "uncertain": "Its fire mode (semi) is from guides that call it a heavy pistol; no Riot page states it.",
+              "fireMode": "semi",
+              "usedBy": [
+                "sentinels.chamber"
+              ]
+            },
+            {
+              "id": "agent_weapons.tour_de_force",
+              "name": "Tour De Force",
+              "from": null,
+              "image": "weapons/tour_de_force.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+              ],
+              "uncertain": "Its fire mode (bolt) is from guides that call it a custom sniper rifle; no Riot page states it.",
+              "fireMode": "bolt",
+              "usedBy": [
+                "sentinels.chamber"
+              ]
+            },
+            {
+              "id": "agent_weapons.showstopper",
+              "name": "Showstopper",
+              "from": null,
+              "image": "weapons/showstopper.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "duelists.raze"
+              ]
+            },
+            {
+              "id": "agent_weapons.overdrive",
+              "name": "Overdrive",
+              "from": null,
+              "image": "weapons/overdrive.png",
+              "sources": [
+                "https://playvalorant.com/en-us/agents/",
+                "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "duelists.neon"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

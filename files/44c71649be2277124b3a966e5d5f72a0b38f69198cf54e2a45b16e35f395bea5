@@ -1,0 +1,206 @@
+# Where the Marvel Rivals catalog comes from
+
+Everything here was read on **2026-10-10** (fact-checked the same day by a
+second pass). `catalog.json` is the two-kind form (`kinds`: Heroes, then their
+Attacks; `../README.md`), Rainbow Six Siege's shape (D125): the owner picks the
+hero, then that hero's own attacks. The carried kind is `attacks`, so the app
+says "attack", not "gun". The catalog carries `review` (D132): it stays held
+until the owner approves it.
+
+**Pictures: every hero has NetEase's own portrait (D472, 2026-10-24).** The
+owner decided on 2026-10-24 to show the real official hero art in the AI
+Scripts room; the licence question is his, for later. The table at the end
+says where each one came from. Attacks still have no picture (class code).
+
+## What is in Marvel Rivals today
+
+- **Season 10.5**, the mid-season update of **Season 10: Butcher's Blasphemy**.
+  Season 10 began 2026-09-11 with Gorr the God Butcher
+  ([Massively OP](https://massivelyop.com/2026/09/09/marvel-rivals-adds-gorr-the-god-butcher-to-the-roster-with-september-11s-season-10/));
+  10.5 went live 2026-10-09 with **no new hero**, the first major update
+  without one ([Insider Gaming](https://insider-gaming.com/marvel-rivals-season-10-5-will-not-feature-a-new-hero/),
+  [release times](https://insider-gaming.com/marvel-rivals-season-10-5-release-date-start-times/)).
+  Season 11 is reported for 2026-11-13; its heroes are not announced
+  (Nightcrawler is only a datamine rumour, not listed).
+- **54 heroes**, exactly the 54 names on NetEase's
+  [heroes page](https://www.marvelrivals.com/heroes/) (names only, no roles,
+  no working per-hero pages). Roles: 14 Vanguards, 28 Duelists, 12
+  Strategists, matching [rivalsmeta's hero list](https://rivalsmeta.com/characters)
+  (which lists Deadpool three times, once per role).
+- **Since launch** (33 heroes, December 2024): Mister Fantastic and Invisible
+  Woman (Season 1), Human Torch and The Thing (1.5), Emma Frost (2), Ultron
+  (2.5), Phoenix (3), Blade (3.5), Angela (4), Daredevil (4.5), Gambit (5),
+  Rogue (5.5), Deadpool (6), Elsa Bloodstone (6.5), White Fox (7, Strategist),
+  Black Cat (7.5, Duelist, 2026-04-17,
+  [Inven Global](https://www.invenglobal.com/articles/20906/new-hero-black-cat-joins-marvel-rivals-as-season-75-begins-on-the-17th)),
+  Devil Dinosaur (8, Vanguard, 2026-05-15) and Cyclops (8.5, Duelist)
+  ([Shacknews](https://www.shacknews.com/article/149110/marvel-rivals-season-8-start-date-details)),
+  Jubilation Lee (9, Strategist, 2026-07-10), The Hood (9.5, Vanguard,
+  2026-08-07,
+  [esports.gg](https://esports.gg/guides/marvel-rivals/marvel-rivals-the-hood-guide-all-abilities-and-how-they-work/)),
+  Gorr the God Butcher (10, Duelist). Seasons 1 to 6.5 are from the earlier
+  pass ([turbosmurfs' release order](https://turbosmurfs.gg/article/marvel-rivals-characters-release-order))
+  and agree with what was known before 2026.
+- **Names** are NetEase's spelling from the heroes page. **Jubilation Lee** is
+  `uncertain`: the page writes her full name, while guides, rivalsmeta and
+  press call her Jubilee; which one the game prints is not checked (alias
+  `Jubilee` makes either searchable).
+- **Deadpool** is picked as a Vanguard, a Duelist or a Strategist at hero
+  select. An item has one group, so he is listed once, under Duelists, and
+  says so (`uncertain`). His two weapons keep their names in every role
+  ([SCUF guide](https://www.scufgaming.com/us/en/gaming/games/marvel-rivals/marvel-rivals-deadpool-guide/)).
+
+## The attacks
+
+Each hero's `loadout.attacks` is the primary (left-click) attack, plus, for
+some heroes, a second attack: another form's primary (where the HUD swaps the
+ability row or the ammo counter) or a second weapon on its own button: Hulk
+(Gamma Ray Gun as Bruce Banner, Heavy Blow as Hero and Monster Hulk), Black
+Widow (Red Room Rifle, Electric Batons; reworked in Season 9), Hawkeye
+(Piercing and Blast Arrow), Iron Man (Repulsor Blast, Unibeam on right
+click), The Punisher (Adjudication, Deliverance), Cloak & Dagger (Lightforce
+Dagger, Darkforce Cloak), Rocket Raccoon (Bombard and Repair Mode), Emma
+Frost (Telepathic Pulse, Faceted Fury in Diamond Form), Blade (Ancestral
+Sword, Hunter's Shotgun), Angela (Spear and Axes of Ichors), Gambit (Kinetic
+Cards, Bayou Bash on right click), Deadpool (Dual Desert Eagles, Kick@$$
+Katanas), Elsa Bloodstone (Double-Barrel Blaster, Monster-Piercer), White Fox
+(Yeowoo Guseul, Claw Strike while Awakened, Ninefold Slam in Kumiho Form),
+Cyclops (Optic Blast, Concussive Beam on right click), The Hood (Accursed
+Pistols, Leaded Transformation: his Half-Demon State, rifles in place of
+pistols).
+
+Checked this pass against [rivalsmeta's hero pages](https://rivalsmeta.com/characters/)
+(each item's second source): every name in the catalog for Angela, Black Cat,
+Black Widow, Cloak & Dagger, Cyclops, Daredevil, Devil Dinosaur, Elsa
+Bloodstone, Emma Frost, Hawkeye, Hela, Iron Man, Jubilee, Luna Snow, Magik,
+Moon Knight, The Hood, The Punisher, Rocket Raccoon, Spider-Man, Star-Lord and
+White Fox matches its page. Rivalsmeta's key labels are unreliable for some
+heroes (it puts Kinetic Cards, Power Surge Punch and All-Black on Q), so the
+primary of those three was settled by other guides:
+
+- **Gambit**: Kinetic Cards on left click, Bayou Bash on right click
+  ([Liquipedia](https://liquipedia.net/marvelrivals/Gambit),
+  [esports.gg](https://esports.gg/news/marvel-rivals/gambit-abilities/)).
+- **Rogue**: Power Surge Punch is her three-hit left-click combo
+  ([esports.gg](https://esports.gg/news/marvel-rivals/rogue-skills/) and
+  other guides agree).
+- **Gorr**: All-Black (the Necrosword) is the left-click combo, Necro-Power
+  right click, Twilight of the Gods the ultimate
+  ([FandomWire](https://fandomwire.com/marvel-rivals-gorr-abilities-playstyle-explained/),
+  [games.gg](https://games.gg/marvel-rivals/guides/marvel-rivals-gorr-guide/)).
+- **Hela**: Nightsword Thorn ([Liquipedia](https://liquipedia.net/marvelrivals/Hela)).
+
+Remaining `uncertain` items: Deadpool (one group for three roles), Jubilation
+Lee (printed name), Electric Batons (how Black Widow switches to them), Blast
+Arrow (whether the HUD shows the arrow mode). Not listed, deliberately: Black
+Cat's Claw Whip and Daredevil's Righteous Cross, which rivalsmeta also puts on
+left click but whose trigger no second source explained.
+
+These are community sources; NetEase publishes no per-hero kit page that
+loads. The fandom wiki returned HTTP 402 and Liquipedia's hero index 403 to
+the fetcher.
+
+## HUD states
+
+From public guides, not checked on a real frame. What the Core could read in
+each, at 1080p:
+
+| state | what is on screen | what the Core could read |
+|---|---|---|
+| Hero select | Grid of hero portraits by role, the picked hero large with its name, team-up icons | The hero's **name as text** and the portrait: the one moment the hero is named on screen. Also re-opened mid-match when the player swaps at spawn |
+| In play | Ability icons with key labels bottom-right, ultimate circle bottom-centre (percentage, glows when ready), ammo count near the abilities for heroes with ammo, health bottom-left, team portraits top, kill feed top-right | The **ability row** (icon set identifies the hero, D122), the ammo counter, the ultimate charge. No hero or attack name as text |
+| Ultimate active | Ultimate effects, often a changed ability row or a timer; some (Black Widow's Assassin's Focus, Gorr's Twilight of the Gods) change the primary attack | The ultimate circle draining, the swapped row |
+| Transformations / forms | Whole ability row swaps: Hulk's three forms, Cloak & Dagger, Emma Frost's Diamond Form, Magik's Darkchild, White Fox Awakened / Kumiho Form, The Hood's Half-Demon State, Deadpool guns / katanas, Angela, Elsa | The **row change** is the most readable sign of a form; teach each form's own row |
+| Loki's ultimate | Loki takes another hero's whole HUD | Reads as that other hero: a known false positive |
+| Dead / respawn | Death recap, kill cam, respawn timer, spectating a teammate (their HUD), a hero-swap prompt | Respawn timer; **no own HUD**. Spectate shows someone else's row: hold off |
+| Menus | Main menu, lobby, scoreboard (Tab), settings, end-of-match screens | Nothing to act on; the absence of the in-play row |
+
+"HUD Widget Size" in settings scales the HUD and the HUD can be hidden, so a
+taught row is per player setting.
+
+## Class: Rainbow-style
+
+**Rainbow-style** (hero-picker driven), not name-reading. Evidence: the hero
+is named as text only at hero select; in play neither the hero nor the attack
+is printed, only the ability-icon row, the ammo counter and the ultimate
+circle (guides and the HUD-settings descriptions above, not a real frame).
+So the owner picks the hero in the app (or the Core recognises the taught
+ability row, D122), and each form's row is taught for the heroes listed
+under "The attacks". Name reading has nothing to read in play.
+
+## Update the list when a season adds a hero
+
+Check the new name on https://www.marvelrivals.com/heroes/ and the season's
+announcement; add the hero at the end of his role's group (the build sorts by
+name) with `loadout.attacks`, each attack in the role's attack group with
+`usedBy`; set `asOf` and `season`; run
+`node dashboard/tools/test-game-data.js`.
+
+## Pictures (D472)
+
+Every hero portrait was fetched on **2026-10-24** from NetEase's heroes page,
+[marvelrivals.com/heroes](https://www.marvelrivals.com/heroes/): the hero card of the
+page's hero picker (`ul.select-list`, one `<img>` a hero, 154 to 182 px wide). Some cards
+are served from marvelrivals.com itself, the newer ones from NetEase's resource server
+`r.res.easebar.com` (the page's own `<img src>`). The square top of each card (its face;
+the name band below it left out) is kept at the card's own width, transparency kept, reduced to
+a 256-colour palette. The page's hero names are the cards' ("JUBILEE" on the card,
+"JUBILATION LEE" as her real name). Copyright Marvel / NetEase Games; shown to identify
+the hero, the owner's call (D116, D472).
+
+| file | hero | picture | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| heroes/adam_warlock.png | Adam Warlock | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d21.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/angela.png | Angela | https://r.res.easebar.com/pic/20250912/fb42acc6-da42-472d-bf2d-d7efd4dff5b5.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/black_cat.png | Black Cat | https://r.res.easebar.com/pic/20260417/2c0db7d2-1232-44de-865b-4ce1a4f6b70e.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/black_panther.png | Black Panther | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d1.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/black_widow.png | Black Widow | https://r.res.easebar.com/pic/20241205/7e34f06f-150f-4ad3-8c86-2c7c73e95493.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/blade.png | Blade | https://r.res.easebar.com/pic/20250808/d4aa1ebb-46cb-4ae8-ac82-611ea004609c.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/captain_america.png | Captain America | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d24.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/cloak_dagger.png | Cloak & Dagger | https://r.res.easebar.com/pic/20241205/0f7b7427-3ff1-42d4-a965-3f35d4f49b51.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/cyclops.png | Cyclops | https://r.res.easebar.com/pic/20260612/36d48d33-8bd7-498a-a98c-ed23ea7f8895.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/daredevil.png | Daredevil | https://r.res.easebar.com/pic/20251011/bdf306ae-a908-495c-abcd-be4472db6620.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/deadpool.png | Deadpool | https://r.res.easebar.com/pic/20260116/e877384d-6fa4-47d6-b040-f7300c7d0367.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/devil_dinosaur.png | Devil Dinosaur | https://r.res.easebar.com/pic/20260515/4153653e-1dfa-4780-8aa2-cc2881dad902.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/doctor_strange.png | Doctor Strange | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d2.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/elsa_bloodstone.png | Elsa Bloodstone | https://r.res.easebar.com/pic/20260213/985677e8-fd80-47ed-96cc-8309404e71d0.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/emma_frost.png | Emma Frost | https://r.res.easebar.com/pic/20250408/8a48f02e-4525-42e9-b465-38e228aee7db.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/gambit.png | Gambit | https://r.res.easebar.com/pic/20251115/a8e9881e-cc5b-4b01-99db-d83a4ced5aca.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/gorr_the_god_butcher.png | Gorr the God Butcher | https://r.res.easebar.com/pic/20260911/f56843ec-2cfb-46c2-ab67-2e223328fac8.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/groot.png | Groot | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d3.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/hawkeye.png | Hawkeye | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d27.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/hela.png | Hela | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d5.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/hulk.png | Hulk | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d19.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/human_torch.png | Human Torch | https://r.res.easebar.com/pic/20250220/d9c2e23d-53e8-4115-9ce1-008d22c5aa2e.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/invisible_woman.png | Invisible Woman | https://r.res.easebar.com/pic/20250113/c63fb614-e16c-46ce-877d-43317debebd5.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/iron_fist.png | Iron Fist | https://r.res.easebar.com/pic/20241201/18ea989f-ba46-432d-93c3-87463215de53.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/iron_man.png | Iron Man | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d6.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/jeff_the_land_shark.png | Jeff the Land Shark | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d23.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/jubilation_lee.png | Jubilation Lee | https://r.res.easebar.com/pic/20260708/e05b0e7d-e887-4742-b91b-27d73182abb1.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/loki.png | Loki | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d7.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/luna_snow.png | Luna Snow | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d18.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/magik.png | Magik | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d12.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/magneto.png | Magneto | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d11.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/mantis.png | Mantis | https://r.res.easebar.com/pic/20250131/e5b6506e-c783-4f2d-980d-83f167473b82.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/mister_fantastic.png | Mister Fantastic | https://r.res.easebar.com/pic/20250113/54cfc983-1e9d-45b5-9dcd-ff3228425347.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/moon_knight.png | Moon Knight | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d26.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/namor.png | Namor | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d20.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/peni_parker.png | Peni Parker | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d10.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/phoenix.png | Phoenix | https://r.res.easebar.com/pic/20250711/570fc7a9-f109-4048-a997-ee40f292034d.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/psylocke.png | Psylocke | https://r.res.easebar.com/pic/20241127/32976573-8ea6-401a-86bd-7931248cd94e.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/rocket_raccoon.png | Rocket Raccoon | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d8.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/rogue.png | Rogue | https://r.res.easebar.com/pic/20251212/f6f6bb5a-a093-467a-9e1b-a34915911967.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/scarlet_witch.png | Scarlet Witch | https://r.res.easebar.com/pic/20260615/28983645-5be9-4faa-8d29-748420191077.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/spider_man.png | Spider-Man | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d13.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/squirrel_girl.png | Squirrel Girl | https://r.res.easebar.com/pic/20241201/aae04d93-a3ac-49d8-a8c3-bb9ab47b2bd9.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/star_lord.png | Star-Lord | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d16.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/storm.png | Storm | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d17.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/the_hood.png | The Hood | https://r.res.easebar.com/pic/20260807/5e1cf89e-44c5-4574-9882-5a418aaf6971.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/the_punisher.png | The Punisher | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d4.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/the_thing.png | The Thing | https://r.res.easebar.com/pic/20250220/657d8eca-6d1f-4ad9-8c9a-99e1afac2a25.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/thor.png | Thor | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d22.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/ultron.png | Ultron | https://r.res.easebar.com/pic/20250531/1ff03b44-8874-4962-a87a-19f2871f1e92.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/venom.png | Venom | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d14.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/white_fox.png | White Fox | https://r.res.easebar.com/pic/20260320/a365b954-636c-4b3a-8dce-b81898cbda72.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/winter_soldier.png | Winter Soldier | https://www.marvelrivals.com/pc/gw/5da825b19a6a/heros/d25.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
+| heroes/wolverine.png | Wolverine | https://r.res.easebar.com/pic/20241205/04d0322f-e929-4b81-81e9-4817a3f221e1.png | card portrait, top square | [page](https://www.marvelrivals.com/heroes/) | 2026-10-24 |
