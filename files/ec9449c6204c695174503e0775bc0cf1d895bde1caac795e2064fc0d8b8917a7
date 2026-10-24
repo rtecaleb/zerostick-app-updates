@@ -1,0 +1,579 @@
+/* native-kbm.js - Native Mouse & Keyboard (D470), the app half.
+ *
+ * The owner: the player's REAL mouse and keyboard, plugged into the Core,
+ * reach the game as a real keyboard and mouse (not as a controller), and the
+ * AI scripts (gun detection and switching, keybinds, mouse recoil) run on
+ * top. For PC players who want their own feel plus the scripts. It is NOT
+ * Navigate's pass-through mode (D161/D180), which switches everything off;
+ * this file never uses that word for it.
+ *
+ * THE DATA (the lead's Core and encoder read these, nothing else):
+ *   f.nativeKbm       true = Native Mouse & Keyboard; absent/false = normal
+ *   f.inputType       'mnk' while native (left click = fire, right click =
+ *                     aim, through the normal mouse-and-keyboard bindings)
+ *   f.nativeKbmTune   { unlocked, scaleX, scaleY, remap: [{from, to}] }
+ *                     unlocked is the "Edit anyway" switch; the scales
+ *                     (0.1..10) and the remap (max 64, evdev names) apply
+ *                     only while it is on; an empty remap is every key as
+ *                     itself.
+ *
+ * A KIND, FIXED AT BIRTH (D470 rule A, the owner): a config is made
+ * Native in the new-config wizard (its red answer) and nowhere else; no
+ * switch turns a controller config native or back. TWO SEPARATE DATA SETS
+ * (rule B): a native config's screens write ONLY nativeKbmTune, never
+ * inputType, inputAuto, bindings, mouseTranslation, sticks or curves; a
+ * controller config never writes nativeKbm / nativeKbmTune. Native draws its
+ * own Mappings, Aim and Translation screens and shows fewer scripts in AI
+ * Scripts; what it hides is never deleted.
+ *
+ * window.ZSNATIVE:
+ *   on(p)                 is this config Native?
+ *   tune(p)               its nativeKbmTune, checked and filled in
+ *   markNew(f)            what the wizard's red answer writes into a NEW
+ *                         config's document (nativeKbm + the default tune)
+ *   deviceRowHTML(p)      Device's "What you play with": on a native config
+ *                         that it is native; on a controller config the row
+ *                         that opens the wizard with the red answer lit
+ *   wizardTile()          the wizard's red step-3 answer
+ *   badgeHTML() / inputHTML(p, words)   "Native M&K" where the input is shown
+ *   helpText(p)           which hosts take it, honestly (behind a "?")
+ *   scriptFits(a)         may a script show in AI Scripts while native?
+ *   quickShown(p, tpl)    may a gun page's quick tile show?
+ *   autoNoteHTML(p)       the line at the top of AI Scripts
+ * and it wraps RENDERERS.bindings / .aim / .translation: on a native config
+ * they draw this file's screens, otherwise exactly what they drew before.
+ *
+ * ES5, like every file phone.html loads. Tests: test-native-kbm.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+  var ZS = window.ZS;
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function arr(v) { return Object.prototype.toString.call(v) === '[object Array]' ? v : []; }
+  function helpHTML(id, label, text) {
+    return typeof ZS.helpHTML === 'function' ? ZS.helpHTML(id, label, text) : '';
+  }
+
+  /* ══ THE DATA ══════════════════════════════════════════════════════ */
+  var SCALE_MIN = 0.1, SCALE_MAX = 10, SCALE_STEP = 0.05, REMAP_MAX = 64;
+  function tuneDefault() { return { unlocked: false, scaleX: 1, scaleY: 1, remap: [] }; }
+  /* a tune waiting for its save: pid -> { tune, n } */
+  var pending = {};
+
+  function fullOf(p) { return (p && ZS.live && ZS.live.full) ? ZS.live.full[p.id] : null; }
+  function on(p) {
+    if (!p) { return false; }
+    var f = fullOf(p);
+    if (f) { return f.nativeKbm === true; }
+    return p.nativeKbm === true;
+  }
+  function clampScale(v) {
+    var n = +v;
+    if (!isFinite(n) || n <= 0) { return 1; }
+    n = Math.min(SCALE_MAX, Math.max(SCALE_MIN, n));
+    return Math.round(n * 100) / 100;
+  }
+  /* the codes a key may be remapped FROM and TO: the keyboard's keys and the
+     five mouse buttons (the wheel is always the wheel) */
+  var MOUSE_BTNS = ['BTN_LEFT', 'BTN_RIGHT', 'BTN_MIDDLE', 'BTN_SIDE', 'BTN_EXTRA'];
+  function isRemapCode(c) {
+    c = String(c == null ? '' : c);
+    if (MOUSE_BTNS.indexOf(c) >= 0) { return true; }
+    return /^KEY_[A-Z0-9_]+$/.test(c) && c !== 'KEY_RECORD';
+  }
+  function normTune(t) {
+    t = (t && typeof t === 'object') ? t : {};
+    var out = {
+      unlocked: t.unlocked === true,
+      scaleX: clampScale(t.scaleX == null ? 1 : t.scaleX),
+      scaleY: clampScale(t.scaleY == null ? 1 : t.scaleY),
+      remap: []
+    };
+    var seen = {};
+    arr(t.remap).forEach(function (r) {
+      if (!r || out.remap.length >= REMAP_MAX) { return; }
+      if (!isRemapCode(r.from) || !isRemapCode(r.to) || r.from === r.to || seen[r.from]) { return; }
+      seen[r.from] = true;
+      out.remap.push({ from: r.from, to: r.to });
+    });
+    return out;
+  }
+  function tune(p) {
+    var pd = p && pending[p.id];
+    if (pd && pd.tune) { return normTune(pd.tune); }
+    var f = fullOf(p);
+    return normTune(f && f.nativeKbmTune);
+  }
+  /* What the wizard's red answer writes into a NEW config's document, and
+     only that: nativeKbm and the default tune. Nothing of the controller
+     side (inputType, inputAuto stay the template's: rule B). The one caller
+     is sections/24-wizard.js; no edit of an existing config calls it. */
+  function markNew(f) {
+    if (!f) { return f; }
+    f.nativeKbm = true;
+    f.nativeKbmTune = tuneDefault();
+    return f;
+  }
+  function redraw() { if (typeof ZS.redrawOpenScreen === 'function') { ZS.redrawOpenScreen(); } }
+  function offlineSay() {
+    if (ZS.live && ZS.live.online === false && ZS.toast) { ZS.toast('Your board is offline — this has not reached it yet'); }
+  }
+  /* one tune write; the screen shows the new value at once and the board's
+     answer after */
+  function writeTune(p, next) {
+    next = normTune(next);
+    var pd = pending[p.id] || (pending[p.id] = { n: 0 });
+    pd.tune = next; pd.n++;
+    var n = pd.n;
+    offlineSay();
+    var done = function () {
+      var q = pending[p.id];
+      if (q && q.n === n) { delete pending[p.id]; }
+      redraw();
+    };
+    return ZS.putProfile(p.id, function (f) { f.nativeKbmTune = next; }).then(done, done);
+  }
+
+  /* ══ WORDS ═════════════════════════════════════════════════════════ */
+  var NAME = 'Native Mouse & Keyboard';
+  var WIZ_SUB = 'For PC players: your real mouse & keyboard plus AI scripts';
+  var DEV_SUB = 'Use a real mouse & keyboard without showing up as a controller';
+  function isPcConfig(p) { return !!(p && p.platform === 'pc'); }
+  /* item 6: which hosts take it, said honestly */
+  function helpText(p) {
+    return '<b>' + esc(NAME) + '</b> sends your real mouse and keyboard to the game as a real mouse and ' +
+      'keyboard, not as a controller. The AI scripts (gun detection and switching, keybinds and mouse ' +
+      'recoil) run on top. <b>PC</b>: works everywhere. <b>PS5 and Xbox</b>: only in games that support ' +
+      'keyboard and mouse (many shooters do). Console menus may still need a controller. ' +
+      (isPcConfig(p)
+        ? 'This is a PC config, so the switch into Native is instant. On a console config the adapter ' +
+          'restarts its USB identity (about 1 second) when a keyboard or mouse is plugged in. '
+        : 'On a PC config the switch into Native is instant. On a console config like this one the adapter ' +
+          'restarts its USB identity (about 1 second) when a keyboard or mouse is plugged in. ') +
+      'No console sign-in or authentication is involved. Native is chosen when a profile is made: a ' +
+      'native profile stays native, and a controller profile stays a controller profile.';
+  }
+  var AIM_HELP = 'The game’s own sensitivity settings normally do this. We don’t touch your in-game ' +
+    'feel: every count your mouse sends reaches the game as it is. The only assumptions are <b>right click = ' +
+    'aim</b> and <b>left click = shoot</b>, which the scripts use to know when you aim or fire. ' +
+    '<b>Edit anyway</b> lets you scale the mouse (Scale X, Scale Y) before it reaches the game: 1 is ' +
+    'untouched, 2 is twice as far. A native profile has no stick or translator settings to tune; it ' +
+    'never changes the controller side of a profile.';
+  var MAP_HELP = 'In Native every key and mouse button reaches the game as itself, exactly like a keyboard ' +
+    'plugged into a PC: Space is Space, E is E, the mouse buttons and the wheel are the mouse’s. ' +
+    'The scripts assume <b>left click = fire</b> and <b>right click = aim (ADS)</b>. ' +
+    'Editing is locked so nothing changes by accident. <b>Edit anyway</b> lets you send a key as another ' +
+    'key (up to ' + REMAP_MAX + '); tap a key on the keyboard to change it. These changes belong to this ' +
+    'native profile only; controller mappings are never touched.';
+
+  function badgeHTML() {
+    css();
+    return '<span class="nk-badge">Native M&amp;K</span>';
+  }
+  /* where a config's input type is shown: the badge when native, else the
+     words the caller passes (already escaped by it or not: escaped here) */
+  function inputHTML(p, words) { return on(p) ? badgeHTML() : esc(words); }
+  function assumeHTML() {
+    return '<div class="nk-assume" id="nk-assume" role="note">' +
+      '<span><b>Left click</b> = Fire</span><span><b>Right click</b> = Aim (ADS)</span></div>';
+  }
+  function heroHTML(id, title, line) {
+    css();
+    return '<div class="nk-hero" id="' + esc(id) + '">' + badgeHTML() +
+      '<b class="nk-title">' + esc(title) + '</b>' + (line ? '<span class="nk-line">' + esc(line) + '</span>' : '') + '</div>';
+  }
+  function unlockHTML(t, sub) {
+    return '<div class="grp-card nk-unlock"><div class="fld"><div class="flab">Edit anyway<em>' + esc(sub) + '</em></div>' +
+      '<span class="sw' + (t.unlocked ? ' on' : '') + '" data-nosave="1" id="nk-unlock" aria-label="Edit anyway"></span></div></div>';
+  }
+  function wireUnlock(root, p) {
+    var sw = root.querySelector('#nk-unlock');
+    if (!sw) { return; }
+    /* ZS.wire flipped the class first (its listener came before this one) */
+    sw.addEventListener('click', function () {
+      var t = tune(p);
+      t.unlocked = sw.classList.contains('on');
+      writeTune(p, t);
+      redraw();
+    });
+  }
+
+  /* ══ DEVICE: "What you play with" (rule A) ══════════════════════════
+     A native profile: one red line saying so (no overrides at all). A
+     controller profile: under its overrides, a row saying where Native is
+     chosen, which opens the wizard with the red answer lit
+     (ZS.newConfigNative, 24-wizard.js). Neither writes anything. */
+  function deviceRowHTML(p) {
+    css();
+    if (on(p)) {
+      return '<div class="nk-opt nk-is" id="nk-is" role="note">' +
+        '<span class="nk-optt">This profile is ' + esc(NAME) + '</span>' +
+        '<span class="nk-opts">' + esc(DEV_SUB) + '. Chosen when it was made.</span></div>' +
+        helpHTML('nk-dev-help', NAME, helpText(p));
+    }
+    return '<button type="button" class="nk-opt nk-make" id="nk-make">' +
+      '<span class="nk-optt">' + esc(NAME) + ' is chosen when you make a profile</span>' +
+      '<span class="nk-opts">Make a new profile with it ›</span></button>' +
+      helpHTML('nk-dev-help', NAME, helpText(p));
+  }
+
+  /* ══ WIZARD: the red step-3 answer (item 1) ═════════════════════════ */
+  function wizardTile() {
+    css();
+    return { v: 'native', a: 'native', t: NAME, d: WIZ_SUB,
+      pic: '<img class="cpic mkbpic" src="brand/devices/keyboard-256.webp" width="40" height="40" alt="" aria-hidden="true">' };
+  }
+
+  /* ══ AI SCRIPTS (item 4) ═════════════════════════════════════════════
+     Native shows the scripts that make sense with a real mouse and
+     keyboard: a script that only waits, moves the mouse by counts (the
+     recoil Lab's MOVE), switches config, or presses keys and mouse buttons.
+     One that pushes a stick, changes stick sensitivity, swaps sticks, runs
+     Turn assist (a stick turn) or presses a pad button or trigger is hidden
+     here, never deleted. Both shapes are read: the board's steps
+     ({press:[..]}) and the editor's model ({k:'tap', t:[..]}). */
+  function isKbmTarget(c) {
+    var E = window.ZSPROFILE;
+    if (E && typeof E.isKbmTarget === 'function') { return !!E.isKbmTarget(c); }
+    c = String(c == null ? '' : c);
+    return /^KEY_[A-Z0-9_]+$/.test(c) || MOUSE_BTNS.indexOf(c) >= 0;
+  }
+  function targetsFit(list) {
+    var t = typeof list === 'string' ? [list] : arr(list);
+    for (var i = 0; i < t.length; i++) { if (!isKbmTarget(t[i])) { return false; } }
+    return true;
+  }
+  function stepFits(s) {
+    if (!s || typeof s !== 'object') { return true; }
+    if (typeof s.k === 'string') {
+      if (s.k === 'wait' || s.k === 'move' || s.k === 'config') { return true; }
+      if (s.k === 'tap' || s.k === 'hold' || s.k === 'release' || s.k === 'trig') { return targetsFit(s.t); }
+      if (s.k === 'unknown') { return stepFits(s.raw); }
+      return false;      /* stick, sens, swap, tassist */
+    }
+    if (s.aim != null || s.sensitivity != null || s.swapSticks != null || s.turnAssist != null) { return false; }
+    if (s.press != null && !targetsFit(s.press)) { return false; }
+    if (s.hold != null && !targetsFit(s.hold)) { return false; }
+    if (s.release != null && !targetsFit(s.release)) { return false; }
+    return true;
+  }
+  function scriptFits(a) {
+    if (!a || typeof a !== 'object') { return false; }
+    var st = arr(a.steps);
+    for (var i = 0; i < st.length; i++) { if (!stepFits(st[i])) { return false; } }
+    return true;
+  }
+  /* a gun page's quick tiles: Rapid fire (fire as a trigger), Aim assist
+     and Anti-recoil (the stick) and Auto ping (a pad button) are all
+     controller scripts, so none of them is offered while native; the
+     Anti-Recoil Lab (mouse counts) stays */
+  var QUICK_HIDDEN = { turbo: true, aimboost: true, recoil: true, autoping: true };
+  function quickShown(p, tpl) { return !(on(p) && QUICK_HIDDEN[tpl]); }
+  function autoNoteHTML(p) {
+    if (!on(p)) { return ''; }
+    css();
+    return '<div class="nk-autonote" id="nk-autonote">' + badgeHTML() +
+      '<span>Showing the scripts that work with a real mouse &amp; keyboard</span></div>' +
+      helpHTML('nk-auto-help', 'AI Scripts in Native',
+        'In <b>Native Mouse &amp; Keyboard</b> this room shows gun detection and switching, keybind ' +
+        'scripts and mouse recoil (the Anti-Recoil Lab). Scripts that drive a stick or a trigger (aim ' +
+        'assist, stick recoil, rapid fire on the trigger) are hidden here, not deleted: they belong to ' +
+        'controller profiles.');
+  }
+
+  /* ══ THE SCREENS ═════════════════════════════════════════════════════ */
+  function wrapRenderer(id, nativeRender) {
+    var R = window.RENDERERS;
+    if (!R || typeof R[id] !== 'function' || R[id].__zsNative) { return; }
+    var base = R[id];
+    var w = function (p) {
+      if (p && on(p)) { return nativeRender(p); }
+      return base.apply(this, arguments);
+    };
+    w.__zsNative = true;
+    w.base = base;
+    R[id] = w;
+  }
+
+  /* ── Aim (item 3) ──────────────────────────────────────────────── */
+  function scaleRowHTML(axis, v) {
+    return '<div class="fld nk-scale" data-axis="' + axis + '"><div class="flab">Scale ' + axis.toUpperCase() +
+      '<em>' + (axis === 'x' ? 'Left and right' : 'Up and down') + '</em></div>' +
+      '<span class="nk-stp"><button type="button" data-d="-1" aria-label="' + esc('Scale ' + axis.toUpperCase() + ' down') + '">−</button>' +
+      '<input class="txt nk-num" data-nosave="1" inputmode="decimal" id="nk-scale-' + axis + '" value="' + esc(v) +
+      '" aria-label="' + esc('Scale ' + axis.toUpperCase()) + '">' +
+      '<button type="button" data-d="1" aria-label="' + esc('Scale ' + axis.toUpperCase() + ' up') + '">+</button></span></div>';
+  }
+  function aimScreen(p) {
+    var t = tune(p);
+    var h = heroHTML('nk-aimhero', 'Native — the game handles your sensitivity',
+        'Your mouse reaches the game as a real mouse. Set sensitivity in the game’s own settings.') +
+      helpHTML('nk-aim-help', 'Native sensitivity', AIM_HELP) +
+      assumeHTML() +
+      unlockHTML(t, 'Scale the mouse before it reaches the game');
+    if (t.unlocked) {
+      h += '<div class="grp-card nk-scales" id="nk-scales">' + scaleRowHTML('x', t.scaleX) + scaleRowHTML('y', t.scaleY) +
+        '<div class="nk-hint">1 = untouched · ' + SCALE_MIN + ' to ' + SCALE_MAX + '</div>' +
+        '<button type="button" class="btn ghost" id="nk-scale-reset">Back to 1 × 1</button></div>';
+    }
+    return { html: h, after: function (root) {
+      root.setAttribute && root.setAttribute('data-native', '1');
+      wireUnlock(root, p);
+      var timer = null;
+      function commit(delayMs) {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          var nt = tune(p);
+          var x = root.querySelector('#nk-scale-x'), y = root.querySelector('#nk-scale-y');
+          if (x) { nt.scaleX = clampScale(x.value); }
+          if (y) { nt.scaleY = clampScale(y.value); }
+          writeTune(p, nt);
+        }, delayMs);
+      }
+      [].forEach.call(root.querySelectorAll('.nk-scale'), function (row) {
+        var inp = row.querySelector('input');
+        [].forEach.call(row.querySelectorAll('button[data-d]'), function (b) {
+          b.addEventListener('click', function () {
+            var v = clampScale(Math.round((clampScale(inp.value) + (+b.getAttribute('data-d')) * SCALE_STEP) * 100) / 100);
+            inp.value = String(v);
+            commit(400);
+          });
+        });
+        inp.addEventListener('change', function () { inp.value = String(clampScale(inp.value)); commit(0); });
+      });
+      var rs = root.querySelector('#nk-scale-reset');
+      if (rs) {
+        rs.addEventListener('click', function () {
+          var nt = tune(p); nt.scaleX = 1; nt.scaleY = 1; writeTune(p, nt);
+        });
+      }
+    } };
+  }
+
+  /* ── Translation: nothing to translate in Native ───────────────── */
+  function translationScreen(p) {
+    var h = heroHTML('nk-trhero', 'Native — no translation',
+        'Your mouse is not turned into a stick: the game reads it as a mouse.') +
+      helpHTML('nk-tr-help', 'Translation in Native', AIM_HELP) +
+      assumeHTML();
+    return { html: h, after: function (root) { root.setAttribute && root.setAttribute('data-native', '1'); } };
+  }
+
+  /* ── Mappings (item 2) ─────────────────────────────────────────── */
+  function legendOf(code) {
+    var K = window.ZSKBD;
+    var all = K ? arr(K.LAYOUT).concat(arr(K.MOUSE)) : [];
+    for (var i = 0; i < all.length; i++) { if (all[i][0] === code) { return all[i][1]; } }
+    return String(code).replace(/^KEY_|^BTN_/, '');
+  }
+  function nameOf(code) {
+    var K = window.ZSKBD;
+    var lg = legendOf(code);
+    return (K && typeof K.nameOf === 'function') ? K.nameOf(code, lg) : lg;
+  }
+  /* every code the keyboard drawing has, keys then mouse buttons */
+  function allCodes() {
+    var K = window.ZSKBD, out = [];
+    arr(K && K.LAYOUT).forEach(function (L) { if (isRemapCode(L[0]) && out.indexOf(L[0]) < 0) { out.push(L[0]); } });
+    MOUSE_BTNS.forEach(function (c) { out.push(c); });
+    return out;
+  }
+  function remapOf(t, code) {
+    for (var i = 0; i < t.remap.length; i++) { if (t.remap[i].from === code) { return t.remap[i].to; } }
+    return null;
+  }
+  function identityHTML(t) {
+    var codes = allCodes().concat(['BTN_WHEEL_UP', 'BTN_WHEEL_DOWN']);
+    var cells = codes.map(function (c) {
+      var to = remapOf(t, c);
+      var role = c === 'BTN_LEFT' ? ' · Fire' : c === 'BTN_RIGHT' ? ' · Aim' : '';
+      return '<span class="nk-id' + (to ? ' nk-re' : '') + '"><b>' + esc(legendOf(c)) + '</b><i aria-hidden="true">→</i>' +
+        '<b>' + esc(to ? legendOf(to) : legendOf(c)) + '</b>' + (role ? '<em>' + esc(role) + '</em>' : '') + '</span>';
+    }).join('');
+    var open = !!FOLD.open;
+    return '<div class="grp-card nk-idcard" id="nk-idcard">' +
+      '<div class="nk-idrow"><span class="nk-idt"><b>Every key → itself</b><em>Space → Space, E → E, mouse buttons and wheel</em></span>' +
+      '<button type="button" class="btn ghost nk-idbtn" id="nk-idfold" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        (open ? 'Hide list' : 'Show all') + '</button></div>' +
+      '<div class="nk-idgrid" id="nk-idgrid"' + (open ? '' : ' hidden') + '>' + cells + '</div></div>';
+  }
+  var FOLD = { open: false };
+  function remapListHTML(t) {
+    if (!t.remap.length) { return ''; }
+    return '<div class="sh">Changed keys</div><div class="grp-card nk-remaps" id="nk-remaps">' +
+      t.remap.map(function (r) {
+        return '<div class="lrow nk-rrow"><span class="nk-rw"><b>' + esc(nameOf(r.from)) + '</b> → <b>' + esc(nameOf(r.to)) + '</b></span>' +
+          (t.unlocked ? '<button type="button" class="btn ghost nk-rdel" data-from="' + esc(r.from) + '" aria-label="' +
+            esc('Put ' + nameOf(r.from) + ' back to itself') + '">✕</button>' : '') + '</div>';
+      }).join('') + '</div>';
+  }
+  function mappingsScreen(p) {
+    var t = tune(p), K = window.ZSKBD;
+    var marks = {};
+    t.remap.forEach(function (r) { marks[r.from] = { kind: 'bound', what: 'sends ' + nameOf(r.to) }; });
+    var h = heroHTML('nk-maphero', 'Native: your keys reach the game as themselves',
+        'Every key and mouse button is itself, like on a PC.') +
+      helpHTML('nk-map-help', 'Native mappings', MAP_HELP + ' ' + helpText(p)) +
+      assumeHTML() +
+      unlockHTML(t, t.unlocked ? 'Tap a key to send it as another key' : 'Locked: every key is itself') +
+      (K ? '<div class="nk-kbd' + (t.unlocked ? '' : ' nk-locked') + '">' + K.html({ keyboard: true, mouse: true, keys: marks }) + '</div>' : '') +
+      remapListHTML(t) +
+      identityHTML(t);
+    return { html: h, after: function (root) {
+      root.setAttribute && root.setAttribute('data-native', '1');
+      wireUnlock(root, p);
+      if (K) {
+        K.wire(root, function (code) {
+          if (!tune(p).unlocked) {
+            if (ZS.toast) { ZS.toast('Locked: turn on Edit anyway to change a key'); }
+            return;
+          }
+          if (!isRemapCode(code)) {
+            if (ZS.toast) { ZS.toast('The wheel always reaches the game as the wheel'); }
+            return;
+          }
+          openRemap(p, code);
+        });
+      }
+      var fb = root.querySelector('#nk-idfold');
+      if (fb) {
+        fb.addEventListener('click', function () {
+          FOLD.open = !FOLD.open;
+          var g = root.querySelector('#nk-idgrid');
+          if (g) { if (FOLD.open) { g.removeAttribute('hidden'); } else { g.setAttribute('hidden', ''); } }
+          fb.setAttribute('aria-expanded', FOLD.open ? 'true' : 'false');
+          fb.textContent = FOLD.open ? 'Hide list' : 'Show all';
+        });
+      }
+      [].forEach.call(root.querySelectorAll('.nk-rdel'), function (b) {
+        b.addEventListener('click', function () { setRemap(p, b.getAttribute('data-from'), null); });
+      });
+    } };
+  }
+  function setRemap(p, from, to) {
+    var t = tune(p);
+    var keep = t.remap.filter(function (r) { return r.from !== from; });
+    if (to && to !== from) {
+      if (keep.length >= REMAP_MAX) {
+        if (ZS.toast) { ZS.toast('Up to ' + REMAP_MAX + ' keys can be changed'); }
+        return;
+      }
+      keep.push({ from: from, to: to });
+    }
+    t.remap = keep;
+    writeTune(p, t);
+    redraw();
+  }
+  function openRemap(p, from) {
+    if (typeof ZS.sheetOpen !== 'function') { return; }
+    var t = tune(p), cur = remapOf(t, from) || from;
+    var h = '<div class="nk-sheet"><p class="nk-sheetq"><b>' + esc(nameOf(from)) + '</b> reaches the game as:</p>' +
+      '<div class="nk-pick" role="group" aria-label="' + esc('What ' + nameOf(from) + ' sends') + '">' +
+      allCodes().map(function (c) {
+        return '<button type="button" class="nk-pk' + (c === cur ? ' on' : '') + '" data-to="' + esc(c) + '" aria-label="' +
+          esc(nameOf(c)) + '" aria-pressed="' + (c === cur ? 'true' : 'false') + '">' + esc(c === 'KEY_BACKSPACE' ? 'Bksp' : legendOf(c)) + '</button>';
+      }).join('') + '</div>' +
+      '<button type="button" class="btn" id="nk-pk-self">Back to itself (' + esc(legendOf(from)) + ')</button>' +
+      '<button type="button" class="btn ghost" id="nk-pk-cancel">Cancel</button></div>';
+    var body = ZS.sheetOpen('Change ' + nameOf(from), h);
+    if (!body) { return; }
+    [].forEach.call(body.querySelectorAll('[data-to]'), function (b) {
+      b.addEventListener('click', function () {
+        if (ZS.sheetClose) { ZS.sheetClose(); }
+        setRemap(p, from, b.getAttribute('data-to'));
+      });
+    });
+    var self = body.querySelector('#nk-pk-self');
+    if (self) { self.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } setRemap(p, from, null); }); }
+    var cancel = body.querySelector('#nk-pk-cancel');
+    if (cancel) { cancel.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } }); }
+  }
+
+  /* ══ THE LOOK ════════════════════════════════════════════════════════
+     The red is the palette's --red (docs/DESIGN.md), used here as a
+     signal that this is a different way of playing, not as an error; it
+     always comes with the words "Native", never colour alone. */
+  var CSS_DONE = false;
+  function css() {
+    if (CSS_DONE || typeof document === 'undefined' || !document.head || !document.createElement) { return; }
+    CSS_DONE = true;
+    /* --red for edges and washes, --red-ink (5.4:1 on a card) for words */
+    var R = 'var(--red,#ff6259)', RI = 'var(--red-ink,#ff8078)';
+    var s = document.createElement('style');
+    s.id = 'native-kbm-css';
+    s.textContent = [
+      '.nk-badge{display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;border:1px solid ' + R + ';',
+      'color:' + RI + ';font-weight:700;font-size:11.5px;line-height:1.5;white-space:nowrap;vertical-align:middle;',
+      'background:color-mix(in srgb,' + R + ' 12%,transparent)}',
+      '.nk-hero{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:4px 0 10px;padding:14px;',
+      'border:1px solid color-mix(in srgb,' + R + ' 55%,var(--line));border-left:4px solid ' + R + ';border-radius:14px;',
+      'background:linear-gradient(90deg,color-mix(in srgb,' + R + ' 14%,var(--panel)),var(--panel) 75%)}',
+      '.nk-title{font-size:16px;line-height:1.3;color:var(--text)}',
+      '.nk-line{font-size:13px;color:var(--muted);line-height:1.4}',
+      '.nk-assume{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}',
+      '.nk-assume span{flex:1 1 140px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-size:13px;color:var(--text)}',
+      '.nk-assume b{color:' + RI + '}',
+      '.nk-opt{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;box-sizing:border-box;margin:10px 0 0;',
+      'padding:14px 16px;min-height:64px;border-radius:14px;border:1px solid color-mix(in srgb,' + R + ' 60%,var(--line));',
+      'border-left:4px solid ' + R + ';background:linear-gradient(90deg,color-mix(in srgb,' + R + ' 16%,var(--panel)),var(--panel) 80%);',
+      'color:var(--text);text-align:left;font-family:inherit;cursor:pointer}',
+      '.nk-optt{font-weight:700;font-size:15.5px;color:' + RI + '}',
+      '.nk-opts{font-size:12.5px;color:var(--muted);line-height:1.35}',
+      '.nk-opt.nk-is{cursor:default}',
+      '.nk-opt.nk-make{border-left-width:1px;background:var(--panel)}',
+      '.tile.fam[data-fam="native"]{--fam:' + R + ';--famw:rgba(255,98,89,.18);border-color:color-mix(in srgb,' + R + ' 45%,var(--line))}',
+      '.tile.fam[data-fam="native"] > div:nth-of-type(2){color:' + RI + '}',
+      '.nk-scales .fld{display:flex;align-items:center;justify-content:space-between;gap:10px}',
+      '.nk-scales .flab{flex:1 1 auto;min-width:0}',
+      '.nk-stp{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}',
+      '.nk-stp button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel2,var(--panel));',
+      'color:var(--text);font-size:20px;font-family:inherit;cursor:pointer}',
+      '.nk-stp .nk-num{width:72px !important;flex:0 0 72px;min-width:0;text-align:center;font-variant-numeric:tabular-nums;margin:0}',
+      '.nk-hint{font-size:12px;color:var(--muted);margin:2px 0 8px;padding:0 16px}',
+      '.nk-kbd.nk-locked .kbk{cursor:default}',
+      '.nk-idcard{padding:14px 16px}',
+      '.nk-idrow{display:flex;align-items:center;justify-content:space-between;gap:10px}',
+      '.nk-idt{display:flex;flex-direction:column;gap:3px;font-size:15px;min-width:0;flex:1 1 auto}',
+      '.nk-idrow em{font-style:normal;font-size:12px;color:var(--muted)}',
+      '.nk-idbtn{flex:0 0 auto;width:auto;margin:0;min-height:40px;padding:0 14px}',
+      '.nk-idgrid{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}',
+      '.nk-idgrid[hidden]{display:none}',
+      '.nk-id{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;border:1px solid var(--line);',
+      'background:var(--panel);font-size:12px;color:var(--text)}',
+      '.nk-id i{font-style:normal;color:var(--muted)}',
+      '.nk-id em{font-style:normal;color:' + RI + ';font-weight:600}',
+      '.nk-id.nk-re{border-color:var(--accent)}',
+      '.nk-rrow{display:flex;align-items:center;justify-content:space-between;gap:10px}',
+      '.nk-rdel{width:44px;min-height:40px;margin:0;padding:0}',
+      '.nk-autonote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:13px;color:var(--text)}',
+      '.nk-sheetq{margin:0 0 10px;font-size:14px}',
+      '.nk-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;margin:0 0 12px;max-height:46vh;overflow:auto}',
+      '.nk-pk{min-height:40px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);',
+      'font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.nk-pk.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#00201d)}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  /* ══ REGISTRATION ══════════════════════════════════════════════════ */
+  function register() {
+    wrapRenderer('bindings', mappingsScreen);
+    wrapRenderer('aim', aimScreen);
+    wrapRenderer('translation', translationScreen);
+  }
+  register();
+
+  window.ZSNATIVE = {
+    NAME: NAME, WIZ_SUB: WIZ_SUB, DEV_SUB: DEV_SUB, REMAP_MAX: REMAP_MAX, SCALE_MIN: SCALE_MIN, SCALE_MAX: SCALE_MAX,
+    on: on, tune: tune, normTune: normTune, tuneDefault: tuneDefault, markNew: markNew,
+    isRemapCode: isRemapCode,
+    deviceRowHTML: deviceRowHTML, wizardTile: wizardTile, badgeHTML: badgeHTML, inputHTML: inputHTML,
+    helpText: helpText, scriptFits: scriptFits, quickShown: quickShown, autoNoteHTML: autoNoteHTML,
+    register: register, css: css
+  };
+}());

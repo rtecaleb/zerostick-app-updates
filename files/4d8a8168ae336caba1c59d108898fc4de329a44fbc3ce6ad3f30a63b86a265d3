@@ -1,0 +1,591 @@
+/* smart-actions/21-rooms-exports.js — rooms, presets, packs, and window.ZS_SMART.
+ *
+ * An action moved between rooms by auto-actions.js (D134), re-resolving when the
+ * rig changes, every preset as the board would receive it (exportPresets), a
+ * game pack's actions (packActions, D115), and the public face of this editor,
+ * window.ZS_SMART.
+ *
+ * Tests: test-game-packs.js, test-auto-links.js, test-smart-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('rooms-exports', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var arr = SEC.arr, clamp = SEC.clamp, emitSource = SEC.emitSource,
+      fillNames = SEC.fillNames, hydrate = SEC.hydrate, isAutoAction = SEC.isAutoAction,
+      padName = SEC.padName, persist = SEC.persist, SA = SEC.SA, saFor = SEC.saFor,
+      saveAll = SEC.saveAll, screenLive = SEC.screenLive, srcName = SEC.srcName,
+      toBoard = SEC.toBoard, VIEW = SEC.VIEW, ZS = SEC.ZS, dupWhen = SEC.dupWhen,
+      problems = SEC.problems, bindBadges = SEC.bindBadges,
+      recordToSteps = SEC.recordToSteps, buildTemplate = SEC.buildTemplate,
+      FAMILIES = SEC.FAMILIES, templateCfg = SEC.templateCfg, TEMPLATES = SEC.TEMPLATES,
+      tplIdOf = SEC.tplIdOf, rowFor = SEC.rowFor, lockAxis = SEC.lockAxis, draw = SEC.draw,
+      enterSmart = SEC.enterSmart, render = SEC.render, renderInputs = SEC.renderInputs,
+      renderScoped = SEC.renderScoped;
+
+  /* ══ D134: another screen moved an action between rooms ══════════════
+     auto-actions.js writes a link, a gun's unlinking, a copy or a rarity
+     straight into the document. A scoped room keeps its OWN list (S.actions,
+     hydrated once), so after such a write every scoped room of the config
+     forgets its copy of the named actions and reads what it owns from the
+     document again: the room an action left stops writing it back, and the
+     room it arrived in (a gun's page it was copied to) lists it. The
+     editor, if it was open on an action that left, closes. */
+  function refreshRooms(pid, ids) {
+    var drop = {};
+    arr(ids).forEach(function (id) { if (typeof id === 'string') drop[id] = true; });
+    var p = (typeof ZS.prof === 'function') ? ZS.prof(pid) : null;
+    for (var k in SA) {
+      if (!Object.prototype.hasOwnProperty.call(SA, k)) continue;
+      var S = SA[k];
+      if (!S || !S.scope || S.pid !== pid) continue;
+      var editing = (S.editIdx >= 0 && S.actions[S.editIdx]) ? S.actions[S.editIdx].id : null;
+      S.actions = S.actions.filter(function (a) { return !drop[a.id]; });
+      for (var id in drop) {
+        if (Object.prototype.hasOwnProperty.call(drop, id)) delete S.owned[id];
+      }
+      if (editing) {
+        S.editIdx = -1;
+        for (var i = 0; i < S.actions.length; i++) if (S.actions[i].id === editing) S.editIdx = i;
+        if (S.editIdx < 0 && S.screen === 'input') {
+          S.screen = S.home; S.draft = null; S.mode = 'simple'; S.unsaved = false;
+          S.fresh = false; S.pendingRow = null;
+        }
+      }
+      S.hydrated = false;
+      if (p) { hydrate(p, S); persist(p, S); }
+    }
+    /* a room not opened this session keeps its list in the store: the same
+       ids leave it there too, or that room, opened later, would list an
+       action that moved away from it */
+    var pre = 'sa2|' + pid + '|', vals = ZS.store && ZS.store.vals, wrote = false;
+    for (var key in vals) {
+      if (!Object.prototype.hasOwnProperty.call(vals, key) || key.indexOf(pre) !== 0 || SA[key.slice(4)]) continue;
+      var kept = vals[key];
+      if (!kept || !Array.isArray(kept.actions)) continue;
+      kept.actions = kept.actions.filter(function (a) { return !(a && drop[a.id]); });
+      if (kept.owned && typeof kept.owned === 'object') {
+        for (var gone in drop) {
+          if (Object.prototype.hasOwnProperty.call(drop, gone)) delete kept.owned[gone];
+        }
+      }
+      wrote = true;
+    }
+    if (wrote) ZS.persistStore();
+  }
+  /* Open the room on screen at one of its actions, in the editor: the
+     "Edit" of a linked action listed on another gun's page lands here, on
+     the page of the gun it lives on (D134). False when the room has no such
+     action (it moved, or the screen is another room). */
+  function openAction(p, id) {
+    var S = saFor(p), i, idx = -1;
+    for (i = 0; i < S.actions.length; i++) if (S.actions[i].id === id) idx = i;
+    if (idx < 0 || !VIEW.lastRoot) return false;
+    var row = rowFor(p, S, emitSource(p, S.actions[idx].trigger) || '');
+    if (!row) return false;
+    S.inputSrc = row.source; S.screen = 'input'; S.page = 0;
+    enterSmart(p, S, row, idx);
+    draw(VIEW.lastRoot, p);
+    return true;
+  }
+  /* The words for the button that starts a board-shaped action ("R2",
+     "Left click"), the way this room's own rows say it, for a list drawn
+     outside the room (D134's "Linked from other guns"). */
+  function buttonName(b) {
+    var t = (b && b.trigger && typeof b.trigger === 'object') ? b.trigger : {};
+    if (t.follows) return padName(String(t.follows).replace(/[+-]$/, ''));
+    return t.source ? srcName(t.source) : 'no button yet';
+  }
+
+  /* ══ re-resolve when the rig changes ══════════════════════════════
+     A "follow" trigger stores an intent, not a code, and the code it resolves
+     to depends on what is plugged in. Unplug the mouse a config was bound
+     through, or plug in a pad, and every follow trigger has a different right
+     answer — which nothing used to notice, so the action kept pointing at a
+     device that was no longer there. This runs whether or not the Smart
+     Actions screen is open, because the board is running these actions either
+     way. */
+  function reresolveAll() {
+    for (var pid in SA) {
+      if (!Object.prototype.hasOwnProperty.call(SA, pid)) continue;
+      var S = SA[pid];
+      var p = (typeof ZS.prof === 'function') ? ZS.prof(S.pid || pid) : null;
+      /* the body is the model's (audit M16), shared with a binding change */
+      if (p) SEC.reresolve(p, S);
+    }
+  }
+
+  if (typeof ZS.onDevicesChange === 'function') {
+    ZS.onDevicesChange(function () {
+      reresolveAll();
+      /* the "will not fire" notices are computed from the device list */
+      if (typeof ZS.redrawOpenScreen === 'function') ZS.redrawOpenScreen();
+    });
+  }
+  /* a save refused, or the first to land after one (D127): the room on
+     screen repaints so its "not saved" marks come and go with the truth.
+     Only when that config's room IS the screen, and never over an open
+     sheet, whose body draw() must not rebuild (THE POLL RULE). */
+  if (typeof ZS.onSaveResult === 'function') {
+    ZS.onSaveResult(function (pid) {
+      var p = (typeof ZS.prof === 'function') ? ZS.prof(pid) : null;
+      if (!p || !VIEW.lastRoot || !screenLive(VIEW.lastRoot.dataset && VIEW.lastRoot.dataset.ns)) return;
+      /* the marks live on Smart mappings, and #dbody holds it only while
+         the room SCOPE names is the one drawn there */
+      if (!VIEW.lastRoot.querySelector('#sa-smartmap')) return;
+      var S = saFor(p);
+      if (S.pid !== pid || S.sheetEditor) return;
+      draw(VIEW.lastRoot, p);
+    });
+  }
+
+  /* ══ every preset, as the board would receive it ══════════════════
+     The ready-made library is only worth having if every entry actually runs,
+     and the authority on that is not this file — it is
+     board/agent/zs_agent/profiles/schema.validate() and actions/steps.py.
+     This hands them the exact JSON the "Add to this config" button would
+     write, at the defaults AND at both ends of every slider and every
+     shortcut, so a preset that is one millisecond outside a board limit is
+     caught by a test rather than by Caleb mid-match.
+
+     Consumed by dashboard/tools/export-presets.js, which feeds
+     board/agent/tests/unit/test_preset_actions.py. */
+  function exportPresets(p) {
+    return TEMPLATES.map(function (t, ti) {
+      var variants = [];
+      function take(label, cfg) {
+        var a = buildTemplate(p, t, cfg);
+        var errs = [];
+        problems(a, p, null).forEach(function (x) {
+          if (x.level === 'error') errs.push(x.msg);
+        });
+        variants.push({
+          label: label, board: toBoard(p, a), appErrors: errs,
+          tunes: cfg.v.slice(), buttons: cfg.btns.slice()
+        });
+      }
+      take('defaults', templateCfg(t));
+      (t.tunes || []).forEach(function (u, i) {
+        var lo = templateCfg(t); lo.v[i] = u.min; take(u.lab + ' at minimum', lo);
+        var hi = templateCfg(t); hi.v[i] = u.max; take(u.lab + ' at maximum', hi);
+      });
+      if (t.pick) {
+        t.pick.vals.forEach(function (val, i) {
+          var c = templateCfg(t); c.v[t.pick.into || 0] = val;
+          take(t.pick.opts[i], c);
+        });
+      }
+      return {
+        index: ti, id: t.id, family: t.fam, icon: t.ico,
+        name: fillNames(t.n, p), description: fillNames(t.d, p),
+        trigger: t.trig, variants: variants,
+        /* which slider, if any, IS the length of the sequence — declared so a
+           test can hold the preset to the number it puts on screen. A builder
+           that forgets to split a 29-second hold into legal 10-second Waits
+           gets silently clamped to 10 by normStep, which validates perfectly
+           and quietly gives you a third of what you asked for. */
+        runsFor: (typeof t.runsFor === 'number') ? t.runsFor : null
+      };
+    });
+  }
+
+  /* ══ a game pack's Smart Actions (D115) ═════════════════════════════
+     A game pack names Ready-made templates by id; it never copies their
+     steps, so the library stays the one place a preset is written. This
+     builds each one exactly as "Add to this config" would (buildTemplate,
+     then toBoard) for a config that does not exist yet.
+
+     `doc` is the new config's whole document. It stands in as that config's
+     board copy for the length of the build, because a template that follows
+     Fire resolves its trigger against the config's OWN bindings (emitSource),
+     and a new config's bindings are the ones the pack just gave it, not
+     anybody else's. The real entry, if any, is put back after.
+
+     A template already on the config (the template it was cloned from may
+     carry one) is not added twice. `values` sets the sliders in order,
+     clamped to each slider's own range; `buttons` the picked controls;
+     `enabled: false` adds it switched off. */
+  function packActions(p, doc, refs) {
+    var out = [], problems = [];
+    var live = ZS.live.full;
+    var had = Object.prototype.hasOwnProperty.call(live, p.id);
+    var prev = live[p.id];
+    var already = {};
+    arr(doc && doc.accessibilityActions).forEach(function (a) {
+      var id = tplIdOf(a);
+      if (id) already[id] = true;
+    });
+    live[p.id] = doc;
+    try {
+      arr(refs).forEach(function (r) {
+        var t = null, i;
+        for (i = 0; i < TEMPLATES.length; i++) {
+          if (TEMPLATES[i].id === (r && r.template)) { t = TEMPLATES[i]; break; }
+        }
+        if (!t) {
+          problems.push('no Ready-made Script is called "' + (r && r.template) + '"');
+          return;
+        }
+        if (already[t.id]) return;
+        var cfg = templateCfg(t);
+        arr(r.values).forEach(function (v, k) {
+          var u = (t.tunes || [])[k];
+          if (u && typeof v === 'number' && isFinite(v)) cfg.v[k] = clamp(v, u.min, u.max);
+        });
+        arr(r.buttons).forEach(function (b, k) {
+          if (k < cfg.btns.length && typeof b === 'string' && b) cfg.btns[k] = b;
+        });
+        var a = buildTemplate(p, t, cfg);
+        if (r.enabled === false) a.enabled = false;
+        out.push(toBoard(p, a));
+        already[t.id] = true;
+      });
+    } finally {
+      if (had) live[p.id] = prev; else delete live[p.id];
+    }
+    return { actions: out, problems: problems };
+  }
+
+  /* ══ D280: Turn assist comes with every mouse config ════════════════
+     The owner (2026-10-13): "the X keyboard key for turn exists only -
+     auto bind Turn assist on keyboard configs; on joystick and mouse just
+     have the binding there too but leave it available for users to rebind
+     - it's kind of like a script each config comes with."
+     And, the same day, overriding the "never take X" rule (D291): "map Turn
+     assist to the X key on the keyboard automatically for ALL users."
+
+       · only on a Core (the latch is its engine's; the EXO's board would
+         refuse the step);
+       · every config with a mouse (Mouse + Keyboard, Joystick + Mouse, or
+         no inputType at all, which is the schema's Mouse + Keyboard) comes
+         with it. A Controller config does not: there is no mouse to swipe
+         (and no mark either, so becoming a mouse config later brings it),
+         unless a keyboard or mouse is plugged in (D288, `opt.device`);
+       · ON X, SWITCHED ON, ALWAYS (D291). Whatever X did here moves off X,
+         and nothing is deleted (clearKey):
+           - a plain binding on X goes to `unattachedBindings`, listed under
+             Mappings' "Not attached to a button yet" with its job kept, one
+             tap from a new key (16-buttons.js, 19-submenu.js);
+           - another Script on X is switched off and waits on no key
+             (trigger.unbound), the mechanism Turn assist itself used;
+           - a shift-layer (chord) binding that uses X is left as it is
+             (there is no one obvious key to move it to) and is counted, so
+             the note can say so;
+         and `turnAssistMoved` records what moved, for the one-time note
+         Mappings shows (taMovedNoteHTML);
+       · a config that already has one keeps it where it is (the player's
+         key, or X), EXCEPT one an older rule left waiting on no key: that
+         one is moved onto X, once;
+       · a NEW config cloned from a config still on the OLD shipped layout
+         (X reload, R lethal, G free, each exactly as shipped) is given the
+         new one first (reload to R, lethal to G), so a new config starts
+         the way the shipped layout does. A saved config is never changed
+         that way: the player may have chosen it;
+       · offered ONCE per config, under a VERSION: `turnAssistOffered` is
+         TA_SEED_VERSION (3). A config marked by an older rule is looked at
+         once more under this one: D280's first cut (`true`, read as 1) and
+         one with no Turn assist at all get it on X; a version-2 config
+         without one had it and the player deleted it, so it only gets the
+         new mark. After that, a rebind or a delete is final.
+     Returns true when `doc` was changed. `p` is the config's list entry, as
+     packActions takes it. */
+  var TA_KEY = 'KEY_X';
+  var TA_SEED_VERSION = 3;
+  function hasMouseInput(t) { return t === undefined || t === null || t === 'mnk' || t === 'stick_mouse'; }
+  function seedVersion(doc) {
+    var v = doc && doc.turnAssistOffered;
+    return v === true ? 1 : (typeof v === 'number' && isFinite(v) ? v : 0);
+  }
+  function keyTaken(doc, code) {
+    var hit = false;
+    arr(doc && doc.bindings).forEach(function (b) {
+      if (b && (b.source === code || arr(b.chord).indexOf(code) >= 0)) hit = true;
+    });
+    arr(doc && doc.accessibilityActions).forEach(function (a) {
+      if (a && a.trigger && a.trigger.source === code && a.trigger.unbound !== true) hit = true;
+    });
+    return hit;
+  }
+  SEC.keyTaken = keyTaken;     /* Featured's Turn assist asks the same (11-library.js) */
+  /* D291: move whatever `code` does off it, deleting nothing (the rules are
+     in the block above). Returns what moved: the targets of the bindings,
+     the names of the Scripts, and how many chords were left in place. */
+  function clearKey(doc, code) {
+    var moved = { key: code, binds: [], scripts: [], chords: 0 };
+    var keep = [];
+    arr(doc.bindings).forEach(function (b) {
+      if (b && b.source === code && !arr(b.chord).length) {
+        if (!Array.isArray(doc.unattachedBindings)) doc.unattachedBindings = [];
+        doc.unattachedBindings.push(b);
+        moved.binds.push(String(b.target || ''));
+        return;
+      }
+      if (b && (b.source === code || arr(b.chord).indexOf(code) >= 0)) moved.chords++;
+      keep.push(b);
+    });
+    if (moved.binds.length) doc.bindings = keep;
+    arr(doc.accessibilityActions).forEach(function (a) {
+      if (!a || tplIdOf(a) === 'turnassist' || !a.trigger || typeof a.trigger !== 'object') return;
+      if (a.trigger.source !== code || a.trigger.unbound === true) return;
+      a.trigger.unbound = true;
+      delete a.trigger.follows;
+      a.enabled = false;
+      moved.scripts.push(String(a.name || 'A Script'));
+    });
+    return moved;
+  }
+  /* the OLD shipped layout's three keys, each exactly as it shipped */
+  function plainBind(b) { return b && !b.mode && !(b.chord && b.chord.length) && !b.holdTarget; }
+  function oldStockLayout(doc) {
+    var bs = arr(doc && doc.bindings), x = 0, r = 0, g = 0;
+    bs.forEach(function (b) {
+      if (!b) return;
+      if (b.source === 'KEY_X') x += (plainBind(b) && b.target === 'west') ? 1 : 100;
+      if (b.source === 'KEY_R') r += (plainBind(b) && b.target === 'r1') ? 1 : 100;
+      if (b.source === 'KEY_G') g += 100;
+    });
+    return x === 1 && r === 1 && g === 0;
+  }
+  function toNewStockLayout(doc) {
+    doc.bindings = arr(doc.bindings).filter(function (b) { return !(b && b.source === 'KEY_X'); });
+    doc.bindings.forEach(function (b) { if (b && b.source === 'KEY_R') b.target = 'west'; });
+    doc.bindings.push({ source: 'KEY_G', target: 'r1' });
+  }
+  /* What the seed would do to `doc`:
+       'on'     add Turn assist on X (X cleared first);
+       'move'   an older rule's Turn assist on no key goes onto X (X cleared);
+       'layout' a new config on the old shipped layout: new layout, then 'on';
+       'mark'   only the version mark (it has one where it should stay, or
+                the player deleted it);
+       ''       nothing.
+     The boot pass and the device pass write only for 'on' and 'move'
+     (turnAssistWrites).
+     `opt.device` (D288): a keyboard or a mouse is plugged in, so the
+     config gets it whatever its input type (shell/06-core-configs.js
+     seedTurnAssistForDevices, for the active config only) */
+  function turnAssistPlan(doc, fresh, opt) {
+    if (window.ZS_NO_TURNASSIST_SEED) return '';     /* the test harness's switch */
+    /* D470 rule B: a Native Mouse & Keyboard config is never given Turn
+       assist (a stick turn); its controller-side data is never written */
+    if (doc && typeof doc === 'object' && doc.nativeKbm === true) return '';
+    /* the latch is the Core's engine (the EXO's board would refuse the step) */
+    if (typeof ZS.productId !== 'function' || ZS.productId() !== 'core') return '';
+    var v = seedVersion(doc);
+    if (!doc || typeof doc !== 'object' || v >= TA_SEED_VERSION) return '';
+    if (!hasMouseInput(doc.inputType) && !(opt && opt.device)) return '';
+    var have = 0, waiting = 0;
+    arr(doc.accessibilityActions).forEach(function (a) {
+      if (tplIdOf(a) !== 'turnassist') return;
+      have++;
+      if (a.trigger && a.trigger.unbound === true) waiting++;
+    });
+    if (have) return (waiting === have) ? 'move' : 'mark';
+    if (v >= 2) return 'mark';                 /* it had one; the player deleted it */
+    if (fresh && oldStockLayout(doc)) return 'layout';
+    return 'on';
+  }
+  function turnAssistWrites(plan) { return plan === 'on' || plan === 'move' || plan === 'layout'; }
+  /* A NEW config is a copy of a template (newConfigDoc clones 'default'),
+     and since every mouse config comes with Turn assist, the template
+     almost always carries one. Looked at first (2026-10-13 audit), the
+     copy hid both rules below: "already has it" won, so a new config kept
+     the old layout, and a Controller config inherited a Turn assist it has
+     no mouse for. So, for a new config only, before the plan:
+       ? a Controller config drops every copied Turn assist;
+       ? a config on the old shipped layout gets the new one;
+       ? a copied Turn assist still waiting on no key is dropped, so the
+         seed below decides afresh (on X). One the template has on a key is
+         the player's choice and is kept (the plan then only marks).
+     Returns true when `doc` was changed. */
+  function freshCopy(doc) {
+    var changed = false, mouse = hasMouseInput(doc.inputType);
+    if (mouse && oldStockLayout(doc)) { toNewStockLayout(doc); changed = true; }
+    else if (mouse && Array.isArray(doc.unattachedBindings)) {
+      /* D291: a template the seed already gave Turn assist has the old
+         layout's reload waiting in "Not attached" (moved off X). A new
+         config from it gets the new layout all the same: reload on R,
+         lethal on G, and that waiting reload is the one on R now. */
+      var L = doc.unattachedBindings, k, at = -1;
+      for (k = 0; k < L.length; k++) {
+        if (L[k] && L[k].source === 'KEY_X' && plainBind(L[k]) && L[k].target === 'west') { at = k; break; }
+      }
+      if (at >= 0 && oldStockLayout({ bindings: arr(doc.bindings).concat([L[at]]) })) {
+        L.splice(at, 1);
+        if (!L.length) delete doc.unattachedBindings;
+        toNewStockLayout(doc);
+        changed = true;
+      }
+    }
+    if (Array.isArray(doc.accessibilityActions)) {
+      var kept = doc.accessibilityActions.filter(function (a) {
+        if (tplIdOf(a) !== 'turnassist') return true;
+        return mouse && !(a.trigger && a.trigger.unbound === true);
+      });
+      if (kept.length !== doc.accessibilityActions.length) {
+        doc.accessibilityActions = kept;
+        changed = true;
+      }
+    }
+    /* the template's note is about the template's own move */
+    if (doc.turnAssistMoved) { delete doc.turnAssistMoved; changed = true; }
+    return changed;
+  }
+  function seedTurnAssist(p, doc, opt) {
+    var fresh = !!(opt && opt.fresh), copied = false;
+    if (doc && typeof doc === 'object' && doc.nativeKbm === true) return false;   /* D470 rule B */
+    if (fresh && doc && typeof doc === 'object' && !window.ZS_NO_TURNASSIST_SEED &&
+        typeof ZS.productId === 'function' && ZS.productId() === 'core') {
+      copied = freshCopy(doc);
+    }
+    var plan = turnAssistPlan(doc, fresh, opt);
+    if (!plan || !p || !p.id) return copied;
+    if (plan === 'layout') { toNewStockLayout(doc); plan = 'on'; }
+    var moved = null;
+    if (plan === 'on') {
+      var made = packActions(p, doc, [{ template: 'turnassist', enabled: true }]);
+      if (!made.actions.length) return copied;
+      moved = clearKey(doc, TA_KEY);
+      if (!Array.isArray(doc.accessibilityActions)) doc.accessibilityActions = [];
+      made.actions.forEach(function (a) {
+        a.enabled = true;
+        if (a.trigger && typeof a.trigger === 'object') { delete a.trigger.unbound; delete a.trigger.home; }
+        doc.accessibilityActions.push(a);
+      });
+    } else if (plan === 'move') {
+      moved = clearKey(doc, TA_KEY);
+      var done = false;
+      doc.accessibilityActions.forEach(function (a) {
+        if (done || tplIdOf(a) !== 'turnassist') return;
+        done = true;
+        var tr = (a.trigger && typeof a.trigger === 'object') ? a.trigger : {};
+        delete tr.unbound; delete tr.home; delete tr.follows;
+        tr.source = TA_KEY;
+        if (!tr.activation) tr.activation = 'press';
+        a.trigger = tr;
+        a.enabled = true;
+      });
+    }
+    if (moved && (moved.binds.length || moved.scripts.length || moved.chords)) doc.turnAssistMoved = moved;
+    doc.turnAssistOffered = TA_SEED_VERSION;
+    return true;
+  }
+
+  /* ══ D405: the three quick Scripts, for screens outside a room ═════════
+     The AI Scripts list's "Add quick scripts to guns" (gun-bulk.js) adds
+     Rapid fire, Aim assist and Anti-recoil to many guns in ONE write, so it
+     never opens a gun's room. It builds and reads them HERE, with the room's
+     own rules, so a Script added in bulk is byte for byte the one the gun
+     page's tile adds (openQuickAdd), and a strength set in bulk is the one
+     the row's slider would write (19-submenu.js data-turbo / data-strength).
+     Everything is a board action in and a board action out. */
+  function quickApp(b, p) {
+    var a = SEC.fromBoardAction(b, p);
+    a.enabled = !(b && b.auto && b.auto.on === false);
+    return a;
+  }
+  function quickStrength(b, p) {
+    if (!b) return null;
+    var a = SEC.fromBoardAction(b, p);
+    if (SEC.turboOf && SEC.turboOf(a)) {
+      var ms = Math.max(1, +a.steps[0].ms || 40);
+      return Math.max(2, Math.min(33, Math.round(1000 / (2 * ms))));
+    }
+    var id = SEC.strengthOf ? SEC.strengthOf(a) : null;
+    if (!id) return null;
+    var k = SEC.STRENGTH[id];
+    return Math.max(k.min, Math.min(k.max, Math.round(Math.max(0, Math.min(1, +a.steps[0].dist || 0)) * 100)));
+  }
+  /* `b` at strength `s`, everything else as it was (its id, its name, the
+     gun it is on, its switch). null when it is not one the slider can turn
+     (the player reshaped it in the editor). */
+  function quickRestrength(p, b, s) {
+    if (quickStrength(b, p) === null) return null;
+    var a = SEC.fromBoardAction(b, p);
+    if (SEC.turboOf(a)) {
+      var ms = Math.max(15, Math.min(300, Math.round(1000 / (2 * Math.max(1, +s || 12)))));
+      a.steps[0].ms = ms;
+      a.steps[1].ms = 2 * ms;
+    } else {
+      var k = SEC.STRENGTH[SEC.strengthOf(a)];
+      var pct = Math.max(k.min, Math.min(k.max, Math.round(+s || k.min)));
+      a.steps.forEach(function (st) { st.dist = pct / 100; });
+    }
+    var j = toBoard(p, a);
+    for (var key in b) {
+      if (Object.prototype.hasOwnProperty.call(b, key) && !Object.prototype.hasOwnProperty.call(j, key)) {
+        j[key] = JSON.parse(JSON.stringify(b[key]));
+      }
+    }
+    if (b.auto) j.auto = JSON.parse(JSON.stringify(b.auto));
+    j.enabled = b.enabled !== false;
+    return j;
+  }
+  var QUICK_API = {
+    tiles: function () {
+      return arr(SEC.QUICK).map(function (q) {
+        return { tpl: q.tpl, n: q.n, ico: q.svg || (SEC.sicon ? SEC.sicon(q.ico) : ''), games: q.games || null };
+      }).filter(function (q) { return !!SEC.quickRange(q.tpl); });
+    },
+    range: function (id) { return SEC.quickRange(id); },
+    /* a new one at strength `s`, as the board takes it; null if this
+       config cannot run it */
+    build: function (p, id, s) {
+      var a = SEC.quickBuild(p, id, s);
+      if (!a || SEC.hasErrors(a, p, null)) return null;
+      return toBoard(p, a);
+    },
+    tplOf: function (b) { return tplIdOf(b) || ''; },
+    strengthOf: quickStrength,
+    restrength: quickRestrength,
+    /* the room's own clash rule (dupWhen) over board actions: the one in
+       `list` that `b` would fire alongside on the same button, or null */
+    clash: function (p, list, b) {
+      var mine = quickApp(b, p);
+      var hit = dupWhen(arr(list).map(function (x) { return quickApp(x, p); }), mine, p);
+      if (!hit) return null;
+      var got = null;
+      arr(list).forEach(function (x) { if (!got && x && x.id === hit.id) got = x; });
+      return got;
+    }
+  };
+
+  window.ZS_SMART = {
+    render: render,               /* the Smart Actions screen  (second door) */
+    renderInputs: renderInputs,   /* the Buttons screen        (first door)  */
+    renderScoped: renderScoped,   /* one weapon's Auto Actions (D122)        */
+    isAutoAction: isAutoAction,
+    /* D134: after auto-actions.js moves an action between rooms; its
+       "Edit" on another gun's page; a button's name for its own list */
+    refreshRooms: refreshRooms, openAction: openAction, buttonName: buttonName,
+    reresolve: reresolveAll,
+    presets: exportPresets, families: FAMILIES,
+    /* the game packs' way in (D115), and the ids they may name, so
+       tools/test-game-packs.js can refuse a pack that names one that is gone */
+    packActions: packActions,
+    /* D280: Turn assist on a mouse config (above), and whether a config
+       would get it, so the boot pass writes only the configs it changes */
+    seedTurnAssist: seedTurnAssist,
+    turnAssistPlan: turnAssistPlan, turnAssistWrites: turnAssistWrites,
+    templateIds: function () { return TEMPLATES.map(function (t) { return t.id; }); },
+    /* pure, deterministic, and exported so the node self-test can hold the
+       recorder's conversion to its fixtures */
+    recordToSteps: recordToSteps,
+    /* THE THREE PURE RULES most likely to rot silently, exported for the same
+       reason: lockAxis is the one piece of the palette gesture that can be
+       tested headlessly and it is the piece that decides whether a swipe
+       fights the sheet; bindBadges IS the "an unset property renders nothing"
+       rule; dupWhen is what the duplicate fix hangs off. */
+    lockAxis: lockAxis,
+    bindBadges: bindBadges,
+    dupWhen: dupWhen,
+    /* D405: Rapid fire, Aim assist and Anti-recoil for gun-bulk.js */
+    quick: QUICK_API,
+    /* D432: a Script's share code (stamped with the config's in-game
+       settings) and reading one (scaled to this config's), for the tests */
+    shareCode: SEC.shareCode, readShareCode: SEC.readShareCode
+  };
+});

@@ -1,0 +1,1776 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "overwatch",
+  "title": "Overwatch",
+  "asOf": "2026-10-10",
+  "season": "Reign of Talon - Season 5: A Grim Doctrine",
+  "integrated": [],
+  "kinds": [
+    {
+      "kind": "heroes",
+      "name": "Heroes",
+      "groups": [
+        {
+          "id": "tank",
+          "name": "Tank",
+          "items": [
+            {
+              "id": "tank.d_mon",
+              "name": "D.Mon",
+              "from": "Reign of Talon Season 4 (2026)",
+              "image": "heroes/d_mon.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dmon/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.plasma_saber",
+                  "tank_weapons.portable_fusion_repeater",
+                  "tank_weapons.fusion_repeater"
+                ]
+              }
+            },
+            {
+              "id": "tank.d_va",
+              "name": "D.Va",
+              "from": "Launch (2016)",
+              "image": "heroes/d_va.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dva/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.fusion_cannons",
+                  "tank_weapons.light_gun"
+                ]
+              }
+            },
+            {
+              "id": "tank.domina",
+              "name": "Domina",
+              "from": "Reign of Talon Season 1 (2026)",
+              "image": "heroes/domina.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/domina/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.photon_magnum"
+                ]
+              }
+            },
+            {
+              "id": "tank.doomfist",
+              "name": "Doomfist",
+              "from": "Overwatch 1 (2017)",
+              "image": "heroes/doomfist.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/doomfist/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.hand_cannon"
+                ]
+              }
+            },
+            {
+              "id": "tank.hazard",
+              "name": "Hazard",
+              "from": "Overwatch 2 Season 14 (2024)",
+              "image": "heroes/hazard.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/hazard/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.bonespur"
+                ]
+              }
+            },
+            {
+              "id": "tank.junker_queen",
+              "name": "Junker Queen",
+              "from": "Overwatch 2 launch (2022)",
+              "image": "heroes/junker_queen.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/junker-queen/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.scattergun"
+                ]
+              }
+            },
+            {
+              "id": "tank.mauga",
+              "name": "Mauga",
+              "from": "Overwatch 2 Season 8 (2023)",
+              "image": "heroes/mauga.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mauga/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.incendiary_chaingun",
+                  "tank_weapons.volatile_chaingun"
+                ]
+              }
+            },
+            {
+              "id": "tank.orisa",
+              "name": "Orisa",
+              "from": "Overwatch 1 (2017)",
+              "image": "heroes/orisa.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/orisa/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.augmented_fusion_driver"
+                ]
+              }
+            },
+            {
+              "id": "tank.ramattra",
+              "name": "Ramattra",
+              "from": "Overwatch 2 Season 2 (2022)",
+              "image": "heroes/ramattra.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ramattra/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.void_accelerator",
+                  "tank_weapons.pummel"
+                ]
+              }
+            },
+            {
+              "id": "tank.reinhardt",
+              "name": "Reinhardt",
+              "from": "Launch (2016)",
+              "image": "heroes/reinhardt.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/reinhardt/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.rocket_hammer"
+                ]
+              }
+            },
+            {
+              "id": "tank.roadhog",
+              "name": "Roadhog",
+              "from": "Launch (2016)",
+              "image": "heroes/roadhog.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/roadhog/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.scrap_gun"
+                ]
+              }
+            },
+            {
+              "id": "tank.sigma",
+              "name": "Sigma",
+              "from": "Overwatch 1 (2019)",
+              "image": "heroes/sigma.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sigma/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.hyperspheres"
+                ]
+              }
+            },
+            {
+              "id": "tank.winston",
+              "name": "Winston",
+              "from": "Launch (2016)",
+              "image": "heroes/winston.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/winston/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.tesla_cannon"
+                ]
+              }
+            },
+            {
+              "id": "tank.wrecking_ball",
+              "name": "Wrecking Ball",
+              "from": "Overwatch 1 (2018)",
+              "image": "heroes/wrecking_ball.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/wrecking-ball/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "Hammond"
+              ],
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.quad_cannons"
+                ]
+              }
+            },
+            {
+              "id": "tank.zarya",
+              "name": "Zarya",
+              "from": "Launch (2016)",
+              "image": "heroes/zarya.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/zarya/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "tank_weapons.particle_cannon"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "damage",
+          "name": "Damage",
+          "items": [
+            {
+              "id": "damage.anran",
+              "name": "Anran",
+              "from": "Reign of Talon Season 1 (2026)",
+              "image": "heroes/anran.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/anran/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.zhuque_fans"
+                ]
+              }
+            },
+            {
+              "id": "damage.ashe",
+              "name": "Ashe",
+              "from": "Overwatch 1 (2018)",
+              "image": "heroes/ashe.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ashe/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.the_viper"
+                ]
+              }
+            },
+            {
+              "id": "damage.bastion",
+              "name": "Bastion",
+              "from": "Launch (2016)",
+              "image": "heroes/bastion.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/bastion/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.configuration_recon",
+                  "damage_weapons.configuration_assault",
+                  "damage_weapons.configuration_artillery"
+                ]
+              }
+            },
+            {
+              "id": "damage.cassidy",
+              "name": "Cassidy",
+              "from": "Launch (2016)",
+              "image": "heroes/cassidy.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/cassidy/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "McCree"
+              ],
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.peacekeeper"
+                ]
+              }
+            },
+            {
+              "id": "damage.echo",
+              "name": "Echo",
+              "from": "Overwatch 1 (2020)",
+              "image": "heroes/echo.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/echo/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.tri_shot"
+                ]
+              }
+            },
+            {
+              "id": "damage.emre",
+              "name": "Emre",
+              "from": "Reign of Talon Season 1 (2026)",
+              "image": "heroes/emre.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/emre/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.synthetic_burst_rifle"
+                ]
+              }
+            },
+            {
+              "id": "damage.freja",
+              "name": "Freja",
+              "from": "Overwatch 2 Season 16 (2025)",
+              "image": "heroes/freja.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/freja/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.revdraw_crossbow"
+                ]
+              }
+            },
+            {
+              "id": "damage.genji",
+              "name": "Genji",
+              "from": "Launch (2016)",
+              "image": "heroes/genji.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/genji/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.shuriken",
+                  "damage_weapons.dragonblade"
+                ]
+              }
+            },
+            {
+              "id": "damage.hanzo",
+              "name": "Hanzo",
+              "from": "Launch (2016)",
+              "image": "heroes/hanzo.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/hanzo/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.storm_bow"
+                ]
+              }
+            },
+            {
+              "id": "damage.junkrat",
+              "name": "Junkrat",
+              "from": "Launch (2016)",
+              "image": "heroes/junkrat.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/junkrat/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.frag_launcher"
+                ]
+              }
+            },
+            {
+              "id": "damage.mei",
+              "name": "Mei",
+              "from": "Launch (2016)",
+              "image": "heroes/mei.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mei/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.endothermic_blaster"
+                ]
+              }
+            },
+            {
+              "id": "damage.pharah",
+              "name": "Pharah",
+              "from": "Launch (2016)",
+              "image": "heroes/pharah.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/pharah/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.rocket_launcher"
+                ]
+              }
+            },
+            {
+              "id": "damage.reaper",
+              "name": "Reaper",
+              "from": "Launch (2016)",
+              "image": "heroes/reaper.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/reaper/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.hellfire_shotguns"
+                ]
+              }
+            },
+            {
+              "id": "damage.shion",
+              "name": "Shion",
+              "from": "Reign of Talon Season 3 (2026)",
+              "image": "heroes/shion.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/shion/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/06/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.kira_pistols"
+                ]
+              }
+            },
+            {
+              "id": "damage.sierra",
+              "name": "Sierra",
+              "from": "Reign of Talon Season 2 (2026)",
+              "image": "heroes/sierra.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sierra/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/04/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.helix_rifle"
+                ]
+              }
+            },
+            {
+              "id": "damage.sojourn",
+              "name": "Sojourn",
+              "from": "Overwatch 2 launch (2022)",
+              "image": "heroes/sojourn.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sojourn/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.railgun"
+                ]
+              }
+            },
+            {
+              "id": "damage.soldier_76",
+              "name": "Soldier: 76",
+              "from": "Launch (2016)",
+              "image": "heroes/soldier_76.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/soldier-76/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "Soldier 76"
+              ],
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.heavy_pulse_rifle"
+                ]
+              }
+            },
+            {
+              "id": "damage.symmetra",
+              "name": "Symmetra",
+              "from": "Launch (2016)",
+              "image": "heroes/symmetra.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/symmetra/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.photon_projector"
+                ]
+              }
+            },
+            {
+              "id": "damage.torbjorn",
+              "name": "Torbjörn",
+              "from": "Launch (2016)",
+              "image": "heroes/torbjorn.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/torbjorn/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "Torbjorn",
+                "Torb"
+              ],
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.rivet_gun",
+                  "damage_weapons.forge_hammer"
+                ]
+              }
+            },
+            {
+              "id": "damage.tracer",
+              "name": "Tracer",
+              "from": "Launch (2016)",
+              "image": "heroes/tracer.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/tracer/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.pulse_pistols"
+                ]
+              }
+            },
+            {
+              "id": "damage.vendetta",
+              "name": "Vendetta",
+              "from": "Overwatch 2 Season 20 (2025)",
+              "image": "heroes/vendetta.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/vendetta/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2025/12/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.palatine_fang"
+                ]
+              }
+            },
+            {
+              "id": "damage.venture",
+              "name": "Venture",
+              "from": "Overwatch 2 Season 10 (2024)",
+              "image": "heroes/venture.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/venture/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.smart_excavator"
+                ]
+              }
+            },
+            {
+              "id": "damage.widowmaker",
+              "name": "Widowmaker",
+              "from": "Launch (2016)",
+              "image": "heroes/widowmaker.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/widowmaker/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "Widow"
+              ],
+              "loadout": {
+                "weapons": [
+                  "damage_weapons.widows_kiss"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "support",
+          "name": "Support",
+          "items": [
+            {
+              "id": "support.ana",
+              "name": "Ana",
+              "from": "Overwatch 1 (2016)",
+              "image": "heroes/ana.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ana/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.biotic_rifle"
+                ]
+              }
+            },
+            {
+              "id": "support.baptiste",
+              "name": "Baptiste",
+              "from": "Overwatch 1 (2019)",
+              "image": "heroes/baptiste.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/baptiste/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.biotic_launcher"
+                ]
+              }
+            },
+            {
+              "id": "support.brigitte",
+              "name": "Brigitte",
+              "from": "Overwatch 1 (2018)",
+              "image": "heroes/brigitte.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/brigitte/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.rocket_flail"
+                ]
+              }
+            },
+            {
+              "id": "support.doctrine",
+              "name": "Doctrine",
+              "from": "Reign of Talon Season 5 (2026)",
+              "image": "heroes/doctrine.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/doctrine/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.eternal_scepter"
+                ]
+              }
+            },
+            {
+              "id": "support.illari",
+              "name": "Illari",
+              "from": "Overwatch 2 Season 6 (2023)",
+              "image": "heroes/illari.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/illari/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.solar_rifle"
+                ]
+              }
+            },
+            {
+              "id": "support.jetpack_cat",
+              "name": "Jetpack Cat",
+              "from": "Reign of Talon Season 1 (2026)",
+              "image": "heroes/jetpack_cat.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/jetpack-cat/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.biotic_pawjectiles"
+                ]
+              }
+            },
+            {
+              "id": "support.juno",
+              "name": "Juno",
+              "from": "Overwatch 2 Season 12 (2024)",
+              "image": "heroes/juno.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/juno/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.mediblaster"
+                ]
+              }
+            },
+            {
+              "id": "support.kiriko",
+              "name": "Kiriko",
+              "from": "Overwatch 2 launch (2022)",
+              "image": "heroes/kiriko.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/kiriko/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.healing_ofuda",
+                  "support_weapons.kunai"
+                ]
+              }
+            },
+            {
+              "id": "support.lifeweaver",
+              "name": "Lifeweaver",
+              "from": "Overwatch 2 Season 4 (2023)",
+              "image": "heroes/lifeweaver.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/lifeweaver/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.healing_blossom",
+                  "support_weapons.thorn_volley"
+                ]
+              }
+            },
+            {
+              "id": "support.lucio",
+              "name": "Lúcio",
+              "from": "Launch (2016)",
+              "image": "heroes/lucio.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/lucio/"
+              ],
+              "uncertain": null,
+              "aliases": [
+                "Lucio"
+              ],
+              "loadout": {
+                "weapons": [
+                  "support_weapons.sonic_amplifier"
+                ]
+              }
+            },
+            {
+              "id": "support.mercy",
+              "name": "Mercy",
+              "from": "Launch (2016)",
+              "image": "heroes/mercy.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mercy/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.caduceus_staff",
+                  "support_weapons.caduceus_blaster"
+                ]
+              }
+            },
+            {
+              "id": "support.mizuki",
+              "name": "Mizuki",
+              "from": "Reign of Talon Season 1 (2026)",
+              "image": "heroes/mizuki.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mizuki/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/02/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.spirit_glaive"
+                ]
+              }
+            },
+            {
+              "id": "support.moira",
+              "name": "Moira",
+              "from": "Overwatch 1 (2017)",
+              "image": "heroes/moira.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/moira/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.biotic_grasp"
+                ]
+              }
+            },
+            {
+              "id": "support.sombra",
+              "name": "Sombra",
+              "from": "Overwatch 1 (2016)",
+              "image": "heroes/sombra.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sombra/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.machine_pistol"
+                ]
+              }
+            },
+            {
+              "id": "support.wuyang",
+              "name": "Wuyang",
+              "from": "Overwatch 2 Season 18 (2025)",
+              "image": "heroes/wuyang.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/wuyang/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.xuanwu_staff"
+                ]
+              }
+            },
+            {
+              "id": "support.zenyatta",
+              "name": "Zenyatta",
+              "from": "Launch (2016)",
+              "image": "heroes/zenyatta.png",
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/zenyatta/"
+              ],
+              "uncertain": null,
+              "loadout": {
+                "weapons": [
+                  "support_weapons.orb_of_destruction"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "hero_weapons",
+      "name": "Weapons",
+      "groups": [
+        {
+          "id": "tank_weapons",
+          "name": "Tank weapons",
+          "items": [
+            {
+              "id": "tank_weapons.plasma_saber",
+              "name": "Plasma Saber",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dmon/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/"
+              ],
+              "uncertain": "Blizzard's page lists it first, as a \"fast energy melee weapon\"; whether the HUD shows it as a weapon of its own is not yet seen on a real frame.",
+              "usedBy": [
+                "tank.d_mon"
+              ]
+            },
+            {
+              "id": "tank_weapons.portable_fusion_repeater",
+              "name": "Portable Fusion Repeater",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dmon/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.d_mon"
+              ]
+            },
+            {
+              "id": "tank_weapons.fusion_repeater",
+              "name": "Fusion Repeater",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dmon/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/08/"
+              ],
+              "uncertain": "Blizzard's page lists it apart from the Portable Fusion Repeater as an ability (\"Activate a rapid-fire machine gun\"); when it is in hand and how the HUD shows it is not confirmed on a real frame.",
+              "usedBy": [
+                "tank.d_mon"
+              ]
+            },
+            {
+              "id": "tank_weapons.fusion_cannons",
+              "name": "Fusion Cannons",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dva/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.d_va"
+              ]
+            },
+            {
+              "id": "tank_weapons.light_gun",
+              "name": "Light Gun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/dva/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.d_va"
+              ]
+            },
+            {
+              "id": "tank_weapons.photon_magnum",
+              "name": "Photon Magnum",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/domina/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.domina"
+              ]
+            },
+            {
+              "id": "tank_weapons.hand_cannon",
+              "name": "Hand Cannon",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/doomfist/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.doomfist"
+              ]
+            },
+            {
+              "id": "tank_weapons.bonespur",
+              "name": "Bonespur",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/hazard/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.hazard"
+              ]
+            },
+            {
+              "id": "tank_weapons.scattergun",
+              "name": "Scattergun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/junker-queen/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.junker_queen"
+              ]
+            },
+            {
+              "id": "tank_weapons.incendiary_chaingun",
+              "name": "Incendiary Chaingun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mauga/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2023/12/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.mauga"
+              ]
+            },
+            {
+              "id": "tank_weapons.volatile_chaingun",
+              "name": "Volatile Chaingun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mauga/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2023/12/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/09/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.mauga"
+              ]
+            },
+            {
+              "id": "tank_weapons.augmented_fusion_driver",
+              "name": "Augmented Fusion Driver",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/orisa/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.orisa"
+              ]
+            },
+            {
+              "id": "tank_weapons.void_accelerator",
+              "name": "Void Accelerator",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ramattra/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.ramattra"
+              ]
+            },
+            {
+              "id": "tank_weapons.pummel",
+              "name": "Pummel",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ramattra/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.ramattra"
+              ]
+            },
+            {
+              "id": "tank_weapons.rocket_hammer",
+              "name": "Rocket Hammer",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/reinhardt/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.reinhardt"
+              ]
+            },
+            {
+              "id": "tank_weapons.scrap_gun",
+              "name": "Scrap Gun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/roadhog/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.roadhog"
+              ]
+            },
+            {
+              "id": "tank_weapons.hyperspheres",
+              "name": "Hyperspheres",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sigma/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.sigma"
+              ]
+            },
+            {
+              "id": "tank_weapons.tesla_cannon",
+              "name": "Tesla Cannon",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/winston/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.winston"
+              ]
+            },
+            {
+              "id": "tank_weapons.quad_cannons",
+              "name": "Quad Cannons",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/wrecking-ball/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.wrecking_ball"
+              ]
+            },
+            {
+              "id": "tank_weapons.particle_cannon",
+              "name": "Particle Cannon",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/zarya/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "tank.zarya"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "damage_weapons",
+          "name": "Damage weapons",
+          "items": [
+            {
+              "id": "damage_weapons.zhuque_fans",
+              "name": "Zhuque Fans",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/anran/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.anran"
+              ]
+            },
+            {
+              "id": "damage_weapons.the_viper",
+              "name": "The Viper",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ashe/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.ashe"
+              ]
+            },
+            {
+              "id": "damage_weapons.configuration_recon",
+              "name": "Configuration: Recon",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/bastion/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.bastion"
+              ]
+            },
+            {
+              "id": "damage_weapons.configuration_assault",
+              "name": "Configuration: Assault",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/bastion/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.bastion"
+              ]
+            },
+            {
+              "id": "damage_weapons.configuration_artillery",
+              "name": "Configuration: Artillery",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/bastion/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.bastion"
+              ]
+            },
+            {
+              "id": "damage_weapons.peacekeeper",
+              "name": "Peacekeeper",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/cassidy/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.cassidy"
+              ]
+            },
+            {
+              "id": "damage_weapons.tri_shot",
+              "name": "Tri-Shot",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/echo/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.echo"
+              ]
+            },
+            {
+              "id": "damage_weapons.synthetic_burst_rifle",
+              "name": "Synthetic Burst Rifle",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/emre/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.emre"
+              ]
+            },
+            {
+              "id": "damage_weapons.revdraw_crossbow",
+              "name": "Revdraw Crossbow",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/freja/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.freja"
+              ]
+            },
+            {
+              "id": "damage_weapons.shuriken",
+              "name": "Shuriken",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/genji/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.genji"
+              ]
+            },
+            {
+              "id": "damage_weapons.dragonblade",
+              "name": "Dragonblade",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/genji/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.genji"
+              ]
+            },
+            {
+              "id": "damage_weapons.storm_bow",
+              "name": "Storm Bow",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/hanzo/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.hanzo"
+              ]
+            },
+            {
+              "id": "damage_weapons.frag_launcher",
+              "name": "Frag Launcher",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/junkrat/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.junkrat"
+              ]
+            },
+            {
+              "id": "damage_weapons.endothermic_blaster",
+              "name": "Endothermic Blaster",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mei/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.mei"
+              ]
+            },
+            {
+              "id": "damage_weapons.rocket_launcher",
+              "name": "Rocket Launcher",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/pharah/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.pharah"
+              ]
+            },
+            {
+              "id": "damage_weapons.hellfire_shotguns",
+              "name": "Hellfire Shotguns",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/reaper/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.reaper"
+              ]
+            },
+            {
+              "id": "damage_weapons.kira_pistols",
+              "name": "Kira Pistols",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/shion/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/06/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.shion"
+              ]
+            },
+            {
+              "id": "damage_weapons.helix_rifle",
+              "name": "Helix Rifle",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sierra/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.sierra"
+              ]
+            },
+            {
+              "id": "damage_weapons.railgun",
+              "name": "Railgun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sojourn/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.sojourn"
+              ]
+            },
+            {
+              "id": "damage_weapons.heavy_pulse_rifle",
+              "name": "Heavy Pulse Rifle",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/soldier-76/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.soldier_76"
+              ]
+            },
+            {
+              "id": "damage_weapons.photon_projector",
+              "name": "Photon Projector",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/symmetra/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.symmetra"
+              ]
+            },
+            {
+              "id": "damage_weapons.rivet_gun",
+              "name": "Rivet Gun",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/torbjorn/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.torbjorn"
+              ]
+            },
+            {
+              "id": "damage_weapons.forge_hammer",
+              "name": "Forge Hammer",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/torbjorn/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.torbjorn"
+              ]
+            },
+            {
+              "id": "damage_weapons.pulse_pistols",
+              "name": "Pulse Pistols",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/tracer/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.tracer"
+              ]
+            },
+            {
+              "id": "damage_weapons.palatine_fang",
+              "name": "Palatine Fang",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/vendetta/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.vendetta"
+              ]
+            },
+            {
+              "id": "damage_weapons.smart_excavator",
+              "name": "SMART Excavator",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/venture/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.venture"
+              ]
+            },
+            {
+              "id": "damage_weapons.widows_kiss",
+              "name": "Widow's Kiss",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/widowmaker/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "damage.widowmaker"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "support_weapons",
+          "name": "Support weapons",
+          "items": [
+            {
+              "id": "support_weapons.biotic_rifle",
+              "name": "Biotic Rifle",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/ana/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.ana"
+              ]
+            },
+            {
+              "id": "support_weapons.biotic_launcher",
+              "name": "Biotic Launcher",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/baptiste/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.baptiste"
+              ]
+            },
+            {
+              "id": "support_weapons.rocket_flail",
+              "name": "Rocket Flail",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/brigitte/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.brigitte"
+              ]
+            },
+            {
+              "id": "support_weapons.eternal_scepter",
+              "name": "Eternal Scepter",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/doctrine/",
+                "https://overwatch.blizzard.com/en-us/news/patch-notes/live/2026/10/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.doctrine"
+              ]
+            },
+            {
+              "id": "support_weapons.solar_rifle",
+              "name": "Solar Rifle",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/illari/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.illari"
+              ]
+            },
+            {
+              "id": "support_weapons.biotic_pawjectiles",
+              "name": "Biotic Pawjectiles",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/jetpack-cat/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.jetpack_cat"
+              ]
+            },
+            {
+              "id": "support_weapons.mediblaster",
+              "name": "Mediblaster",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/juno/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.juno"
+              ]
+            },
+            {
+              "id": "support_weapons.healing_ofuda",
+              "name": "Healing Ofuda",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/kiriko/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.kiriko"
+              ]
+            },
+            {
+              "id": "support_weapons.kunai",
+              "name": "Kunai",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/kiriko/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.kiriko"
+              ]
+            },
+            {
+              "id": "support_weapons.healing_blossom",
+              "name": "Healing Blossom",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/lifeweaver/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.lifeweaver"
+              ]
+            },
+            {
+              "id": "support_weapons.thorn_volley",
+              "name": "Thorn Volley",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/lifeweaver/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.lifeweaver"
+              ]
+            },
+            {
+              "id": "support_weapons.sonic_amplifier",
+              "name": "Sonic Amplifier",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/lucio/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.lucio"
+              ]
+            },
+            {
+              "id": "support_weapons.caduceus_staff",
+              "name": "Caduceus Staff",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mercy/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.mercy"
+              ]
+            },
+            {
+              "id": "support_weapons.caduceus_blaster",
+              "name": "Caduceus Blaster",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mercy/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.mercy"
+              ]
+            },
+            {
+              "id": "support_weapons.spirit_glaive",
+              "name": "Spirit Glaive",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/mizuki/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.mizuki"
+              ]
+            },
+            {
+              "id": "support_weapons.biotic_grasp",
+              "name": "Biotic Grasp",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/moira/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.moira"
+              ]
+            },
+            {
+              "id": "support_weapons.machine_pistol",
+              "name": "Machine Pistol",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/sombra/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.sombra"
+              ]
+            },
+            {
+              "id": "support_weapons.xuanwu_staff",
+              "name": "Xuanwu Staff",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/wuyang/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.wuyang"
+              ]
+            },
+            {
+              "id": "support_weapons.orb_of_destruction",
+              "name": "Orb of Destruction",
+              "from": null,
+              "image": null,
+              "sources": [
+                "https://overwatch.blizzard.com/en-us/heroes/zenyatta/"
+              ],
+              "uncertain": null,
+              "usedBy": [
+                "support.zenyatta"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

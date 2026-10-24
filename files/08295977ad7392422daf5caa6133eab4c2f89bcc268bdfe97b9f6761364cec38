@@ -1,0 +1,751 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "pubg",
+  "title": "PUBG: BATTLEGROUNDS",
+  "asOf": "2026-10-24",
+  "season": "Update 43.2 (PC 2026-10-14, console 2026-10-22)",
+  "integrated": [],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.m16a4",
+          "name": "M16A4",
+          "from": null,
+          "image": "weapons/m16a4.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.m416",
+          "name": "M416",
+          "from": null,
+          "image": "weapons/m416.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.scar_l",
+          "name": "SCAR-L",
+          "from": null,
+          "image": "weapons/scar_l.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "all maps since 36.1",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.g36c",
+          "name": "G36C",
+          "from": null,
+          "image": "weapons/g36c.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "Availability: map:Vikendi. Vikendi-only since 36.1; Vikendi is NOT in the 43.2 matchmaking rotation (Oct 2026), so effectively unavailable in normal queue right now",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.qbz",
+          "name": "QBZ",
+          "from": null,
+          "image": "weapons/qbz.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": "originally Sanhok-only; current map restriction unverified",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.k2",
+          "name": "K2",
+          "from": null,
+          "image": "weapons/k2.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": "launched Taego-only (2021); current restriction unverified. 42.2 removed it from the Taego Secret Room pool",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.aug_a3",
+          "name": "AUG A3",
+          "from": null,
+          "image": "weapons/aug_a3.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "moved from care package to world spawn in 22.2 (community tracker)",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.famas",
+          "name": "FAMAS",
+          "from": null,
+          "image": "weapons/famas.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Availability: care package. care-package AR since 22.2 (community tracker; not re-verified officially)",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.akm",
+          "name": "AKM",
+          "from": null,
+          "image": "weapons/akm.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.beryl_m762",
+          "name": "Beryl M762",
+          "from": null,
+          "image": "weapons/beryl_m762.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.mk47_mutant",
+          "name": "Mk47 Mutant",
+          "from": null,
+          "image": "weapons/mk47_mutant.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "no full-auto",
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.groza",
+          "name": "Groza",
+          "from": null,
+          "image": "weapons/groza.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": "Availability: care package. care-package only (long-standing; community wiki cross-check)",
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.ace32",
+          "name": "ACE32",
+          "from": null,
+          "image": "weapons/ace32.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "marksman_rifles",
+      "name": "DMRs",
+      "items": [
+        {
+          "id": "marksman_rifles.mini_14",
+          "name": "Mini 14",
+          "from": null,
+          "image": "weapons/mini_14.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "marksman_rifles.mk12",
+          "name": "Mk12",
+          "from": null,
+          "image": "weapons/mk12.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/9690"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "marksman_rifles.sks",
+          "name": "SKS",
+          "from": null,
+          "image": "weapons/sks.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "marksman_rifles.slr",
+          "name": "SLR",
+          "from": null,
+          "image": "weapons/slr.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10179"
+          ],
+          "uncertain": "buffed in 42.1",
+          "fireMode": "semi"
+        },
+        {
+          "id": "marksman_rifles.mk14",
+          "name": "Mk14",
+          "from": null,
+          "image": "weapons/mk14.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": "Availability: care package. care-package only (long-standing; community cross-check)",
+          "fireMode": "auto"
+        },
+        {
+          "id": "marksman_rifles.vss",
+          "name": "VSS",
+          "from": null,
+          "image": "weapons/vss.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "integral 4x scope; all maps since 36.1",
+          "fireMode": "auto"
+        },
+        {
+          "id": "marksman_rifles.dragunov",
+          "name": "Dragunov",
+          "from": null,
+          "image": "weapons/dragunov.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "smgs",
+      "name": "SMGs",
+      "items": [
+        {
+          "id": "smgs.tommy_gun",
+          "name": "Tommy Gun",
+          "from": null,
+          "image": "weapons/tommy_gun.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "community tracker says moved to care packages in 29.2 and later returned; current status UNVERIFIED",
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.ump45",
+          "name": "UMP45",
+          "from": null,
+          "image": "weapons/ump45.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": "Fire modes (single/burst/auto) are community knowledge (medium confidence); pubg.com publishes no fire-mode table. fire modes: community knowledge (no official per-gun fire-mode table found); ",
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.micro_uzi",
+          "name": "Micro Uzi",
+          "from": null,
+          "image": "weapons/micro_uzi.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.vector",
+          "name": "Vector",
+          "from": null,
+          "image": "weapons/vector.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.mp5k",
+          "name": "MP5K",
+          "from": null,
+          "image": "weapons/mp5k.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Fire modes (single/burst/auto) are community knowledge (medium confidence); pubg.com publishes no fire-mode table. fire modes: community knowledge (no official per-gun fire-mode table found); ",
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.mp9",
+          "name": "MP9",
+          "from": null,
+          "image": "weapons/mp9.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Fire modes (single/auto) are community knowledge (medium confidence); pubg.com publishes no fire-mode table. fire modes: community knowledge (no official per-gun fire-mode table found); launched Deston-only (19.1); current restriction unverified",
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.p90",
+          "name": "P90",
+          "from": null,
+          "image": "weapons/p90.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Fire modes (auto) are community knowledge (low confidence); pubg.com publishes no fire-mode table. Availability: care package. fire modes: community knowledge (no official per-gun fire-mode table found); care package + Ranked Secret Rooms (22.2). Fire modes UNCERTAIN (auto-only per 2022 coverage; some sources say single/auto)",
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.js9",
+          "name": "JS9",
+          "from": null,
+          "image": "weapons/js9.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Fire modes (single/auto) are community knowledge (medium confidence); pubg.com publishes no fire-mode table. fire modes: community knowledge (no official per-gun fire-mode table found); launched Rondo-only (27.1); 42.2 added it to the Rondo Secret Room pool",
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.kar98k",
+          "name": "Kar98k",
+          "from": null,
+          "image": "weapons/kar98k.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.m24",
+          "name": "M24",
+          "from": null,
+          "image": "weapons/m24.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.awm",
+          "name": "AWM",
+          "from": null,
+          "image": "weapons/awm.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": "Availability: care package. care-package only",
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.win94",
+          "name": "Win94",
+          "from": null,
+          "image": "weapons/win94.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "Availability: map:Karakin. Karakin-only since 36.1 (official class on pubg.com arsenal: SR)",
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.lynx_amr",
+          "name": "Lynx AMR",
+          "from": null,
+          "image": "weapons/lynx_amr.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Availability: care package. care packages on all maps since 32.1",
+          "fireMode": "bolt"
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.s12k",
+          "name": "S12K",
+          "from": null,
+          "image": "weapons/s12k.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "semi-auto",
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.s1897",
+          "name": "S1897",
+          "from": null,
+          "image": "weapons/s1897.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.s686",
+          "name": "S686",
+          "from": null,
+          "image": "weapons/s686.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": "double-barrel break action",
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.dbs",
+          "name": "DBS",
+          "from": null,
+          "image": "weapons/dbs.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Availability: care package. removed from world spawn and moved to care packages in 32.1",
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.sawed_off",
+          "name": "Sawed-Off",
+          "from": null,
+          "image": "weapons/sawed_off.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "secondary-slot shotgun",
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.o12",
+          "name": "O12",
+          "from": null,
+          "image": "weapons/o12.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubgstatistics.com/weapons/patch-notes"
+          ],
+          "uncertain": "Fire modes (single/auto) are community knowledge (low confidence); pubg.com publishes no fire-mode table. fire modes: community knowledge (no official per-gun fire-mode table found); slug shotgun; launched Deston-only (18.2), current restriction unverified; fire modes UNCERTAIN (community tracker lists single/burst/auto)",
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "lmgs",
+      "name": "LMGs",
+      "items": [
+        {
+          "id": "lmgs.m249",
+          "name": "M249",
+          "from": null,
+          "image": "weapons/m249.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10885",
+            "https://pubg.com/en/news/11057"
+          ],
+          "uncertain": "world spawn rate -30% in 43.1; LMG Meta Rotation focus since 42.3",
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.mg3",
+          "name": "MG3",
+          "from": null,
+          "image": "weapons/mg3.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10885",
+            "https://pubg.com/en/news/11057"
+          ],
+          "uncertain": "Fire modes (auto) are community knowledge (medium confidence); pubg.com publishes no fire-mode table. Availability: care package. fire modes: community knowledge (no official per-gun fire-mode table found); care-package LMG (community cross-check); fire-mode key toggles 660/990 RPM rate rather than single/auto",
+          "fireMode": "auto"
+        },
+        {
+          "id": "lmgs.rpd",
+          "name": "RPD",
+          "from": null,
+          "image": "weapons/rpd.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10885",
+            "https://pubg.com/en/news/11057"
+          ],
+          "uncertain": "NEW in 42.3 (PC 2026-08-12, console 2026-08-20); world spawn on all maps; 50 rd (110 ext); spawn rate -30% in 43.1",
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "pistols",
+      "name": "Handguns",
+      "items": [
+        {
+          "id": "pistols.p18c",
+          "name": "P18C",
+          "from": null,
+          "image": "weapons/p18c.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "pistols.p92",
+          "name": "P92",
+          "from": null,
+          "image": "weapons/p92.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/9466"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.skorpion",
+          "name": "Skorpion",
+          "from": null,
+          "image": "weapons/skorpion.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "pistols.deagle",
+          "name": "Deagle",
+          "from": null,
+          "image": "weapons/deagle.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.r1895",
+          "name": "R1895",
+          "from": null,
+          "image": "weapons/r1895.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/9466"
+          ],
+          "uncertain": "revolver",
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "launchers",
+      "name": "Launchers",
+      "items": [
+        {
+          "id": "launchers.m79",
+          "name": "M79",
+          "from": null,
+          "image": "weapons/m79.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/9466"
+          ],
+          "uncertain": "40mm smoke launcher (non-lethal)",
+          "fireMode": "semi"
+        },
+        {
+          "id": "launchers.panzerfaust",
+          "name": "Panzerfaust",
+          "from": null,
+          "image": "weapons/panzerfaust.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": "one-shot rocket; also in Intense BR red supply drops",
+          "fireMode": "semi"
+        },
+        {
+          "id": "launchers.mortar",
+          "name": "Mortar",
+          "from": null,
+          "image": "weapons/mortar.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/8725"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "special",
+      "name": "Other",
+      "items": [
+        {
+          "id": "special.crossbow",
+          "name": "Crossbow",
+          "from": null,
+          "image": "weapons/crossbow.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "special.stun_gun",
+          "name": "Stun Gun",
+          "from": null,
+          "image": "weapons/stun_gun.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10459"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "special.flare_gun",
+          "name": "Flare Gun",
+          "from": null,
+          "image": "weapons/flare_gun.png",
+          "sources": [
+            "https://pubg.com/en/news/10885",
+            "https://pubg.com/en/news/10179",
+            "https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Item/Weapon/Handgun/Item_Weapon_FlareGun_C.png"
+          ],
+          "uncertain": "calls a care package / emergency supply; not on the official pubg.com arsenal page; uses Handgun crosshair settings since 42.3",
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "melee",
+      "name": "Melee",
+      "items": [
+        {
+          "id": "melee.crowbar",
+          "name": "Crowbar",
+          "from": null,
+          "image": "weapons/crowbar.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10080"
+          ],
+          "uncertain": "Machete/Sickle/Crowbar/Pan can perform Executions (41.2)"
+        },
+        {
+          "id": "melee.machete",
+          "name": "Machete",
+          "from": null,
+          "image": "weapons/machete.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10080"
+          ],
+          "uncertain": "Machete/Sickle/Crowbar/Pan can perform Executions (41.2)"
+        },
+        {
+          "id": "melee.pan",
+          "name": "Pan",
+          "from": null,
+          "image": "weapons/pan.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10080"
+          ],
+          "uncertain": "Machete/Sickle/Crowbar/Pan can perform Executions (41.2)"
+        },
+        {
+          "id": "melee.sickle",
+          "name": "Sickle",
+          "from": null,
+          "image": "weapons/sickle.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10080"
+          ],
+          "uncertain": "Machete/Sickle/Crowbar/Pan can perform Executions (41.2)"
+        },
+        {
+          "id": "melee.pickaxe",
+          "name": "Pickaxe",
+          "from": null,
+          "image": "weapons/pickaxe.png",
+          "sources": [
+            "https://pubg.com/en/game-info/weapons",
+            "https://pubg.com/en/news/10080"
+          ],
+          "uncertain": "removed from Sanhok emergency flares in 42.1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,389 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "arc-raiders",
+  "title": "ARC Raiders",
+  "asOf": "2026-10-24",
+  "season": "Frozen Trail (2.0 update); Store Updates 2.1.0 and 2.2.0 add no weapon",
+  "integrated": [],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.kettle",
+          "name": "Kettle",
+          "from": "Launch (2025)",
+          "image": "weapons/kettle.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/0/0f/Kettle_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "assault_rifles.rattler",
+          "name": "Rattler",
+          "from": "Launch (2025)",
+          "image": "weapons/rattler.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://www.arcraiders.com/news/frozen-trail-content-preview",
+            "https://arcraiders.wiki/w/images/3/3e/Rattler_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.arpeggio",
+          "name": "Arpeggio",
+          "from": "Launch (2025)",
+          "image": "weapons/arpeggio.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/b/b9/Arpeggio_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.tempest",
+          "name": "Tempest",
+          "from": "Launch (2025)",
+          "image": "weapons/tempest.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/b/b2/Tempest_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "assault_rifles.bettina",
+          "name": "Bettina",
+          "from": null,
+          "image": "weapons/bettina.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/3/32/Bettina_IV.png"
+          ],
+          "uncertain": "When it arrived is not confirmed: guides list it by December 2025 and Embark's 1.7.0 (Cold Snap) notes rebalance it, but no source says it was there at launch.",
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "battle_rifles",
+      "name": "Battle Rifles",
+      "items": [
+        {
+          "id": "battle_rifles.ferro",
+          "name": "Ferro",
+          "from": "Launch (2025)",
+          "image": "weapons/ferro.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/f/f9/Ferro_IV.png"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "battle_rifles.stiletto",
+          "name": "Stiletto",
+          "from": "Frozen Trail (2.0)",
+          "image": "weapons/stiletto.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://www.arcraiders.com/news/frozen-trail-content-preview",
+            "https://www.arcraiders.com/news/frozen-trail-2-0-update",
+            "https://arcraiders.wiki/w/images/7/78/Stiletto_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "battle_rifles.renegade",
+          "name": "Renegade",
+          "from": "Launch (2025)",
+          "image": "weapons/renegade.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/a/a8/Renegade_IV.png"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "battle_rifles.aphelion",
+          "name": "Aphelion",
+          "from": "North Line (1.2.0)",
+          "image": "weapons/aphelion.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/wiki/Aphelion",
+            "https://arcraiders.com/news/north-line-patch-notes",
+            "https://arcraiders.wiki/w/images/8/88/Aphelion.png"
+          ],
+          "uncertain": "That it arrived in 1.2.0 (North Line, November 2025) is the wiki's and guides' word; Embark's own 1.2.0 notes do not name it.",
+          "fireMode": "burst"
+        }
+      ]
+    },
+    {
+      "id": "smgs",
+      "name": "SMGs",
+      "items": [
+        {
+          "id": "smgs.stitcher",
+          "name": "Stitcher",
+          "from": "Launch (2025)",
+          "image": "weapons/stitcher.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/5/55/Stitcher_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.canto",
+          "name": "Canto",
+          "from": "Flashpoint (1.22.0)",
+          "image": "weapons/canto.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.com/news/patch-notes-1-22-0",
+            "https://arcraiders.wiki/wiki/Canto",
+            "https://arcraiders.wiki/w/images/c/c7/Canto_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        },
+        {
+          "id": "smgs.bobcat",
+          "name": "Bobcat",
+          "from": "Launch (2025)",
+          "image": "weapons/bobcat.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/7/78/Bobcat_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.il_toro",
+          "name": "Il Toro",
+          "from": "Launch (2025)",
+          "image": "weapons/il_toro.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/a/ad/Il_Toro_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "shotguns.vulcano",
+          "name": "Vulcano",
+          "from": "Launch (2025)",
+          "image": "weapons/vulcano.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/5/5b/Vulcano_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "shotguns.dolabra",
+          "name": "Dolabra",
+          "from": "Flashpoint (1.22.0)",
+          "image": "weapons/dolabra.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.com/news/patch-notes-1-22-0",
+            "https://arcraiders.wiki/wiki/Dolabra",
+            "https://arcraiders.wiki/w/images/b/bc/Dolabra.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "pistols",
+      "name": "Pistols",
+      "items": [
+        {
+          "id": "pistols.hairpin",
+          "name": "Hairpin",
+          "from": "Launch (2025)",
+          "image": "weapons/hairpin.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/b/b8/Hairpin_IV.png"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "pistols.burletta",
+          "name": "Burletta",
+          "from": "Launch (2025)",
+          "image": "weapons/burletta.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://www.arcraiders.com/news/frozen-trail-content-preview",
+            "https://arcraiders.wiki/w/images/8/8c/Burletta_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "pistols.venator",
+          "name": "Venator",
+          "from": "Launch (2025)",
+          "image": "weapons/venator.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/9/9f/Venator_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "hand_cannons",
+      "name": "Hand Cannons",
+      "items": [
+        {
+          "id": "hand_cannons.bantam",
+          "name": "Bantam",
+          "from": "Frozen Trail (2.0)",
+          "image": "weapons/bantam.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://www.arcraiders.com/news/frozen-trail-2-0-update",
+            "https://www.arcraiders.com/news/frozen-trail-content-preview",
+            "https://arcraiders.wiki/w/images/7/7c/Bantam_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        },
+        {
+          "id": "hand_cannons.anvil",
+          "name": "Anvil",
+          "from": "Launch (2025)",
+          "image": "weapons/anvil.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/wiki/Anvil",
+            "https://www.arcraiders.com/news/frozen-trail-2-0-update",
+            "https://arcraiders.wiki/w/images/2/2d/Anvil_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "semi"
+        }
+      ]
+    },
+    {
+      "id": "lmgs",
+      "name": "LMGs",
+      "items": [
+        {
+          "id": "lmgs.torrente",
+          "name": "Torrente",
+          "from": "Launch (2025)",
+          "image": "weapons/torrente.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/3/35/Torrente_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.osprey",
+          "name": "Osprey",
+          "from": "Launch (2025)",
+          "image": "weapons/osprey.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/c/ce/Osprey_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        },
+        {
+          "id": "sniper_rifles.jupiter",
+          "name": "Jupiter",
+          "from": "Launch (2025)",
+          "image": "weapons/jupiter.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/6/68/Jupiter.png"
+          ],
+          "uncertain": null,
+          "fireMode": "bolt"
+        }
+      ]
+    },
+    {
+      "id": "special",
+      "name": "Special",
+      "items": [
+        {
+          "id": "special.rascal",
+          "name": "Rascal",
+          "from": "Update 1.29.0",
+          "image": "weapons/rascal.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.com/news/patch-notes-1-29-0",
+            "https://arcraiders.wiki/wiki/Rascal",
+            "https://arcraiders.wiki/w/images/b/b6/Rascal_IV.png"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "special.hullcracker",
+          "name": "Hullcracker",
+          "from": "Launch (2025)",
+          "image": "weapons/hullcracker.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/e/ea/Hullcracker_IV.png"
+          ],
+          "uncertain": null,
+          "fireMode": "pump"
+        },
+        {
+          "id": "special.equalizer",
+          "name": "Equalizer",
+          "from": "Launch (2025)",
+          "image": "weapons/equalizer.png",
+          "sources": [
+            "https://arcraiders.wiki/wiki/Weapons",
+            "https://arcraiders.wiki/w/images/9/96/Equalizer.png"
+          ],
+          "uncertain": null,
+          "fireMode": "auto"
+        }
+      ]
+    }
+  ]
+}
