@@ -1,0 +1,72 @@
+/* zs-dongle-calibrator.css - the stick calibrator (calibrator.html, the
+ * dualshock-tools screens on Bootstrap 5.3) in the EXO app's 8K flat look
+ * (D259, D264).
+ *
+ * It only re-points Bootstrap's own variables at the dongle's palette
+ * (css/zs-dongle-theme.css, linked just before this) and flattens the few
+ * things Bootstrap draws with literals: the blue, the light cards, the glow
+ * on the chosen stick. No layout, no markup and no calibration code changes.
+ */
+:root, [data-bs-theme=light], [data-bs-theme=dark]{
+  --bs-body-bg:var(--zs-page); --bs-body-color:var(--fg);
+  --bs-emphasis-color:var(--fg); --bs-heading-color:var(--fg);
+  --bs-secondary-color:var(--muted); --bs-tertiary-color:var(--muted);
+  --bs-secondary-bg:var(--zs-raised); --bs-tertiary-bg:var(--zs-card);
+  --bs-border-color:var(--line); --bs-border-color-translucent:var(--line);
+  --bs-link-color:var(--ion); --bs-link-hover-color:var(--ion);
+  --bs-link-color-rgb:88,166,255; --bs-link-hover-color-rgb:88,166,255;
+  --bs-primary:var(--ion); --bs-primary-rgb:88,166,255;
+  --bs-box-shadow:none; --bs-box-shadow-sm:none; --bs-box-shadow-lg:none;
+  --bs-focus-ring-color:var(--ion-edge);
+}
+body{background:var(--zs-page); color:var(--fg);}
+.card{--bs-card-bg:var(--zs-card); --bs-card-border-color:var(--line); --bs-card-cap-bg:var(--zs-raised);
+  --bs-card-color:var(--fg); box-shadow:none;}
+/* Bootstrap paints these with fixed light colours and !important */
+.text-bg-light{background-color:var(--zs-card) !important; color:var(--fg) !important;}
+.bg-light, .bg-white, .bg-body-tertiary{background-color:var(--zs-card) !important;}
+.text-muted, .text-body-secondary{color:var(--muted) !important;}
+.navbar{border-bottom:1px solid var(--line);}
+.btn-primary{--bs-btn-bg:var(--ion); --bs-btn-border-color:var(--ion); --bs-btn-color:var(--ion-ink);
+  --bs-btn-hover-bg:var(--ion); --bs-btn-hover-border-color:var(--ion); --bs-btn-hover-color:var(--ion-ink);
+  --bs-btn-active-bg:var(--ion); --bs-btn-active-border-color:var(--ion); --bs-btn-active-color:var(--ion-ink);
+  --bs-btn-disabled-bg:var(--zs-control); --bs-btn-disabled-border-color:var(--line); --bs-btn-disabled-color:var(--faint);}
+.btn-secondary, .btn-outline-secondary, .btn-light, .btn-outline-primary{
+  --bs-btn-bg:var(--zs-control); --bs-btn-border-color:var(--line); --bs-btn-color:var(--fg);
+  --bs-btn-hover-bg:var(--zs-raised); --bs-btn-hover-border-color:var(--line); --bs-btn-hover-color:var(--fg);
+  --bs-btn-active-bg:var(--zs-raised); --bs-btn-active-border-color:var(--ion); --bs-btn-active-color:var(--fg);}
+.btn{min-height:44px;}
+.list-group{--bs-list-group-bg:var(--zs-card); --bs-list-group-color:var(--fg); --bs-list-group-border-color:var(--line);
+  --bs-list-group-active-bg:var(--ion-wash); --bs-list-group-active-color:var(--ion); --bs-list-group-active-border-color:var(--ion);
+  --bs-list-group-action-hover-bg:var(--zs-raised); --bs-list-group-action-hover-color:var(--fg);}
+.modal{--bs-modal-bg:var(--zs-card); --bs-modal-color:var(--fg); --bs-modal-border-color:var(--line);
+  --bs-modal-header-border-color:var(--line); --bs-modal-footer-border-color:var(--line); --bs-modal-box-shadow:none;}
+.dropdown-menu{--bs-dropdown-bg:var(--zs-card); --bs-dropdown-color:var(--fg); --bs-dropdown-border-color:var(--line);
+  --bs-dropdown-link-color:var(--fg); --bs-dropdown-link-hover-bg:var(--zs-raised); --bs-dropdown-link-hover-color:var(--fg);
+  --bs-dropdown-box-shadow:none;}
+.accordion{--bs-accordion-bg:var(--zs-card); --bs-accordion-color:var(--fg); --bs-accordion-border-color:var(--line);
+  --bs-accordion-btn-bg:var(--zs-card); --bs-accordion-btn-color:var(--fg);
+  --bs-accordion-active-bg:var(--ion-wash); --bs-accordion-active-color:var(--ion); --bs-accordion-btn-focus-box-shadow:none;}
+.form-control, .form-select{background-color:var(--zs-control); color:var(--fg); border-color:var(--line);}
+.progress{--bs-progress-bg:var(--zs-raised); --bs-progress-bar-bg:var(--ion);}
+.alert{box-shadow:none;}
+/* the chosen stick: a blue outline, no glow (main.css drew one) */
+.stick-card-active{border:1px solid var(--ion) !important; box-shadow:none !important;}
+.stick-card-active .card-header{background-color:var(--ion) !important; color:var(--ion-ink) !important;}
+/* the dualshock-tools notes are drawn with inline white grounds and a
+   literal blue; on the dark ground their text (our --fg) vanished into the
+   white (seen in the D273 screenshots). One card, one hairline, our blue. */
+[style*="background-color: white"]{background-color:var(--zs-card) !important; border:1px solid var(--line) !important;
+  border-radius:12px !important;}
+[style*="color: #0d6efd"]{color:var(--ion) !important;}
+
+/* owner 2026-10-24: the connect screen fits one screen on a short phone, never scrolls */
+@media (max-height:780px){
+  #zsConnectOverlay .shell{padding-top:10px !important; padding-bottom:calc(var(--bot, 0px) + 76px) !important;}
+  #zsConnectOverlay .hero{margin:0 0 8px;}
+  #zsConnectOverlay .hero img{width:auto !important; height:84px !important; max-height:84px;}
+  #zsConnectOverlay h1{font-size:22px; line-height:1.2;}
+  #zsConnectOverlay .steps{margin-top:8px;}
+  #zsConnectOverlay .steps li{padding:5px 0; font-size:14px; line-height:1.35;}
+  #zsConnectOverlay .hint{margin-top:6px; font-size:12.5px; line-height:1.4;}
+}

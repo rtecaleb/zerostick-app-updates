@@ -1,0 +1,870 @@
+/* game-settings.js - the player's in-game settings, once per game (D431, D468).
+
+   Owner, 2026-10-22: "before a user can use AI Scripts it forces them to say
+   their in-game settings like sensitivity, ADS sensitivity and deadzones for
+   every game ... these settings can be changed or customized in Device
+   always, but AI Scripts isn't usable until they set their in-game settings".
+
+   Why: a ready-made gun script (anti-recoil above all) is a stick push made
+   on its maker's settings. With both sets known, the push is scaled so the
+   turn it makes in the game is the same on the player's settings
+   (sensitivity, ADS, the deadzone the game cuts off). D432: a shared Script
+   carries its maker's set (`madeWith`) and is scaled to the player's on
+   paste, on a linear model until each game's measured curve replaces it.
+
+   D468 (owner, 2026-10-24: "make sure all game settings that it asks for make
+   sense according to the settings in that game"): each game asks for ITS
+   OWN settings, by the game's own names, ranges, defaults and steps
+   (game-settings-games.js, window.ZSGAMESCHEMA).
+
+   D469 (owner, 2026-10-24): Native Mouse & Keyboard and controller output are
+   kept SEPARATE. A profile's kind is chosen when it is made and never
+   changes; it alone decides the form: a `nativeKbm` profile shows the game's
+   PC keyboard & mouse settings and keybinds, every other profile the game's
+   controller settings and controller gun buttons. There is no tab picker.
+   Each kind reads and writes only its own side, and a save reaches only the
+   configs of the same game and the same kind.
+
+   What is saved (gameSettings, one copy per GAME and KIND):
+     v: 2, form: the schema's pack id
+     pad    the controller side's values, by the game's own keys, plus
+            pad.binds {swap | next, prev}: the gun buttons (padBinds())
+     kbm    the Native Mouse & Keyboard side's values, plus
+            kbm.keys  {slotN, next, prev, interact, ...}: KeyboardEvent.code
+                      names (Digit1, KeyE, WheelUp, Mouse4); see hotbarKeys()
+            kbm.model {sensX, sensY, ads, dpi}: the mouse side's scaling model
+     sensX, sensY, ads, adsY?, deadzone, deadzoneMax, curve
+            the D431/D432 scaling model, from the controller side (one
+            sensitivity in the game -> both X and Y). A v1 save has only these;
+            it stays readable and its numbers fill the new fields (migrate()).
+
+   window.ZSGAMESET:
+     of(p)            the settings for p's game, or null
+     needs(p)         true while AI Scripts must ask first
+     gateHTML(p)      AI Scripts' screen until they are given
+     deviceCardHTML(p) the card on Device (always there, always editable)
+     formHTML(p, cur) the form for p's kind (the AI Scripts sheet uses it too)
+     wire(root, p, done) wires any of them; done() after a save
+     save(p, vals)    writes p's side to every config of p's game and kind
+     summary(p)       "Sens 6 · ADS 1 · Deadzone 5", for the AI Scripts bar
+     hotbarKeys(p) / padBinds(p) / slotBinds(p)  TODO(D466) seams: the gun
+                      keys (native) or gun buttons (controller) the Core will read
+     nativeKbm(p)     D470 seam: is this config in Native Mouse & Keyboard
+     sideOf(p)        'kbm' (native) or 'pad' (controller output)
+     scaleStick(x, y, from, to, {ads})  D432: a push on `from` -> on `to`
+     scaleFactor(from, to, axis, ads)   the turn ratio, deadzones left out
+     fitAction(a, from, to, side)       scales a Script in place, stamps `to` */
+(function (root) {
+  'use strict';
+  function Z() { return root.ZS || null; }
+  function S() { return root.ZSGAMESCHEMA || null; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function copy(o) { return JSON.parse(JSON.stringify(o)); }
+  function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+  /* the D431 scaling model's keys (what good() checks) */
+  var FIELDS = [
+    { k: 'sensX', lab: 'Horizontal sensitivity', min: 0, need: true },
+    { k: 'sensY', lab: 'Vertical sensitivity', min: 0, need: true },
+    { k: 'ads', lab: 'Aim (ADS) sensitivity', min: 0, need: true },
+    { k: 'deadzone', lab: 'Deadzone min', min: 0, need: true },
+    { k: 'deadzoneMax', lab: 'Deadzone max', min: 1, need: false, dflt: 100 }
+  ];
+
+  function full(id) { var z = Z(); return (z && z.live && z.live.full) ? z.live.full[id] : null; }
+  function packId(doc) {
+    var nr = root.ZSNAMEREADER;
+    return (nr && typeof nr.packOf === 'function') ? nr.packOf(doc) : null;
+  }
+  function isNba(doc) {
+    var packs = root.ZSPACKS;
+    return !!(packs && typeof packs.isNba2k === 'function' && packs.isNba2k(doc));
+  }
+  /* "my own game" (D133 scratch) has no ready-made scripts to scale */
+  function scratch(doc) {
+    var packs = root.ZSPACKS;
+    return !!(packs && ((typeof packs.isScratch === 'function' && packs.isScratch(doc)) ||
+      /* NBA 2K has Auto green, not AI Scripts (D406) */
+      isNba(doc)));
+  }
+  function schemaOf(doc) {
+    var s = S(), pk = packId(doc);
+    if (!s || !pk) { return null; }
+    if (isNba(doc)) { return s.nba; }
+    return s.forPack(pk);
+  }
+
+  /* ── D469: the two kinds of config never share settings ──────────────
+     A config is made either Native Mouse & Keyboard (`nativeKbm: true`, the
+     game sees a real keyboard and mouse) or controller output (Auto,
+     Controller, Mouse & Keyboard as a controller, Mouse & Joystick: the game
+     sees a controller). The kind is fixed for the config's life (owner,
+     2026-10-24), so it alone decides which settings it shows:
+       'kbm'  the game's PC keyboard & mouse settings and keybinds
+       'pad'  the game's controller (console) settings and controller binds
+     Each kind reads and writes ONLY its own side of gameSettings
+     (gameSettings.kbm, or gameSettings.pad + the D431 model at the top), and
+     a save reaches only the configs of the same game AND the same kind. */
+  function sideOf(p) { return nativeKbm(p) ? 'kbm' : 'pad'; }
+  function docSide(doc) { return doc && doc.nativeKbm === true ? 'kbm' : 'pad'; }
+
+  /* the controller model is complete (D431's test, unchanged) */
+  function good(gs) {
+    if (!gs || typeof gs !== 'object') { return false; }
+    return FIELDS.every(function (f) {
+      if (!f.need && gs[f.k] == null) { return true; }
+      return typeof gs[f.k] === 'number' && isFinite(gs[f.k]) && gs[f.k] >= f.min;
+    });
+  }
+  /* the keyboard & mouse side's model is complete */
+  function kbmModel(gs) {
+    var m = gs && gs.kbm && gs.kbm.model;
+    if (!m || typeof m !== 'object') { return null; }
+    var okN = function (v) { return typeof v === 'number' && isFinite(v) && v > 0; };
+    return (okN(m.sensX) && okN(m.sensY) && okN(m.dpi) && typeof m.ads === 'number' && m.ads >= 0) ? m : null;
+  }
+  /* the controller side's own values (v2 from D468 kept them as `game`) */
+  function padOf(gs) {
+    if (!gs || typeof gs !== 'object') { return null; }
+    var x = gs.pad || gs.game;
+    return x && typeof x === 'object' ? x : null;
+  }
+  function isNbaForm(gs) { return !!(gs && gs.form && /^nba-2k/.test(gs.form)); }
+  /* one side answered (NBA 2K has no numbers: its few choices count) */
+  function answeredSide(gs, side) {
+    if (!gs || typeof gs !== 'object') { return false; }
+    if (side === 'kbm') { return !!kbmModel(gs) || !!(isNbaForm(gs) && gs.kbm && gs.kbm.keys); }
+    return good(gs) || !!(isNbaForm(gs) && padOf(gs));
+  }
+  /* either side answered (a pasted config, whose kind is the receiver's) */
+  function answered(gs) { return answeredSide(gs, 'pad') || answeredSide(gs, 'kbm'); }
+  /* this config's own, or another config of the same game AND kind */
+  function of(p) {
+    var z = Z(), doc = p && full(p.id), side = sideOf(p), pk, all, id;
+    if (doc && answeredSide(doc.gameSettings, side)) { return doc.gameSettings; }
+    pk = packId(doc || p);
+    if (!pk || !z || !z.live) { return null; }
+    all = z.live.full || {};
+    for (id in all) {
+      if (own(all, id) && all[id] && packId(all[id]) === pk && docSide(all[id]) === side &&
+          answeredSide(all[id].gameSettings, side)) { return all[id].gameSettings; }
+    }
+    return null;
+  }
+  /* this kind's form for this game, or null (CS2 has no controller side) */
+  function tabFor(sc, side) { return sc ? (side === 'kbm' ? sc.kbm : sc.ctl) || null : null; }
+  /* a config with no game has no ready-made scripts to scale, so it never asks */
+  function needs(p) {
+    var doc = p && full(p.id);
+    if (!doc || !packId(doc) || scratch(doc) || !tabFor(schemaOf(doc), sideOf(p))) { return false; }
+    return !of(p);
+  }
+  function gameName(p) {
+    var doc = p && full(p.id), packs = root.ZSPACKS;
+    var pk = packs && typeof packs.ofConfig === 'function' ? packs.ofConfig(doc || p) : null;
+    return (pk && pk.name) || (doc && doc.game) || (p && p.game) || 'this game';
+  }
+  /* D470 seam (core/native-kbm): a config in Native Mouse & Keyboard. The
+     flag is `nativeKbm: true` on the config (never the old Pass-through
+     mode, which turns everything off). STABLE: D470 reads it. */
+  function nativeKbm(p) {
+    var doc = p && full(p.id);
+    return !!((doc && doc.nativeKbm === true) || (p && p.nativeKbm === true));
+  }
+
+  /* ── keybinds ──────────────────────────────────────────────────────── */
+  var KEYWORD = {
+    'wheel up': 'WheelUp', 'wheelup': 'WheelUp', 'scroll up': 'WheelUp', 'mwheelup': 'WheelUp', 'mouse wheel up': 'WheelUp',
+    'wheel down': 'WheelDown', 'wheeldown': 'WheelDown', 'scroll down': 'WheelDown', 'mwheeldown': 'WheelDown', 'mouse wheel down': 'WheelDown',
+    'mouse 4': 'Mouse4', 'mouse4': 'Mouse4', 'm4': 'Mouse4', 'mb4': 'Mouse4', 'mouse 5': 'Mouse5', 'mouse5': 'Mouse5', 'm5': 'Mouse5', 'mb5': 'Mouse5',
+    'mouse 3': 'Mouse3', 'middle mouse': 'Mouse3', 'wheel click': 'Mouse3',
+    'space': 'Space', 'tab': 'Tab', 'shift': 'ShiftLeft', 'left shift': 'ShiftLeft', 'ctrl': 'ControlLeft', 'control': 'ControlLeft',
+    'left ctrl': 'ControlLeft', 'alt': 'AltLeft', 'left alt': 'AltLeft', 'caps': 'CapsLock', 'caps lock': 'CapsLock', 'enter': 'Enter', 'esc': 'Escape'
+  };
+  /* what a player typed, or a key event's code -> one stored name */
+  function keyCode(s) {
+    s = String(s == null ? '' : s).trim();
+    if (!s) { return ''; }
+    if (/^(Key[A-Z]|Digit\d|F\d{1,2}|Numpad\w+|Wheel(Up|Down)|Mouse\d|Space|Tab|Enter|Escape|CapsLock|(Shift|Control|Alt)(Left|Right)|Backquote|Minus|Equal|Bracket(Left|Right)|Semicolon|Quote|Comma|Period|Slash|Backslash)$/.test(s)) { return s; }
+    var low = s.toLowerCase().replace(/\s+/g, ' ');
+    if (KEYWORD[low]) { return KEYWORD[low]; }
+    if (/^[a-z]$/.test(low)) { return 'Key' + low.toUpperCase(); }
+    if (/^\d$/.test(low)) { return 'Digit' + low; }
+    if (/^f([1-9]|1[0-2])$/.test(low)) { return low.toUpperCase(); }
+    return s;
+  }
+  /* a stored name, as the player reads it */
+  function keyLabel(c) {
+    c = String(c || '');
+    var m;
+    if ((m = /^Key([A-Z])$/.exec(c))) { return m[1]; }
+    if ((m = /^Digit(\d)$/.exec(c))) { return m[1]; }
+    if (c === 'WheelUp') { return 'Wheel up'; }
+    if (c === 'WheelDown') { return 'Wheel down'; }
+    if ((m = /^Mouse(\d)$/.exec(c))) { return 'Mouse ' + m[1]; }
+    if ((m = /^(Shift|Control|Alt)(Left|Right)$/.exec(c))) { return m[2] + ' ' + (m[1] === 'Control' ? 'Ctrl' : m[1]); }
+    return c;
+  }
+
+  /* ── the form ──────────────────────────────────────────────────────── */
+  function fieldsOf(sc, side) { var x = tabFor(sc, side); return x ? x.fields : []; }
+  function inRange(f, v) {
+    return typeof v === 'number' && isFinite(v) && v >= (f.min == null ? -Infinity : f.min) &&
+      v <= (f.max == null ? Infinity : f.max) && (!f.int || Math.round(v) === v);
+  }
+  function shown(f, vals) {
+    if (!f.when) { return true; }
+    return f.when.v.indexOf(vals[f.when.k]) >= 0;
+  }
+  function selDefault(f) { return f.dflt != null ? f.dflt : f.opts[0][0]; }
+
+  /* The values a side starts with: what was saved in the game's own words,
+     or (a v1 save, controller side only) the D431 numbers moved into the
+     fields they belong to, only where they fit the game's range. A D468
+     save made on the old free tab picker is read by side: its controller
+     values (`game`) only ever reach the controller form, its keyboard ones
+     (`kbm`) only the native form. Selects take their default. */
+  function migrate(sc, cur, side) {
+    var out = {}, src;
+    if (side === 'ctl') { side = 'pad'; }
+    if (!sc || !tabFor(sc, side)) { return out; }
+    if (side === 'kbm') {
+      src = cur && cur.kbm && typeof cur.kbm === 'object' ? cur.kbm : null;
+      fieldsOf(sc, side).forEach(function (f) {
+        if (f.type === 'key') { var kk = src && src.keys && src.keys[f.k]; if (kk) { out[f.k] = kk; } }
+        else if (src && src[f.k] != null) { out[f.k] = src[f.k]; }
+      });
+      return out;
+    }
+    src = padOf(cur);
+    if (src && cur.form && S() && S().forPack(cur.form) !== sc) { src = null; }
+    if (src) {
+      fieldsOf(sc, side).forEach(function (f) {
+        var v = f.bind ? (src.binds && src.binds[f.k]) : src[f.k];
+        if (v != null) { out[f.k] = v; }
+      });
+      return out;
+    }
+    /* v1: selects first (a `when` depends on them), then the numbers */
+    fieldsOf(sc, side).forEach(function (f) {
+      if (f.type !== 'sel') { return; }
+      var o = f.old && cur ? cur[f.old] : null;
+      out[f.k] = (o != null && f.opts.some(function (x) { return x[0] === o; })) ? o : selDefault(f);
+    });
+    if (cur && good(cur)) {
+      fieldsOf(sc, side).forEach(function (f) {
+        if (f.type !== 'num' || !f.old || !shown(f, out)) { return; }
+        var v = cur[f.old];
+        if (f.old === 'deadzoneMax' && v === 100 && f.max != null && f.max < 100) { return; }
+        if (inRange(f, v)) { out[f.k] = v; }
+      });
+    }
+    return out;
+  }
+
+  function fieldHTML(f, side, v) {
+    var attrs = ' data-gs="' + esc(f.k) + '" data-gst="' + side + '"';
+    var when = f.when ? ' data-when="' + esc(f.when.k) + ':' + esc(f.when.v.join(',')) + '"' : '';
+    var lab = '<span class="gs-l">' + esc(f.lab) + (f.need === false && f.type === 'num' ? ' <span class="gs-opt">(optional)</span>' : '') + '</span>';
+    var say = f.say ? '<span class="gs-s">' + esc(f.say) + '</span>' : '';
+    if (f.type === 'sel') {
+      var c = v != null ? v : selDefault(f);
+      return '<label class="gs-f' + (f.bind ? '' : ' gs-wide') + '"' + when + '>' + lab + say +
+        '<select class="txt gs-in" data-nosave="1"' + attrs + (f.bind ? ' data-bind="1"' : '') + '>' +
+        f.opts.map(function (o) {
+          return '<option value="' + esc(o[0]) + '"' + (o[0] === c ? ' selected' : '') + '>' + esc(o[1]) +
+            (f.known && o[0] === f.dflt ? ' (default)' : '') + '</option>';
+        }).join('') + '</select></label>';
+    }
+    if (f.type === 'key') {
+      var code = v || '';
+      return '<label class="gs-f"' + when + '>' + lab +
+        '<input class="txt gs-in gs-key" data-nosave="1"' + attrs + ' data-key="' + esc(code) + '" autocomplete="off" ' +
+        'autocapitalize="off" spellcheck="false" placeholder="' + esc(keyLabel(f.dflt) || 'Press a key') + '" value="' + esc(keyLabel(code)) + '"></label>';
+    }
+    var ph = f.dflt != null ? String(f.dflt) : (f.max != null && f.min != null ? f.min + '–' + f.max : '');
+    var range = (f.min != null && f.max != null) ? f.min + ' to ' + f.max : (f.min != null && f.min > 0 ? f.min + ' or more' : '');
+    return '<label class="gs-f"' + when + '>' + lab + say +
+      '<input class="txt gs-in" data-nosave="1"' + attrs + ' inputmode="decimal" autocomplete="off"' +
+      (range ? ' data-range="' + esc(range) + '"' : '') +
+      ' placeholder="' + esc(ph ? (f.dflt != null ? ph + ' (default)' : ph) : '') + '" value="' + esc(v != null ? String(v) : '') + '"></label>';
+  }
+
+  /* the "?": every field's plain-word help, and how to get the other kind */
+  function helpText(sc, side) {
+    var lines = [];
+    if (side === 'kbm') {
+      lines.push('This is a Native Mouse & Keyboard profile: your keyboard and mouse reach the game as a real keyboard and mouse, so these are the game’s PC keyboard and mouse settings. The scripts and AI (gun detection, script switching, keybind to slot) still run on top of it.');
+      lines.push('The keybinds tell the Core which key takes out which gun. Tap a box, then press the key, scroll the wheel or type it (like 1, E or wheel down).');
+      lines.push('For the game’s controller settings, make a new profile that plays as a controller. A profile’s kind is chosen when it is made and never changes.');
+    } else {
+      lines.push('This profile plays as a controller, so the game sees a controller: these are the game’s controller settings. Type each one exactly as the game’s Controller settings show it. A blank box with a default uses the game’s default.');
+      lines.push('The buttons below tell the Core which button changes gun.');
+      lines.push('For the game’s keyboard and mouse settings, make a new Native Mouse & Keyboard profile. A profile’s kind is chosen when it is made and never changes.');
+    }
+    fieldsOf(sc, side).forEach(function (f) { if (f.help) { lines.push(f.help); } });
+    return lines.join(' ');
+  }
+  function helpBlock(id, label, text) {
+    var z = Z();
+    if (z && typeof z.helpHTML === 'function') { return z.helpHTML(id, label, text); }
+    return '<details class="gs-help"><summary aria-label="' + esc('Help: ' + label) + '">?</summary><p class="gs-p">' + esc(text) + '</p></details>';
+  }
+
+  /* a game with no form for this kind (CS2 on a controller profile) */
+  function noFormHTML(p, sc) {
+    return '<div class="gs-form" data-gsform="1" data-gsside="none"><p class="gs-p gs-native" id="gs-pconly">' +
+      esc(gameName(p)) + ' is a PC game with no controller settings: it is played on a Native Mouse & Keyboard profile. ' +
+      'Make a new Native Mouse & Keyboard profile to set it up.</p></div>';
+  }
+  function formHTML(p, cur) {
+    var doc = p && full(p.id), sc = schemaOf(doc || p) || (S() && S().generic), side = sideOf(p);
+    if (!sc) { return ''; }
+    var tab = tabFor(sc, side);
+    if (!tab) { return noFormHTML(p, sc); }
+    var vals = migrate(sc, cur, side);
+    var kind = side === 'kbm' ? 'Native Mouse & Keyboard' : 'Controller';
+    return '<div class="gs-form" data-gsform="1" data-gsside="' + side + '">' +
+      '<div class="gs-kind"><span class="gs-chip" data-gskind="' + side + '">' + esc(kind) + (side === 'kbm' && sc.pcName ? ' · ' + esc(sc.pcName) : '') +
+        (side === 'pad' && sc.padName ? ' · ' + esc(sc.padName) : '') + '</span>' +
+        helpBlock('gs-help-' + side, kind + ' settings', helpText(sc, side)) + '</div>' +
+      '<div class="gs-pane" data-gspane="' + side + '"><div class="gs-grid">' + tab.fields.map(function (f) {
+        var v = vals[f.k];
+        if (f.type === 'sel' && v == null) { v = selDefault(f); }
+        return fieldHTML(f, side, v);
+      }).join('') + '</div></div>' +
+      '<div class="gs-err" id="gs-err" role="alert"></div>' +
+      '<button type="button" class="btn primary gs-save" id="gs-save">Save settings</button></div>';
+  }
+
+  function gateHTML(p) {
+    return '<div class="grp-card gs-gate" id="gs-gate">' +
+      '<div class="gs-ico" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">' +
+        '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></div>' +
+      '<div class="gs-h">Your ' + esc(gameName(p)) + ' settings first</div>' +
+      '<p class="gs-p">Type them exactly as your game shows them. AI Scripts uses them so every ready-made script fits your sensitivity and deadzone.</p>' +
+      formHTML(p, null) +
+      '<p class="gs-foot">One time for each game. Change them any time on <b>Device</b>.</p>' +
+      '</div>';
+  }
+
+  function deviceCardHTML(p) {
+    var doc = p && full(p.id);
+    if (!doc || !packId(doc) || (scratch(doc) && !isNba(doc)) || !schemaOf(doc)) { return ''; }
+    var cur = of(p);
+    var z = Z();
+    var head = (z && typeof z.sh === 'function') ? z.sh('In-game settings') : '<div class="sh">In-game settings</div>';
+    var say = isNba(doc) ? (cur ? 'How you shoot in ' + esc(gameName(p)) + '.' : 'How you shoot in ' + esc(gameName(p)) + ' (optional).')
+      : (cur ? 'What ' + esc(gameName(p)) + ' is set to. AI Scripts scales its scripts to these.'
+        : 'Not set yet. AI Scripts needs these for ' + esc(gameName(p)) + '.');
+    if (!tabFor(schemaOf(doc), sideOf(p))) { say = ''; }
+    return head + '<div class="grp-card gs-card" id="gs-card">' +
+      (say ? '<p class="gs-p">' + say + '</p>' : '') + formHTML(p, cur) + '</div>';
+  }
+
+  /* the form's values, checked against the game's ranges */
+  function readVals(rootEl, sc, side) {
+    var vals = {}, bad = null, say = null;
+    var pane = rootEl.querySelector('[data-gspane="' + side + '"]') || rootEl;
+    /* selects first: the `when` of the rest reads them */
+    fieldsOf(sc, side).forEach(function (f) {
+      if (f.type !== 'sel') { return; }
+      var el = pane.querySelector('[data-gs="' + f.k + '"]');
+      vals[f.k] = el ? el.value : selDefault(f);
+    });
+    fieldsOf(sc, side).forEach(function (f) {
+      if (f.type === 'sel' || !shown(f, vals)) { return; }
+      var el = pane.querySelector('[data-gs="' + f.k + '"]');
+      if (f.type === 'key') {
+        var code = el ? (el.getAttribute('data-key') || keyCode(el.value)) : '';
+        vals[f.k] = code || f.dflt || '';
+        return;
+      }
+      var s = el ? String(el.value).trim().replace(',', '.') : '';
+      var v = s === '' ? (f.dflt != null ? f.dflt : (f.need === false ? null : NaN)) : Number(s);
+      if (v === null) { if (el) { el.removeAttribute('aria-invalid'); } return; }
+      if (!inRange(f, v)) {
+        if (!bad) {
+          bad = f;
+          say = !isFinite(v) ? 'Type your ' + f.lab + ' as a number.'
+            : 'Your ' + f.lab + ' goes from ' + (f.min == null ? 0 : f.min) + (f.max != null ? ' to ' + f.max : ' up') +
+              (f.int ? ', in whole steps' : '') + ' in the game.';
+        }
+        if (el) { el.setAttribute('aria-invalid', 'true'); }
+      } else {
+        vals[f.k] = v;
+        if (el) { el.removeAttribute('aria-invalid'); }
+      }
+    });
+    return bad ? { bad: bad, say: say } : { vals: vals };
+  }
+  function read(rootEl, sc, side) {
+    var r = readVals(rootEl, sc, side);
+    if (r.bad) { return r; }
+    var tab = tabFor(sc, side), model = tab.model ? tab.model(r.vals) : null;
+    if (side === 'pad' && model) {
+      if (!(model.deadzoneMax > model.deadzone)) {
+        return { bad: fieldsOf(sc, side).filter(function (f) { return f.old === 'deadzoneMax' || f.old === 'deadzone'; }).pop() || fieldsOf(sc, side)[0],
+                 say: 'Your deadzone max has to be bigger than your deadzone min.' };
+      }
+      if (!good(model)) { return { bad: fieldsOf(sc, side)[0], say: 'Those numbers do not add up to a sensitivity. Check each one against your game.' }; }
+    }
+    if (side === 'kbm' && model && !kbmModel({ kbm: { model: model } })) {
+      return { bad: fieldsOf(sc, side)[0], say: 'Type your mouse sensitivity and DPI as numbers.' };
+    }
+    return { side: side, native: r.vals, model: model };
+  }
+
+  function round4(v) { return Math.round(v * 10000) / 10000; }
+  /* Write ONE side into a config's gameSettings (in place), leaving the other
+     side exactly as it was. pad: gameSettings.pad + the D431 model at the
+     top. kbm: gameSettings.kbm. Nothing else in the config is touched. */
+  function writeSide(gs, form, sc, payload) {
+    gs.v = 2;
+    if (form) { gs.form = form; }
+    delete gs.input;              /* D468's tab picker is gone */
+    if (payload.side === 'kbm') {
+      var kb = { keys: {} };
+      fieldsOf(sc, 'kbm').forEach(function (f) {
+        var v = payload.native[f.k];
+        if (v == null || v === '') { return; }
+        if (f.type === 'key') { kb.keys[f.k] = v; } else { kb[f.k] = v; }
+      });
+      if (payload.model) {
+        kb.model = { sensX: round4(payload.model.sensX), sensY: round4(payload.model.sensY),
+                     ads: round4(payload.model.ads), dpi: payload.model.dpi };
+      }
+      gs.kbm = kb;
+      return gs;
+    }
+    var pad = {}, binds = {};
+    fieldsOf(sc, 'pad').forEach(function (f) {
+      var v = payload.native ? payload.native[f.k] : null;
+      if (v == null || v === '') { return; }
+      if (f.bind) { binds[f.k] = v; } else { pad[f.k] = v; }
+    });
+    if (Object.keys(binds).length) { pad.binds = binds; }
+    if (payload.native && Object.keys(payload.native).length) { gs.pad = pad; }
+    delete gs.game;               /* D468's name for it, moved to pad */
+    var m = payload.model;
+    if (m) {
+      gs.sensX = round4(m.sensX); gs.sensY = round4(m.sensY); gs.ads = round4(m.ads);
+      if (m.adsY != null && isFinite(m.adsY) && round4(m.adsY) !== gs.ads) { gs.adsY = round4(m.adsY); } else { delete gs.adsY; }
+      gs.deadzone = round4(m.deadzone); gs.deadzoneMax = round4(m.deadzoneMax == null ? 100 : m.deadzoneMax);
+      gs.curve = m.curve || '';
+    }
+    return gs;
+  }
+  /* the record a save makes from `prev` (a copy; for tests and callers) */
+  function build(prev, sc, payload) {
+    var gs = (prev && typeof prev === 'object') ? copy(prev) : {};
+    delete gs.gameSettingsFrom;
+    if (payload && payload.tab && !payload.side) { payload.side = payload.tab === 'kbm' ? 'kbm' : 'pad'; }
+    return writeSide(gs, sc && sc.form, sc, payload);
+  }
+
+  /* save(p, vals): vals is a form read ({side, native, model}) or, as in
+     D431, the bare controller model {sensX, sensY, ads, deadzone, ...}.
+     It reaches every config of p's game OF THE SAME KIND, and changes only
+     that kind's side of each one's gameSettings. */
+  function save(p, vals) {
+    var z = Z(), doc = p && full(p.id), pk = packId(doc || p), side = sideOf(p), ids = [], all, id, chain = Promise.resolve();
+    if (!z || typeof z.putProfile !== 'function' || !p) { return Promise.resolve(null); }
+    var sc = schemaOf(doc || p) || (S() && S().generic);
+    var payload = vals && (vals.side || vals.tab) ? vals : { side: 'pad', native: {}, model: vals };
+    if (!payload.side) { payload.side = payload.tab === 'kbm' ? 'kbm' : 'pad'; }
+    if (payload.side !== side) { return Promise.resolve({ ok: false, error: 'this profile is not that kind' }); }
+    var form = pk;
+    ids.push(p.id);
+    all = (z.live && z.live.full) || {};
+    if (pk) {
+      for (id in all) {
+        if (own(all, id) && id !== p.id && all[id] && packId(all[id]) === pk && docSide(all[id]) === side) { ids.push(id); }
+      }
+    }
+    var first = null;
+    ids.forEach(function (cid, i) {
+      var made = null;
+      chain = chain.then(function () {
+        return z.putProfile(cid, function (d) {
+          var gs = (d.gameSettings && typeof d.gameSettings === 'object') ? d.gameSettings : {};
+          writeSide(gs, form, sc, payload);
+          /* a config pasted from someone else waits with its maker's settings
+             (adoptPasted): its Scripts are scaled to these now, once */
+          if (answeredSide(d.gameSettingsFrom, side)) {
+            (Array.isArray(d.accessibilityActions) ? d.accessibilityActions : []).forEach(function (a) {
+              fitAction(a, d.gameSettingsFrom, gs, side);
+            });
+            delete d.gameSettingsFrom;
+          }
+          d.gameSettings = gs;
+          made = copy(gs);
+        });
+      }).then(function (j) {
+        if (i === 0) { first = j; }
+        /* the cache now, so the screen that redraws next sees them */
+        if (all[cid] && made) { all[cid].gameSettings = made; }
+      }, function () { return null; });
+    });
+    return chain.then(function () { return first; });
+  }
+
+  /* a select changed: show the fields that belong to its choice */
+  function applyWhen(rootEl) {
+    var sels = {};
+    Array.prototype.forEach.call(rootEl.querySelectorAll('select[data-gs]'), function (s) {
+      sels[s.getAttribute('data-gst') + ':' + s.getAttribute('data-gs')] = s.value;
+    });
+    Array.prototype.forEach.call(rootEl.querySelectorAll('[data-when]'), function (lab) {
+      var w = String(lab.getAttribute('data-when')).split(':'), inp = lab.querySelector('[data-gst]');
+      var t = inp ? inp.getAttribute('data-gst') : 'pad';
+      var on = String(w[1] || '').split(',').indexOf(sels[t + ':' + w[0]]) >= 0;
+      if (on) { lab.removeAttribute('hidden'); } else { lab.setAttribute('hidden', ''); }
+    });
+  }
+  function wireKey(el) {
+    function set(code) { el.setAttribute('data-key', code); el.value = keyLabel(code); }
+    el.addEventListener('keydown', function (e) {
+      var c = e && e.code;
+      if (!c || c === 'Tab' || c === 'Unidentified' || e.key === 'Unidentified' || e.key === 'Process') { return; }
+      if (c === 'Backspace' || c === 'Delete') { el.setAttribute('data-key', ''); el.value = ''; e.preventDefault(); return; }
+      set(c); e.preventDefault();
+    });
+    /* a phone's keyboard, or a word typed: read it as it is */
+    el.addEventListener('input', function () { el.setAttribute('data-key', keyCode(el.value)); });
+    el.addEventListener('blur', function () { var c = el.getAttribute('data-key'); if (c) { el.value = keyLabel(c); } });
+    el.addEventListener('wheel', function (e) {
+      if (root.document && root.document.activeElement !== el) { return; }
+      set(e.deltaY < 0 ? 'WheelUp' : 'WheelDown'); e.preventDefault();
+    });
+    el.addEventListener('mousedown', function (e) {
+      if (e.button === 3 || e.button === 4) { set('Mouse' + (e.button + 1)); e.preventDefault(); }
+      else if (e.button === 1) { set('Mouse3'); e.preventDefault(); }
+    });
+  }
+
+  function wire(rootEl, p, done) {
+    var btn = rootEl.querySelector('#gs-save');
+    if (!btn) { return; }
+    var doc = p && full(p.id), sc = schemaOf(doc || p) || (S() && S().generic), side = sideOf(p);
+    applyWhen(rootEl);
+    Array.prototype.forEach.call(rootEl.querySelectorAll('select[data-gs]'), function (s) {
+      s.addEventListener('change', function () { applyWhen(rootEl); });
+    });
+    Array.prototype.forEach.call(rootEl.querySelectorAll('.gs-key'), wireKey);
+    btn.addEventListener('click', function () {
+      var err = rootEl.querySelector('#gs-err'), r = read(rootEl, sc, side);
+      if (r.bad) {
+        if (err) { err.textContent = r.say || ('Type your ' + r.bad.lab + ' as a number.'); }
+        var el = rootEl.querySelector('[data-gs="' + r.bad.k + '"]');
+        if (el) { try { el.focus(); } catch (e) {} }
+        return;
+      }
+      if (err) { err.textContent = ''; }
+      btn.disabled = true;
+      save(p, r).then(function (j) {
+        btn.disabled = false;
+        var z = Z();
+        if (j && j.ok === false) {
+          if (err) { err.textContent = 'Not saved: ' + (j.error || 'your Core did not answer') + '.'; }
+          return;
+        }
+        if (z && typeof z.toast === 'function') { z.toast('Saved your ' + gameName(p) + ' settings'); }
+        if (typeof done === 'function') { done(); }
+      });
+    });
+  }
+
+  /* "Sens 6 · ADS 1 · Deadzone 5", or the mouse's numbers on a native profile */
+  function summary(p) {
+    var gs = of(p);
+    if (!gs) { return ''; }
+    var nn = function (v) { return String(Math.round(v * 100) / 100); };
+    if (sideOf(p) === 'kbm') {
+      var km = kbmModel(gs), kv = gs.kbm || {};
+      if (!km) { return 'Set'; }
+      return 'Mouse ' + nn(kv.mSens != null ? kv.mSens : km.sensX) + (km.sensY !== km.sensX && kv.mSens == null ? ' / ' + nn(km.sensY) : '') +
+        ' · ' + nn(km.dpi) + ' DPI';
+    }
+    if (!good(gs)) { return 'Set'; }
+    return 'Sens ' + nn(gs.sensX) + (gs.sensY !== gs.sensX ? ' / ' + nn(gs.sensY) : '') + ' · ADS ' + nn(gs.ads) +
+      ' · Deadzone ' + nn(gs.deadzone) + (gs.deadzoneMax != null && gs.deadzoneMax !== 100 ? '–' + nn(gs.deadzoneMax) : '');
+  }
+
+  /* TODO(D466, core/hotbar-keybinds): the seams the keybind -> slot system
+     reads. Nothing sends them yet.
+       hotbarKeys(p)  a Native Mouse & Keyboard profile's keys {slot1.., next,
+                      prev, interact, ...} as KeyboardEvent.code names; null on
+                      a controller profile (its keys mean nothing to the game)
+       padBinds(p)    a controller profile's gun buttons {swap | next, prev}
+                      as button ids (north, rb, lb, dup...); null on a native
+                      profile
+       slotBinds(p)   {kind: 'kbm' | 'pad', binds}: whichever the profile's
+                      kind uses */
+  function hotbarKeys(p) {
+    var doc = p && full(p.id), sc = schemaOf(doc || p), gs = of(p), out = {};
+    if (!sc || !sc.kbm || sideOf(p) !== 'kbm') { return null; }
+    var saved = (gs && gs.kbm && gs.kbm.keys) || {};
+    sc.kbm.fields.forEach(function (f) { if (f.type === 'key') { out[f.k] = saved[f.k] || f.dflt; } });
+    return out;
+  }
+  function padBinds(p) {
+    var doc = p && full(p.id), sc = schemaOf(doc || p), gs = of(p), out = {};
+    if (!sc || !sc.ctl || sideOf(p) !== 'pad') { return null; }
+    var pd = padOf(gs), saved = (pd && pd.binds) || {};
+    sc.ctl.fields.forEach(function (f) { if (f.bind) { out[f.k] = saved[f.k] || f.dflt; } });
+    return out;
+  }
+  function slotBinds(p) {
+    return sideOf(p) === 'kbm' ? { kind: 'kbm', binds: hotbarKeys(p) } : { kind: 'pad', binds: padBinds(p) };
+  }
+
+  function injectCss() {
+    if (!root.document || root.document.getElementById('gs-css')) { return; }
+    var st = root.document.createElement('style');
+    st.id = 'gs-css';
+    st.textContent = [
+      '.gs-gate{padding:18px 16px 16px;margin-top:6px}',
+      '.gs-card{padding:14px 16px 16px}',
+      '.gs-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;',
+      '  color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);margin-bottom:10px}',
+      '.gs-h{font-size:17px;font-weight:700;letter-spacing:var(--tr-title,-.016em)}',
+      '.gs-p{color:var(--muted);font-size:13px;line-height:1.5;margin:6px 0 12px}',
+      '.gs-native{color:var(--text)}',
+      '.gs-foot{color:var(--muted);font-size:12px;margin:12px 0 0}',
+      '.gs-kind{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px}',
+      '.gs-kind>.qhfold,.gs-kind>.gs-help{flex:1 0 100%;margin:0}',
+      '.gs-kind .qhrow{margin:0}',
+      '.gs-chip{display:inline-flex;align-items:center;white-space:nowrap;min-height:28px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;',
+      '  color:var(--text);border:1px solid var(--line);background:color-mix(in srgb,var(--accent) 12%,transparent)}',
+      '.gs-chip[data-gskind="kbm"]{background:color-mix(in srgb,var(--red,#e5484d) 16%,transparent)}',
+      '.gs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 10px}',
+      '.gs-f{display:flex;flex-direction:column;gap:2px;min-width:0}',
+      '.gs-f[hidden]{display:none}',
+      '.gs-wide{grid-column:1/-1}',
+      '.gs-l{font-size:13px;font-weight:600}',
+      '.gs-s{font-size:11px;color:var(--muted);margin-bottom:4px}',
+      '.gs-opt{font-weight:400;color:var(--muted)}',
+      '.gs-in{width:100%;box-sizing:border-box}',
+      '.gs-key{text-align:center;font-weight:600;caret-color:transparent}',
+      'select.gs-in{min-height:46px;padding:0 12px;border-radius:12px;border:1px solid var(--line,#3a3f4a);background:var(--field,var(--card2,#1c1f26));color:var(--text);font:inherit;font-size:15px}',
+      '.gs-in[aria-invalid="true"]{border-color:var(--red,#e5484d)}',
+      '.gs-err{color:var(--red-ink,var(--red,#e5484d));font-size:13px;min-height:18px;margin:8px 0 4px}',
+      '.gs-save{width:100%}',
+      '.gs-help summary{cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);list-style:none}'
+    ].join('\n');
+    (root.document.head || root.document.documentElement).appendChild(st);
+  }
+  if (root.document) { injectCss(); }
+
+
+  /* ── D432: scaling a script from its maker's settings to the player's ──
+
+     Owner, 2026-10-22: "scale the scripts correctly depending on people's
+     profiles, because deadzones change how sensitivity feels overall (the
+     min and max) and obviously sensitivity ... if someone pastes a Recoil
+     Workshop pattern, we just adjust the x and y to match our game".
+
+     THE LINEAR MODEL, honestly labelled: the game ignores the stick inside
+     its radial deadzone (dz), calls it fully pushed at the outer one (mx),
+     and in between turns at sens x (ads when aiming) x the push, in a
+     straight line. A game's MEASURED curve (its aim model) replaces this
+     later; until then this is the best a pair of numbers can say.
+
+     Units: x, y are a stick output, -1..1 on each axis (the length is the
+     push, 1 = the edge). Only the direction's axes matter, so +y up or +y
+     down both work. Pure functions, no DOM. */
+  function nOr(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function zones(gs) {
+    var dz = Math.max(0, nOr(gs.deadzone, 0)) / 100;
+    var mx = nOr(gs.deadzoneMax, 100) / 100;
+    if (!(mx > dz)) { mx = Math.max(dz + 0.01, 1); }
+    return { dz: dz, mx: mx };
+  }
+  /* turn per unit of effective push on one axis */
+  function gain(gs, axis, ads) {
+    /* D468: a game with its own up/down ADS speed (Apex ALC, Fortnite
+       Advanced, VALORANT) carries adsY; the rest use ads for both */
+    var am = axis === 'y' && gs.adsY != null ? nOr(gs.adsY, 1) : nOr(gs.ads, 1);
+    return nOr(axis === 'y' ? gs.sensY : gs.sensX, 0) * (ads ? am : 1);
+  }
+  /* the numbers that change a push (the curve name does not, yet) */
+  function same(a, b) {
+    return ['sensX', 'sensY', 'ads', 'deadzone'].every(function (k) { return nOr(a[k], NaN) === nOr(b[k], NaN); }) &&
+      nOr(a.deadzoneMax, 100) === nOr(b.deadzoneMax, 100) &&
+      nOr(a.adsY != null ? a.adsY : a.ads, NaN) === nOr(b.adsY != null ? b.adsY : b.ads, NaN);
+  }
+  /* true when going from one set to the other changes anything */
+  function differ(from, to) { return good(from) && good(to) && !same(from, to); }
+
+  /* D468, Native Mouse & Keyboard: the mouse reaches the game as itself, so
+     a Script's mouse moves (counts) turn the camera by the game's own mouse
+     law: turn per count = sensitivity x (ADS multiplier) and the counts a
+     hand makes for one turn scale with DPI. A move made on the maker's
+     mouse is scaled by maker / player of (sens x DPI x ADS), per axis. Used
+     only for a Native Mouse & Keyboard profile (fitAction's side 'kbm'). */
+  function kbmDiffer(from, to) {
+    var a = kbmModel(from), b = kbmModel(to);
+    return !!(a && b &&
+      !(a.sensX === b.sensX && a.sensY === b.sensY && a.ads === b.ads && a.dpi === b.dpi));
+  }
+  function kbmFactor(from, to, axis, ads) {
+    var a = kbmModel(from), b = kbmModel(to);
+    if (!a || !b) { return 1; }
+    var ga = (axis === 'y' ? a.sensY : a.sensX) * a.dpi * (ads ? a.ads : 1);
+    var gb = (axis === 'y' ? b.sensY : b.sensX) * b.dpi * (ads ? b.ads : 1);
+    return gb > 0 ? ga / gb : 1;
+  }
+
+  /* the turn ratio on one axis, deadzones left out: what a mouse count (the
+     Recoil Lab's move steps, which the player's own translator turns into a
+     push past THEIR deadzone) has to be multiplied by */
+  function scaleFactor(from, to, axis, ads) {
+    if (!good(from) || !good(to)) { return 1; }
+    var gt = gain(to, axis, ads);
+    return gt > 0 ? gain(from, axis, ads) / gt : 1;
+  }
+
+  function scaleStick(x, y, from, to, opts) {
+    x = nOr(x, 0); y = nOr(y, 0);
+    var ads = !!(opts && opts.ads);
+    if (!good(from) || !good(to) || same(from, to)) { return { x: x, y: y, clipped: false }; }
+    var m = Math.sqrt(x * x + y * y);
+    if (m === 0) { return { x: 0, y: 0, clipped: false }; }
+    var f = zones(from), t = zones(to);
+    /* inside the maker's deadzone it did nothing; it stays nothing */
+    if (m <= f.dz) {
+      var k = f.dz > 0 ? t.dz / f.dz : 0;
+      return { x: x * k, y: y * k, clipped: false };
+    }
+    var eff = Math.min(1, (m - f.dz) / (f.mx - f.dz));
+    var gxT = gain(to, 'x', ads), gyT = gain(to, 'y', ads);
+    var ex = eff * x / m * gain(from, 'x', ads), ey = eff * y / m * gain(from, 'y', ads);
+    /* the speed this needs, in the player's effective push */
+    var clipped = false;
+    if (ex !== 0) { if (gxT > 0) { ex /= gxT; } else { clipped = true; ex = ex > 0 ? 1 : -1; } }
+    if (ey !== 0) { if (gyT > 0) { ey /= gyT; } else { clipped = true; ey = ey > 0 ? 1 : -1; } }
+    var e = Math.sqrt(ex * ex + ey * ey);
+    if (e === 0) { return { x: 0, y: 0, clipped: clipped }; }
+    if (e > 1 + 1e-9) { clipped = true; }
+    var m2 = t.dz + Math.min(1, e) * (t.mx - t.dz);
+    if (m2 > 1) { m2 = 1; clipped = true; }
+    return { x: ex / e * m2, y: ey / e * m2, clipped: clipped };
+  }
+
+  function r2(v) { return Math.round(v * 100) / 100; }
+  /* a Script that fires (a Recoil Lab one) is played aiming down sights */
+  function isRecoil(a) { return !!(a && (a.fromTemplate === 'recoil-workshop' || (a.recoil && typeof a.recoil === 'object'))); }
+
+  /* Scale an app-model Script (smart-actions normAction's shape: steps
+     {k:'stick', stick, angle, dist} and {k:'move', dx, dy}, and a Recoil
+     Lab `recoil` record) IN PLACE from `from` to `to`, then stamp it with
+     `to` so it is never scaled twice. Only the aim stick turns the camera;
+     the left stick walks, and is left alone. Answers {scaled, clipped}.
+     D469: `side` is the player's profile kind. 'kbm' (Native Mouse &
+     Keyboard) scales only by the keyboard & mouse side; 'pad' (default,
+     controller output) only by the controller side. Neither reads the other. */
+  function fitAction(a, from, to, side) {
+    var res = { scaled: false, clipped: false };
+    var native = side === 'kbm';
+    var stick = !native && differ(from, to), mouse = native && kbmDiffer(from, to);
+    if (!a || (!stick && !mouse)) { return res; }
+    var ads = isRecoil(a) || a.gate === 'ads';
+    /* mouse moves: by the mouse law in Native Mouse & Keyboard, else by the
+       stick's turn ratio (the player's translator makes the push) */
+    var fx = mouse ? kbmFactor(from, to, 'x', ads) : scaleFactor(from, to, 'x', ads);
+    var fy = mouse ? kbmFactor(from, to, 'y', ads) : scaleFactor(from, to, 'y', ads);
+    (Array.isArray(a.steps) ? a.steps : []).forEach(function (s) {
+      if (!s) { return; }
+      if (s.k === 'stick' && s.stick !== 'left') {
+        if (!stick) { return; }
+        var rad = nOr(s.angle, 0) * Math.PI / 180, d = nOr(s.dist, 0);
+        var o = scaleStick(d * Math.cos(rad), d * Math.sin(rad), from, to, { ads: ads });
+        var nd = Math.sqrt(o.x * o.x + o.y * o.y);
+        if (nd > 0) { s.angle = ((Math.round(Math.atan2(o.y, o.x) * 180 / Math.PI) % 360) + 360) % 360; }
+        s.dist = Math.min(1, r2(nd));
+        if (o.clipped) { res.clipped = true; }
+        res.scaled = true;
+      } else if (s.k === 'move') {
+        s.dx = r2(nOr(s.dx, 0) * fx);
+        s.dy = r2(nOr(s.dy, 0) * fy);
+        res.scaled = true;
+      }
+    });
+    var rc = a.recoil;
+    if (rc && typeof rc === 'object' && !Array.isArray(rc)) {
+      if (rc.kind === 'pad' && stick) {
+        /* the controller Lab's pull: side and down, in percent of the stick */
+        var po = scaleStick(nOr(rc.side, 0) / 100, nOr(rc.down, 0) / 100, from, to, { ads: true });
+        rc.side = Math.max(-100, Math.min(100, Math.round(po.x * 100)));
+        rc.down = Math.max(0, Math.min(100, Math.round(po.y * 100)));
+        if (po.clipped) { res.clipped = true; }
+        res.scaled = true;
+      } else if (rc.kind !== 'pad') {
+        /* the mouse Lab's pattern is traced in counts and played at sx, sy:
+           its x and y strength are what match it to this game */
+        if (rc.sx != null) { rc.sx = Math.round(nOr(rc.sx, 1) * fx * 1000) / 1000; }
+        if (rc.sy != null) { rc.sy = Math.round(nOr(rc.sy, 1) * fy * 1000) / 1000; }
+        res.scaled = true;
+      }
+    }
+    a.madeWith = copy(to);
+    return res;
+  }
+
+  /* D432 (owner, 2026-10-22: "when someone copies a config to send to
+     someone, we can see the settings they had and use math to scale it to the
+     new profile"). A pasted config arrives with its maker's gameSettings.
+     When this player already said theirs for that game, its Scripts are
+     scaled to them now and the config takes the player's settings. When they
+     have not, the maker's wait as gameSettingsFrom, AI Scripts asks, and
+     save() scales the Scripts then. Never treats the maker's as the
+     player's. Returns {scaled, clipped, waiting}. */
+  function adoptPasted(doc) {
+    var res = { scaled: 0, clipped: false, waiting: false };
+    if (!doc || typeof doc !== 'object' || !answered(doc.gameSettings)) { return res; }
+    /* D469: the pasted config's own kind decides which side counts */
+    var side = docSide(doc);
+    var z = Z(), pk = packId(doc), all = (z && z.live && z.live.full) || {}, mine = null, id;
+    if (pk) {
+      for (id in all) {
+        if (Object.prototype.hasOwnProperty.call(all, id) && all[id] && packId(all[id]) === pk &&
+            docSide(all[id]) === side && answeredSide(all[id].gameSettings, side)) { mine = all[id].gameSettings; break; }
+      }
+    }
+    if (!mine) {
+      doc.gameSettingsFrom = doc.gameSettings;
+      delete doc.gameSettings;
+      res.waiting = true;
+      return res;
+    }
+    if (side === 'kbm' ? kbmDiffer(doc.gameSettings, mine) : differ(doc.gameSettings, mine)) {
+      (Array.isArray(doc.accessibilityActions) ? doc.accessibilityActions : []).forEach(function (a) {
+        var r = fitAction(a, doc.gameSettings, mine, side);
+        if (r.scaled) { res.scaled++; }
+        if (r.clipped) { res.clipped = true; }
+      });
+    }
+    doc.gameSettings = JSON.parse(JSON.stringify(mine));
+    return res;
+  }
+
+  root.ZSGAMESET = {
+    FIELDS: FIELDS, of: of, needs: needs, gateHTML: gateHTML, deviceCardHTML: deviceCardHTML,
+    wire: wire, save: save, good: good, formHTML: formHTML,
+    /* D468 */
+    answered: answered, summary: summary, hotbarKeys: hotbarKeys, nativeKbm: nativeKbm,
+    /* D469 */
+    sideOf: sideOf, answeredSide: answeredSide, padBinds: padBinds, slotBinds: slotBinds,
+    migrate: migrate, build: build, keyCode: keyCode, keyLabel: keyLabel, kbmFactor: kbmFactor,
+    schemaOf: schemaOf,
+    /* D432 */
+    scaleStick: scaleStick, scaleFactor: scaleFactor, differ: differ, fitAction: fitAction,
+    adoptPasted: adoptPasted
+  };
+})(typeof window !== 'undefined' ? window : this);
