@@ -220,6 +220,11 @@
   "download_url": "files/ff67a8d66a5eb9fa8594baaf877ac490bfd9fff4bd467f961b853e5c000858e9"
  },
  {
+  "file_name": "exo/brand/devices/zs-dongle-bt.webp",
+  "file_hash": "92b5e038c4e47d50e606fd107cf69df7e1ce28e4b93a6e9c3d03f1386fc2b0f5",
+  "download_url": "files/92b5e038c4e47d50e606fd107cf69df7e1ce28e4b93a6e9c3d03f1386fc2b0f5"
+ },
+ {
   "file_name": "exo/brand/devices/zs-dongle.webp",
   "file_hash": "f9d9122670883dcb92b46bfc575e0cf6a15cac00f6d140cda634cb23a86ff1ff",
   "download_url": "files/f9d9122670883dcb92b46bfc575e0cf6a15cac00f6d140cda634cb23a86ff1ff"
@@ -293,6 +298,11 @@
   "file_name": "exo/brand/weapon-classes/sniper.png",
   "file_hash": "d14f8ae07d6a2c36dc33a6c3e8518a5ef5786589ecc88bf09e13a1b0e7c26011",
   "download_url": "files/d14f8ae07d6a2c36dc33a6c3e8518a5ef5786589ecc88bf09e13a1b0e7c26011"
+ },
+ {
+  "file_name": "exo/brand/zerostick-logo-white.png",
+  "file_hash": "784d88255da75d89981ae62bf16851d2e44025ce4537bf6301c0b9d87490f0f3",
+  "download_url": "files/784d88255da75d89981ae62bf16851d2e44025ce4537bf6301c0b9d87490f0f3"
  },
  {
   "file_name": "exo/brand/zs-advanced-chip.jpg",
@@ -431,13 +441,13 @@
  },
  {
   "file_name": "exo/devices.html",
-  "file_hash": "a9c6084b4a8456b57e360d67965cbd6a1b2a33a842e1b190023c49ccdcc71025",
-  "download_url": "files/a9c6084b4a8456b57e360d67965cbd6a1b2a33a842e1b190023c49ccdcc71025"
+  "file_hash": "507b4f2383f2bfa3de05388c8c48c61a86994895b1cb28171c6ade6b71a0701c",
+  "download_url": "files/507b4f2383f2bfa3de05388c8c48c61a86994895b1cb28171c6ade6b71a0701c"
  },
  {
   "file_name": "exo/devices.js",
-  "file_hash": "a7e66a9b17ab6a0c201b95e6c0b49ef9331157cfcd7950500d8144071a352f90",
-  "download_url": "files/a7e66a9b17ab6a0c201b95e6c0b49ef9331157cfcd7950500d8144071a352f90"
+  "file_hash": "f9db86d58f44c157bea3f7342659960d53afb3835572439f2e0d4786b03b6c7e",
+  "download_url": "files/f9db86d58f44c157bea3f7342659960d53afb3835572439f2e0d4786b03b6c7e"
  },
  {
   "file_name": "exo/dongle/LICENSE-dualshock-tools.txt",
@@ -591,8 +601,8 @@
  },
  {
   "file_name": "exo/dongle/js/app-connect.js",
-  "file_hash": "543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548",
-  "download_url": "files/543b75c2cbc59c9b0cddd83669cf7776ea7809bd71557d8ce0c2a0fc63d88548"
+  "file_hash": "b8688bcf0cdb14ffc2ba05b314561b2eaf83b5898d9cc736ef98bd5872efb10e",
+  "download_url": "files/b8688bcf0cdb14ffc2ba05b314561b2eaf83b5898d9cc736ef98bd5872efb10e"
  },
  {
   "file_name": "exo/dongle/js/controller-manager.js",
@@ -711,13 +721,13 @@
  },
  {
   "file_name": "exo/dongle/js/zs-cal-bar.js",
-  "file_hash": "8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399",
-  "download_url": "files/8d9a3e906a3e9bc64b203077954494f97df3bc40ba117c3d30010f7fada9d399"
+  "file_hash": "b87a4b32e81c1f4e9e1348f904a87e763c8e2ce22b75c0dbcef3672be8f0b3a7",
+  "download_url": "files/b87a4b32e81c1f4e9e1348f904a87e763c8e2ce22b75c0dbcef3672be8f0b3a7"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-app.js",
-  "file_hash": "af3c1d0df8bdeb9ee3c9046fb551b341042a9a27ea69bff7afe0ee65830b500e",
-  "download_url": "files/af3c1d0df8bdeb9ee3c9046fb551b341042a9a27ea69bff7afe0ee65830b500e"
+  "file_hash": "1c39ab1d96242efac78ec19628927188f52b6c890f4228fd301c1be0e9552723",
+  "download_url": "files/1c39ab1d96242efac78ec19628927188f52b6c890f4228fd301c1be0e9552723"
  },
  {
   "file_name": "exo/dongle/js/zs-dongle-mock-loader.js",
@@ -7026,8 +7036,8 @@
  },
  {
   "file_name": "exo/sections/23b-autogreen.js",
-  "file_hash": "a0a3bc4ec1b95e6dc466bae11e2b0ffc80fb06099e02bfe231cb8125e8bd211b",
-  "download_url": "files/a0a3bc4ec1b95e6dc466bae11e2b0ffc80fb06099e02bfe231cb8125e8bd211b"
+  "file_hash": "fbe805cb7a6fd8a12a08cc2a62995f3df63f2fd11f2006088a6a9c563c8bbf73",
+  "download_url": "files/fbe805cb7a6fd8a12a08cc2a62995f3df63f2fd11f2006088a6a9c563c8bbf73"
  },
  {
   "file_name": "exo/sections/24-wizard.js",
@@ -7756,8 +7766,8 @@
  },
  {
   "file_name": "exo/zs-profile-encode.js",
-  "file_hash": "45592dedbf96b8533ea699945a753a90833780e17920cf87d02310829110a2f3",
-  "download_url": "files/45592dedbf96b8533ea699945a753a90833780e17920cf87d02310829110a2f3"
+  "file_hash": "4d6a82e4e64e7a0b0077ebc624124a2a309b0fdaccedaf3b6a7dc8fdc4252cdd",
+  "download_url": "files/4d6a82e4e64e7a0b0077ebc624124a2a309b0fdaccedaf3b6a7dc8fdc4252cdd"
  },
  {
   "file_name": "exo/zs-serial.js",
@@ -8171,8 +8181,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "f046ac8d23fb3a6fa1d941412f3286e32667793432d67a282b1de4483ceddda0",
-  "download_url": "files/f046ac8d23fb3a6fa1d941412f3286e32667793432d67a282b1de4483ceddda0"
+  "file_hash": "18655d57c3e273d781c25e0e4d344ed8e4b96615cd2389f2bc2662cf7e5fc123",
+  "download_url": "files/18655d57c3e273d781c25e0e4d344ed8e4b96615cd2389f2bc2662cf7e5fc123"
  },
  {
   "file_name": "zs-live-update.js",
