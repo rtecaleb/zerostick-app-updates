@@ -1,0 +1,1218 @@
+/* sections/23b-autogreen.js — NBA 2K Auto green on the Core (D406).
+ *
+ * R.autogreen: the screen behind the editor menu's "Auto green" row, which
+ * is drawn ONLY for an NBA 2K config on a Core (shell/07-inputs.js
+ * isNbaConfig + PRODUCTS.exo.lacks 'autogreen'). Owner, 2026-10-18: "If
+ * auto green is on, gun detection isn't even a thing on 2K profiles", so an
+ * NBA 2K config has this row and no AI Scripts row, and HOME has no weapon
+ * card for it (shell/09-home.js).
+ *
+ * WHAT IT IS. The player holds shoot (Square on PlayStation, X on Xbox) as
+ * always; the Core watches the shot meter through the capture and lets go
+ * of the button for them when the meter reaches the green. It only ever
+ * LETS GO of a button the player is holding; it never presses one, and a
+ * real release wins on that tick (AGENTS.md rule 5).
+ *
+ * ZERO SETUP (D458, owner 2026-10-23: "anybody can just enable it and it
+ * starts working, for dummies"). The room's DEFAULT view is one card: the
+ * switch, ONE status line and the last shot's result. Everything else (2-6
+ * below) sits behind the "Advanced" fold (#ag-advbtn / #ag-adv, closed by
+ * default; its open state is per install, localStorage 'zs-ag-adv').
+ *   - The status line (#ag-live), from GET /shot's `learn.state` when the
+ *     Core reports one: 'learning' -> "Learning your timing: 3 of 8 shots -
+ *     just shoot normally" (learn.shots / learn.need, with a thin bar),
+ *     'ready' -> "Ready: 9 of your last 10 were green" (learn.greenRate over
+ *     the last min(10, learn.shots) shots), 'relearning' -> "Your setup
+ *     changed, re-learning". A Core that reports no learn.state keeps the
+ *     wording from before (words + "Timing: meter|press"): never invented.
+ *   - The result line (#ag-result): an icon AND words, no ms. From
+ *     `last.verdict2k` when present ('green' -> Green, 'slightly_early' ->
+ *     Early by a little, 'early' -> Early by a lot, the same for late,
+ *     'unknown' -> Couldn't tell); otherwise what the Core did ("let go for
+ *     you" / "not let go - why") and, when it has one, the meter's own read
+ *     (`meterSays`) labelled as the meter's.
+ *   - First run: the first time the switch is turned ON in this room, a
+ *     sheet with three plain steps and one "Got it" (#agi-ok). Shown once
+ *     per install (localStorage 'zs-ag-intro', set when it is shown).
+ *
+ * TOP TO BOTTOM:
+ *   1. Auto green On/Off (autoGreen.enabled), its "?", and the LIVE status
+ *      line from GET /shot (above), then the result line. Live, so never
+ *      folded. Then the "Advanced" fold holding the rest:
+ *   2. Which meter (D447): "NBA 2K27 (white meter)" | "NBA 2K26 (purple
+ *      arrow)", each with a small drawing of its meter, written to
+ *      autoGreen.meterStyle ('white' | 'arrow'; the Core reads an absent
+ *      field as 'arrow'). An absent field is SHOWN as 2K27 (the owner plays
+ *      2K27, 2026-10-23) and 'white' is written with the first change made
+ *      in this room (ensureStyle), never by only opening it. Its "?" says
+ *      how the 2K27 meter is read. Under it the live meter card (#ag-seen):
+ *      from the same GET /shot, in plain words, found / looking / where to
+ *      find it, the last shot let go or not (the Core's own why), and a
+ *      mini meter filled to the last shot's `fill`. Only what the Core says.
+ *   3. Timing card: the nudge slider "Fine-tune" (D458; was "Timing"),
+ *      Sooner ... Later, -150..150 ms in steps of 2 (autoGreen.nudgeMs, +
+ *      lets go later, default 0, "rarely needed"), its "?" (which also
+ *      explains the delay slider); then "Your delay (override)", a slider
+ *      0..400 ms in steps of 5 (autoGreen.delayMs, 0 = your Core works it
+ *      out; GET /shot learn.delayMs, when present, is shown as what it
+ *      learned) and "Measure my delay",
+ *      a sheet that runs POST/GET /shot/delay and whose Apply writes the
+ *      rounded median (and moves the slider).
+ *   4. Last shot: what the Core did, in words ("Let go at 47% of the meter,
+ *      604 ms after your press" / "Did not let go: <why>"), the meter's own
+ *      read as a small hint (telemetry, never a verdict), and three big
+ *      buttons Early / Perfect / Late (POST /shot/verdict {seq, kind}); the
+ *      Core's answer under them; what it has learned (`learn`).
+ *   5. "More" (a fold): Learn from the meter (autoGreen.learnFromMeter) and
+ *      Timing mode Auto / Meter / Press (autoGreen.strategy), each with a
+ *      "?"; under it Forget what it learned (POST /shot/forget, tap again to
+ *      confirm).
+ *   6. Developer only (ZS.coreDevMode()): Bench, POST /shot/bench {op:
+ *      'start', frames: 120} and GET /shot/bench's phases; and Simulated
+ *      shots (D407): POST /shot/sim {op: 'start'} (the Core's defaults: 12
+ *      shots at each of 0 / 50 / 100 / 150 / 250 ms, calibrated) or {op:
+ *      'stop'}, GET /shot/sim's rows (green / early / late per latency),
+ *      the search and track costs and the verdict sentence.
+ *
+ * THE CONFIG. Every control is a normal bound field (B(), ZS.wire), so it
+ * waits for Save like every other setting (D257). Nothing is written when
+ * the screen only opens: an NBA 2K config made from the pack already
+ * carries autoGreen (ZSPACKS.build), and an older one gets the block on its
+ * first change here (the path write makes it; the encoder writes the
+ * Core's defaults for every field the block leaves out, so a partial block
+ * and a full one are the same bytes). Its presence is the SHOT section
+ * (0x0070, zs-profile-encode.js writeShot), which also tells the Core "this
+ * is a 2K config".
+ *
+ * Core routes:   GET /shot (every 250 ms, about 4 a second, ONLY while the
+ *                room is open: the poll ends when it closes), POST
+ *                /shot/verdict, POST /shot/forget, POST/GET /shot/delay,
+ *                POST/GET /shot/bench and /shot/sim (developer). Shapes:
+ *                the D406 and D407 contracts; GET /shot may also carry
+ *                `meterStyle` (what the Core is reading now) and `picture`,
+ *                and (the adaptive learner, D458: drawn only when present)
+ *                learn.{state, shots, need, greenRate, delayMs} and
+ *                last.verdict2k.
+ * Profile:       autoGreen.{enabled, nudgeMs, strategy, learnFromMeter,
+ *                delayMs, meterStyle}
+ * Tests:         test-auto-green.js
+ *
+ * ONE OF THE APP'S SCREEN FILES: phone-sections.js is the loader and
+ * explains the rules. ES5 only; everything into innerHTML through esc().
+ */
+ZS_SECTIONS.add('autogreen', function (SEC) {
+  /* from the files before this one */
+  var acc = SEC.acc, armConfirm = SEC.armConfirm, B = SEC.B, card = SEC.card, esc = SEC.esc,
+      helpHTML = SEC.helpHTML, R = SEC.R, seg = SEC.seg, sh = SEC.sh, slider = SEC.slider,
+      toggleFld = SEC.toggleFld, ZS = SEC.ZS;
+
+  var POLL_MS = 250;          /* GET /shot about 4 times a second while open (D447) */
+  var DELAY_POLL_MS = 300;
+  var BENCH_POLL_MS = 500;
+  var SIM_POLL_MS = 1000;
+  var NUDGE_MIN = -150, NUDGE_MAX = 150, NUDGE_STEP = 2;
+  var DELAY_MIN = 0, DELAY_MAX = 400, DELAY_STEP = 5;
+  /* D447: which meter the Core reads. The labels ARE the binding's keys (the
+     kit's seg writes a button's textContent through the map). */
+  var STYLE_WHITE = 'NBA 2K27 (white meter)', STYLE_ARROW = 'NBA 2K26 (purple arrow)';
+  var STYLE_MAP = {};
+  STYLE_MAP[STYLE_WHITE] = 'white';
+  STYLE_MAP[STYLE_ARROW] = 'arrow';
+  var DELAY_PRESSES = 8, DELAY_GAP_MS = 800;
+  var CSS_ID = 'zs-ag-css';
+  /* D475: the owner's logo (brand/, made from "auto green tab logo.png"):
+     the square for the menu door and the title, the wide one here and on HOME */
+  var LOGO = 'brand/zs-autogreen.webp', LOGO_BANNER = 'brand/zs-autogreen-banner.webp';
+  /* the room's hue, sampled from the logo's neon (median #2df63c, lifted a
+     touch): zs-fixes.css "D475" holds the same value */
+  var HUE = '#36f55a';
+  var KINDS = ['early', 'perfect', 'late'];
+  var KIND_WORD = { early: 'Early', perfect: 'Perfect', late: 'Late' };
+  var STRATEGY_MAP = { Auto: 'auto', Meter: 'meter', Press: 'press' };
+
+  /* the words, in one place (the tests read COPY) */
+  var SUB = 'Lets go of shoot in the green';
+  var OLD_FW = 'This Core’s firmware doesn’t have Auto green yet.';
+  var WHAT_HELP = '<b>Shoot as usual.</b> Hold shoot and your Core lets go for you when the shot meter ' +
+    'reaches the green. ' +
+    '<b>You stay in charge.</b> It only ever lets go of a button you are holding; it never presses one. ' +
+    'Let go yourself and your release wins, at once. ' +
+    '<b>It needs the game’s picture.</b> Your Core watches the meter through its capture, so the console ' +
+    'has to be connected through it.';
+  var NUDGE_HELP = '<b>Fine-tune: your shots land a little early?</b> Slide toward Later. ' +
+    '<b>A little late?</b> Slide toward Sooner. ' +
+    'Each step is 2 ms. Your Core learns your timing from every shot by itself, so you rarely need ' +
+    'this; leave it at 0 unless your shots keep missing the same way. ' +
+    '<b>Your delay</b> is how long your TV and capture take to show a frame. Your Core lets go that ' +
+    'much sooner to make up for it, and works it out by itself when this is 0. Set it by hand in ' +
+    'steps of 5 ms only to override that, or tap Measure my delay and your Core times it for you.';
+  /* D458: the zero-setup words */
+  var LEARNING = 'Learning your timing', READY = 'Ready', RELEARN = 'Your setup changed, re-learning';
+  var JUST_SHOOT = 'just shoot normally';
+  var NUDGE_NOTE = 'Rarely needed: your Core learns your timing by itself. Leave it at 0.';
+  var DELAY_NOTE = 'Leave it at 0 and your Core works it out. Set it only to override what it learned.';
+  var INTRO_TITLE = 'Auto green is on';
+  var INTRO_STEPS = ['Go to the gym, or start a game.', 'Hold shoot (%) as usual.',
+    'Your first few shots teach it your timing. Then it lets go in the green for you.'];
+  var INTRO_KEY = 'zs-ag-intro', ADV_KEY = 'zs-ag-adv';
+  /* last.verdict2k (the firmware's read of 2K's own feedback) in words. The
+     icon draws the same thing as a shape, never colour alone. */
+  var V2K = {
+    green: { icon: 'green', w: 'Green' },
+    slightly_early: { icon: 'early1', w: 'Early by a little' },
+    early: { icon: 'early2', w: 'Early by a lot' },
+    slightly_late: { icon: 'late1', w: 'Late by a little' },
+    late: { icon: 'late2', w: 'Late by a lot' },
+    unknown: { icon: 'unknown', w: 'Couldn’t tell how it landed' }
+  };
+  var METER_HELP = '<b>NBA 2K27:</b> the meter is a thin bar standing beside your player. ' +
+    'Your Core finds it by its small green tip at the top. ' +
+    'While you hold shoot, white fills the bar from the bottom; your Core reads the white, because ' +
+    '2K27 does not let you change the meter’s colour. ' +
+    'It lets go when the white reaches the top. ' +
+    '<b>NBA 2K26:</b> your Core reads the purple arrow instead. ' +
+    'Pick the game you play; the live card under this shows what your Core sees.';
+  var LEARN_HELP = '<b>Off (the usual):</b> only your own Early / Perfect / Late buttons teach your Core. ' +
+    '<b>On:</b> when you do not answer, the meter’s own read (where its purple stopped) teaches it too. ' +
+    'The meter can misread a shot, which is why this stays off unless you switch it on.';
+  var MODE_HELP = '<b>Meter:</b> your Core watches the meter fill and lets go at the right spot. ' +
+    '<b>Press:</b> it lets go a learned time after you press shoot, the same every time. ' +
+    '<b>Auto (the usual):</b> it picks for each shot, the meter when it can see it and the press timing ' +
+    'when it cannot.';
+
+  /* ═════════════════════════════════════════════════════ the state ══ */
+  var S = {
+    pid: '', p: null,
+    status: null,        /* GET /shot's answer, or null */
+    err: '', noRoute: false,
+    timer: null, gen: 0,
+    busy: false,         /* a verdict on its way */
+    picked: {},          /* seq -> kind, the answer the player just gave */
+    answer: null,        /* {seq, text}: what the Core said back */
+    bench: null, benchErr: '', benchTimer: null, benchBusy: false,
+    sim: null, simErr: '', simTimer: null, simBusy: false,
+    html: {}             /* slot id -> what it holds, so a poll repaints nothing it need not */
+  };
+  /* per-install memory (localStorage may be missing or throw: then the
+     intro may show again and Advanced starts closed, nothing breaks) */
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+  /* the Measure my delay sheet */
+  var DL = { state: 'closed', data: null, err: '', timer: null, gen: 0, pid: '', busy: false };
+  var ROOT = null;
+
+  function $(id) { return document.getElementById(id); }
+  function online() { return !(ZS.live && ZS.live.online === false); }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function isObj(v) { return !!v && typeof v === 'object' && !(v instanceof Array); }
+  function fullOf(pid) { return (ZS.live && ZS.live.full && ZS.live.full[pid]) || null; }
+  function blockOf(pid) {
+    var f = fullOf(pid);
+    return (f && isObj(f.autoGreen)) ? f.autoGreen : {};
+  }
+  function detailOpen() {
+    var d = $('detail');
+    return !d || d.classList.contains('open');
+  }
+  function onScreen() { return !!ROOT && $('ag-room') === ROOT && detailOpen(); }
+  function api(path, method, body) {
+    if (!ZS.api) { return Promise.resolve({ ok: false, error: 'no answer' }); }
+    return ZS.api(path, method, body).then(function (j) { return j || { ok: false, error: 'no answer' }; },
+      function (e) { return { ok: false, error: String((e && e.message) || e || 'no answer') }; });
+  }
+  /* the Core answers {ok:true, data:{...}}; a bare object is taken as-is */
+  function dataOf(j) {
+    if (!j || j.ok === false) { return null; }
+    return (j.data !== undefined && j.data !== null) ? j.data : j;
+  }
+  function noRoute(j) {
+    return /not found|no such|unknown route|not implemented|\b404\b|\b501\b/i.test(String((j && j.error) || ''));
+  }
+  function dot(kind) { return '<span class="ag-dot' + (kind ? ' ' + kind : '') + '" aria-hidden="true"></span>'; }
+
+  /* "shoot" in the player's own button: the config's autoGreen.button
+     (default west) on the console it plays on */
+  var PAD_WORD = { west: ['Square', 'X'], south: ['Cross', 'A'], east: ['Circle', 'B'], north: ['Triangle', 'Y'] };
+  function shootName(p) {
+    var f = fullOf(p && p.id) || {};
+    var b = blockOf(p && p.id).button || 'west';
+    var xbox = (p && p.platform === 'xbox') || f.console === 'xbox';
+    var w = PAD_WORD[b];
+    return w ? w[xbox ? 1 : 0] : 'shoot';
+  }
+
+  function injectCss() {
+    if ($(CSS_ID) || !document.head) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.textContent =
+      /* the kit's cards pad their .fld rows; these slots are not rows */
+      '#ag-room .ag-pad{padding:12px 14px 14px}' +
+      '#ag-room .ag-liverow{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px}' +
+      '#ag-room .ag-liverow .qhrow{margin:0;flex:none}' +
+      '#ag-room .ag-live{flex:1 1 auto;min-width:0;display:flex;align-items:flex-start;gap:8px;font-size:14px;line-height:1.45;' +
+        'font-variant-numeric:tabular-nums}' +
+      '#ag-room .ag-folds .qhfold{margin:0 14px 12px}' +
+      '#ag-room .ag-live .ag-using{color:var(--muted)}' +
+      '#ag-room .ag-dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--muted);opacity:.7}' +
+      '#ag-room .ag-dot.ok{background:var(--green);opacity:1}' +
+      '#ag-room .ag-dot.warn{background:var(--amber);opacity:1}' +
+      '#ag-room .ag-ends{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);margin:2px 0 0}' +
+      '#ag-room .ag-ends .qhrow{margin:0}' +
+      '#ag-room .ag-did{font-size:15.5px;font-weight:600;line-height:1.4;margin:2px 0 4px}' +
+      '#ag-room .ag-meta,#ag-room .ag-none,#ag-room .ag-learn{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 8px}' +
+      '#ag-room .ag-ask{font-size:13px;font-weight:600;margin:10px 0 6px}' +
+      '#ag-room .ag-vs{display:flex;gap:8px;margin:0 0 8px}' +
+      '#ag-room .ag-v{flex:1 1 0;min-width:0;min-height:52px;border-radius:12px;border:1px solid var(--line);' +
+        'background:var(--panel2);color:var(--text);font:inherit;font-size:16px;font-weight:650;cursor:pointer}' +
+      '#ag-room .ag-v[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}' +
+      '#ag-room .ag-v:disabled{opacity:.55;cursor:default}' +
+      '#ag-room .ag-answer{font-size:13.5px;line-height:1.45;margin:0 0 8px}' +
+      '#ag-room .ag-kv{display:flex;align-items:baseline;justify-content:space-between;gap:12px}' +
+      '#ag-room .ag-kv .k{font-size:15px;font-weight:600}' +
+      '#ag-room .ag-kv .v{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}' +
+      '#ag-room .ag-forget{margin:8px 0 2px}' +
+      /* D447: the meter choice. Each button is a drawing of its game's meter
+         beside two lines of words; the kit's seg2 still owns on / aria. */
+      '#ag-room .ag-style .seg2 button{display:flex;align-items:center;gap:10px;text-align:left;min-height:64px;' +
+        'padding:8px 12px;flex:1 1 140px}' +
+      '#ag-room .ag-style .seg2 button svg{flex:none}' +
+      '#ag-room .ag-style .ag-sg{display:block;font-size:15px;font-weight:650;color:inherit}' +
+      '#ag-room .ag-style .ag-ss{display:block;font-size:12.5px;font-weight:500;color:inherit}' +
+      '#ag-room .ag-style .flab{display:flex;align-items:center;gap:6px}' +
+      '#ag-room .ag-style .flab .qhrow{margin:0 0 0 auto;flex:none}' +
+      '#ag-room .ag-stylehelp .qhfold{margin:0 14px 12px}' +
+      '#ag-room .ag-seen{display:flex;align-items:center;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--line)}' +
+      '#ag-room .ag-seen svg{flex:none}' +
+      '#ag-room .ag-seenw{flex:1 1 auto;min-width:0;font-variant-numeric:tabular-nums}' +
+      '#ag-room .ag-found{font-size:15px;font-weight:600;line-height:1.4;margin:0 0 3px}' +
+      '#ag-room .ag-res{font-size:13px;color:var(--muted);line-height:1.45;margin:0}' +
+      '#ag-room .ag-delayrow .fld{border-top:1px solid var(--line)}' +
+      /* the mini meters draw the GAME's own colours (white fill, green tip,
+         2K26's magenta arrow): a picture of the game, not app chrome */
+      '#ag-room .ag-mtrack{fill:var(--panel2);stroke:var(--line);stroke-width:1}' +
+      '#ag-room .ag-mwhite{fill:#fff}' +
+      '#ag-room .ag-mtip{fill:#3fd16b}' +
+      '#ag-room .ag-marrow{fill:#e040d0}' +
+      '#ag-room .ag-bench table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;margin:8px 0}' +
+      '#ag-room .ag-bench th,#ag-room .ag-bench td{text-align:right;padding:4px 3px;border-bottom:1px solid var(--line)}' +
+      '#ag-room .ag-bench th:first-child,#ag-room .ag-bench td:first-child{text-align:left}' +
+      '#ag-room .ag-bench th{color:var(--muted);font-weight:600}' +
+      '.ag-sheet .ag-steps{margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.5}' +
+      '.ag-sheet .ag-steps li{margin:0 0 8px}' +
+      '.ag-sheet .ag-big{text-align:center;font-size:28px;font-weight:700;margin:8px 0 2px;font-variant-numeric:tabular-nums}' +
+      '.ag-sheet .ag-small{text-align:center;font-size:13.5px;color:var(--muted);margin:0 0 14px;line-height:1.45}' +
+      '.ag-sheet .ag-bar{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:6px 0 14px}' +
+      '.ag-sheet .ag-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}' +
+      '.ag-sheet .ag-keys{display:flex;gap:10px}' +
+      '.ag-sheet .ag-keys .btn{flex:1 1 0}' +
+      '.ag-sheet .ag-err{font-size:14px;line-height:1.45;margin:0 0 14px}' +
+      /* D458: the zero-setup card. The status line reads big; the result
+         line is an icon (a shape) beside its words */
+      '#ag-room .ag-live.big{font-size:16px;font-weight:600}' +
+      '#ag-room .ag-dot.learn{background:var(--accent);opacity:1}' +
+      '#ag-room .ag-prog{display:block;height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin:8px 0 2px}' +
+      '#ag-room .ag-prog i{display:block;height:100%;background:var(--accent);border-radius:3px}' +
+      '#ag-room .ag-livew{flex:1 1 auto;min-width:0}' +
+      '#ag-room .ag-result{display:flex;align-items:center;gap:10px;padding:10px 14px 14px;border-top:1px solid var(--line);' +
+        'font-size:15px;line-height:1.4}' +
+      '#ag-room .ag-result:empty{display:none}' +
+      '#ag-room .ag-result svg{flex:none}' +
+      '#ag-room .ag-result .ag-rk{color:var(--muted);font-weight:500}' +
+      '#ag-room .ag-result .ag-rw{font-weight:650}' +
+      '#ag-room .ag-ic-ok{color:var(--green)}' +
+      '#ag-room .ag-ic-near{color:var(--amber)}' +
+      '#ag-room .ag-ic-far{color:var(--red)}' +
+      '#ag-room .ag-ic-dim{color:var(--muted)}' +
+      '#ag-room .ag-advbtn{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:52px;' +
+        'margin:14px 0 0;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel);' +
+        'color:var(--text);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}' +
+      '#ag-room .ag-advbtn em{display:block;font-style:normal;font-weight:400;font-size:12.5px;color:var(--muted)}' +
+      '#ag-room .ag-advbtn .chev{flex:none;font-size:20px;color:var(--muted);transition:transform .2s}' +
+      '#ag-room .ag-advbtn[aria-expanded="true"] .chev{transform:rotate(90deg)}' +
+      '#ag-room .ag-note{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0;padding:0 14px 10px}' +
+      '.ag-sheet .ag-keys .btn.primary{min-height:52px;font-size:16px}' +
+      /* D475: the logo banner and the room's green. The learner's progress
+         and its "learning" dot are the room's own state, so they wear its
+         hue; a pressed answer, a switch ON and Save stay the accent */
+      '#ag-room{--ag-hue:' + HUE + '}' +
+      '#ag-room .ag-hero{display:flex;justify-content:center;align-items:center;height:132px;margin:2px 0 12px;' +
+        'border-radius:18px;overflow:hidden;background:#000;border:1px solid color-mix(in srgb,var(--ag-hue) 38%,transparent);' +
+        'box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ag-hue) 45%,#fff 15%),0 14px 30px -22px color-mix(in srgb,var(--ag-hue) 70%,transparent)}' +
+      '#ag-room .ag-heroimg{height:100%;width:auto;max-width:100%;object-fit:contain;display:block}' +
+      '#ag-room .ag-dot.learn{background:var(--ag-hue)}' +
+      '#ag-room .ag-prog i{background:var(--ag-hue)}' +
+      '#ag-room > .ag-hero + .grp-card{border-color:color-mix(in srgb,var(--ag-hue) 40%,var(--zk-line,#3a3e45))}';
+    document.head.appendChild(s);
+  }
+
+  /* ══════════════════════════════════════════ which meter (D447) ══ */
+  /* the style this room SHOWS: the config's, and 2K27's white when the field
+     is absent (the owner plays 2K27; the Core itself reads absent as arrow
+     until the first change here writes 'white') */
+  function styleOf(pid) { return blockOf(pid).meterStyle === 'arrow' ? 'arrow' : 'white'; }
+  /* the first change made in this room also writes the meter the room shows,
+     so the Core reads what the screen says. Never on a bare open. */
+  function ensureStyle(pid) {
+    var f = fullOf(pid);
+    if (!f || !isObj(f.autoGreen) || f.autoGreen.meterStyle === 'white' || f.autoGreen.meterStyle === 'arrow') { return; }
+    var save = ZS.editProfile || ZS.putProfile;
+    if (!save) { return; }
+    save(pid, function (d) {
+      if (!isObj(d.autoGreen)) { d.autoGreen = {}; }
+      if (d.autoGreen.meterStyle !== 'arrow') { d.autoGreen.meterStyle = 'white'; }
+    });
+  }
+  /* a tiny drawing of a meter, filled to `fill` (0..1). Pure shapes, no
+     text: the meter buttons' textContent is their binding key. */
+  function meterSVG(style, fill, big) {
+    var f = isNum(fill) ? Math.max(0, Math.min(1, fill)) : 0, w, h, s;
+    if (style === 'arrow') {
+      w = big ? 64 : 40; h = big ? 20 : 14;
+      var cy = h / 2, sh0 = Math.max(2, Math.round(h * 0.3)), head = Math.round(h * 0.45);
+      var len = Math.max(head + 2, Math.round((w - 6) * (big ? f : 0.7)));
+      s = '<rect class="ag-mtrack" x="1" y="' + (cy - sh0 / 2 - 1) + '" width="' + (w - 2) + '" height="' + (sh0 + 2) +
+        '" rx="' + (sh0 / 2 + 1) + '"/>' +
+        '<rect class="ag-mtip" x="' + (w - 5) + '" y="' + (cy - sh0 / 2) + '" width="3" height="' + sh0 + '" rx="1"/>' +
+        (f > 0 || !big ? '<rect class="ag-marrow" x="2" y="' + (cy - sh0 / 2) + '" width="' + (len - head + 1) +
+          '" height="' + sh0 + '"/><polygon class="ag-marrow" points="' + (len - head + 2) + ',' + (cy - head) + ' ' +
+          (len + 2) + ',' + cy + ' ' + (len - head + 2) + ',' + (cy + head) + '"/>' : '');
+    } else {
+      w = big ? 20 : 14; h = big ? 64 : 44;
+      var bw = big ? 9 : 7, x = (w - bw) / 2, tip = Math.round(h * 0.12);
+      var room = h - 2 - tip - 1, fillH = Math.round(room * (big ? f : 0.6));
+      s = '<rect class="ag-mtrack" x="' + x + '" y="1" width="' + bw + '" height="' + (h - 2) + '" rx="' + (bw / 2) + '"/>' +
+        '<rect class="ag-mtip" x="' + x + '" y="1" width="' + bw + '" height="' + tip + '" rx="' + (bw / 2) + '"/>' +
+        (fillH > 0 ? '<rect class="ag-mwhite" x="' + (x + 1) + '" y="' + (h - 1 - fillH) + '" width="' + (bw - 2) +
+          '" height="' + fillH + '" rx="' + ((bw - 2) / 2) + '"/>' : '');
+    }
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">' +
+      s + '</svg>';
+  }
+  /* the meter choice: the kit's bound seg, each button given its drawing and
+     two lines of words (the spans' text adds up to the label exactly) */
+  function styleSegHTML(idx) {
+    var h = seg('Your game', [STYLE_WHITE, STYLE_ARROW], idx, false,
+      B('autoGreen.meterStyle', 1, { t: 'str', map: STYLE_MAP }));
+    function dress(label, style) {
+      var cut = label.indexOf(' (');
+      return '>' + meterSVG(style, 0, false) + '<span><span class="ag-sg">' + esc(label.slice(0, cut)) +
+        '</span><span class="ag-ss">' + esc(label.slice(cut)) + '</span></span></button>';
+    }
+    return h.replace('>' + esc(STYLE_WHITE) + '</button>', dress(STYLE_WHITE, 'white'))
+      .replace('>' + esc(STYLE_ARROW) + '</button>', dress(STYLE_ARROW, 'arrow'))
+      .replace('<div class="seg2"', '<div class="seg2" role="group" aria-label="Which meter your Core reads" id="ag-style"');
+  }
+  /* the live meter card: what the Core says it sees, in words */
+  function seenHTML() {
+    var style = styleOf(S.pid), st = S.status, L = st && st.last;
+    var found = '', res = '', fill = null;
+    var where = 'Hold ' + shootName(S.p) + ' in the gym: the meter shows up beside your player';
+    if (!online()) { found = 'Your Core is offline'; }
+    else if (S.noRoute) { found = OLD_FW; }
+    else if (!st) { found = 'Asking your Core…'; }
+    else if (st.on === false) { found = 'Turn on Auto green and your Core looks for the meter'; }
+    else if (st.picture === false) { found = 'No game picture: connect your console through your Core'; }
+    else if (st.state === 'reading' || st.state === 'planned') { found = 'Meter found - reading it now'; }
+    else if (st.state === 'armed') { found = 'Looking for the meter…'; }
+    else if (isObj(L) && isNum(L.fill) && L.seenMs !== null && L.seenMs !== undefined) {
+      fill = L.fill;
+      found = 'Meter found - ' + Math.round(L.fill * 100) + '% full';
+    } else if (isObj(L)) { found = 'No meter on your last shot. ' + where; }
+    else { found = where; }
+    if (online() && !S.noRoute && isObj(L)) {
+      var went = isNum(L.holdMs) && L.holdMs > 0 && L.how !== 'none';
+      res = went ?'Last shot: let go' + (L.how === 'press' ? ' by press timing' : L.how === 'meter' ? ' by the meter' : '')
+        : 'Last shot: not let go' + (L.why ? ' - ' + L.why : '');
+      if (fill === null && isNum(L.fill)) { fill = L.fill; }
+    }
+    /* the Core says which meter it reads now: say so when that is not the
+       one this screen shows (a change not saved yet, or an older config) */
+    if (st && (st.meterStyle === 'white' || st.meterStyle === 'arrow') && st.meterStyle !== style) {
+      res += (res ? '. ' : '') + 'Your Core reads the ' + (st.meterStyle === 'white' ? '2K27 white meter' : '2K26 purple arrow') +
+        ' until you Save';
+    }
+    return meterSVG(style, fill, true) + '<div class="ag-seenw"><p class="ag-found" id="ag-found">' + esc(found) + '</p>' +
+      (res ? '<p class="ag-res" id="ag-res">' + esc(res) + '</p>' : '') + '</div>';
+  }
+
+  /* ═══════════════════════════════════════════════ the live parts ══ */
+  /* D458: the learner's state, only when the Core reports one it knows */
+  function learnState(st) {
+    var lr = st && st.learn, s = isObj(lr) && lr.state;
+    return (s === 'learning' || s === 'ready' || s === 'relearning') ? s : '';
+  }
+  /* "3 of 8": shots learned of shots wanted, both from the Core */
+  function countOf(lr) {
+    if (!isObj(lr) || !isNum(lr.shots) || !isNum(lr.need) || lr.need <= 0) { return null; }
+    var need = Math.round(lr.need);
+    return { n: Math.max(0, Math.min(need, Math.round(lr.shots))), of: need };
+  }
+  function progHTML(c) {
+    if (!c) { return ''; }
+    return '<span class="ag-prog" role="progressbar" aria-label="Shots learned" aria-valuemin="0" aria-valuemax="' + c.of +
+      '" aria-valuenow="' + c.n + '"><i style="width:' + Math.round(100 * c.n / c.of) + '%"></i></span>';
+  }
+  /* "Ready: 9 of your last 10 were green". greenRate is a share of the
+     recent shots; the count is drawn over the last min(10, shots) of them,
+     and as a share when the Core gives no shot count */
+  function readyWords(lr) {
+    var rate = isNum(lr.greenRate) ? Math.max(0, Math.min(1, lr.greenRate)) : null;
+    if (rate === null) { return READY + ' - ' + JUST_SHOOT; }
+    var n = isNum(lr.shots) && lr.shots >= 1 ? Math.min(10, Math.round(lr.shots)) : 0;
+    if (n === 1) { return READY + ': your last shot was ' + (rate >= 0.5 ? 'green' : 'not green'); }
+    if (n > 1) { return READY + ': ' + Math.round(rate * n) + ' of your last ' + n + ' were green'; }
+    return READY + ': ' + Math.round(rate * 100) + '% of your recent shots were green';
+  }
+  function liveHTML() {
+    if (!online()) { return dot('') + '<span>Your Core is offline</span>'; }
+    if (S.noRoute) { return dot('') + '<span>' + esc(OLD_FW) + '</span>'; }
+    var st = S.status;
+    if (!st) { return dot('') + '<span>' + esc(S.err || 'Asking your Core…') + '</span>'; }
+    if (st.on === false) { return dot('') + '<span>' + esc(st.why || st.words || 'Off') + '</span>'; }
+    var ls = learnState(st);
+    if (ls) {
+      var lr = st.learn, c = countOf(lr), words, kind;
+      if (st.picture === false) {
+        words = 'No game picture: connect your console through your Core'; kind = 'warn'; c = null;
+      } else if (ls === 'learning') {
+        words = LEARNING + (c ? ': ' + c.n + ' of ' + c.of + ' shots' : '') + ' - ' + JUST_SHOOT; kind = 'learn';
+      } else if (ls === 'relearning') {
+        words = RELEARN + (c ? ': ' + c.n + ' of ' + c.of + ' shots' : '') + ' - ' + JUST_SHOOT; kind = 'warn';
+      } else {
+        words = readyWords(lr); kind = 'ok'; c = null;
+      }
+      return dot(kind) + '<span class="ag-livew"><span id="ag-livewords">' + esc(words) + '</span>' + progHTML(c) + '</span>';
+    }
+    var using = st.using === 'meter' ? 'Timing: meter' : st.using === 'press' ? 'Timing: press' : '';
+    return dot('ok') + '<span>' + esc(st.words || 'Ready') +
+      (using ? '<span class="ag-using"> · ' + esc(using) + '</span>' : '') + '</span>';
+  }
+  /* a 22 px shape for the result: a tick for green, one chevron for "a
+     little", two for "a lot" (pointing back for early, on for late), a "?"
+     for unknown, a dash for no release, a ring for no shot yet */
+  function resultIcon(kind) {
+    var cls = kind === 'green' ? 'ok' : kind === 'early1' || kind === 'late1' ? 'near'
+      : kind === 'early2' || kind === 'late2' ? 'far' : 'dim';
+    var p = '<circle cx="11" cy="11" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/>';
+    var line = ' fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"';
+    if (kind === 'green') { p += '<path d="M6.5 11.3l3 3 6-6.4"' + line + '/>'; }
+    else if (kind === 'early1') { p += '<path d="M12.5 7l-4 4 4 4"' + line + '/>'; }
+    else if (kind === 'early2') { p += '<path d="M10 7l-4 4 4 4M15 7l-4 4 4 4"' + line + '/>'; }
+    else if (kind === 'late1') { p += '<path d="M9.5 7l4 4-4 4"' + line + '/>'; }
+    else if (kind === 'late2') { p += '<path d="M7 7l4 4-4 4M12 7l4 4-4 4"' + line + '/>'; }
+    else if (kind === 'unknown') {
+      p += '<path d="M8.6 8.6a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.5"' + line + '/>' +
+        '<circle cx="11" cy="15.6" r="1.2" fill="currentColor"/>';
+    } else if (kind === 'miss') { p += '<path d="M7 11h8"' + line + '/>'; }
+    return '<svg class="ag-ic-' + cls + '" data-icon="' + kind + '" width="22" height="22" viewBox="0 0 22 22" ' +
+      'aria-hidden="true" focusable="false">' + p + '</svg>';
+  }
+  /* the last shot for the default view: plain words, never a number of ms */
+  function resultHTML() {
+    var st = S.status;
+    if (!online() || S.noRoute || !st || st.on === false) { return ''; }
+    var L = st.last, icon, words, label = 'Last shot: ';
+    if (!isObj(L)) {
+      icon = 'none'; label = '';
+      words = 'No shot yet. Hold ' + shootName(S.p) + ' and shoot as usual.';
+    } else if (typeof L.verdict2k === 'string' && V2K[L.verdict2k]) {
+      icon = V2K[L.verdict2k].icon; words = V2K[L.verdict2k].w;
+    } else if (!(isNum(L.holdMs) && L.holdMs > 0 && L.how !== 'none')) {
+      icon = 'miss'; words = 'not let go' + (L.why ? ' - ' + L.why : '');
+    } else if (L.meterSays === 'perfect' || L.meterSays === 'early' || L.meterSays === 'late') {
+      /* no 2K verdict from this Core: the meter's own read, said as the meter's */
+      icon = L.meterSays === 'perfect' ? 'green' : L.meterSays === 'early' ? 'early1' : 'late1';
+      words = 'let go for you. The meter says ' + (L.meterSays === 'perfect' ? 'on time' : L.meterSays);
+    } else {
+      icon = 'none'; words = 'let go for you';
+    }
+    return resultIcon(icon) + '<span id="ag-resultw">' + (label ? '<span class="ag-rk">' + esc(label) + '</span>' : '') +
+      '<span class="ag-rw">' + esc(words) + '</span></span>';
+  }
+  /* what the Core did with the last shot, in words */
+  function didWords(L) {
+    var hold = isNum(L.holdMs) ? Math.round(L.holdMs) : 0;
+    if (hold > 0 && L.how !== 'none') {
+      if (isNum(L.fill)) {
+        return 'Let go at ' + Math.round(L.fill * 100) + '% of the meter, ' + hold + ' ms after your press';
+      }
+      return 'Let go ' + hold + ' ms after your press';
+    }
+    return 'Did not let go: ' + String(L.why || 'it could not time this shot');
+  }
+  function ageWords(ms) {
+    if (!isNum(ms) || ms < 0) { return ''; }
+    var s = Math.round(ms / 1000);
+    if (s < 2) { return 'just now'; }
+    if (s < 60) { return s + ' s ago'; }
+    return Math.round(s / 60) + ' min ago';
+  }
+  function learnHTML(lr) {
+    if (!isObj(lr)) { return ''; }
+    var n = isNum(lr.verdicts) ? lr.verdicts : 0;
+    if (!n) { return '<p class="ag-learn" id="ag-learned">Nothing learned yet.</p>'; }
+    /* D450: the delay the shots taught from Your delay */
+    var dl = isNum(lr.delayShots) && lr.delayShots > 0 && isNum(lr.delayMs) ? ' · Your delay learned: ' + Math.round(lr.delayMs) + ' ms' : '';
+    return '<p class="ag-learn" id="ag-learned">Learned from ' + n + ' answer' + (n === 1 ? '' : 's') + ': ' +
+      (lr.perfect || 0) + ' perfect, ' + (lr.early || 0) + ' early, ' + (lr.late || 0) + ' late' + esc(dl) + '</p>';
+  }
+  function lastHTML() {
+    var st = S.status, L = st && st.last;
+    if (!online() || S.noRoute) { return '<p class="ag-none">Your last shot shows here.</p>'; }
+    if (!isObj(L)) {
+      return '<p class="ag-none">No shot yet. Hold ' + esc(shootName(S.p)) +
+        ' to shoot as usual; your Core lets go in the green.</p>' + learnHTML(st && st.learn);
+    }
+    var h = '<div class="ag-did" id="ag-did">' + esc(didWords(L)) + '</div>';
+    var meta = [];
+    if (L.meterSays) {
+      /* D450: the 2K27 white meter grades itself, in ms */
+      meta.push('Meter read: ' + L.meterSays +
+        (L.meterSays !== 'perfect' && isNum(L.saysMs) && L.saysMs !== 0 ? ' by ' + Math.abs(Math.round(L.saysMs)) + ' ms' : ''));
+    }
+    var age = ageWords(L.ageMs);
+    if (age) { meta.push(age); }
+    if (meta.length) { h += '<div class="ag-meta" id="ag-meta">' + esc(meta.join(' · ')) + '</div>'; }
+    var chose = S.picked[L.seq] || L.verdict || '';
+    h += '<div class="ag-ask" id="ag-ask">How did it land?</div><div class="ag-vs" role="group" aria-labelledby="ag-ask">';
+    KINDS.forEach(function (k) {
+      h += '<button type="button" class="ag-v" data-kind="' + k + '" data-seq="' + esc(String(L.seq)) + '" aria-pressed="' +
+        (chose === k ? 'true' : 'false') + '"' + (S.busy ? ' disabled' : '') + '>' + KIND_WORD[k] + '</button>';
+    });
+    h += '</div>';
+    if (S.answer && S.answer.seq === L.seq) {
+      h += '<p class="ag-answer" id="ag-answer" role="status">' + esc(S.answer.text) + '</p>';
+    }
+    return h + learnHTML(st.learn);
+  }
+  function delayHTML() {
+    var d = blockOf(S.pid).delayMs;
+    /* D458: what the learner has in force, only when the Core says */
+    var lr = S.status && S.status.learn, learned = '';
+    var has = online() && !S.noRoute && isObj(lr) && isNum(lr.delayMs) && lr.delayMs > 0;
+    var v = isNum(d) && d > 0 ? 'About ' + Math.round(d) + ' ms' : has ? 'What it learned' : 'Not measured yet';
+    if (has) {
+      learned = '<p class="ag-meta" id="ag-delaylearned" style="margin:4px 0 0">Your Core has learned about ' +
+        Math.round(lr.delayMs) + ' ms' + (isNum(lr.delayShots) && lr.delayShots > 0 ? ' from ' + lr.delayShots + ' shot' +
+        (lr.delayShots === 1 ? '' : 's') : '') + '</p>';
+    }
+    return '<div class="ag-kv"><span class="k">Your Core uses</span><span class="v" id="ag-delayv">' +
+      esc(v) + '</span></div>' + learned + '<button type="button" class="btn" id="ag-measure"' + (online() ? '' : ' disabled') +
+      '>Measure my delay</button>';
+  }
+  function ms(o) { return (o && isNum(o.mean)) ? o.mean.toFixed(1) + ' / ' + (isNum(o.p95) ? o.p95.toFixed(1) : '-') : '-'; }
+  function benchHTML() {
+    var b = S.bench, running = !!(b && b.state === 'running');
+    var h = '<p class="ag-meta">Times the meter reader on the live picture, ' +
+      'phase by phase (ms: mean / 95th).</p>' +
+      '<button type="button" class="btn' + (running ? '' : ' primary') + '" id="ag-bench-go"' +
+      (S.benchBusy || !online() ? ' disabled' : '') + '>' + (running ? 'Stop' : 'Start bench') + '</button>';
+    if (S.benchErr) { h += '<p class="ag-answer" role="alert">' + esc(S.benchErr) + '</p>'; }
+    if (!b) { return h; }
+    var say = b.state === 'running' ? 'Running' + (b.phase ? ': ' + b.phase : '') + '…'
+      : b.state === 'failed' ? 'Failed' + (b.why ? ': ' + b.why : '') : b.state === 'done' ? 'Done' : '';
+    if (say) { h += '<p class="ag-meta" style="margin-top:8px">' + esc(say) + '</p>'; }
+    var ph = b.phases instanceof Array ? b.phases : [];
+    if (ph.length) {
+      h += '<table><thead><tr><th>Phase</th><th>Total</th><th>fps</th><th>Jitter</th><th>Missed</th></tr></thead><tbody>';
+      ph.forEach(function (x) {
+        var iv = x.intervalMs || {};
+        h += '<tr><td>' + esc(String(x.name || '')) + '</td><td>' + esc(ms(x.totalMs)) + '</td><td>' +
+          (isNum(x.fps) ? x.fps.toFixed(1) : '-') + '</td><td>' + (isNum(iv.sd) ? iv.sd.toFixed(1) : '-') +
+          '</td><td>' + (isNum(x.missed) ? x.missed : '-') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    }
+    if (b.verdict) { h += '<p class="ag-answer" id="ag-bench-verdict">' + esc(b.verdict) + '</p>'; }
+    return h;
+  }
+
+  /* D407: the on-Core shot simulation (developer) */
+  function simRunning(m) { return !!(m && (m.state === 'running' || m.state === 'preparing')); }
+  function simHTML() {
+    var m = S.sim, running = simRunning(m);
+    var h = '<p class="ag-meta">Your Core plays simulated NBA 2K26 shots to itself (a real court, the ' +
+      'real meter, 60 fps) through its own reader and timer, and grades each release. Nothing is ' +
+      'pressed on your console.</p>' +
+      '<button type="button" class="btn' + (running ? '' : ' primary') + '" id="ag-sim-go"' +
+      (S.simBusy || !online() ? ' disabled' : '') + '>' + (running ? 'Stop' : 'Run simulated shots') + '</button>';
+    if (S.simErr) { h += '<p class="ag-answer" role="alert">' + esc(S.simErr) + '</p>'; }
+    if (!m || m.state === 'idle') { return h; }
+    var sh = isObj(m.shots) ? m.shots : {};
+    var say = running ? (m.state === 'preparing' ? 'Getting the court ready…'
+      : 'Running: ' + (sh.done || 0) + ' of ' + (sh.total || 0) + ' shots…')
+      : m.state === 'failed' ? 'Failed' + (m.why ? ': ' + m.why : '') : m.state === 'done' ? 'Done' : '';
+    if (say) { h += '<p class="ag-meta" style="margin-top:8px" id="ag-sim-say">' + esc(say) + '</p>'; }
+    var rows = m.rows instanceof Array ? m.rows.filter(function (r) { return r && r.shots > 0; }) : [];
+    if (rows.length) {
+      h += '<table id="ag-sim-rows"><thead><tr><th>Delay</th><th>Green</th><th>Early</th><th>Late</th>' +
+        '<th>Off by</th></tr></thead><tbody>';
+      rows.forEach(function (r) {
+        var e = isObj(r.errMs) ? r.errMs : {};
+        h += '<tr><td>' + esc(String(r.latencyMs)) + ' ms</td><td>' + esc(String(r.green)) + '/' +
+          esc(String(r.shots)) + '</td><td>' + esc(String(r.early)) + '</td><td>' + esc(String(r.late)) +
+          '</td><td>' + (isNum(e.mean) ? (e.mean >= 0 ? '+' : '') + e.mean.toFixed(1) + ' ms' : '-') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    }
+    var st = isObj(m.stages) ? m.stages : {};
+    if (isObj(st.search) && st.search.frames > 0) {
+      h += '<p class="ag-meta">Search ' + esc(ms(st.search.totalMs)) + ' ms, track ' +
+        esc(ms(isObj(st.track) ? st.track.totalMs : null)) + ' ms (mean / 95th).</p>';
+    }
+    if (m.verdict && !running) { h += '<p class="ag-answer" id="ag-sim-verdict">' + esc(m.verdict) + '</p>'; }
+    return h;
+  }
+
+  /* each slot is repainted only when what it holds changed, so a 400 ms poll
+     costs nothing on a screen that is not moving (and a button under a
+     finger is not replaced mid-tap) */
+  function put(id, html, wireFn) {
+    var el = ROOT && ROOT.querySelector('#' + id);
+    if (!el || S.html[id] === html) { return; }
+    el.innerHTML = html;
+    S.html[id] = html;
+    if (wireFn) { wireFn(el); }
+  }
+  function paint() {
+    if (!ROOT || $('ag-room') !== ROOT) { return; }
+    put('ag-live', liveHTML());
+    put('ag-result', resultHTML());
+    put('ag-seen', seenHTML());
+    put('ag-last', lastHTML(), wireLast);
+    put('ag-delay', delayHTML(), wireDelay);
+    if (ROOT.querySelector('#ag-bench')) { put('ag-bench', benchHTML(), wireBench); }
+    if (ROOT.querySelector('#ag-sim')) { put('ag-sim', simHTML(), wireSim); }
+  }
+  function wireLast(el) {
+    el.querySelectorAll('.ag-v').forEach(function (b) {
+      b.addEventListener('click', function () {
+        verdict(Number(b.getAttribute('data-seq')), b.getAttribute('data-kind'));
+      });
+    });
+  }
+  function wireDelay(el) {
+    var b = el.querySelector('#ag-measure');
+    if (b) { b.addEventListener('click', function () { openDelay(b); }); }
+  }
+  function wireBench(el) {
+    var b = el.querySelector('#ag-bench-go');
+    if (b) { b.addEventListener('click', benchGo); }
+  }
+  function wireSim(el) {
+    var b = el.querySelector('#ag-sim-go');
+    if (b) { b.addEventListener('click', simGo); }
+  }
+
+  /* ═══════════════════════════════════════════════ talking to the Core ══ */
+  function poll(gen) {
+    S.timer = null;
+    if (gen !== S.gen || !onScreen()) { return; }
+    if (!online()) {
+      paint();
+      S.timer = setTimeout(function () { poll(gen); }, 1500);
+      return;
+    }
+    api('/shot').then(function (j) {
+      if (gen !== S.gen) { return; }
+      var d = dataOf(j);
+      if (d) { S.status = d; S.err = ''; S.noRoute = false; HP.status = d; HP.of = S.pid; HP.noRoute = false; }
+      else { S.noRoute = noRoute(j); S.err = String((j && j.error) || ''); }
+      paint();
+      if (gen === S.gen && onScreen()) { S.timer = setTimeout(function () { poll(gen); }, POLL_MS); }
+    });
+  }
+  function verdict(seq, kind) {
+    if (S.busy || KINDS.indexOf(kind) < 0 || !isNum(seq)) { return; }
+    S.busy = true;
+    S.picked[seq] = kind;
+    S.answer = null;
+    paint();
+    api('/shot/verdict', 'POST', { seq: seq, kind: kind }).then(function (j) {
+      S.busy = false;
+      var d = dataOf(j);
+      if (d) {
+        S.answer = { seq: seq, text: String(d.why || (d.taught ? 'Thanks. Your Core learned from that shot.'
+          : 'Thanks. Noted.')) };
+        if (isObj(d.last) && S.status) { S.status.last = d.last; }
+      } else {
+        delete S.picked[seq];
+        S.answer = { seq: seq, text: String((j && j.error) || 'Your Core did not take that answer.') };
+      }
+      paint();
+    });
+  }
+  function forget() {
+    api('/shot/forget', 'POST', {}).then(function (j) {
+      var d = dataOf(j);
+      if (d) {
+        if (isObj(d.learn) || 'on' in d) { S.status = d; }
+        S.picked = {}; S.answer = null;
+        if (ZS.toast) { ZS.toast('Your Core forgot what it learned'); }
+      } else if (ZS.toast) {
+        ZS.toast(String((j && j.error) || 'Your Core did not forget it'));
+      }
+      paint();
+    });
+  }
+
+  /* ── the developer's bench ── */
+  function benchPoll(gen) {
+    S.benchTimer = null;
+    if (gen !== S.gen || !onScreen()) { return; }
+    api('/shot/bench').then(function (j) {
+      if (gen !== S.gen) { return; }
+      var d = dataOf(j);
+      if (d) { S.bench = d; S.benchErr = ''; } else { S.benchErr = String((j && j.error) || ''); }
+      paint();
+      if (d && d.state === 'running' && onScreen()) {
+        S.benchTimer = setTimeout(function () { benchPoll(gen); }, BENCH_POLL_MS);
+      }
+    });
+  }
+  function benchGo() {
+    var running = !!(S.bench && S.bench.state === 'running');
+    S.benchBusy = true; S.benchErr = '';
+    paint();
+    api('/shot/bench', 'POST', running ? { op: 'stop' } : { op: 'start', frames: 120 }).then(function (j) {
+      S.benchBusy = false;
+      var d = dataOf(j);
+      if (!d) { S.benchErr = String((j && j.error) || 'Your Core did not start the bench'); paint(); return; }
+      if (isObj(d) && d.state) { S.bench = d; }
+      paint();
+      if (S.benchTimer) { clearTimeout(S.benchTimer); }
+      benchPoll(S.gen);
+    });
+  }
+
+  /* ── the developer's simulated shots (D407) ── */
+  function simPoll(gen) {
+    S.simTimer = null;
+    if (gen !== S.gen || !onScreen()) { return; }
+    api('/shot/sim').then(function (j) {
+      if (gen !== S.gen) { return; }
+      var d = dataOf(j);
+      if (d) { S.sim = d; S.simErr = ''; } else { S.simErr = noRoute(j) ? '' : String((j && j.error) || ''); }
+      paint();
+      if (d && simRunning(d) && onScreen()) {
+        S.simTimer = setTimeout(function () { simPoll(gen); }, SIM_POLL_MS);
+      }
+    });
+  }
+  function simGo() {
+    var running = simRunning(S.sim);
+    S.simBusy = true; S.simErr = '';
+    paint();
+    api('/shot/sim', 'POST', running ? { op: 'stop' } : { op: 'start' }).then(function (j) {
+      S.simBusy = false;
+      var d = dataOf(j);
+      if (!d) { S.simErr = String((j && j.error) || 'Your Core did not start the simulation'); paint(); return; }
+      if (isObj(d) && d.state) { S.sim = d; }
+      paint();
+      if (S.simTimer) { clearTimeout(S.simTimer); }
+      simPoll(S.gen);
+    });
+  }
+
+  /* ═══════════════════════════════════════════ Measure my delay (sheet) ══ */
+  function delayBody() {
+    var d = DL.data || {};
+    if (DL.state === 'intro') {
+      return '<ol class="ag-steps" id="agd-steps">' +
+        '<li>In your game, open any menu with a list in it, like the pause menu.</li>' +
+        '<li>Put your controller down.</li>' +
+        '<li>Tap Start. Your Core moves the highlight down and up ' + DELAY_PRESSES +
+          ' times and times how long your TV takes to show it.</li></ol>' +
+        (DL.err ? '<p class="ag-err" role="alert">' + esc(DL.err) + '</p>' : '') +
+        '<div class="ag-keys"><button type="button" class="btn primary" id="agd-start"' +
+        (DL.busy ? ' disabled' : '') + '>Start</button></div>';
+    }
+    if (DL.state === 'running') {
+      var n = isNum(d.presses) && d.presses > 0 ? d.presses : DELAY_PRESSES;
+      var done = isNum(d.done) ? Math.min(d.done, n) : 0;
+      var say = d.state === 'quiet' ? 'Waiting for the picture to settle…'
+        : 'Press ' + Math.min(done + 1, n) + ' of ' + n;
+      return '<div class="ag-big" id="agd-count">' + done + ' of ' + n + '</div>' +
+        '<p class="ag-small" id="agd-say">' + esc(say) + '. Leave the controller down.</p>' +
+        '<div class="ag-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + n + '" aria-valuenow="' + done +
+        '"><i style="width:' + Math.round(100 * done / n) + '%"></i></div>' +
+        '<div class="ag-keys"><button type="button" class="btn" id="agd-stop">Stop</button></div>';
+    }
+    if (DL.state === 'done') {
+      var med = Math.round(d.medianMs), spread = isNum(d.spreadMs) ? Math.round(d.spreadMs) : null;
+      return '<div class="ag-big" id="agd-result">About ' + med + ' ms</div>' +
+        '<p class="ag-small" id="agd-spread">' + (spread !== null ? 'Give or take ' + spread + ' ms' : '') +
+        (isNum(d.misses) && d.misses > 0 ? (spread !== null ? '. ' : '') + d.misses + ' press' +
+          (d.misses === 1 ? '' : 'es') + ' not seen' : '') + '</p>' +
+        '<div class="ag-keys"><button type="button" class="btn" id="agd-cancel">Cancel</button>' +
+        '<button type="button" class="btn primary" id="agd-apply">Apply</button></div>';
+    }
+    /* failed */
+    return '<p class="ag-err" id="agd-why" role="alert">' + esc(d.why || DL.err ||
+      'Your Core could not see the highlight move. Open a menu with a list and try again.') + '</p>' +
+      '<div class="ag-keys"><button type="button" class="btn" id="agd-cancel">Close</button>' +
+      '<button type="button" class="btn primary" id="agd-again">Try again</button></div>';
+  }
+  function delayPaint(opener) {
+    if (DL.state === 'closed' || !ZS.sheetOpen) { return; }
+    var wrap = $('sheetwrap');
+    var fresh = !wrap || !wrap.classList.contains('open');
+    var el = $('agd'), html = delayBody();
+    if (!fresh && el) {
+      /* the sheet is up: repaint its insides only. A sheetOpen per poll
+         replays the sheet's entrance, and the running page sat faded. */
+      if (el.innerHTML === html) { return; }
+      el.innerHTML = html;
+    } else {
+      var opened = ZS.sheetOpen('Measure my delay', '<div class="ag-sheet" id="agd">' + html + '</div>',
+        fresh ? delayTeardown : undefined, opener);
+      el = opened;
+    }
+    var on = function (id, fn) { var b = el.querySelector('#' + id); if (b) { b.addEventListener('click', fn); } };
+    on('agd-start', delayStart);
+    on('agd-again', delayStart);
+    on('agd-stop', delayStop);
+    on('agd-cancel', function () { if (ZS.sheetClose) { ZS.sheetClose(); } });
+    on('agd-apply', delayApply);
+  }
+  function delayTeardown() {
+    var was = DL.state;
+    DL.state = 'closed';
+    DL.gen++;
+    if (DL.timer) { clearTimeout(DL.timer); DL.timer = null; }
+    if (was === 'running') { api('/shot/delay', 'POST', { op: 'stop' }); }
+  }
+  function openDelay(opener) {
+    injectCss();
+    DL.gen++;
+    DL.state = 'intro'; DL.data = null; DL.err = ''; DL.busy = false; DL.pid = S.pid;
+    delayPaint(opener);
+  }
+  function delayStart() {
+    if (DL.busy) { return; }
+    DL.busy = true; DL.err = '';
+    var gen = ++DL.gen;
+    api('/shot/delay', 'POST', { op: 'start', presses: DELAY_PRESSES, gapMs: DELAY_GAP_MS, button: 'dpad' })
+      .then(function (j) {
+        if (gen !== DL.gen || DL.state === 'closed') { return; }
+        DL.busy = false;
+        if (!dataOf(j)) {
+          DL.state = 'intro';
+          DL.err = String((j && j.error) || 'Your Core did not start measuring.');
+          delayPaint();
+          return;
+        }
+        DL.state = 'running';
+        DL.data = { state: 'quiet', presses: DELAY_PRESSES, done: 0 };
+        delayPaint();
+        DL.timer = setTimeout(function () { delayPoll(gen); }, DELAY_POLL_MS);
+      });
+  }
+  function delayPoll(gen) {
+    DL.timer = null;
+    if (gen !== DL.gen || DL.state !== 'running') { return; }
+    api('/shot/delay').then(function (j) {
+      if (gen !== DL.gen || DL.state !== 'running') { return; }
+      var d = dataOf(j);
+      if (d) {
+        DL.data = d;
+        if (d.state === 'done' && isNum(d.medianMs)) { DL.state = 'done'; }
+        else if (d.state === 'failed' || d.state === 'done' || d.state === 'idle') { DL.state = 'failed'; }
+      }
+      delayPaint();
+      if (DL.state === 'running') { DL.timer = setTimeout(function () { delayPoll(gen); }, DELAY_POLL_MS); }
+    });
+  }
+  function delayStop() {
+    DL.gen++;
+    if (DL.timer) { clearTimeout(DL.timer); DL.timer = null; }
+    api('/shot/delay', 'POST', { op: 'stop' });
+    DL.state = 'intro'; DL.data = null;
+    delayPaint();
+  }
+  function delayApply() {
+    var d = DL.data || {};
+    if (!isNum(d.medianMs)) { return; }
+    var v = Math.min(1000, Math.max(0, Math.round(d.medianMs)));
+    var pid = DL.pid || S.pid;
+    var save = ZS.editProfile || ZS.putProfile;
+    save(pid, function (f) {
+      if (!isObj(f.autoGreen)) { f.autoGreen = {}; }
+      f.autoGreen.delayMs = v;
+      if (f.autoGreen.meterStyle !== 'arrow') { f.autoGreen.meterStyle = 'white'; }
+    });
+    /* the hand slider follows the measured value (it is drawn once) */
+    var r = ROOT && $('ag-room') === ROOT && ROOT.querySelector('#ag-delayr');
+    if (r) {
+      r.value = String(Math.min(DELAY_MAX, v));
+      var rv = r.closest('.fld') && r.closest('.fld').querySelector('.rv');
+      if (rv) { rv.textContent = r.value + (r.getAttribute('data-unit') || ''); }
+    }
+    DL.state = 'closed';
+    if (ZS.sheetClose) { ZS.sheetClose(); }
+    if (ZS.toast) { ZS.toast('Your delay is set: about ' + v + ' ms'); }
+    paint();
+  }
+
+  /* ═════════════════════════════════════ first run (D458, shown once) ══ */
+  function introSeen() { return lsGet(INTRO_KEY) === '1'; }
+  function introHTML() {
+    var shoot = shootName(S.p);
+    return '<div class="ag-sheet" id="agi"><ol class="ag-steps" id="agi-steps">' +
+      INTRO_STEPS.map(function (t) { return '<li>' + esc(t.replace('%', shoot)) + '</li>'; }).join('') +
+      '</ol><div class="ag-keys"><button type="button" class="btn primary" id="agi-ok">Got it</button></div></div>';
+  }
+  function openIntro(opener) {
+    if (introSeen() || !ZS.sheetOpen) { return false; }
+    /* marked when shown, so a sheet closed any way (Got it, the scrim, Back)
+       never comes back */
+    lsSet(INTRO_KEY, '1');
+    injectCss();
+    var el = ZS.sheetOpen(INTRO_TITLE, introHTML(), undefined, opener);
+    var b = el && el.querySelector && el.querySelector('#agi-ok');
+    if (b) { b.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } }); }
+    return true;
+  }
+  /* the Advanced fold: a real button (focusable, Enter / Space / A on a pad)
+     that shows or hides #ag-adv; its state is per install */
+  function advOpen() { return lsGet(ADV_KEY) === '1'; }
+  function setAdv(btn, open) {
+    var box = ROOT && ROOT.querySelector('#ag-adv');
+    if (!box) { return; }
+    if (open) { box.removeAttribute('hidden'); } else { box.setAttribute('hidden', ''); }
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    lsSet(ADV_KEY, open ? '1' : '0');
+  }
+
+  /* ═══════════════════════════════════════════════════ the screen ══ */
+  R.autogreen = function (p) {
+    injectCss();
+    var pid = p && p.id;
+    if (S.pid !== pid) { S.status = null; S.bench = null; S.sim = null; }
+    /* an answer belongs to the visit it was given in; the Core's own
+       `verdict` keeps the chosen button lit after that */
+    S.picked = {}; S.answer = null;
+    S.pid = pid; S.p = p;
+    S.err = ''; S.noRoute = false; S.benchErr = ''; S.simErr = ''; S.html = {};
+    var ag = blockOf(pid);
+    var nudge = isNum(ag.nudgeMs) ? Math.max(NUDGE_MIN, Math.min(NUDGE_MAX, Math.round(ag.nudgeMs))) : 0;
+    var strat = ['auto', 'meter', 'press'].indexOf(ag.strategy);
+    /* a "?" whose chip rides a row of this screen's own and whose fold
+       opens under the card's rows (helpHTML is the chip row, then the fold) */
+    function chipAndFold(id, label, words) {
+      var h = helpHTML(id, label, words), cut = h.indexOf('<div class="note qhfold"');
+      return cut > 0 ? [h.slice(0, cut), h.slice(cut)] : [h, ''];
+    }
+    var what = chipAndFold('ag-what', 'Auto green', WHAT_HELP);
+    var nud = chipAndFold('ag-nudge-help', 'Fine-tune', NUDGE_HELP);
+    /* the slider, its two ends and the "?" in one row of the card */
+    var timing = slider('Fine-tune', NUDGE_MIN, NUDGE_MAX, nudge, ' ms',
+      B('autoGreen.nudgeMs', 1, { mn: NUDGE_MIN, mx: NUDGE_MAX }))
+      .replace('type="range"', 'type="range" step="' + NUDGE_STEP + '" id="ag-nudge" aria-label="Fine-tune: Sooner or Later"')
+      .replace(/<\/div>$/, '<div class="ag-ends"><span aria-hidden="true">Sooner</span>' + nud[0] +
+        '<span aria-hidden="true">Later</span></div></div>');
+    /* D447: Your delay by hand, 0..400 in steps of 5 (a measured value over
+       400 shows the slider at its end and is kept until the slider moves) */
+    var dly = isNum(ag.delayMs) ? Math.max(DELAY_MIN, Math.min(DELAY_MAX, Math.round(ag.delayMs))) : 0;
+    var delayRng = slider('Your delay (override)', DELAY_MIN, DELAY_MAX, dly, ' ms',
+      B('autoGreen.delayMs', 1, { mn: DELAY_MIN, mx: DELAY_MAX }))
+      .replace('type="range"', 'type="range" step="' + DELAY_STEP + '" id="ag-delayr"');
+    /* the meter's "?" rides the choice's own label row; its fold opens
+       under the two buttons */
+    var meterHelp = chipAndFold('ag-meter-help', 'Which meter', METER_HELP);
+    var styleSeg = styleSegHTML(styleOf(pid) === 'arrow' ? 1 : 0)
+      .replace('</div><div class="seg2"', meterHelp[0] + '</div><div class="seg2"');
+    var dev = !!(ZS.coreDevMode && ZS.coreDevMode());
+    var adv = advOpen();
+    var html = '<div id="ag-room">' +
+      /* D475: the owner's Auto green logo heads the room, whole, on its own black */
+      '<div class="ag-hero" aria-hidden="true"><img class="ag-heroimg" src="' + LOGO_BANNER + '" alt="" ' +
+        'decoding="async" draggable="false"></div>' +
+      /* D458: the default view, one card: the switch, the status line, the
+         last shot's result */
+      card(toggleFld('Auto green', !!ag.enabled, SUB, false, B('autoGreen.enabled', 1, { t: 'bool' })) +
+        '<div class="ag-liverow"><div class="ag-live big" id="ag-live" role="status" aria-live="polite"></div>' + what[0] + '</div>' +
+        '<div class="ag-folds">' + what[1] + '</div>' +
+        '<div class="ag-result" id="ag-result" role="status" aria-live="polite"></div>') +
+      '<button type="button" class="ag-advbtn" id="ag-advbtn" aria-controls="ag-adv" aria-expanded="' + (adv ? 'true' : 'false') +
+        '"><span>Advanced<em>Meter, fine-tune, delay. Most players never need it.</em></span>' +
+        '<span class="chev" aria-hidden="true">›</span></button>' +
+      '<div id="ag-adv"' + (adv ? '' : ' hidden') + '>' +
+      sh('Meter') +
+      card('<div class="ag-style">' + styleSeg + '</div>' +
+        '<div class="ag-stylehelp">' + meterHelp[1] + '</div>' +
+        '<div class="ag-seen" id="ag-seen" role="status" aria-live="polite"></div>') +
+      sh('Timing') +
+      card(timing + '<p class="ag-note" id="ag-nudgenote">' + esc(NUDGE_NOTE) + '</p>' +
+        '<div class="ag-folds">' + nud[1] + '</div>' +
+        '<div class="ag-delayrow">' + delayRng + '</div>' +
+        '<p class="ag-note" id="ag-delaynote">' + esc(DELAY_NOTE) + '</p>' +
+        '<div class="ag-pad" id="ag-delay"></div>') +
+      sh('Last shot') +
+      card('<div class="ag-pad" id="ag-last"></div>') +
+      acc('More', 'sliders',
+        toggleFld('Learn from the meter', !!ag.learnFromMeter, '', false, B('autoGreen.learnFromMeter', 1, { t: 'bool' })) +
+        helpHTML('ag-learn-help', 'Learn from the meter', LEARN_HELP) +
+        seg('Timing mode', ['Auto', 'Meter', 'Press'], strat < 0 ? 0 : strat, false,
+          B('autoGreen.strategy', 1, { t: 'str', map: STRATEGY_MAP })) +
+        helpHTML('ag-mode-help', 'Timing mode', MODE_HELP) +
+        '<button type="button" class="btn ag-forget" id="ag-forget">Forget what it learned</button>',
+        false, 'ag-more') +
+      (dev ? sh('Bench (developer)') + card('<div class="ag-bench ag-pad" id="ag-bench"></div>') +
+        sh('Simulated shots (developer)') + card('<div class="ag-bench ag-pad" id="ag-sim"></div>') : '') +
+      '</div></div>';
+    return { html: html, after: function (body) {
+      ROOT = body.querySelector('#ag-room');
+      if (!ROOT) { return; }
+      /* D475: the room wears the logo's neon green (zs-fixes.css "D475":
+         its ambient light, header rail and brackets) */
+      if (body.setAttribute) { body.setAttribute('data-tint', 'autogreen'); }
+      HP.pid = '';
+      var f = ROOT.querySelector('#ag-forget');
+      if (f && armConfirm) { armConfirm(f, forget); }
+      var ab = ROOT.querySelector('#ag-advbtn');
+      if (ab) {
+        ab.addEventListener('click', function () { setAdv(ab, ab.getAttribute('aria-expanded') !== 'true'); });
+      }
+      /* D458 first run: the switch turned ON here, the first time ever. The
+         kit flips the switch in its own click listener (a row tap dispatches
+         a non-bubbling click on the switch), so this listens on the switch
+         itself and looks after the flip. */
+      var sw = ROOT.querySelector('.sw[data-bind="autoGreen.enabled"]');
+      if (sw) {
+        sw.addEventListener('click', function () {
+          setTimeout(function () {
+            if (sw.classList.contains('on') && onScreen()) { openIntro(sw); }
+          }, 0);
+        });
+      }
+      /* D447: a change to any bound control here also writes the meter the
+         room shows (the kit's own listeners on the control run first) */
+      var after1 = function (e) {
+        var t = e.target;
+        if (!t || !t.closest) { return; }
+        var row = t.closest('.fld.tapper');
+        if (t.closest('[data-bind]') || (row && row.querySelector('[data-bind]'))) { ensureStyle(S.pid); }
+      };
+      ROOT.addEventListener('click', after1);
+      ROOT.addEventListener('input', after1);
+      S.gen++;
+      if (S.timer) { clearTimeout(S.timer); S.timer = null; }
+      if (S.benchTimer) { clearTimeout(S.benchTimer); S.benchTimer = null; }
+      if (S.simTimer) { clearTimeout(S.simTimer); S.simTimer = null; }
+      paint();
+      /* after openDetail has finished: the panel is marked open only once
+         this hook returns, and the poll stops on a closed panel */
+      var gen = S.gen;
+      S.timer = setTimeout(function () { poll(gen); }, 0);
+      if (dev && online()) {
+        S.benchTimer = setTimeout(function () { benchPoll(gen); }, 0);
+        S.simTimer = setTimeout(function () { simPoll(gen); }, 0);
+      }
+    } };
+  };
+
+  /* ═══════════════════════════════════ HOME's Auto green card (D475) ══ */
+  /* An NBA 2K config has no AI Scripts, so HOME's weapon card slot shows
+     this instead (shell/09-home.js paintHomeGun): the logo, ON / OFF, and
+     one status line from the same GET /shot the room reads. HOME asks the
+     Core only while the card is on screen (HOME showing, an NBA 2K config
+     playing, the Core online, the room closed), every HOME_POLL_MS; nothing
+     else ever starts this poll (zero cost when unused). */
+  var HOME_POLL_MS = 3000;
+  var HP = { pid: '', of: '', timer: null, busy: false, status: null, noRoute: false };
+  function homeShowing() {
+    if (typeof document !== 'undefined' && document.hidden) { return false; }
+    var ed = $('editor'), dt = $('detail'), host = $('hsgun');
+    if (!host || host.hidden) { return false; }
+    return !(ed && ed.classList.contains('open')) && !(dt && dt.classList.contains('open'));
+  }
+  function homeTick() {
+    HP.timer = null;
+    if (!HP.pid || !online() || !homeShowing()) { HP.pid = ''; return; }
+    HP.busy = true;
+    var pid = HP.pid;
+    api('/shot').then(function (j) {
+      HP.busy = false;
+      if (pid !== HP.pid) { return; }
+      var d = dataOf(j);
+      if (d) { HP.status = d; HP.noRoute = false; } else { HP.noRoute = noRoute(j); }
+      HP.of = pid;
+      if (ZS.paintHomeGun) { ZS.paintHomeGun(); }
+      if (HP.pid && !HP.timer) { HP.timer = setTimeout(homeTick, HOME_POLL_MS); }
+    });
+  }
+  /* HOME calls this on every paint while the card shows: it starts the
+     poll if it is not running (a paint after HOME comes back restarts it) */
+  function homeWatch(pid) {
+    if (pid !== HP.of) { HP.status = null; HP.noRoute = false; HP.of = pid || ''; }
+    HP.pid = pid || '';
+    if (HP.pid && !HP.timer && !HP.busy) { HP.timer = setTimeout(homeTick, 0); }
+  }
+  function homeStop() {
+    HP.pid = '';
+    if (HP.timer) { clearTimeout(HP.timer); HP.timer = null; }
+  }
+  /* what the card says, pure: block = the config's autoGreen, st = GET /shot
+     (or null), off = the Core is offline, oldFw = it has no /shot.
+       state  ok | looking | off | warn | offline (the HOME card's is-* class)
+       on     the switch as the config has it (the Core's own `on` when it says)
+       name   the big line; status the small one */
+  function homeCard(block, st, off, oldFw) {
+    var on = !!(block && block.enabled);
+    if (!off && isObj(st) && typeof st.on === 'boolean') { on = st.on; }
+    var lr = isObj(st) ? st.learn : null, ls = isObj(lr) && typeof lr.state === 'string' ? lr.state : '';
+    var c = countOf(lr), shots = c ? c.n + ' of ' + c.of + ' shots' : '';
+    if (off) { return { state: 'offline', on: on, name: 'Unavailable', status: '' }; }
+    if (oldFw) { return { state: 'off', on: on, name: 'Needs a firmware update', status: OLD_FW }; }
+    if (!on || ls === 'off' || ls === 'passive') {
+      return { state: 'off', on: false, name: 'Turned off',
+        status: ls === 'passive' && shots ? 'Learning your timing while off: ' + shots : 'Tap to turn it on' };
+    }
+    if (!isObj(st)) { return { state: 'looking', on: true, name: 'Checking…', status: 'Asking your Core' }; }
+    if (st.picture === false) {
+      return { state: 'warn', on: true, name: 'No game picture', status: 'Connect your console through your Core' };
+    }
+    if (ls === 'learning') {
+      return { state: 'looking', on: true, name: LEARNING, status: (shots ? shots + ' · ' : '') + JUST_SHOOT };
+    }
+    if (ls === 'relearning') {
+      return { state: 'looking', on: true, name: 'Re-learning your timing',
+        status: 'Your setup changed' + (shots ? ' · ' + shots : '') };
+    }
+    if (ls === 'ready') {
+      var w = readyWords(lr).replace(/^Ready(: | - )?/, '');
+      return { state: 'ok', on: true, name: READY, status: w ? w.charAt(0).toUpperCase() + w.slice(1) : '' };
+    }
+    /* a Core with no learner (before D458): its own words, "Ready" leading */
+    var rest = String(st.words || '').replace(/^Ready\s*[-:·]?\s*/, '');
+    return { state: 'ok', on: true, name: READY,
+      status: rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : SUB };
+  }
+  /* the card for HOME's active config, from what HOME already holds */
+  function homeCardFor(pid) {
+    return homeCard(blockOf(pid), pid === HP.of ? HP.status : null, !online(), pid === HP.of && HP.noRoute);
+  }
+
+  /* for the tests and the menu row */
+  window.ZSAUTOGREEN = {
+    homeCard: homeCard,
+    homeCardFor: homeCardFor,
+    homeWatch: homeWatch,
+    homeStop: homeStop,
+    homeState: function () { return HP; },
+    HOME_POLL_MS: HOME_POLL_MS,
+    state: function () { return S; },
+    delayState: function () { return DL; },
+    openDelay: openDelay,
+    openIntro: openIntro,
+    resultIcon: resultIcon,
+    didWords: didWords,
+    meterSVG: meterSVG,
+    LOGO: LOGO, LOGO_BANNER: LOGO_BANNER, HUE: HUE,
+    COPY: { sub: SUB, oldFw: OLD_FW, what: WHAT_HELP, nudge: NUDGE_HELP, learn: LEARN_HELP, mode: MODE_HELP,
+      meter: METER_HELP, white: STYLE_WHITE, arrow: STYLE_ARROW, nudgeNote: NUDGE_NOTE, delayNote: DELAY_NOTE,
+      introTitle: INTRO_TITLE, introSteps: INTRO_STEPS, v2k: V2K, introKey: INTRO_KEY, advKey: ADV_KEY }
+  };
+});

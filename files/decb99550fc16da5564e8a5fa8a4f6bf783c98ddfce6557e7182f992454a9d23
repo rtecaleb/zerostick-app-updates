@@ -1,0 +1,286 @@
+/* shell/07-inputs.js — the shared tables, and what each input type shows.
+ *
+ * CON / INP / PB, the three input types (controller, mouse and keyboard,
+ * both) and which bindings each one shows (inputShows, srcDeviceClass: the
+ * ONE copy, smart-actions/ asks it too), prof(), esc().
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── data ──────────────────────────────────────────────────────── */
+  var PROFILES = [
+    {id:'wz',   name:'Warzone',       platform:'ps5',  input:'mnk',        color:'#58a6ff'},
+    {id:'halo', name:'Halo Infinite', platform:'xbox', input:'controller', color:'#3fb950'},
+    {id:'apex', name:'Apex — Pad',    platform:'ps5',  input:'controller', color:'#d29922'},
+    {id:'desk', name:'Desktop',       platform:'pc',   input:'mnk',        color:'#a371f7'},
+  ];
+  var activeId = 'wz';
+  var editId   = null;
+  /* Reorder mode used to live here, because the config list lived on HOME.
+     Both moved to the Configs screen on 2026-08-16 — the flag is now P_ORDER
+     in phone-sections.js, module-level for the same reason it was module-level
+     here: redrawOpenScreen() rebuilds that screen from scratch when the pad's
+     family changes, and a closure var would silently drop Reorder mode. */
+  if(STORE.profiles && STORE.profiles.length){ PROFILES.length=0; STORE.profiles.forEach(function(p){PROFILES.push(p);}); }
+  if(STORE.activeId && PROFILES.some(function(p){return p.id===STORE.activeId;})) activeId=STORE.activeId;
+
+  /* ps4 since D115: the new-config wizard offers every row of the Connection
+     Method (PLAY_FROM, phone-sections.js), and its PS4 row writes console
+     "ps4" (schema.CONSOLES since D93), which printed as a bare "ps4" here. */
+  var PB = {ps5:{t:'PS5',c:'var(--blue)'}, ps4:{t:'PS4',c:'var(--blue)'},
+            xbox:{t:'Xbox',c:'var(--green)'}, pc:{t:'PC',c:'var(--purple)'},
+            /* D349 */
+            'switch':{t:'Switch',c:'var(--red)'}, x360:{t:'360',c:'var(--green)'},
+            ps3:{t:'PS3',c:'var(--blue)'}, mirror:{t:'Mirror',c:'var(--muted)'},
+            /* D399 */
+            switch2:{t:'Switch 2',c:'var(--red)'}};
+  var CON = {ps5:'PlayStation 5', ps4:'PlayStation 4', xbox:'Xbox', pc:'PC',
+             'switch':'Nintendo Switch', x360:'Xbox 360', ps3:'PlayStation 3', mirror:'Mirror',
+             switch2:'Nintendo Switch 2'};
+  /* THREE things a config can be played with. The wire values are what the
+     board's schema.INPUT_TYPES holds and what every profile stores forever —
+     'stick_mouse' is deliberately not a substring of either older value, so no
+     older `indexOf('mnk')`-shaped test anywhere can half-match it into the
+     wrong arm (see docs/DECISIONS.md D32). The WORDS are Caleb's: he asked for
+     "joystick+mouse", so that is what the app says. */
+  var INP = {mnk:'Mouse + Keyboard', controller:'Controller', stick_mouse:'Joystick + Mouse'};
+  var INPUT_TYPES = ['mnk', 'controller', 'stick_mouse'];
+  /* one line each, used by the selector and the new-config wizard */
+  var INP_SUB = {
+    mnk:         'aim tuning, WASD \u2192 stick',
+    controller:  'stick feel, trigger tuning',
+    stick_mouse: 'both \u2014 stick in one hand, mouse in the other'
+  };
+
+  /* ── WHICH BINDS AN INPUT TYPE SHOWS ────────────────────────────────
+     The single definition of the gate, for the whole app. It mirrors the
+     board's schema.INPUT_TYPE_DEVICE_CLASSES exactly, and the device-class
+     names are the ones smart-actions.srcClass() produces (which in turn
+     mirror mapping/labels.source_device_class on the board) — so the screen
+     that HIDES a bind and the engine that REFUSES to run it can never
+     disagree about what BTN_TR or KEY_W is.
+
+     Two fail-open rules, both deliberate:
+       * an input type this build does not know (a newer app wrote it) hides
+         NOTHING. A gate that hides everything it cannot classify would make a
+         config from a future build look empty;
+       * a device class this build does not know ('screen' for a watched
+         region, '' for an unrecognised code) is always shown, for the same
+         reason the board always keeps an unclassifiable source.
+
+     HIDING IS NEVER DELETING. Nothing in this file, or anything that calls
+     it, removes a binding from a profile — the type only decides what is
+     drawn. Switch away and back and every bind is exactly where it was. */
+  var INPUT_CLASSES = {
+    mnk:         {mouse: true, keyboard: true},
+    controller:  {controller: true},
+    stick_mouse: {mouse: true, keyboard: true, controller: true}
+  };
+  function inputShows(inputType, cls){
+    var t = INPUT_CLASSES[inputType];
+    if(!t) return true;
+    if(cls!=='mouse' && cls!=='keyboard' && cls!=='controller') return true;
+    return !!t[cls];
+  }
+  /* the app's words for a wire value, never the wire value itself */
+  function inputName(v){ return INP[v] || String(v||''); }
+
+  /* WHICH DEVICE has to be attached for a source code to ever arrive.
+     Mirrors mapping/labels.source_device_class on the board, and it is the
+     question inputShows() is asked — so "is KEY_W a keyboard key" is answered
+     in exactly ONE place for the whole app. smart-actions.js's srcClass()
+     delegates here rather than keeping a second copy that could drift; the
+     two of them deciding differently is precisely how a bind gets hidden by
+     one screen and left running by another.
+       'screen'  a watched screen region — no device sends it
+       ''        not recognised. Callers must treat this as FAIL OPEN and show
+                 it, the same rule the board's split_bindings() uses: a
+                 control we cannot classify is a control we must not hide. */
+  function srcDeviceClass(code){
+    var c = String(code==null ? '' : code);
+    if(!c) return '';
+    if(c.indexOf('region:')===0 && c.length>7) return 'screen';
+    if(c==='BTN_LEFT'||c==='BTN_RIGHT'||c==='BTN_MIDDLE'||c==='BTN_SIDE'||c==='BTN_EXTRA'||
+       c==='BTN_WHEEL_UP'||c==='BTN_WHEEL_DOWN') return 'mouse';
+    /* KEY_RECORD is the DualSense create button, not a keyboard key */
+    if(c.indexOf('KEY_')===0 && c!=='KEY_RECORD') return 'keyboard';
+    if(c==='lt'||c==='rt'||c.indexOf('BTN_')===0||c==='KEY_RECORD') return 'controller';
+    return '';
+  }
+  /* does this config draw a bind on this source at all? */
+  function inputShowsSource(inputType, code){ return inputShows(inputType, srcDeviceClass(code)); }
+
+  function prof(id){ return PROFILES.filter(function(p){return p.id===id;})[0]; }
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+  /* Per-config editor sections. gate = config-first visibility overlay.
+     FIVE SCREENS, FLAT — no Essentials/Advanced split (owner, 2026-08-05:
+     "there should only be 5 options ... remove this essentials and advanced
+     crap"). Everything that left the list still EXISTS: its renderer is still
+     defined in phone-sections.js and every field it wrote is still read by the
+     engine, so nothing on the board changed — those screens are simply not
+     surfaced while the menus are being redesigned. Re-add an entry here to
+     bring one back. `tier`/`grp` are gone; the renderer draws one flat list. */
+  /* GROUPED AGAIN (owner, 2026-10-07: "label and organize the menu better:
+     Essentials - Aim, Device, Mappings; Scripting - Scripts, AI Scripts,
+     Translation; Advanced - Legacy Devices"). `grp` is the heading a row
+     sits under; renderEdMenu draws a heading wherever it changes. EXO
+     Studio left this menu for the Legacy Devices room (D228) and came back
+     under Advanced (D268). */
+  /* D406: an NBA 2K config (game-packs.js isNba2k, on the full document
+     when it is loaded and on the list's small object otherwise). Its menu
+     has Auto green and no gun stuff (owner, 2026-10-18: "If auto green is
+     on, gun detection isn't even a thing on 2K profiles"). */
+  function isNbaConfig(p){
+    if(!p || !window.ZSPACKS || !ZSPACKS.isNba2k) return false;
+    var full = (typeof LIVE === 'object' && LIVE && LIVE.full) ? LIVE.full[p.id] : null;
+    return ZSPACKS.isNba2k(full) || ZSPACKS.isNba2k(p);
+  }
+  /* A row may carry `show(p)`: drawn only when it answers true (renderEdMenu,
+     beside the input gate and the product gate). */
+  /* REGROUPED (owner, 2026-10-22, D430): Device first with no heading (it
+     is the config's own setup, not a feature); Essentials - Aim, Mappings
+     ("rebind buttons to any button"), AI Scripts; Advanced - Translation,
+     Advanced Script Maker, Legacy Devices, EXO Studio. */
+  var SECTIONS = [
+    /* THE HINTS ARE A FEW WORDS NOW, OR NOTHING.
+       Every one of these used to be a full second line, so each row was
+       112px and a five-item table of contents was 788px in a 676px viewport
+       — it did not fit on one screen. Worse, three of them were telegraphic
+       lists of nouns ("Update rate · status · PS5 link · name") and one of
+       those nouns, Update rate, lives on a DIFFERENT tab. A hint earns its
+       line only by saying something the title cannot; Mappings returns '' and
+       gets no second line at all. */
+    {id:'overview',  grp:'', ico:'gauge',  img:'brand/zs-exo-device-loop.webp', imgStill:'brand/zs-exo-device.jpg',  lab:'Device',        hint:function(p){
+      /* "Xbox auth" was the internal word — the screen calls it a link. */
+      return 'Name, photo · '+(p.platform==='ps5'?'PS5 link':p.platform==='ps4'?'PS4 link':p.platform==='xbox'?'Xbox link':'PC output');
+    }},
+    /* the Aim door wears the owner's holographic sight (2026-10-02), cropped
+       on the reticle so it reads at 80 px; the same chip as Device */
+    {id:'aim',       grp:'Essentials', ico:'target', img:'brand/zs-aim-door.jpg', lab:'Aim',             hint:function(p){
+      /* Asked as "is there a pad?", never `==='mnk'`: a Joystick + Mouse
+         config has one, and falls through to the stick words below plus the
+         mouse half named in front of them. */
+      if(!inputShows(p.input, 'controller')) return 'Mouse aim';
+      /* D186: the aim stick's ONE stick mode (Native | EXO Linear | Custom) */
+      var full = ZS.live.full[p.id]||{};
+      var choice = ZS.stickChoiceOf ? ZS.stickChoiceOf(full, 'right')
+                                    : ((full.stick||{}).mode==='native' ? 'native' : 'custom');
+      var stickWord = choice==='native' ? 'Native — your pad, untouched'
+                    : choice==='exoLinear' ? 'EXO Linear — even turn speed'
+                    : 'Custom — curve, deadzones & smoothing';
+      /* A Joystick + Mouse config tunes BOTH halves on this one screen, so
+         the hint must not call it a controller-only screen. */
+      if(inputShows(p.input, 'mouse')) return 'Mouse + stick · ' + stickWord;
+      return stickWord;
+    }},
+    /* "Mappings" (D79, 2026-09-05): the owner calls this screen Mappings —
+       it is XIM's Mappings list (D78) and its sub-menu now holds the Smart
+       Actions editor in place. It was "Buttons" (never "Keybinds": a word
+       from a PC game's options menu); the screen's chrome title and its
+       back label say the same word (smart-actions.js draw()). */
+    /* NO HINT. "What each button does — tap to change" was a third printing
+       of a sentence the screen itself already led with TWICE (both copies
+       now cut). The title is the whole answer. */
+    {id:'bindings',  grp:'Essentials', ico:'grid',   img:function(){ return (window.ZS && typeof ZS.mappingsArt === 'function') ? ZS.mappingsArt().src : ''; }, lab:'Mappings',        hint:'Rebind any button to any button'},
+    /* D122: Smart Actions that switch on by themselves when the Core sees the
+       weapon they belong to. auto-actions.js is the screen; not in
+       PRODUCTS.core.lacks, because the Core is what it is for. The two
+       arrows of `cycle` say "switches by itself"; not the eye, which read as
+       a body part at 26 px when Screen Assist tried it (2026-09-06). */
+    /* D201 (owner): "Auto Actions" is now called AI Scripts and wears the
+       owner's weapons picture (brand/zs-ai-scripts.png, the square middle of
+       it); HOME's Active Weapon card wears the same picture. */
+    /* D406: NBA 2K Auto green (window.RENDERERS.autogreen, sections/
+       23b-autogreen.js): an NBA 2K config's only Scripting-group CV row, on a
+       Core (PRODUCTS.exo.lacks names it). The hint says whether this config
+       has it on. */
+    /* D475: the door (and the room's title) wear the owner's Auto green
+       logo, the neon meter, ball and hoop */
+    {id:'autogreen', grp:'Essentials', ico:'timing', img:'brand/zs-autogreen.webp', lab:'Auto green',
+     show:function(p){ return isNbaConfig(p); },
+     hint:function(p){
+       var ag = (LIVE.full[p.id]||{}).autoGreen;
+       return (ag && ag.enabled) ? 'On · lets go of shoot in the green' : 'Lets go of shoot in the green';
+     }},
+    /* D406: no AI Scripts (the gun reader's room) on an NBA 2K config */
+    {id:'auto',      grp:'Essentials', ico:'cycle',  img:'brand/zs-ai-scripts.png', lab:'AI Scripts',      hint:'Scripts for each weapon',
+     show:function(p){ return !isNbaConfig(p); }},
+    /* D398 (owner, 2026-10-16): AI Scripts comes FIRST in the Scripting
+       group and this row reads "Advanced Script Maker" (the room's title and
+       every back key say the same); the id stays 'smart'.
+       D204 (owner): "Smart Actions" is called Scripts wherever a person
+       reads it (the id stays 'smart'; "GPC Scripts" keeps its own name), and
+       the door wears the owner's A -> X -> loop picture (brand/zs-scripts.png:
+       the A -> X chain and the loop, contained on the artwork's black, so
+       nothing is cropped in the square door) */
+    /* D215 (owner): EXO Studio, the app-side home of the PC app for
+       computer-vision scripts (D211): the device-wide EXO Studio switch,
+       the CV script and PC controller on this Core, and on the PC exe
+       "Open EXO Studio". studio-room.js is the room. A Core's only
+       (PRODUCTS.exo.lacks names it). Its door wears a plain placeholder
+       picture until the owner supplies the artwork. */
+    /* (EXO Studio's row moved under Advanced, after Legacy Devices: D268) */
+    /* "Screen Assist" is what the REST of the app already calls this — the
+       tab bar, the offline note, every openDetail() that reaches it from
+       another screen. Only this menu row said "Computer Vision", which is
+       (a) the third name for one feature and (b) 144px of title in a 131px
+       header, so it rendered as "Computer Vi…" and no shorter word existed
+       to fall back to. One name, and it fits. */
+    /* 2026-10-23 (owner: "remove damn Screen Assist, idk why that still
+       exists"): off the menu everywhere (`menu:false`); its screen and every
+       door into it from another screen are untouched */
+    {id:'vision',    grp:'Essentials', ico:'screen', lab:'Screen Assist', menu:false,   hint:function(p){
+      var v = (ZS.live.full[p.id]&&ZS.live.full[p.id].vision) || ZS.store.vals['vision|'+p.id];
+      return (v&&v.name) ? v.name+(v.enabled===false?' — off':' — on') : 'Aim help that watches the game';
+    }},
+    /* D164 (owner): "Translation", right below the vision row, and on a
+       Core IN its place (the vision row is hidden there: 'visionMenu' in
+       PRODUCTS.core.lacks). It holds the game translator and Behavior
+       Simulation (D163). The hint names the translator in use. */
+    {id:'translation', grp:'Advanced', ico:'thumbstick', img:'brand/zs-translation-door.jpg', lab:'Translation', hint:function(p){
+      var mt = (ZS.live.full[p.id]||{}).mouseTranslation || {};
+      var r = mt.resolvedAimModel;
+      return (r && typeof r === 'object' && r.name)
+        ? 'Translator: '+((window.ZSAIMMODEL && ZSAIMMODEL.displayName) ? ZSAIMMODEL.displayName(r.name) : r.name)   /* D402 */
+        : 'Standard translator';
+    }},
+    {id:'smart',     grp:'Advanced', ico:'bolt',   img:'brand/zs-scripts.png', lab:'Advanced Script Maker', hint:'Turbo, combos, timed presses'},
+    /* D215 (owner): "Legacy Devices" took the GPC Scripts room's place in
+       this menu and the XIM import out of the Aim page's ••• fold: one room,
+       two doors (the GPC script device; Copy your XIM settings in), both
+       screens unchanged inside. legacy-room.js is the room; every old path
+       into `gpc` or `ximimport` lands in it (openDetail -> ZSLEGACY.route).
+       Last, because it is for players coming from another device. Its door
+       wears a plain placeholder picture until the owner supplies the artwork. */
+    {id:'legacy',    grp:'Advanced', ico:'code',   img:'brand/zs-legacy-door.jpg', lab:'Legacy Devices', hint:function(p){
+      /* owner, 2026-10-14: "rename Legacy Devices to just Legacy
+         Devices, and make the description say bring old profiles to EXO" */
+      return 'Bring old profiles to EXO';
+    }},
+    /* D268 (owner, 2026-10-10: "is it possible for the settings tab to fit
+       one more option ... for EXO Studio under Advanced"): EXO Studio is a
+       row again, under Advanced after Legacy Devices (D228 had moved it into
+       that room; its door there stays, so both paths open the same room). A
+       Core's only: PRODUCTS.exo.lacks still names 'studio'. A menu row is
+       navigation and costs nothing; the Studio switch stays off by default
+       (zero cost when unused). */
+    /* the official EXO Studio emblem (studio/packaging/brand, owner 2026-10-10) */
+    {id:'studio',    grp:'Advanced', ico:'screen', img:'brand/zs-exo-studio-emblem.png', lab:'EXO Studio', hint:function(p){
+      return window.ZSSTUDIO ? ZSSTUDIO.hint(p) : 'CV scripts from your PC';
+    }},
+    /* The four input-gated tuning screens (Pair Controllers, Keyboard
+       Movement, Controller Feel, Aim Speed Match) are NOT rows here any more —
+       the five-screen flat menu above is the owner's call. Their renderers and
+       their fields are untouched and every one of them is still reachable
+       through a door on the screen that talks about it (Translation carries
+       Keyboard Movement since D375, Aim Controller Feel, Overview → Advanced carries Pair
+       Controllers). The `gate` shape below survives for the day one comes
+       back — and it now takes a LIST, because each of those four was written
+       as a single equality and a Joystick + Mouse config would have matched
+       NEITHER arm and lost all four at once. */
+  ];
