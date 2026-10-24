@@ -325,6 +325,16 @@
   "download_url": "files/3c796fa1b18a2bcecb8d2f0a8c13c707c8e72bebde4e0329e2bbfc7274cddbc2"
  },
  {
+  "file_name": "exo/brand/zs-autogreen-banner.webp",
+  "file_hash": "eb6dd5020582b0de4bd6e7e819aa667030857219f7cee9ed80f38c0b5421df14",
+  "download_url": "files/eb6dd5020582b0de4bd6e7e819aa667030857219f7cee9ed80f38c0b5421df14"
+ },
+ {
+  "file_name": "exo/brand/zs-autogreen.webp",
+  "file_hash": "ef4b7a5aaa82abfae3ee41854ebffb563928c328f90b4ba71c649599eb2d80a8",
+  "download_url": "files/ef4b7a5aaa82abfae3ee41854ebffb563928c328f90b4ba71c649599eb2d80a8"
+ },
+ {
   "file_name": "exo/brand/zs-exo-dark.png",
   "file_hash": "d13e2639cec379956b0c3d396a78df9cabd44b61f6bc67afb7ef645b76e8895f",
   "download_url": "files/d13e2639cec379956b0c3d396a78df9cabd44b61f6bc67afb7ef645b76e8895f"
@@ -981,8 +991,8 @@
  },
  {
   "file_name": "exo/game-data/README.md",
-  "file_hash": "0811a51f8ce420ee58818b90f05ed8205d2d8bd79af413f9c950e693f2f5b8dd",
-  "download_url": "files/0811a51f8ce420ee58818b90f05ed8205d2d8bd79af413f9c950e693f2f5b8dd"
+  "file_hash": "84d00a5cc2f060e5602df492382ed4b27cda10a03ffed7f16233943f1d056dd4",
+  "download_url": "files/84d00a5cc2f060e5602df492382ed4b27cda10a03ffed7f16233943f1d056dd4"
  },
  {
   "file_name": "exo/game-data/RECOGNITION.md",
@@ -1136,178 +1146,543 @@
  },
  {
   "file_name": "exo/game-data/arc-raiders/SOURCES.md",
-  "file_hash": "b097a9aae53186bf3ba15342434d0a2af306f88440a5547b49ed3b628dc43112",
-  "download_url": "files/b097a9aae53186bf3ba15342434d0a2af306f88440a5547b49ed3b628dc43112"
+  "file_hash": "4aeef3914ed11d27d57853013cdbc945a7d4dc86dbe59880b06d19610d3d793e",
+  "download_url": "files/4aeef3914ed11d27d57853013cdbc945a7d4dc86dbe59880b06d19610d3d793e"
  },
  {
   "file_name": "exo/game-data/arc-raiders/catalog.json",
-  "file_hash": "22b2d3d3ee222e64717946dc75f4529c9ea80f7fdac166c17f541c7e5c37c2a3",
-  "download_url": "files/22b2d3d3ee222e64717946dc75f4529c9ea80f7fdac166c17f541c7e5c37c2a3"
+  "file_hash": "08bcbcbca837a579c0573dc1861ee3b0c5b6a24171ed1767614e32587233ca82",
+  "download_url": "files/08bcbcbca837a579c0573dc1861ee3b0c5b6a24171ed1767614e32587233ca82"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/anvil.png",
+  "file_hash": "743fdc4bb787ea13b40ad4597d18aa835c28f33c6f4348a59d151f626a9fb3c7",
+  "download_url": "files/743fdc4bb787ea13b40ad4597d18aa835c28f33c6f4348a59d151f626a9fb3c7"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/aphelion.png",
+  "file_hash": "30fea1525d2be89935cf5afecae7218ce525c7f1be3328293ee268a355d2f9a7",
+  "download_url": "files/30fea1525d2be89935cf5afecae7218ce525c7f1be3328293ee268a355d2f9a7"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/arpeggio.png",
+  "file_hash": "b8ddc5cf2f011aa39bef74aed72c6e0d696869dd9e047c7af00f8bcd387e3512",
+  "download_url": "files/b8ddc5cf2f011aa39bef74aed72c6e0d696869dd9e047c7af00f8bcd387e3512"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/bantam.png",
+  "file_hash": "6bfe0f2df5a79435ad831d6bd0f9902702f3677084dfcc9b81b2821eb93a9ed8",
+  "download_url": "files/6bfe0f2df5a79435ad831d6bd0f9902702f3677084dfcc9b81b2821eb93a9ed8"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/bettina.png",
+  "file_hash": "3bced820807403aabb59d92291d0bad8dcb1418a75670ea7f2e57460c494cdf2",
+  "download_url": "files/3bced820807403aabb59d92291d0bad8dcb1418a75670ea7f2e57460c494cdf2"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/bobcat.png",
+  "file_hash": "9f7472ad283f35814b817300b895bb412c0336bc65f4f1a8a3732b191cbdf63a",
+  "download_url": "files/9f7472ad283f35814b817300b895bb412c0336bc65f4f1a8a3732b191cbdf63a"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/burletta.png",
+  "file_hash": "403534c42172a123c31b5b5ea26bdc2bdb2bb80646df9a170619444dc4992d30",
+  "download_url": "files/403534c42172a123c31b5b5ea26bdc2bdb2bb80646df9a170619444dc4992d30"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/canto.png",
+  "file_hash": "763db872010898902c21b187cf979607b4f6b4f88c012227020efc528550ccc7",
+  "download_url": "files/763db872010898902c21b187cf979607b4f6b4f88c012227020efc528550ccc7"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/dolabra.png",
+  "file_hash": "52701636d06fbf5944c7273b58dab889476a9a015da46e2e93ab66db75c1f7eb",
+  "download_url": "files/52701636d06fbf5944c7273b58dab889476a9a015da46e2e93ab66db75c1f7eb"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/equalizer.png",
+  "file_hash": "7b60c723a5ae4883455310d5951fee25d014cea82a6d3211678f675101476c9f",
+  "download_url": "files/7b60c723a5ae4883455310d5951fee25d014cea82a6d3211678f675101476c9f"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/ferro.png",
+  "file_hash": "870c5086e2ef998f65906b770c779dca21527027a1ef9b92f9a3bb2cf6a6170f",
+  "download_url": "files/870c5086e2ef998f65906b770c779dca21527027a1ef9b92f9a3bb2cf6a6170f"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/hairpin.png",
+  "file_hash": "dc4f059853ef267cd6888a4b44e89519a53d56579138b5330df008fbcd85c3e1",
+  "download_url": "files/dc4f059853ef267cd6888a4b44e89519a53d56579138b5330df008fbcd85c3e1"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/hullcracker.png",
+  "file_hash": "2bcd5dc6c65a822648b8c1a1269cf4bb7dfd6c06af5f021b8b84584dc420edaa",
+  "download_url": "files/2bcd5dc6c65a822648b8c1a1269cf4bb7dfd6c06af5f021b8b84584dc420edaa"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/il_toro.png",
+  "file_hash": "f9fe10ab3effe4b24e02a038957ec319d829bbeec069647c1be30df4401a5c40",
+  "download_url": "files/f9fe10ab3effe4b24e02a038957ec319d829bbeec069647c1be30df4401a5c40"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/jupiter.png",
+  "file_hash": "4f478b2296efcd7f184948ad5860de6dc9c8c6a127812f5d14ca78c6c13911c2",
+  "download_url": "files/4f478b2296efcd7f184948ad5860de6dc9c8c6a127812f5d14ca78c6c13911c2"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/kettle.png",
+  "file_hash": "992a60a62f52530050c355fffb85a41c810fee60e4ec04830d08a672d56df3a7",
+  "download_url": "files/992a60a62f52530050c355fffb85a41c810fee60e4ec04830d08a672d56df3a7"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/osprey.png",
+  "file_hash": "f2ad9a56dedd6761beab046a458c3ce622c6538e344cf2b1356bb9cc2a56ce60",
+  "download_url": "files/f2ad9a56dedd6761beab046a458c3ce622c6538e344cf2b1356bb9cc2a56ce60"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/rascal.png",
+  "file_hash": "ffdc6f9d545704d0c7700644437464c40d51299310e07e8c5d3a084bcabf0cd5",
+  "download_url": "files/ffdc6f9d545704d0c7700644437464c40d51299310e07e8c5d3a084bcabf0cd5"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/rattler.png",
+  "file_hash": "3d857c350e8aeb22f97b752d93a33436a5891f417cd5b28b6d6dda05590ade6f",
+  "download_url": "files/3d857c350e8aeb22f97b752d93a33436a5891f417cd5b28b6d6dda05590ade6f"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/renegade.png",
+  "file_hash": "3da8b4d88bd2c05216e96472f6319f66e5da4910e8e430ee99d712a0976a2649",
+  "download_url": "files/3da8b4d88bd2c05216e96472f6319f66e5da4910e8e430ee99d712a0976a2649"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/stiletto.png",
+  "file_hash": "ac2351de4c28c62a80a933dee1379f89a7dda7f7a5a54013c5af2d883ec1f7d5",
+  "download_url": "files/ac2351de4c28c62a80a933dee1379f89a7dda7f7a5a54013c5af2d883ec1f7d5"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/stitcher.png",
+  "file_hash": "bb074bd494f12daea7e3cb52f6a0bf1be981eaafd594813fe2df92a23cdde314",
+  "download_url": "files/bb074bd494f12daea7e3cb52f6a0bf1be981eaafd594813fe2df92a23cdde314"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/tempest.png",
+  "file_hash": "8d70ba9fe7feb7ae630fa4afe118a6c4bff861531ab1b8564df2648d8a9caa38",
+  "download_url": "files/8d70ba9fe7feb7ae630fa4afe118a6c4bff861531ab1b8564df2648d8a9caa38"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/torrente.png",
+  "file_hash": "bf01c8be2bee365a2111e25728362a4378c3b698c1174d104ab7a61a9fa93370",
+  "download_url": "files/bf01c8be2bee365a2111e25728362a4378c3b698c1174d104ab7a61a9fa93370"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/venator.png",
+  "file_hash": "c7d8e19da49da991c741da0a8902a4a744b94c89f129dad710811708a59e815d",
+  "download_url": "files/c7d8e19da49da991c741da0a8902a4a744b94c89f129dad710811708a59e815d"
+ },
+ {
+  "file_name": "exo/game-data/arc-raiders/weapons/vulcano.png",
+  "file_hash": "3ca10450cca0f3c2c9086aa05bf9bd42f7a44d9c9a2427edebe6efd84e919a6a",
+  "download_url": "files/3ca10450cca0f3c2c9086aa05bf9bd42f7a44d9c9a2427edebe6efd84e919a6a"
  },
  {
   "file_name": "exo/game-data/battlefield-6/SOURCES.md",
-  "file_hash": "5792328c6963d5deb7cdc68c6281f0cfbf6552dd9454012caaa443bfb015cb6a",
-  "download_url": "files/5792328c6963d5deb7cdc68c6281f0cfbf6552dd9454012caaa443bfb015cb6a"
+  "file_hash": "9c549e8f45115360e089077cc38815595764405467f2dcf54c9311522bed304b",
+  "download_url": "files/9c549e8f45115360e089077cc38815595764405467f2dcf54c9311522bed304b"
  },
  {
   "file_name": "exo/game-data/battlefield-6/catalog.json",
-  "file_hash": "47929eb1b1a6d142b8261e51f955c8adb34f38a26cf8964337ee19e50cf0f864",
-  "download_url": "files/47929eb1b1a6d142b8261e51f955c8adb34f38a26cf8964337ee19e50cf0f864"
+  "file_hash": "af06ea165a422c08820f43edcbe7abbeb80d70f21f1437387848a5d8f9494b05",
+  "download_url": "files/af06ea165a422c08820f43edcbe7abbeb80d70f21f1437387848a5d8f9494b05"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_ak4d.png",
+  "file_hash": "46442366a9ba39e9b2529b5044bc03ab32329781933f480bb526cf73f6dded8d",
+  "download_url": "files/46442366a9ba39e9b2529b5044bc03ab32329781933f480bb526cf73f6dded8d"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_b36a4.png",
+  "file_hash": "e454a5b151d90f4a67a59dc5ae0456acf5cc801150a144ac4383367a2a55f221",
+  "download_url": "files/e454a5b151d90f4a67a59dc5ae0456acf5cc801150a144ac4383367a2a55f221"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_ef88.png",
-  "file_hash": "06a5863ef59872b98cc0327b0577fc43b56886017053d7c2c4b4a057c440c961",
-  "download_url": "files/06a5863ef59872b98cc0327b0577fc43b56886017053d7c2c4b4a057c440c961"
+  "file_hash": "21357a9e3dbb052905d73effe47a4e899d578b95efbe96915f1f8a3aaa3bbbd5",
+  "download_url": "files/21357a9e3dbb052905d73effe47a4e899d578b95efbe96915f1f8a3aaa3bbbd5"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_kord_6p67.png",
+  "file_hash": "6142eed244a955796d3254edba737569dfcca0ff15cb22948bee28e80253c2ad",
+  "download_url": "files/6142eed244a955796d3254edba737569dfcca0ff15cb22948bee28e80253c2ad"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_l85a3.png",
+  "file_hash": "0883e597019bba25f952a02bda7bc65dc708b7826bee85342a37591513db283d",
+  "download_url": "files/0883e597019bba25f952a02bda7bc65dc708b7826bee85342a37591513db283d"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_m16a4.png",
-  "file_hash": "47002bbe45dd4a9a5ccbc10fa0ff78b98ca0a05f96d6e69e10d18a2b1beb2454",
-  "download_url": "files/47002bbe45dd4a9a5ccbc10fa0ff78b98ca0a05f96d6e69e10d18a2b1beb2454"
+  "file_hash": "150ace79e8f67b3031f653cadbeb0681ea5b7bccaa2d91f6523c7ce4abec7306",
+  "download_url": "files/150ace79e8f67b3031f653cadbeb0681ea5b7bccaa2d91f6523c7ce4abec7306"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_m433.png",
+  "file_hash": "f0247dd0a04b9cc2973dac909c107e347fbd0d2671d9a2764972a01d0ea83a4c",
+  "download_url": "files/f0247dd0a04b9cc2973dac909c107e347fbd0d2671d9a2764972a01d0ea83a4c"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_nvo_228e.png",
+  "file_hash": "946a3763889eaa13f2172f128d51204cc8177658f6444f227abc70a3c3cff153",
+  "download_url": "files/946a3763889eaa13f2172f128d51204cc8177658f6444f227abc70a3c3cff153"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_sor_556_mk2.png",
+  "file_hash": "c9207e3c310be314ea05a5a19cfcf07612bf5f1ab2627f1d0f6f2f0dc93583d0",
+  "download_url": "files/c9207e3c310be314ea05a5a19cfcf07612bf5f1ab2627f1d0f6f2f0dc93583d0"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_tr_7.png",
+  "file_hash": "03550277c4bcba439e52269cbea173e385091bb2ea7aec7a9c8b62aa793ec90d",
+  "download_url": "files/03550277c4bcba439e52269cbea173e385091bb2ea7aec7a9c8b62aa793ec90d"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_vcr_2.png",
-  "file_hash": "a13452a85ba642433da668fcc0bdb52c33bc6f6509e14f45fa58dbfbb3ecae46",
-  "download_url": "files/a13452a85ba642433da668fcc0bdb52c33bc6f6509e14f45fa58dbfbb3ecae46"
+  "file_hash": "84fbd7d4d694a7f4c87fb679b5a8eb1908aa0181b1fe59c50ab3776748f41989",
+  "download_url": "files/84fbd7d4d694a7f4c87fb679b5a8eb1908aa0181b1fe59c50ab3776748f41989"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/carbines_ak_205.png",
-  "file_hash": "d89b1726e9cba14d60a0f81ec074e0802181e89ed84b169bfa89bfb704227372",
-  "download_url": "files/d89b1726e9cba14d60a0f81ec074e0802181e89ed84b169bfa89bfb704227372"
+  "file_hash": "01a79169db751ac2fbad5ecade6fead7320e25983d063e0feefd2f43d71c5a83",
+  "download_url": "files/01a79169db751ac2fbad5ecade6fead7320e25983d063e0feefd2f43d71c5a83"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/carbines_brod_3.png",
-  "file_hash": "af6600b1d6a6c18fb178ff236137be364ade9fecba5a9c4d4fefbf38cff1871d",
-  "download_url": "files/af6600b1d6a6c18fb178ff236137be364ade9fecba5a9c4d4fefbf38cff1871d"
+  "file_hash": "b352d16938e9a8a7854c0753f9a850876f06892887002240f95ed279238368dd",
+  "download_url": "files/b352d16938e9a8a7854c0753f9a850876f06892887002240f95ed279238368dd"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/carbines_grt_bc.png",
+  "file_hash": "4a584a3c0204262f0b2eec4dc275c6611fe668752504420b603be39142cd11b0",
+  "download_url": "files/4a584a3c0204262f0b2eec4dc275c6611fe668752504420b603be39142cd11b0"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/carbines_m277.png",
+  "file_hash": "8254c17fa20494d674f38a007eb291c5a2dbef662b4982ea4d07e9ab4ad436ff",
+  "download_url": "files/8254c17fa20494d674f38a007eb291c5a2dbef662b4982ea4d07e9ab4ad436ff"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/carbines_m417_a2.png",
+  "file_hash": "eeefda3e1f2f384d4c9ecb5c8e08afdd7b852b392c312978de699c60248aeb27",
+  "download_url": "files/eeefda3e1f2f384d4c9ecb5c8e08afdd7b852b392c312978de699c60248aeb27"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/carbines_m4a1.png",
-  "file_hash": "c1d5bb7ab11ea018b072cd457e53bcc79e99f6ee2330901d113978e79db17535",
-  "download_url": "files/c1d5bb7ab11ea018b072cd457e53bcc79e99f6ee2330901d113978e79db17535"
+  "file_hash": "54153e5358289c0446b8dd275276247ff6bf531d0f399f7130a8491fb40c129d",
+  "download_url": "files/54153e5358289c0446b8dd275276247ff6bf531d0f399f7130a8491fb40c129d"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/carbines_qbz_192.png",
+  "file_hash": "e9f9a1096dbe46e7d32bef2ba326f3b079915d7d9d45557aa3863eb2485eb5e9",
+  "download_url": "files/e9f9a1096dbe46e7d32bef2ba326f3b079915d7d9d45557aa3863eb2485eb5e9"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/carbines_sg_553r.png",
+  "file_hash": "9730e9f4008eb5a4610a6e8c06eeff05fcf13fb0f43e4dc2b917baf262bd51c6",
+  "download_url": "files/9730e9f4008eb5a4610a6e8c06eeff05fcf13fb0f43e4dc2b917baf262bd51c6"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/carbines_sor_300sc.png",
-  "file_hash": "2a5c85e343f456006c24da0fefa25f2297270a5c6db99076c00a762eb169c448",
-  "download_url": "files/2a5c85e343f456006c24da0fefa25f2297270a5c6db99076c00a762eb169c448"
+  "file_hash": "52a3028c5dbb9333e5acfd2c39100a223c096bdf5834d2ed44cb45bb3440302e",
+  "download_url": "files/52a3028c5dbb9333e5acfd2c39100a223c096bdf5834d2ed44cb45bb3440302e"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/dmrs_grt_cps.png",
-  "file_hash": "3649a22629646484273649fabaedf1ebea6dbdd625a3d4727f6ef34a4dc2f312",
-  "download_url": "files/3649a22629646484273649fabaedf1ebea6dbdd625a3d4727f6ef34a4dc2f312"
+  "file_hash": "91d5d15601cdf040d208b091ea95028c123c21798778ac43898a3ac1ee96a8c3",
+  "download_url": "files/91d5d15601cdf040d208b091ea95028c123c21798778ac43898a3ac1ee96a8c3"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/dmrs_lmr27.png",
-  "file_hash": "f45570f569032a9f74b9e17f5334313eb8b7fff9fd324c6ca34cd93c21ee0462",
-  "download_url": "files/f45570f569032a9f74b9e17f5334313eb8b7fff9fd324c6ca34cd93c21ee0462"
+  "file_hash": "33ecfb6d9dba5d858b6a14c942cef2290b2870fb2d45514d6f741c6d4c2b57c1",
+  "download_url": "files/33ecfb6d9dba5d858b6a14c942cef2290b2870fb2d45514d6f741c6d4c2b57c1"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/dmrs_m39_emr.png",
+  "file_hash": "8e60d52585d0e5f7fed6cce65bbe8bc6d64079e14bfa29e3d0499d96a95f69de",
+  "download_url": "files/8e60d52585d0e5f7fed6cce65bbe8bc6d64079e14bfa29e3d0499d96a95f69de"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/dmrs_svdm.png",
+  "file_hash": "3c13a286580b9a9ab62e006ac1ad9666fa598c77c01dac1ed15e7d9a0fc00e9c",
+  "download_url": "files/3c13a286580b9a9ab62e006ac1ad9666fa598c77c01dac1ed15e7d9a0fc00e9c"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/dmrs_svk_8_6.png",
+  "file_hash": "03de94b46238b906423a49b88a5f203c8f1a7773a3247e027b4661d4239ff128",
+  "download_url": "files/03de94b46238b906423a49b88a5f203c8f1a7773a3247e027b4661d4239ff128"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/dmrs_vssm.png",
-  "file_hash": "8960d33d0f53d6318c43e89c83fb8ffd00fa03f8e079cb059bd0e2829dde5f2a",
-  "download_url": "files/8960d33d0f53d6318c43e89c83fb8ffd00fa03f8e079cb059bd0e2829dde5f2a"
+  "file_hash": "8f6147e676ddad7328a8b7ff89269471f9916d6e9d0a389a6cd45a8ad1776451",
+  "download_url": "files/8f6147e676ddad7328a8b7ff89269471f9916d6e9d0a389a6cd45a8ad1776451"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_9k38_igla.png",
-  "file_hash": "66380a42003c2708bc255c5346f253cb9aa9a2ed622718bb23306287801a4202",
-  "download_url": "files/66380a42003c2708bc255c5346f253cb9aa9a2ed622718bb23306287801a4202"
+  "file_hash": "44c7ea8783b21c571d759f971669f96647e4ac5c9d5643b95b157347bdabd282",
+  "download_url": "files/44c7ea8783b21c571d759f971669f96647e4ac5c9d5643b95b157347bdabd282"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_m320a1_he.png",
+  "file_hash": "82bac4757b25700997e8ba53eb52fac1fabaa555f31568640e46065294fa2fdf",
+  "download_url": "files/82bac4757b25700997e8ba53eb52fac1fabaa555f31568640e46065294fa2fdf"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_m320a1_smk.png",
+  "file_hash": "2e5392d0f4f0ed9e7788e772832e2f82b08525e11025cbb80b449e69d1004a07",
+  "download_url": "files/2e5392d0f4f0ed9e7788e772832e2f82b08525e11025cbb80b449e69d1004a07"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_m320a1_thrm.png",
+  "file_hash": "82bac4757b25700997e8ba53eb52fac1fabaa555f31568640e46065294fa2fdf",
+  "download_url": "files/82bac4757b25700997e8ba53eb52fac1fabaa555f31568640e46065294fa2fdf"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_mas_148.png",
+  "file_hash": "ec68d078ab90b12cb4b78469a9916964fc2bdd848341ca0ef8d4a69035376163",
+  "download_url": "files/ec68d078ab90b12cb4b78469a9916964fc2bdd848341ca0ef8d4a69035376163"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_mbt_law.png",
+  "file_hash": "5fc55c108ac88600470f83a1e97991d8ee4cec2172e02462e7245bfca6b309d8",
+  "download_url": "files/5fc55c108ac88600470f83a1e97991d8ee4cec2172e02462e7245bfca6b309d8"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_rpg_7v2.png",
+  "file_hash": "e2e763e586977cfdc9a82369f4415035ab4b4e331eec410c40e1ac3fb4297f9c",
+  "download_url": "files/e2e763e586977cfdc9a82369f4415035ab4b4e331eec410c40e1ac3fb4297f9c"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_slm_93a.png",
+  "file_hash": "f02695200c686c8bd2753dacebe12d78a56939cd09be0deb9897b2b323723d60",
+  "download_url": "files/f02695200c686c8bd2753dacebe12d78a56939cd09be0deb9897b2b323723d60"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_ss26_fire_shotgun.png",
+  "file_hash": "08921433c721543b853f24d09aa4dd2c28d6feca4f42a326aaff19431876b0c0",
+  "download_url": "files/08921433c721543b853f24d09aa4dd2c28d6feca4f42a326aaff19431876b0c0"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/gadget_weapons_x95_brm.png",
+  "file_hash": "fd6221d7c2e65d95bef98487ac7c251b10ce9fd7591d8e2f2229dd8e7b1e12de",
+  "download_url": "files/fd6221d7c2e65d95bef98487ac7c251b10ce9fd7591d8e2f2229dd8e7b1e12de"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_drs_iar.png",
+  "file_hash": "cc30ffcc7c3b56d61a4ec4c7006aadd76796984424e0b2f9effe9b6e4ed6203f",
+  "download_url": "files/cc30ffcc7c3b56d61a4ec4c7006aadd76796984424e0b2f9effe9b6e4ed6203f"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_kts100_mk8.png",
+  "file_hash": "dd4e2e7d64e5ebeec39e5eb078ac2b8e468b0c7b38311106542f2dac6c8c1740",
+  "download_url": "files/dd4e2e7d64e5ebeec39e5eb078ac2b8e468b0c7b38311106542f2dac6c8c1740"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_l110.png",
+  "file_hash": "07ad932c0b0990bc8346734fc5cd4915cac6381430b3dee0e81cf17eb50b5926",
+  "download_url": "files/07ad932c0b0990bc8346734fc5cd4915cac6381430b3dee0e81cf17eb50b5926"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/lmgs_m121_a2.png",
-  "file_hash": "6b539d6816e24fb9acef09af494bc37d1b76cec977d014777d5d12091a1c81dd",
-  "download_url": "files/6b539d6816e24fb9acef09af494bc37d1b76cec977d014777d5d12091a1c81dd"
+  "file_hash": "3cf54c4ead52345930a20ca313875d42c66b56053388594cde8cd566b60a58ef",
+  "download_url": "files/3cf54c4ead52345930a20ca313875d42c66b56053388594cde8cd566b60a58ef"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_m123k.png",
+  "file_hash": "eb1fc0e258e6745ddc5fe12c9e8af837c5f9a450075d489a21f9329f87f7348e",
+  "download_url": "files/eb1fc0e258e6745ddc5fe12c9e8af837c5f9a450075d489a21f9329f87f7348e"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/lmgs_m240l.png",
-  "file_hash": "f3524c09e488ee3b4cd417174ff3d7fcf20a3165e2940efb4de10ac41b7863ff",
-  "download_url": "files/f3524c09e488ee3b4cd417174ff3d7fcf20a3165e2940efb4de10ac41b7863ff"
+  "file_hash": "018f96ff1dfbb4ea0fe83dc6a61e18a9f395da0097c0610efad67731686b5647",
+  "download_url": "files/018f96ff1dfbb4ea0fe83dc6a61e18a9f395da0097c0610efad67731686b5647"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_m250.png",
+  "file_hash": "2de487a6d4cebc9c69299a2d692818c3374819f2f8c150ba34f37010752df3e5",
+  "download_url": "files/2de487a6d4cebc9c69299a2d692818c3374819f2f8c150ba34f37010752df3e5"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_m_60.png",
+  "file_hash": "b214280ba3ad4cb7bd88b87dcf6bd10e2dfd03b6cd2d284406b55e9bf4c449ea",
+  "download_url": "files/b214280ba3ad4cb7bd88b87dcf6bd10e2dfd03b6cd2d284406b55e9bf4c449ea"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/lmgs_rpk_74m.png",
-  "file_hash": "69072e4f64ce668386b8a0fc3858e4399b654ae7ac4381c8658b3976ee4c05f4",
-  "download_url": "files/69072e4f64ce668386b8a0fc3858e4399b654ae7ac4381c8658b3976ee4c05f4"
+  "file_hash": "2152c1f7cfe73e6b4362cd387ac9310d8c08e74c12f56a5562276aac8d23ad66",
+  "download_url": "files/2152c1f7cfe73e6b4362cd387ac9310d8c08e74c12f56a5562276aac8d23ad66"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/lmgs_rpkm.png",
+  "file_hash": "6a63d40fdef9398d0c3cea5f6725a75d6d9348edc1cefbad989dc63ba533a530",
+  "download_url": "files/6a63d40fdef9398d0c3cea5f6725a75d6d9348edc1cefbad989dc63ba533a530"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/melee_combat_knife.png",
+  "file_hash": "d23723701be8ef11412e5c68becbe23eff294c6d8dbda9d6fcbad65c47712d6e",
+  "download_url": "files/d23723701be8ef11412e5c68becbe23eff294c6d8dbda9d6fcbad65c47712d6e"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/melee_nomad_cx_12_ice_climbing_axe.png",
-  "file_hash": "1d0f78472fd4831d55b6ce53ec377912d1e96363dafa32edd18f0fbd24b28a81",
-  "download_url": "files/1d0f78472fd4831d55b6ce53ec377912d1e96363dafa32edd18f0fbd24b28a81"
+  "file_hash": "b6d78143ba4fa9695669260d073b33dd5a9e66065d810b13f77534a4eece5b60",
+  "download_url": "files/b6d78143ba4fa9695669260d073b33dd5a9e66065d810b13f77534a4eece5b60"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/melee_royal_navy_dive_knife.png",
-  "file_hash": "d0f6c010866bf3cf6a9e52ef011c48f638ee011eab15c65ed627f94ae2e88f93",
-  "download_url": "files/d0f6c010866bf3cf6a9e52ef011c48f638ee011eab15c65ed627f94ae2e88f93"
+  "file_hash": "e79aabbb080b331aa16391d48beee23cc8853631e34242382dc73bd98a82f2a0",
+  "download_url": "files/e79aabbb080b331aa16391d48beee23cc8853631e34242382dc73bd98a82f2a0"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/melee_sledgehammer.png",
+  "file_hash": "2d2b06263a6ab88fd52b7b144bc8c17f2a3fbee13b5a3b304ea785dc5ea4b9a1",
+  "download_url": "files/2d2b06263a6ab88fd52b7b144bc8c17f2a3fbee13b5a3b304ea785dc5ea4b9a1"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/shotguns_18_5ks_k.png",
+  "file_hash": "bc986f129ba3b762843e362b2945bdf3d9e2b6bef6bdf1702d3dc028d275f5fe",
+  "download_url": "files/bc986f129ba3b762843e362b2945bdf3d9e2b6bef6bdf1702d3dc028d275f5fe"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/shotguns_db_12.png",
-  "file_hash": "6fd8ba894085a35dd6420c6e4777aa06b0f2e86dac0b33e1aebabfa311ef7f69",
-  "download_url": "files/6fd8ba894085a35dd6420c6e4777aa06b0f2e86dac0b33e1aebabfa311ef7f69"
+  "file_hash": "a39dafa054996f1507f126048649c0991898ff6de7594d57fb95306445174af6",
+  "download_url": "files/a39dafa054996f1507f126048649c0991898ff6de7594d57fb95306445174af6"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/shotguns_m1014.png",
+  "file_hash": "32b3513824d36fd240c6a9e6339be1cada95084b1ac357af6c9240a80da61d22",
+  "download_url": "files/32b3513824d36fd240c6a9e6339be1cada95084b1ac357af6c9240a80da61d22"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/shotguns_m87a1.png",
-  "file_hash": "63f45dd20170dc606612a3f0645d7b2589bb53424c0faf2a0253a9dbe260bbe5",
-  "download_url": "files/63f45dd20170dc606612a3f0645d7b2589bb53424c0faf2a0253a9dbe260bbe5"
+  "file_hash": "7187454b4acfc722f1cac5e6f2fc9820c50e13311149d028cc7de7290e6c6728",
+  "download_url": "files/7187454b4acfc722f1cac5e6f2fc9820c50e13311149d028cc7de7290e6c6728"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sidearms_es_5_7.png",
-  "file_hash": "a949224d32bd91dec1db928bc65b2fd441ff2468ab7395887913742294c3af09",
-  "download_url": "files/a949224d32bd91dec1db928bc65b2fd441ff2468ab7395887913742294c3af09"
+  "file_hash": "741fda7b7b7cdde174bb49964d3718a00ec94299f357c027fea847caba387bf1",
+  "download_url": "files/741fda7b7b7cdde174bb49964d3718a00ec94299f357c027fea847caba387bf1"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sidearms_ggh_22.png",
-  "file_hash": "5cc1399c97240e6326a588750a8ea7c1bad421258f2a126294abefbbdf8aa615",
-  "download_url": "files/5cc1399c97240e6326a588750a8ea7c1bad421258f2a126294abefbbdf8aa615"
+  "file_hash": "67f44518e4a1215c519e67f9a46100ba99726e6a492a35d34fbc2e501b22e2b8",
+  "download_url": "files/67f44518e4a1215c519e67f9a46100ba99726e6a492a35d34fbc2e501b22e2b8"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sidearms_m357_trait.png",
-  "file_hash": "6366da19990b64c15aa7d13e50dd94006e9f7b460943476d55db1b211ef565a8",
-  "download_url": "files/6366da19990b64c15aa7d13e50dd94006e9f7b460943476d55db1b211ef565a8"
+  "file_hash": "be0cd96f50bad4c1c8a6fa98ccf533b5c4c0b41e41ed77b6964fbd91504000e3",
+  "download_url": "files/be0cd96f50bad4c1c8a6fa98ccf533b5c4c0b41e41ed77b6964fbd91504000e3"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/sidearms_m44.png",
+  "file_hash": "4147dfbb29e08fdbf1916cc31976f6a26d8c8552c3b7128ea24523cdc94c2bee",
+  "download_url": "files/4147dfbb29e08fdbf1916cc31976f6a26d8c8552c3b7128ea24523cdc94c2bee"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/sidearms_m45a1.png",
+  "file_hash": "b761e4106c377128e5ad4b04054ec1cc55a2bce3f9d982eec3c4867070e39c93",
+  "download_url": "files/b761e4106c377128e5ad4b04054ec1cc55a2bce3f9d982eec3c4867070e39c93"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sidearms_p18.png",
-  "file_hash": "ba484b3b9353e23c5207a866f97597400dce45a286fe981a5752f9fab607bdcd",
-  "download_url": "files/ba484b3b9353e23c5207a866f97597400dce45a286fe981a5752f9fab607bdcd"
+  "file_hash": "5408a37d0d057da01624b163e1ef84262f4613170514f758c34c63d4603c5aaf",
+  "download_url": "files/5408a37d0d057da01624b163e1ef84262f4613170514f758c34c63d4603c5aaf"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sidearms_vz_61.png",
-  "file_hash": "7ab0780b38d5d2c2060f8405832bfdc211c4fe9d513a408b6a9bab82a7d1ddf1",
-  "download_url": "files/7ab0780b38d5d2c2060f8405832bfdc211c4fe9d513a408b6a9bab82a7d1ddf1"
+  "file_hash": "f5e411ce222e9637df892d0d7a37bd9fa6a5f1d19a9c9d7ae83095c1c14f3ef6",
+  "download_url": "files/f5e411ce222e9637df892d0d7a37bd9fa6a5f1d19a9c9d7ae83095c1c14f3ef6"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/smgs_cz3a1.png",
-  "file_hash": "af5e5bb742b21a2fc893eb2b0a69e690ce24f11171767bf838e4b2b7534d355b",
-  "download_url": "files/af5e5bb742b21a2fc893eb2b0a69e690ce24f11171767bf838e4b2b7534d355b"
+  "file_hash": "0c1a466086d46bf2672fe7c902728fea8b54c9f7d3737caf6a07aff9852f8b47",
+  "download_url": "files/0c1a466086d46bf2672fe7c902728fea8b54c9f7d3737caf6a07aff9852f8b47"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/smgs_kv9.png",
-  "file_hash": "af349d96805bef5ff90243200a08f41bfdacb03337965032e2d8e446bcabd864",
-  "download_url": "files/af349d96805bef5ff90243200a08f41bfdacb03337965032e2d8e446bcabd864"
+  "file_hash": "8282704bc4c34bb0e81b73e6acd7783262a3c6cd1348d01cbef52b664792a53b",
+  "download_url": "files/8282704bc4c34bb0e81b73e6acd7783262a3c6cd1348d01cbef52b664792a53b"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/smgs_pp_19.png",
-  "file_hash": "51337199942d00ab3b5c3dfdc7669fee22b8a6a27c77cda26577fdf88e127259",
-  "download_url": "files/51337199942d00ab3b5c3dfdc7669fee22b8a6a27c77cda26577fdf88e127259"
+  "file_hash": "41e988823182af3e3d6147253c8c2a61cd255a02665a9cf4073ed343fab4661c",
+  "download_url": "files/41e988823182af3e3d6147253c8c2a61cd255a02665a9cf4073ed343fab4661c"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_pw5a3.png",
+  "file_hash": "496faa78b3fcac268ac05604d1b20a775e1b7a9e588ede07200073d0e2bc2fee",
+  "download_url": "files/496faa78b3fcac268ac05604d1b20a775e1b7a9e588ede07200073d0e2bc2fee"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_pw7a2.png",
+  "file_hash": "ddcc5d8d1cd76aa9595ad50af4d17411fa2964f2cf3bd77e813a6e0717f41546",
+  "download_url": "files/ddcc5d8d1cd76aa9595ad50af4d17411fa2964f2cf3bd77e813a6e0717f41546"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/smgs_scw_10.png",
-  "file_hash": "0155e12a6667449718ae42e405323531132ab4c7a03b8009f38a3cec92e1e544",
-  "download_url": "files/0155e12a6667449718ae42e405323531132ab4c7a03b8009f38a3cec92e1e544"
+  "file_hash": "b88ccbdf603df4f71a62b2ded5be7e3bf99e74f8d351902c3fef2aae8032296a",
+  "download_url": "files/b88ccbdf603df4f71a62b2ded5be7e3bf99e74f8d351902c3fef2aae8032296a"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_sgx.png",
+  "file_hash": "bb56d2f6c2caaafa01771fa43a211da52f9778f761c037bf1736ab22ec0c01a8",
+  "download_url": "files/bb56d2f6c2caaafa01771fa43a211da52f9778f761c037bf1736ab22ec0c01a8"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_sl9.png",
+  "file_hash": "388fade335b2b838680e4dea57b7785289380b60e12d01381f29504e1da025c4",
+  "download_url": "files/388fade335b2b838680e4dea57b7785289380b60e12d01381f29504e1da025c4"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_umg_40.png",
+  "file_hash": "bf8cdfa7d7d7c43f94c710059b4d659028cf15e508b41e5d2a0623b030aec731",
+  "download_url": "files/bf8cdfa7d7d7c43f94c710059b4d659028cf15e508b41e5d2a0623b030aec731"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/smgs_usg_90.png",
+  "file_hash": "e9ef4c763f89d62a934c1085a25dcd21b72d1320b0bcb5c30993639e7686cae6",
+  "download_url": "files/e9ef4c763f89d62a934c1085a25dcd21b72d1320b0bcb5c30993639e7686cae6"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_elr_40.png",
-  "file_hash": "2d02a3f7d7cae45e7ec58745896ff82c78067ed8e3ad898bdc20c5ab0a18cb6b",
-  "download_url": "files/2d02a3f7d7cae45e7ec58745896ff82c78067ed8e3ad898bdc20c5ab0a18cb6b"
+  "file_hash": "9e5430aa0a743e7a2035297a195bd5660ee282f11dc11da8b613e11cd24bb737",
+  "download_url": "files/9e5430aa0a743e7a2035297a195bd5660ee282f11dc11da8b613e11cd24bb737"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_interdictor.png",
-  "file_hash": "84327c3de5fb0055daf429c5b3b75f4e9d9797db181f8acf8e33774cd761019e",
-  "download_url": "files/84327c3de5fb0055daf429c5b3b75f4e9d9797db181f8acf8e33774cd761019e"
+  "file_hash": "9dd4965221c9ec5e065af07653d7d5731c675f1ff1f94f15732d27020d0ee1e0",
+  "download_url": "files/9dd4965221c9ec5e065af07653d7d5731c675f1ff1f94f15732d27020d0ee1e0"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_l115a3.png",
-  "file_hash": "bbcd29c702b722b22e859a3b330af589130347310a2b4e52090c2c8b96ea902d",
-  "download_url": "files/bbcd29c702b722b22e859a3b330af589130347310a2b4e52090c2c8b96ea902d"
+  "file_hash": "67d5e793f70bc1e24eec17d532d164de3ed84a8892c07fca942ae3dcac643beb",
+  "download_url": "files/67d5e793f70bc1e24eec17d532d164de3ed84a8892c07fca942ae3dcac643beb"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_m2010_esr.png",
+  "file_hash": "9f03103d5d6a43179d03555186a1590041b2354b2fa217922259cd9be949fd02",
+  "download_url": "files/9f03103d5d6a43179d03555186a1590041b2354b2fa217922259cd9be949fd02"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_mini_scout.png",
-  "file_hash": "44b5a57d50dc486d094f7b7ab8027f0f68a605464185e721d7e02eb168c86fe6",
-  "download_url": "files/44b5a57d50dc486d094f7b7ab8027f0f68a605464185e721d7e02eb168c86fe6"
+  "file_hash": "5097ca5c724ec1f9b6d2900fc3c9c24a93ccaa4ebf065d3a7e8cd4e151b1872d",
+  "download_url": "files/5097ca5c724ec1f9b6d2900fc3c9c24a93ccaa4ebf065d3a7e8cd4e151b1872d"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_psr.png",
+  "file_hash": "cbff79d3ce4918fa814b9bf722b96b75f3daefe39ad3406b691687c6886a31d5",
+  "download_url": "files/cbff79d3ce4918fa814b9bf722b96b75f3daefe39ad3406b691687c6886a31d5"
+ },
+ {
+  "file_name": "exo/game-data/battlefield-6/weapons/sniper_rifles_sv_98.png",
+  "file_hash": "6df57454dc9a144d9d61c6ba119f802c88f20ec73dd551e96fa2f865d41fbe46",
+  "download_url": "files/6df57454dc9a144d9d61c6ba119f802c88f20ec73dd551e96fa2f865d41fbe46"
  },
  {
   "file_name": "exo/game-data/cod-bo2/SOURCES.md",
@@ -3020,6 +3395,341 @@
   "download_url": "files/cae05fb0064ae65bdac00297be13de31c38ed5fb836deb0c413dea8498bc8085"
  },
  {
+  "file_name": "exo/game-data/counter-strike-2/SOURCES.md",
+  "file_hash": "f6a6ecb320b23b4c96f407055621372324cc1af0695021550c784126952d47c0",
+  "download_url": "files/f6a6ecb320b23b4c96f407055621372324cc1af0695021550c784126952d47c0"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/catalog.json",
+  "file_hash": "ad3b0246716ec39eb01d2f6852bccb25b7a12cebfc6dd44736b9c6870ce818c6",
+  "download_url": "files/ad3b0246716ec39eb01d2f6852bccb25b7a12cebfc6dd44736b9c6870ce818c6"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/ak_47.png",
+  "file_hash": "dcc7efa5f76e350856379899fd3e2ced2a4a6bcf42d9781daf728faed46d8a93",
+  "download_url": "files/dcc7efa5f76e350856379899fd3e2ced2a4a6bcf42d9781daf728faed46d8a93"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/aug.png",
+  "file_hash": "3af8aae570d68618dca3084cf849cbdbd3a6147f21c23806409c23b6833dc478",
+  "download_url": "files/3af8aae570d68618dca3084cf849cbdbd3a6147f21c23806409c23b6833dc478"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/awp.png",
+  "file_hash": "4a0e6eb56b64a384ebc66436c164b14225ace153d24c1e2447a2b7e7b67d1349",
+  "download_url": "files/4a0e6eb56b64a384ebc66436c164b14225ace153d24c1e2447a2b7e7b67d1349"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/bayonet.png",
+  "file_hash": "9c65e62786181c866dae74e8fcb9f7c2a657386336dcff3b198b1508cb692a32",
+  "download_url": "files/9c65e62786181c866dae74e8fcb9f7c2a657386336dcff3b198b1508cb692a32"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/bowie_knife.png",
+  "file_hash": "9a438f052849631f876e3aafe27539730e60e802b15f46f31cc98bb4cb058bc6",
+  "download_url": "files/9a438f052849631f876e3aafe27539730e60e802b15f46f31cc98bb4cb058bc6"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/butterfly_knife.png",
+  "file_hash": "dc212defaf4147441e305bbe0d2a262c305d3524a3fd78ec80968e42940c0af0",
+  "download_url": "files/dc212defaf4147441e305bbe0d2a262c305d3524a3fd78ec80968e42940c0af0"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/c4_explosive.png",
+  "file_hash": "7d5fcd73fc3be0966c6c611b8a6e50567c550d73a691fb2246467e913cc4b9d7",
+  "download_url": "files/7d5fcd73fc3be0966c6c611b8a6e50567c550d73a691fb2246467e913cc4b9d7"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/classic_knife.png",
+  "file_hash": "238c343300d390e98780ff6781f6947b1a3b5c550b215b2908db6843cb500ede",
+  "download_url": "files/238c343300d390e98780ff6781f6947b1a3b5c550b215b2908db6843cb500ede"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/cz75_auto.png",
+  "file_hash": "4ce4102c3af25ac02f308f74df7fe7935d6522134a211347b3ed5b2395708237",
+  "download_url": "files/4ce4102c3af25ac02f308f74df7fe7935d6522134a211347b3ed5b2395708237"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/decoy_grenade.png",
+  "file_hash": "3f7a63e56cc1af658f76da9252879d634c045f4bd9cdf591d792841c41ac45c6",
+  "download_url": "files/3f7a63e56cc1af658f76da9252879d634c045f4bd9cdf591d792841c41ac45c6"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/desert_eagle.png",
+  "file_hash": "b7e185e4413a8e0bd033fd48480c2a23e8b0a09a580211b152d85787d6b3f01b",
+  "download_url": "files/b7e185e4413a8e0bd033fd48480c2a23e8b0a09a580211b152d85787d6b3f01b"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/dual_berettas.png",
+  "file_hash": "e3f51b9660e3721e16816a35a76f905861230501e7a9c4418c57f125196623b1",
+  "download_url": "files/e3f51b9660e3721e16816a35a76f905861230501e7a9c4418c57f125196623b1"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/falchion_knife.png",
+  "file_hash": "65cfd5ecf72ebb2fafa3a66d9d0491b6f3409fe56f5c5b81592dc129bfe28989",
+  "download_url": "files/65cfd5ecf72ebb2fafa3a66d9d0491b6f3409fe56f5c5b81592dc129bfe28989"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/famas.png",
+  "file_hash": "30f8c4c45ecda495d49ad2d56344cd722a3ca71b153abe010a4804676cb818f2",
+  "download_url": "files/30f8c4c45ecda495d49ad2d56344cd722a3ca71b153abe010a4804676cb818f2"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/five_seven.png",
+  "file_hash": "82087b11ffe4615cc38257ba8f76e961bcdf36fdec86a46310a0dfc51be7f4bb",
+  "download_url": "files/82087b11ffe4615cc38257ba8f76e961bcdf36fdec86a46310a0dfc51be7f4bb"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/flashbang.png",
+  "file_hash": "f244ac56efcf4d45798cbbce18245996163c7c4ca6b7d9aec63b23149c38c332",
+  "download_url": "files/f244ac56efcf4d45798cbbce18245996163c7c4ca6b7d9aec63b23149c38c332"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/flip_knife.png",
+  "file_hash": "4108b4def28ffc16b5292c1182285ceb93ec9a521c8ecd7b7da262f0b8371fa2",
+  "download_url": "files/4108b4def28ffc16b5292c1182285ceb93ec9a521c8ecd7b7da262f0b8371fa2"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/g3sg1.png",
+  "file_hash": "82eeb0dedac110eaa2bfb962c5a169fa55acf8ab06bf4910adabf05aa8e2c3d6",
+  "download_url": "files/82eeb0dedac110eaa2bfb962c5a169fa55acf8ab06bf4910adabf05aa8e2c3d6"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/galil_ar.png",
+  "file_hash": "66b129eccffaa5fa9348d7d928ac013f3832b6c0c1e3c4a4a009f0efc724b214",
+  "download_url": "files/66b129eccffaa5fa9348d7d928ac013f3832b6c0c1e3c4a4a009f0efc724b214"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/glock_18.png",
+  "file_hash": "77dc37a50eb1c7ca252dde17a67a95c446e43f2936b9fb49ee2a4bd596aac0aa",
+  "download_url": "files/77dc37a50eb1c7ca252dde17a67a95c446e43f2936b9fb49ee2a4bd596aac0aa"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/gut_knife.png",
+  "file_hash": "718ada8130979fcc83637a2e7d1d8cf7ca50d7063f7844b97018ad35b6426e1e",
+  "download_url": "files/718ada8130979fcc83637a2e7d1d8cf7ca50d7063f7844b97018ad35b6426e1e"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/high_explosive_grenade.png",
+  "file_hash": "e226b2029441176b0a319be09209eaaf8df3e4dc1fc11e0ed389dc0c3b5b44f9",
+  "download_url": "files/e226b2029441176b0a319be09209eaaf8df3e4dc1fc11e0ed389dc0c3b5b44f9"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/huntsman_knife.png",
+  "file_hash": "65df40252b3dc5d372a9882fbe58f613490ef6a014aff88ed75a4769dd558b16",
+  "download_url": "files/65df40252b3dc5d372a9882fbe58f613490ef6a014aff88ed75a4769dd558b16"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/incendiary_grenade.png",
+  "file_hash": "db76b359a0104df6f41372e84c3aeaf3eb44865d25fa1b089ce7ae72538710c5",
+  "download_url": "files/db76b359a0104df6f41372e84c3aeaf3eb44865d25fa1b089ce7ae72538710c5"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/karambit.png",
+  "file_hash": "ae4ec2d76fd305c9ccef36c24bba621561cf85d7a48013982af603eec63e3454",
+  "download_url": "files/ae4ec2d76fd305c9ccef36c24bba621561cf85d7a48013982af603eec63e3454"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/knife_ct.png",
+  "file_hash": "6dd18dd1f670522e141c5ded22374cefae3b39b6d9bfb878ff5f74920d283980",
+  "download_url": "files/6dd18dd1f670522e141c5ded22374cefae3b39b6d9bfb878ff5f74920d283980"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/knife_t.png",
+  "file_hash": "9ac82258c5251d4646ca04c952a9a2c0a1c39be2e23ce49729f8dd7a4b9a836f",
+  "download_url": "files/9ac82258c5251d4646ca04c952a9a2c0a1c39be2e23ce49729f8dd7a4b9a836f"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/kukri_knife.png",
+  "file_hash": "b95071a5fe1544b5e7242d49375f2688b4822fc7c2a5c87b963857de4ac3d836",
+  "download_url": "files/b95071a5fe1544b5e7242d49375f2688b4822fc7c2a5c87b963857de4ac3d836"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/m249.png",
+  "file_hash": "5f1ce76881d106ed25d9ae34c90e2386ca226a331ee8e78e3b551f4abe768a38",
+  "download_url": "files/5f1ce76881d106ed25d9ae34c90e2386ca226a331ee8e78e3b551f4abe768a38"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/m4a1_s.png",
+  "file_hash": "d493602a9caf559400eb8372ace35703f73936b4b22fdbe5f225b99058a31439",
+  "download_url": "files/d493602a9caf559400eb8372ace35703f73936b4b22fdbe5f225b99058a31439"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/m4a4.png",
+  "file_hash": "c42f507582dcd242fc713d9e663c48f5f243fb6b3b37b9c5c6c84d1a6dfe3e72",
+  "download_url": "files/c42f507582dcd242fc713d9e663c48f5f243fb6b3b37b9c5c6c84d1a6dfe3e72"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/m9_bayonet.png",
+  "file_hash": "c9e2e3ca497b2d8ba2349e9f2397729f2a0628fb8867d5e872b3df5e7265c2f6",
+  "download_url": "files/c9e2e3ca497b2d8ba2349e9f2397729f2a0628fb8867d5e872b3df5e7265c2f6"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/mac_10.png",
+  "file_hash": "f50e4ca39506b819abd9039d2de5f758cba6147a9f5d71c0ff88d0a03556f771",
+  "download_url": "files/f50e4ca39506b819abd9039d2de5f758cba6147a9f5d71c0ff88d0a03556f771"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/mag_7.png",
+  "file_hash": "d8c10db4b77687f880aaba2f742c102a5dab34e7571b2324387201ab6a189633",
+  "download_url": "files/d8c10db4b77687f880aaba2f742c102a5dab34e7571b2324387201ab6a189633"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/medi_shot.png",
+  "file_hash": "472a1021903ee77d9d48990bab5796e381ef33376675daeba031d247c186f8c7",
+  "download_url": "files/472a1021903ee77d9d48990bab5796e381ef33376675daeba031d247c186f8c7"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/molotov.png",
+  "file_hash": "33a28b9f2e8037fc8a71875c45ea51ee797a05a12db0b34d264e742ef22ff557",
+  "download_url": "files/33a28b9f2e8037fc8a71875c45ea51ee797a05a12db0b34d264e742ef22ff557"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/mp5_sd.png",
+  "file_hash": "db89a42d1d0c15293331aa4d353a374a2037e24d442ff949ced4686f4c82d0ff",
+  "download_url": "files/db89a42d1d0c15293331aa4d353a374a2037e24d442ff949ced4686f4c82d0ff"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/mp7.png",
+  "file_hash": "9ea16ec164d65e82cc7cddfaee54507ae04306441d9bb03f192d9fd6fe96b18c",
+  "download_url": "files/9ea16ec164d65e82cc7cddfaee54507ae04306441d9bb03f192d9fd6fe96b18c"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/mp9.png",
+  "file_hash": "00f8d7da27b4bd8df62384e401edfe4c36917812cc91edd8d00bdab07a1067b8",
+  "download_url": "files/00f8d7da27b4bd8df62384e401edfe4c36917812cc91edd8d00bdab07a1067b8"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/navaja_knife.png",
+  "file_hash": "7cb46c1aa57ea9d04272e72ca826bfdea46a03e978ebe2934176272e5dcd77ec",
+  "download_url": "files/7cb46c1aa57ea9d04272e72ca826bfdea46a03e978ebe2934176272e5dcd77ec"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/negev.png",
+  "file_hash": "a52f82f8133978021fa1cd0d6bb0bec6eea5dd5d82876aa73fddda77a5102356",
+  "download_url": "files/a52f82f8133978021fa1cd0d6bb0bec6eea5dd5d82876aa73fddda77a5102356"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/nomad_knife.png",
+  "file_hash": "91ef2303810338d47fce120a8d76eeec31906febc4505e7b0d206eb06ddf1dad",
+  "download_url": "files/91ef2303810338d47fce120a8d76eeec31906febc4505e7b0d206eb06ddf1dad"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/nova.png",
+  "file_hash": "fe27de6b935031d695843d60a3f68d43dbd2234923cf53e4863828fbb2e15b4f",
+  "download_url": "files/fe27de6b935031d695843d60a3f68d43dbd2234923cf53e4863828fbb2e15b4f"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/p2000.png",
+  "file_hash": "2f18b56b837fed299d7285d736e2ede9e8180d78a08e1ae188d2b5a747b02cac",
+  "download_url": "files/2f18b56b837fed299d7285d736e2ede9e8180d78a08e1ae188d2b5a747b02cac"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/p250.png",
+  "file_hash": "c4853982ddb1ecc6188e1ba82f3f3837dc618831347eff6d3159c3bc235f39d9",
+  "download_url": "files/c4853982ddb1ecc6188e1ba82f3f3837dc618831347eff6d3159c3bc235f39d9"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/p90.png",
+  "file_hash": "d3e9dc62f50f42169995ead13e483c3f7e00941748b949ae23257f48f4346941",
+  "download_url": "files/d3e9dc62f50f42169995ead13e483c3f7e00941748b949ae23257f48f4346941"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/paracord_knife.png",
+  "file_hash": "fd6233081cfc21c2f73f9ce6c9282256869304aeb3032976e54cc010b3eb99b1",
+  "download_url": "files/fd6233081cfc21c2f73f9ce6c9282256869304aeb3032976e54cc010b3eb99b1"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/pp_bizon.png",
+  "file_hash": "302cb3782e680106d4c0436b457a401d446ec0df9d1f74f254a57dd4f310694c",
+  "download_url": "files/302cb3782e680106d4c0436b457a401d446ec0df9d1f74f254a57dd4f310694c"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/r8_revolver.png",
+  "file_hash": "6032d5d652d48661d93f97a059469efe6d13725a67267cdaec0eba21d45d09a8",
+  "download_url": "files/6032d5d652d48661d93f97a059469efe6d13725a67267cdaec0eba21d45d09a8"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/sawed_off.png",
+  "file_hash": "b1fcb4ff8375d16f064b0ffcb2c888486d2979dcfbc6f4f47dab224a6e01ce01",
+  "download_url": "files/b1fcb4ff8375d16f064b0ffcb2c888486d2979dcfbc6f4f47dab224a6e01ce01"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/scar_20.png",
+  "file_hash": "cc12d6849e47bfe8644d7e84459fca5f01838e925d4185ff2875d666d3a98581",
+  "download_url": "files/cc12d6849e47bfe8644d7e84459fca5f01838e925d4185ff2875d666d3a98581"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/sg_553.png",
+  "file_hash": "e66b4bb91d71cb4289f0b94f73af9c682f97dfe90a627cee376576c49c50f070",
+  "download_url": "files/e66b4bb91d71cb4289f0b94f73af9c682f97dfe90a627cee376576c49c50f070"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/shadow_daggers.png",
+  "file_hash": "7a532103275bd4395e4994c621021cf0fa5c8ae8cd9b7a7bc6075050f016fa4e",
+  "download_url": "files/7a532103275bd4395e4994c621021cf0fa5c8ae8cd9b7a7bc6075050f016fa4e"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/skeleton_knife.png",
+  "file_hash": "a4e6f2e32f9d8f1f3276152f80873bf647d1422f99564c037019955baeacb9de",
+  "download_url": "files/a4e6f2e32f9d8f1f3276152f80873bf647d1422f99564c037019955baeacb9de"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/smoke_grenade.png",
+  "file_hash": "6ff757db6fe3dad5abba4d9c6bbf70479770732bf13e57c5e21649609187f3f7",
+  "download_url": "files/6ff757db6fe3dad5abba4d9c6bbf70479770732bf13e57c5e21649609187f3f7"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/ssg_08.png",
+  "file_hash": "01137bc52e0c96488312fa70b81e108ec293f91cfee36a99438d7660c9cca61b",
+  "download_url": "files/01137bc52e0c96488312fa70b81e108ec293f91cfee36a99438d7660c9cca61b"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/stiletto_knife.png",
+  "file_hash": "c5c4822a9c257e682e73f442da5610296322e5bb2615371d1c0bb447ff6eaf2b",
+  "download_url": "files/c5c4822a9c257e682e73f442da5610296322e5bb2615371d1c0bb447ff6eaf2b"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/survival_knife.png",
+  "file_hash": "6b8dff4fa64d56528ba5bb86bcb61eb5fb7bd8ea486c5fe15e56ab88e7f27764",
+  "download_url": "files/6b8dff4fa64d56528ba5bb86bcb61eb5fb7bd8ea486c5fe15e56ab88e7f27764"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/talon_knife.png",
+  "file_hash": "39f747e03bf569ccfb67565767e5efe3551a73396452524e3b2ee53d088674fc",
+  "download_url": "files/39f747e03bf569ccfb67565767e5efe3551a73396452524e3b2ee53d088674fc"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/tec_9.png",
+  "file_hash": "0d9af8d0945924e747971649826faec169852b6abd6b64bf1b4d4c1a8946b6ff",
+  "download_url": "files/0d9af8d0945924e747971649826faec169852b6abd6b64bf1b4d4c1a8946b6ff"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/ump_45.png",
+  "file_hash": "6ff3344b0e25027662f67dc08670e53167f1cbbb78882174898452943b4e2a79",
+  "download_url": "files/6ff3344b0e25027662f67dc08670e53167f1cbbb78882174898452943b4e2a79"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/ursus_knife.png",
+  "file_hash": "6a852dbf34be145fe7ca10ae7cc4f3001e857219ea6b9a850bfd0f5237914207",
+  "download_url": "files/6a852dbf34be145fe7ca10ae7cc4f3001e857219ea6b9a850bfd0f5237914207"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/usp_s.png",
+  "file_hash": "9240509082467054c9c7fe81888bb27c402f349ce066e7a317cfc3d603b5f525",
+  "download_url": "files/9240509082467054c9c7fe81888bb27c402f349ce066e7a317cfc3d603b5f525"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/xm1014.png",
+  "file_hash": "7314d6b57aa45953c26a1fa65e366c0bcb5b87940156026fa257e26c430f9e78",
+  "download_url": "files/7314d6b57aa45953c26a1fa65e366c0bcb5b87940156026fa257e26c430f9e78"
+ },
+ {
+  "file_name": "exo/game-data/counter-strike-2/weapons/zeus_x27.png",
+  "file_hash": "1913555072a2ce2ebeb298618d1669294a4bb8a2e6f1e32e0dc197001de62fb6",
+  "download_url": "files/1913555072a2ce2ebeb298618d1669294a4bb8a2e6f1e32e0dc197001de62fb6"
+ },
+ {
   "file_name": "exo/game-data/fortnite/SOURCES.md",
   "file_hash": "d4f4359f4d299843aaf421baac35541095fd6db64235227a87194aeff55d6c7a",
   "download_url": "files/d4f4359f4d299843aaf421baac35541095fd6db64235227a87194aeff55d6c7a"
@@ -4191,33 +4901,873 @@
  },
  {
   "file_name": "exo/game-data/marvel-rivals/SOURCES.md",
-  "file_hash": "ecd1bd30ac93f8f593f6e30770f5e8656abc2161a298d6ceaac453fdb9e11aef",
-  "download_url": "files/ecd1bd30ac93f8f593f6e30770f5e8656abc2161a298d6ceaac453fdb9e11aef"
+  "file_hash": "44c71649be2277124b3a966e5d5f72a0b38f69198cf54e2a45b16e35f395bea5",
+  "download_url": "files/44c71649be2277124b3a966e5d5f72a0b38f69198cf54e2a45b16e35f395bea5"
  },
  {
   "file_name": "exo/game-data/marvel-rivals/catalog.json",
-  "file_hash": "77c55187c6e60663f9dd5970f820f5bb8cd6fb4f9d727e1a9181243e6556ac05",
-  "download_url": "files/77c55187c6e60663f9dd5970f820f5bb8cd6fb4f9d727e1a9181243e6556ac05"
+  "file_hash": "c17b761a43641d982879574acf7e496b4ee2191615b323c2c728b01b4e172aed",
+  "download_url": "files/c17b761a43641d982879574acf7e496b4ee2191615b323c2c728b01b4e172aed"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/adam_warlock.png",
+  "file_hash": "82178fb69e60284d438a843d08380acd9eeaf018204eb400ae981b7e51835a7d",
+  "download_url": "files/82178fb69e60284d438a843d08380acd9eeaf018204eb400ae981b7e51835a7d"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/angela.png",
+  "file_hash": "bc49936f9e89b7071fd58ccb248f9d0cc25768d3210152aac637f3f77b899ef7",
+  "download_url": "files/bc49936f9e89b7071fd58ccb248f9d0cc25768d3210152aac637f3f77b899ef7"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/black_cat.png",
+  "file_hash": "59d0085ec0bb09e69bb5730df79a32ca575d609fdda64394f558777a18a35c8e",
+  "download_url": "files/59d0085ec0bb09e69bb5730df79a32ca575d609fdda64394f558777a18a35c8e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/black_panther.png",
+  "file_hash": "850bd381d16340e1e521488fe6991bde4272ece87b0047ace36a649458543d5e",
+  "download_url": "files/850bd381d16340e1e521488fe6991bde4272ece87b0047ace36a649458543d5e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/black_widow.png",
+  "file_hash": "da4eeaf3fd15f4735d53ac3edcc429a8a9563d1adb62747f55450df5e0e2bdba",
+  "download_url": "files/da4eeaf3fd15f4735d53ac3edcc429a8a9563d1adb62747f55450df5e0e2bdba"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/blade.png",
+  "file_hash": "5e5160603aee633a388cc315a0275a7bd39831b35ed906278317630df946204f",
+  "download_url": "files/5e5160603aee633a388cc315a0275a7bd39831b35ed906278317630df946204f"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/captain_america.png",
+  "file_hash": "3d40703e1fbfc68a29bd7996c280b17c4d248780183e4d6eb7191c5ec005d9d1",
+  "download_url": "files/3d40703e1fbfc68a29bd7996c280b17c4d248780183e4d6eb7191c5ec005d9d1"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/cloak_dagger.png",
+  "file_hash": "225b8c2bb7cfac4a7d9de96082edce93ca28228005a7eb36bb40da18d9f295bd",
+  "download_url": "files/225b8c2bb7cfac4a7d9de96082edce93ca28228005a7eb36bb40da18d9f295bd"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/cyclops.png",
+  "file_hash": "271eb944e4246a3b0a408d99fedc2eb714707f3be212e5dd4dbafbe135a8705d",
+  "download_url": "files/271eb944e4246a3b0a408d99fedc2eb714707f3be212e5dd4dbafbe135a8705d"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/daredevil.png",
+  "file_hash": "373296b193035fbdd3119866c61eebf3c3756bec2692cbc68b130314224afc74",
+  "download_url": "files/373296b193035fbdd3119866c61eebf3c3756bec2692cbc68b130314224afc74"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/deadpool.png",
+  "file_hash": "e43ccb31d3fe0a636f554f7b1f8b635fe5c2ee4f08a4fdae4d7b964c2d3cecd9",
+  "download_url": "files/e43ccb31d3fe0a636f554f7b1f8b635fe5c2ee4f08a4fdae4d7b964c2d3cecd9"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/devil_dinosaur.png",
+  "file_hash": "b8f961ddc696b8f224dc2859e7b173824f5063a891e4f39cf269ff64b3ec293e",
+  "download_url": "files/b8f961ddc696b8f224dc2859e7b173824f5063a891e4f39cf269ff64b3ec293e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/doctor_strange.png",
+  "file_hash": "c67626163b9f823abb638d1fa070679eda89a79a1c20bdccaa9768fa87c6a626",
+  "download_url": "files/c67626163b9f823abb638d1fa070679eda89a79a1c20bdccaa9768fa87c6a626"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/elsa_bloodstone.png",
+  "file_hash": "921fa90771da6c8367f61af1cfda8e7f5207a02070bed9585885d0091e9b72d2",
+  "download_url": "files/921fa90771da6c8367f61af1cfda8e7f5207a02070bed9585885d0091e9b72d2"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/emma_frost.png",
+  "file_hash": "c430d493cedcfa50935ea9ad99d51b5aab86db7b3af788cb3d9a0c5963fdb51c",
+  "download_url": "files/c430d493cedcfa50935ea9ad99d51b5aab86db7b3af788cb3d9a0c5963fdb51c"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/gambit.png",
+  "file_hash": "4e54690dfe313630cc4e79fe38946911410974556a9c48fa450bb2587b5cca0e",
+  "download_url": "files/4e54690dfe313630cc4e79fe38946911410974556a9c48fa450bb2587b5cca0e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/gorr_the_god_butcher.png",
+  "file_hash": "30e83fa0edd176bb60cb674d6c98de1cda610def01c2a83c64c3dc226b82fa87",
+  "download_url": "files/30e83fa0edd176bb60cb674d6c98de1cda610def01c2a83c64c3dc226b82fa87"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/groot.png",
+  "file_hash": "b5e8e654e30a047523c05d92922cc344ab3aa7bba2784222fc0eb25f75eb69d7",
+  "download_url": "files/b5e8e654e30a047523c05d92922cc344ab3aa7bba2784222fc0eb25f75eb69d7"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/hawkeye.png",
+  "file_hash": "235019b6f94c4dca2e892f81bd9d01f65e187ad70ad10db72b81b5f9af235f09",
+  "download_url": "files/235019b6f94c4dca2e892f81bd9d01f65e187ad70ad10db72b81b5f9af235f09"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/hela.png",
+  "file_hash": "7ccb8be239f9d567bffa491915ff02a439c6adca9cc364ed03bdfd7de810df28",
+  "download_url": "files/7ccb8be239f9d567bffa491915ff02a439c6adca9cc364ed03bdfd7de810df28"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/hulk.png",
+  "file_hash": "19bdc791972d4689717636dda1f3c4df947331a4525995fcbad3df17d5ee4b40",
+  "download_url": "files/19bdc791972d4689717636dda1f3c4df947331a4525995fcbad3df17d5ee4b40"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/human_torch.png",
+  "file_hash": "b1f1dfa5a0912478372724fc68e28f1849d412093d18ecea956c2ac87897268e",
+  "download_url": "files/b1f1dfa5a0912478372724fc68e28f1849d412093d18ecea956c2ac87897268e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/invisible_woman.png",
+  "file_hash": "7e7e515b51ff941ec1d5b5209ad68660fe4e0dedd9f5de968251de26e3153c94",
+  "download_url": "files/7e7e515b51ff941ec1d5b5209ad68660fe4e0dedd9f5de968251de26e3153c94"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/iron_fist.png",
+  "file_hash": "026188d8b6ef1dcf3fe7efd7deeee5615eaa20e1ddfab35832329de28051bb93",
+  "download_url": "files/026188d8b6ef1dcf3fe7efd7deeee5615eaa20e1ddfab35832329de28051bb93"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/iron_man.png",
+  "file_hash": "5cf2acab86fe7015f0cf7a285ac391c91f2dc0cee0f20390e46bbc54fa93c578",
+  "download_url": "files/5cf2acab86fe7015f0cf7a285ac391c91f2dc0cee0f20390e46bbc54fa93c578"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/jeff_the_land_shark.png",
+  "file_hash": "a418bbfc7f63836f3b9f63471ac4de1d58f1a5bcd574d24a98d2e071b8b46bce",
+  "download_url": "files/a418bbfc7f63836f3b9f63471ac4de1d58f1a5bcd574d24a98d2e071b8b46bce"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/jubilation_lee.png",
+  "file_hash": "ce185fdf8ea1fa9ffc7930131df06be7fe840534edb22db52cd344ee11a46d75",
+  "download_url": "files/ce185fdf8ea1fa9ffc7930131df06be7fe840534edb22db52cd344ee11a46d75"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/loki.png",
+  "file_hash": "42b9026c21ba0e1630a150b09cb978bcb9d4ae4b871f9c4c7124c6566527f56f",
+  "download_url": "files/42b9026c21ba0e1630a150b09cb978bcb9d4ae4b871f9c4c7124c6566527f56f"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/luna_snow.png",
+  "file_hash": "0a7379635b1bc4d5220ad9bd73fa2f01725ba61d58ae1791a34a898cd6958333",
+  "download_url": "files/0a7379635b1bc4d5220ad9bd73fa2f01725ba61d58ae1791a34a898cd6958333"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/magik.png",
+  "file_hash": "8c5fabe6975fccf9727df9aadcc97a00310f2dc871d7f3fc576c84ab237de6a9",
+  "download_url": "files/8c5fabe6975fccf9727df9aadcc97a00310f2dc871d7f3fc576c84ab237de6a9"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/magneto.png",
+  "file_hash": "94c820342dd439db82ead5dd4be6e2b85a2b4f4c3412edb574fedfef98de0aa2",
+  "download_url": "files/94c820342dd439db82ead5dd4be6e2b85a2b4f4c3412edb574fedfef98de0aa2"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/mantis.png",
+  "file_hash": "94957f7a11e60f439b09934eca1e4a345cf0c4ad831057b811ce72e320ce730c",
+  "download_url": "files/94957f7a11e60f439b09934eca1e4a345cf0c4ad831057b811ce72e320ce730c"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/mister_fantastic.png",
+  "file_hash": "2608ec4a7cf1ad445f712c04c586f74b6f2501b5fdc6b9a87851ff910317df61",
+  "download_url": "files/2608ec4a7cf1ad445f712c04c586f74b6f2501b5fdc6b9a87851ff910317df61"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/moon_knight.png",
+  "file_hash": "aedc085404c46a4eff3ac90f15de0dd8a93caf18d14f14ec60140263bdf4c58b",
+  "download_url": "files/aedc085404c46a4eff3ac90f15de0dd8a93caf18d14f14ec60140263bdf4c58b"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/namor.png",
+  "file_hash": "6c776c0cd70537f84161fa8a53acf9633787b1d21f1bb696a7edde378b4f053c",
+  "download_url": "files/6c776c0cd70537f84161fa8a53acf9633787b1d21f1bb696a7edde378b4f053c"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/peni_parker.png",
+  "file_hash": "4caf305c9d03ddf4c3c82400af19fd58ed63566a6e445018345a5eb12d638455",
+  "download_url": "files/4caf305c9d03ddf4c3c82400af19fd58ed63566a6e445018345a5eb12d638455"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/phoenix.png",
+  "file_hash": "3ec895ecca71e9470fa02757a5451dc1768711c898c76d7f697581624fee24b6",
+  "download_url": "files/3ec895ecca71e9470fa02757a5451dc1768711c898c76d7f697581624fee24b6"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/psylocke.png",
+  "file_hash": "49f899aeb6f74d0d2f133d8409d36b0951921ade5b80883461e39171f97b0f9e",
+  "download_url": "files/49f899aeb6f74d0d2f133d8409d36b0951921ade5b80883461e39171f97b0f9e"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/rocket_raccoon.png",
+  "file_hash": "49fbb276740f1a08daad8311719686bfa68e97b3dacc616f02c0526cf3a98bc8",
+  "download_url": "files/49fbb276740f1a08daad8311719686bfa68e97b3dacc616f02c0526cf3a98bc8"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/rogue.png",
+  "file_hash": "597ff81a5efee09308ceba16557c0f06ff776eb8a453842556edac6c94e7b9eb",
+  "download_url": "files/597ff81a5efee09308ceba16557c0f06ff776eb8a453842556edac6c94e7b9eb"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/scarlet_witch.png",
+  "file_hash": "ab3fa962d23ac1171f889d1125cac553581d291588a909db9b980ce3786598a1",
+  "download_url": "files/ab3fa962d23ac1171f889d1125cac553581d291588a909db9b980ce3786598a1"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/spider_man.png",
+  "file_hash": "e2f32336ec25391c622f46838b29f61161b6a0b16ecb5c29b09bc197e92e72dc",
+  "download_url": "files/e2f32336ec25391c622f46838b29f61161b6a0b16ecb5c29b09bc197e92e72dc"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/squirrel_girl.png",
+  "file_hash": "7bab9932d89287374e27166c22379cb4a69771e5a78cbdd0c2f2e33bf975709a",
+  "download_url": "files/7bab9932d89287374e27166c22379cb4a69771e5a78cbdd0c2f2e33bf975709a"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/star_lord.png",
+  "file_hash": "1c1ad343a1a3e883a560d0f5b9ca9c081e9a350329d799e5caf5c83f41d9d8b5",
+  "download_url": "files/1c1ad343a1a3e883a560d0f5b9ca9c081e9a350329d799e5caf5c83f41d9d8b5"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/storm.png",
+  "file_hash": "cd62f775d339cf2152bc4a27d73cad92ab6e0124988ecf9b56c020310d74e1a9",
+  "download_url": "files/cd62f775d339cf2152bc4a27d73cad92ab6e0124988ecf9b56c020310d74e1a9"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/the_hood.png",
+  "file_hash": "471f01f37055fd2f8ae86c42a1564cac5a77f7f291240c4838916d3909bd2a69",
+  "download_url": "files/471f01f37055fd2f8ae86c42a1564cac5a77f7f291240c4838916d3909bd2a69"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/the_punisher.png",
+  "file_hash": "d6cc028e8cc6d19f92d615b825cbefa0c1da84e51e577ddb44d6e899f89b76d2",
+  "download_url": "files/d6cc028e8cc6d19f92d615b825cbefa0c1da84e51e577ddb44d6e899f89b76d2"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/the_thing.png",
+  "file_hash": "f0d2ed1f05f1fc11275ac8b04e6e724a6d1b5a1c97ef1229d0903872d9c2950d",
+  "download_url": "files/f0d2ed1f05f1fc11275ac8b04e6e724a6d1b5a1c97ef1229d0903872d9c2950d"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/thor.png",
+  "file_hash": "695ab0dd72ca001b6f744d5852ef2de6bc6f5c7cc725fa248713c241fe6a1062",
+  "download_url": "files/695ab0dd72ca001b6f744d5852ef2de6bc6f5c7cc725fa248713c241fe6a1062"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/ultron.png",
+  "file_hash": "5eb7ed4ec502196f3677d3a95c23fdeb1658c2cceb5201c143c4603792c00acf",
+  "download_url": "files/5eb7ed4ec502196f3677d3a95c23fdeb1658c2cceb5201c143c4603792c00acf"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/venom.png",
+  "file_hash": "6a49dca2b0fad7ed40c3d85e1c08c3573015001bcb9b1ec2bba4dd10cc1f2e92",
+  "download_url": "files/6a49dca2b0fad7ed40c3d85e1c08c3573015001bcb9b1ec2bba4dd10cc1f2e92"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/white_fox.png",
+  "file_hash": "7fc328e79c198f8709811db571e6e89d008e0e5b68a8bb940092c6316985a0cd",
+  "download_url": "files/7fc328e79c198f8709811db571e6e89d008e0e5b68a8bb940092c6316985a0cd"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/winter_soldier.png",
+  "file_hash": "48ee273b8cd5cdd42999c4cf7bb4981e3fa68ae60373614392dd5e495671b424",
+  "download_url": "files/48ee273b8cd5cdd42999c4cf7bb4981e3fa68ae60373614392dd5e495671b424"
+ },
+ {
+  "file_name": "exo/game-data/marvel-rivals/heroes/wolverine.png",
+  "file_hash": "e952c501f4e2019702bd036cfb28de0f66a4713991aae49e0e166287a46635f6",
+  "download_url": "files/e952c501f4e2019702bd036cfb28de0f66a4713991aae49e0e166287a46635f6"
  },
  {
   "file_name": "exo/game-data/overwatch/SOURCES.md",
-  "file_hash": "9e31ba5b88c43cfb2c1d6a04f40793c5eb5b4b5093e431da225e4d3080d43cde",
-  "download_url": "files/9e31ba5b88c43cfb2c1d6a04f40793c5eb5b4b5093e431da225e4d3080d43cde"
+  "file_hash": "dea46d2bd307d20ebf0be2a3e232e1acc23991a21d6d441075384f65c3fb1668",
+  "download_url": "files/dea46d2bd307d20ebf0be2a3e232e1acc23991a21d6d441075384f65c3fb1668"
  },
  {
   "file_name": "exo/game-data/overwatch/catalog.json",
-  "file_hash": "40478b71c9065ae657b5d25155565d8d0063a5201b0e8a168fe88feb19466a1d",
-  "download_url": "files/40478b71c9065ae657b5d25155565d8d0063a5201b0e8a168fe88feb19466a1d"
+  "file_hash": "e3d3773fe713618bbd61a2ad70f796516e038f67caca6e4be0d551b5098e4eb6",
+  "download_url": "files/e3d3773fe713618bbd61a2ad70f796516e038f67caca6e4be0d551b5098e4eb6"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/ana.png",
+  "file_hash": "ae5e5f21882f466c3cfc2b4a3030606fe11e0e0364209acad4349718767f6e8c",
+  "download_url": "files/ae5e5f21882f466c3cfc2b4a3030606fe11e0e0364209acad4349718767f6e8c"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/anran.png",
+  "file_hash": "6f795e75db34aafaa4fc28024ec6179d2d2d7d38f89b2c38f9c390f2ced84852",
+  "download_url": "files/6f795e75db34aafaa4fc28024ec6179d2d2d7d38f89b2c38f9c390f2ced84852"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/ashe.png",
+  "file_hash": "e44fa12d4be17612b1b8a7e9167fc024c5c460f4c5556b4001cdd126048bfa79",
+  "download_url": "files/e44fa12d4be17612b1b8a7e9167fc024c5c460f4c5556b4001cdd126048bfa79"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/baptiste.png",
+  "file_hash": "cd09cd46d3ebf61e23b810becff641b7f86a6a0f730ded6dcb0c2213c90b3fb3",
+  "download_url": "files/cd09cd46d3ebf61e23b810becff641b7f86a6a0f730ded6dcb0c2213c90b3fb3"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/bastion.png",
+  "file_hash": "cc5d5f21327dde47f7e4281656cf7a2aac28f521d417517bb8a5ae6734551133",
+  "download_url": "files/cc5d5f21327dde47f7e4281656cf7a2aac28f521d417517bb8a5ae6734551133"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/brigitte.png",
+  "file_hash": "886dcf35c86d9319e6e70c2f2a4614817d88e00856d5393926d6b6b47e0b168e",
+  "download_url": "files/886dcf35c86d9319e6e70c2f2a4614817d88e00856d5393926d6b6b47e0b168e"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/cassidy.png",
+  "file_hash": "6b930c2df53721b2aaef8ab46ac789f0d6b8b50f2da3fb194c92e5bd31cdd5b8",
+  "download_url": "files/6b930c2df53721b2aaef8ab46ac789f0d6b8b50f2da3fb194c92e5bd31cdd5b8"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/d_mon.png",
+  "file_hash": "ed4653514c7804c54415fd8a968c91d26a57f7db2e22fea97147fd44b13bbc78",
+  "download_url": "files/ed4653514c7804c54415fd8a968c91d26a57f7db2e22fea97147fd44b13bbc78"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/d_va.png",
+  "file_hash": "3bddd0d9a1105771c4153496f2688caeec948e308d797b5a60557b98672d4ab0",
+  "download_url": "files/3bddd0d9a1105771c4153496f2688caeec948e308d797b5a60557b98672d4ab0"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/doctrine.png",
+  "file_hash": "d6d244561735dea94476e55e1602719208d9062dd334599d3782a8161b360e72",
+  "download_url": "files/d6d244561735dea94476e55e1602719208d9062dd334599d3782a8161b360e72"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/domina.png",
+  "file_hash": "967ed7656eb8edf7eb4fbd589c3a60c1433f3bc1a218ad59c2e1dd86d6b033e8",
+  "download_url": "files/967ed7656eb8edf7eb4fbd589c3a60c1433f3bc1a218ad59c2e1dd86d6b033e8"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/doomfist.png",
+  "file_hash": "379108705822335a8ca55fd39df361ac21ad06bc436c41d4a9e1ff6fa921bf13",
+  "download_url": "files/379108705822335a8ca55fd39df361ac21ad06bc436c41d4a9e1ff6fa921bf13"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/echo.png",
+  "file_hash": "9b0ceeb0ab5a4385ade3c66deeef1186a295eab6c062593752443fc445cac217",
+  "download_url": "files/9b0ceeb0ab5a4385ade3c66deeef1186a295eab6c062593752443fc445cac217"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/emre.png",
+  "file_hash": "cf9375e2b4a809aa143f17071615664cf578cda6257c5b6f86ef33d4ed0d06eb",
+  "download_url": "files/cf9375e2b4a809aa143f17071615664cf578cda6257c5b6f86ef33d4ed0d06eb"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/freja.png",
+  "file_hash": "57015e12ea408aa53d38de194b02b599993126dd40515cc7fc4df914861d7938",
+  "download_url": "files/57015e12ea408aa53d38de194b02b599993126dd40515cc7fc4df914861d7938"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/genji.png",
+  "file_hash": "4596881427ce8344ad30b043425cc382ad02cae4cb452d5d9081a82a3e049de1",
+  "download_url": "files/4596881427ce8344ad30b043425cc382ad02cae4cb452d5d9081a82a3e049de1"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/hanzo.png",
+  "file_hash": "f470a6d142e21835731ef13f104b4dec05ad526f788130c2074ec3c5d82da1dc",
+  "download_url": "files/f470a6d142e21835731ef13f104b4dec05ad526f788130c2074ec3c5d82da1dc"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/hazard.png",
+  "file_hash": "1e7e2b657aa8cb3631bba179b08eefad77ea8be7c726d5254653db49fafdf0b9",
+  "download_url": "files/1e7e2b657aa8cb3631bba179b08eefad77ea8be7c726d5254653db49fafdf0b9"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/illari.png",
+  "file_hash": "dd6e66aa2dda65b14b75daf1c97c43475b26352f8075e489607e2e936befcecb",
+  "download_url": "files/dd6e66aa2dda65b14b75daf1c97c43475b26352f8075e489607e2e936befcecb"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/jetpack_cat.png",
+  "file_hash": "fb1bd3f91c339ad7cbbf266ad2064a38fd7249981c8f28b0957f32427b79618a",
+  "download_url": "files/fb1bd3f91c339ad7cbbf266ad2064a38fd7249981c8f28b0957f32427b79618a"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/junker_queen.png",
+  "file_hash": "fb3b3c2a099e86dbdd91d86ca798e5120826c93b35b2a3c21eabbf1f696e2491",
+  "download_url": "files/fb3b3c2a099e86dbdd91d86ca798e5120826c93b35b2a3c21eabbf1f696e2491"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/junkrat.png",
+  "file_hash": "6863b315104f051dd452094f9becec8d8ae94bfc88854c464f66c4c23cd1c414",
+  "download_url": "files/6863b315104f051dd452094f9becec8d8ae94bfc88854c464f66c4c23cd1c414"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/juno.png",
+  "file_hash": "2bfc2e4931ed0de9e5c1a1700b2dda9c4ff8fc089a4f90ebb457116ad6904f21",
+  "download_url": "files/2bfc2e4931ed0de9e5c1a1700b2dda9c4ff8fc089a4f90ebb457116ad6904f21"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/kiriko.png",
+  "file_hash": "1c78e8d5bbeddb20afada53f6e9de007961c07bd33de13a39c6c99612c5935bc",
+  "download_url": "files/1c78e8d5bbeddb20afada53f6e9de007961c07bd33de13a39c6c99612c5935bc"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/lifeweaver.png",
+  "file_hash": "f8200236190114dda00ffa073f486c8a49dc6221ea93d797a0f1cf93a68c541d",
+  "download_url": "files/f8200236190114dda00ffa073f486c8a49dc6221ea93d797a0f1cf93a68c541d"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/lucio.png",
+  "file_hash": "2c0ca49de9adcf560d7d0c2fc85c568955f53a93b51d6f784673d0d88806b5b0",
+  "download_url": "files/2c0ca49de9adcf560d7d0c2fc85c568955f53a93b51d6f784673d0d88806b5b0"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/mauga.png",
+  "file_hash": "6b895f6ac16635508e5ebfd3f231c461980de7324c3bdd3bf3129415f0e1d9da",
+  "download_url": "files/6b895f6ac16635508e5ebfd3f231c461980de7324c3bdd3bf3129415f0e1d9da"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/mei.png",
+  "file_hash": "e7edda6bb74e03673ef1266006f846b12de88eee1ccdc959c3a1607b6422b759",
+  "download_url": "files/e7edda6bb74e03673ef1266006f846b12de88eee1ccdc959c3a1607b6422b759"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/mercy.png",
+  "file_hash": "631cbff8cef800e8ec590a26e788e37617c96f344578278bbd35187f415437f8",
+  "download_url": "files/631cbff8cef800e8ec590a26e788e37617c96f344578278bbd35187f415437f8"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/mizuki.png",
+  "file_hash": "5d4f9aab44fdd0a76ae003d989adddd084ffced92fe08840cbc999db3d0c567a",
+  "download_url": "files/5d4f9aab44fdd0a76ae003d989adddd084ffced92fe08840cbc999db3d0c567a"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/moira.png",
+  "file_hash": "e6cb61e28877a3d54ab86790d2f9a48365cb9085d9d86a8d4d82f375d8e37d33",
+  "download_url": "files/e6cb61e28877a3d54ab86790d2f9a48365cb9085d9d86a8d4d82f375d8e37d33"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/orisa.png",
+  "file_hash": "479e465e45dab21606e15f75602f51adf2cf484e04f3e78d202281505525244e",
+  "download_url": "files/479e465e45dab21606e15f75602f51adf2cf484e04f3e78d202281505525244e"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/pharah.png",
+  "file_hash": "13735606cca35401fa3dc956a8481141903d6ff5e96921529b7d4e419c6f6a0f",
+  "download_url": "files/13735606cca35401fa3dc956a8481141903d6ff5e96921529b7d4e419c6f6a0f"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/ramattra.png",
+  "file_hash": "75970ea45a16125ab2ddd252bc33a8fd59539cf77fc623538f6535025262af1f",
+  "download_url": "files/75970ea45a16125ab2ddd252bc33a8fd59539cf77fc623538f6535025262af1f"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/reaper.png",
+  "file_hash": "d06ea0774fdb409a69bef5d92dac67d8313efa4f71c8f7391be561af89d54e00",
+  "download_url": "files/d06ea0774fdb409a69bef5d92dac67d8313efa4f71c8f7391be561af89d54e00"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/reinhardt.png",
+  "file_hash": "e8eb8baee772dcf091c79fe866e459819c2e5654b91453b5a11180d54f630a2f",
+  "download_url": "files/e8eb8baee772dcf091c79fe866e459819c2e5654b91453b5a11180d54f630a2f"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/roadhog.png",
+  "file_hash": "0a0c5197fd16b30e6ecd16247f081749b3f3300bab68f30d6597889e1962f3a3",
+  "download_url": "files/0a0c5197fd16b30e6ecd16247f081749b3f3300bab68f30d6597889e1962f3a3"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/shion.png",
+  "file_hash": "2903fa0ffa6ecd99cfbd1cf32c2e9f6b42ed06b2c59d2ae1053b64feb08d622d",
+  "download_url": "files/2903fa0ffa6ecd99cfbd1cf32c2e9f6b42ed06b2c59d2ae1053b64feb08d622d"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/sierra.png",
+  "file_hash": "53a7f8cf0d9862582e47a9b832b8c1131dd72a764a2644864c2f588e20502b45",
+  "download_url": "files/53a7f8cf0d9862582e47a9b832b8c1131dd72a764a2644864c2f588e20502b45"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/sigma.png",
+  "file_hash": "cd81d5ab49f3a11908b597f981296ce9ff93a7de2d06bfd7e665b98552834d74",
+  "download_url": "files/cd81d5ab49f3a11908b597f981296ce9ff93a7de2d06bfd7e665b98552834d74"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/sojourn.png",
+  "file_hash": "c70d3961d725f8832aa1379ff293d1ad940080f9aff3c7eb2ae5fa39e026c215",
+  "download_url": "files/c70d3961d725f8832aa1379ff293d1ad940080f9aff3c7eb2ae5fa39e026c215"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/soldier_76.png",
+  "file_hash": "290c6ed34eecbc3de79173f43d7de3ae893394dc7fa64a6ddb7b983aaadbd30e",
+  "download_url": "files/290c6ed34eecbc3de79173f43d7de3ae893394dc7fa64a6ddb7b983aaadbd30e"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/sombra.png",
+  "file_hash": "e09b736a47ae398751ec2f83c79f36f613c274943c415106239309bbed2bc69c",
+  "download_url": "files/e09b736a47ae398751ec2f83c79f36f613c274943c415106239309bbed2bc69c"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/symmetra.png",
+  "file_hash": "50b3099cd7425fd1a20d3c7e87665dc2144cea886e441ac0548b6aaadab2c1fe",
+  "download_url": "files/50b3099cd7425fd1a20d3c7e87665dc2144cea886e441ac0548b6aaadab2c1fe"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/torbjorn.png",
+  "file_hash": "983b7caa5e70ad32274de3df204c54570d76cd0481da08c1e79af429ccea92d8",
+  "download_url": "files/983b7caa5e70ad32274de3df204c54570d76cd0481da08c1e79af429ccea92d8"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/tracer.png",
+  "file_hash": "b4d4217865495925089f78ec6ef785083e4636d20297840ea739d4489ab24452",
+  "download_url": "files/b4d4217865495925089f78ec6ef785083e4636d20297840ea739d4489ab24452"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/vendetta.png",
+  "file_hash": "fdbe4a811e282315ce6dc04ddb9857ab457104ffb99858257bdbd0072085db1c",
+  "download_url": "files/fdbe4a811e282315ce6dc04ddb9857ab457104ffb99858257bdbd0072085db1c"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/venture.png",
+  "file_hash": "dd54409bb33d160810783462126435a8b69bf1b81d329ffde4d2283fc32e4ca8",
+  "download_url": "files/dd54409bb33d160810783462126435a8b69bf1b81d329ffde4d2283fc32e4ca8"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/widowmaker.png",
+  "file_hash": "afc599af2d8863b7f75a3e3a711627fc623a4eb225ee5467335fc93e9322346f",
+  "download_url": "files/afc599af2d8863b7f75a3e3a711627fc623a4eb225ee5467335fc93e9322346f"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/winston.png",
+  "file_hash": "422ced93a059a530eb8845bb84983516eeb8202eb41d574851f5e9c46a3bec42",
+  "download_url": "files/422ced93a059a530eb8845bb84983516eeb8202eb41d574851f5e9c46a3bec42"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/wrecking_ball.png",
+  "file_hash": "597ade39556b4f6498a95e1497799de7fb9f60cd0c89897780aeff47a9c46aec",
+  "download_url": "files/597ade39556b4f6498a95e1497799de7fb9f60cd0c89897780aeff47a9c46aec"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/wuyang.png",
+  "file_hash": "195bdd0aac672768230c0b442cb2f8aa0a21c370bc4a58c3365ab8e36606fbc9",
+  "download_url": "files/195bdd0aac672768230c0b442cb2f8aa0a21c370bc4a58c3365ab8e36606fbc9"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/zarya.png",
+  "file_hash": "c8d74aee1752d84378492ba22680801c55e3da3af7d2f5069f1c31d397895fb7",
+  "download_url": "files/c8d74aee1752d84378492ba22680801c55e3da3af7d2f5069f1c31d397895fb7"
+ },
+ {
+  "file_name": "exo/game-data/overwatch/heroes/zenyatta.png",
+  "file_hash": "8c6ab9a349f22ef6ba5bb6e769866a202fa15a873eea381a65541431757086a4",
+  "download_url": "files/8c6ab9a349f22ef6ba5bb6e769866a202fa15a873eea381a65541431757086a4"
+ },
+ {
+  "file_name": "exo/game-data/pubg/SOURCES.md",
+  "file_hash": "f91bb5008e10f725c3fedddd46a1b8f2a76efc2e9e04189676f41b5f4d9bbeec",
+  "download_url": "files/f91bb5008e10f725c3fedddd46a1b8f2a76efc2e9e04189676f41b5f4d9bbeec"
+ },
+ {
+  "file_name": "exo/game-data/pubg/catalog.json",
+  "file_hash": "c75be4b0d1b2811fe635c822f0342f769ced374161780d17461d9e78a7185d3a",
+  "download_url": "files/c75be4b0d1b2811fe635c822f0342f769ced374161780d17461d9e78a7185d3a"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/ace32.png",
+  "file_hash": "5f238a361d3bd423efbdc2d096b46a3d8da87121dfe84c420411ad8e8a7a662b",
+  "download_url": "files/5f238a361d3bd423efbdc2d096b46a3d8da87121dfe84c420411ad8e8a7a662b"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/akm.png",
+  "file_hash": "26648c06eec08fa5240cc572d3f3a236bd480d7e9213ebba5cf99b455a47a935",
+  "download_url": "files/26648c06eec08fa5240cc572d3f3a236bd480d7e9213ebba5cf99b455a47a935"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/aug_a3.png",
+  "file_hash": "c0e22524a5be3e57f016bca5c7421683c8a1feba7c690e2c9d118d9594ebc131",
+  "download_url": "files/c0e22524a5be3e57f016bca5c7421683c8a1feba7c690e2c9d118d9594ebc131"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/awm.png",
+  "file_hash": "9ec05165b920d63172ca559b10e76d7b30aa4456a352435fed6b80a6019509ec",
+  "download_url": "files/9ec05165b920d63172ca559b10e76d7b30aa4456a352435fed6b80a6019509ec"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/beryl_m762.png",
+  "file_hash": "45bb000500dd6ea4569b7ace2579e7b320768330ea98851a0aa0f5625d6bbcd6",
+  "download_url": "files/45bb000500dd6ea4569b7ace2579e7b320768330ea98851a0aa0f5625d6bbcd6"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/crossbow.png",
+  "file_hash": "9b66b126da16829b67d20f07106921b7160096c98bea18b8cc077e71ab7da447",
+  "download_url": "files/9b66b126da16829b67d20f07106921b7160096c98bea18b8cc077e71ab7da447"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/crowbar.png",
+  "file_hash": "cf07d0cf31177c73978969d441346c9431e473e185d0e877b49a2e92472c8521",
+  "download_url": "files/cf07d0cf31177c73978969d441346c9431e473e185d0e877b49a2e92472c8521"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/dbs.png",
+  "file_hash": "5e4f2de93b60a72e6a25872f2d502240a44c1e5df977fc3d38782e57eb644358",
+  "download_url": "files/5e4f2de93b60a72e6a25872f2d502240a44c1e5df977fc3d38782e57eb644358"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/deagle.png",
+  "file_hash": "65ae56fc7574a1b283f9598050d863e7ec611ac6a3489dab14f8733d472c0a01",
+  "download_url": "files/65ae56fc7574a1b283f9598050d863e7ec611ac6a3489dab14f8733d472c0a01"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/dragunov.png",
+  "file_hash": "84d85e8620b303ccd9f42c9aac8b5caeee18d8ab4e5753de40f27e04b07e4f6a",
+  "download_url": "files/84d85e8620b303ccd9f42c9aac8b5caeee18d8ab4e5753de40f27e04b07e4f6a"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/famas.png",
+  "file_hash": "ac6a50b10f13d375edba2f3cd818cd7205e458e13be93993201878a4ccb1c3bf",
+  "download_url": "files/ac6a50b10f13d375edba2f3cd818cd7205e458e13be93993201878a4ccb1c3bf"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/flare_gun.png",
+  "file_hash": "49fe76998b0ae420343dd9c55c405b844e5cf9b5f597777c9f0b530a21295b04",
+  "download_url": "files/49fe76998b0ae420343dd9c55c405b844e5cf9b5f597777c9f0b530a21295b04"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/g36c.png",
+  "file_hash": "159459045a049eda61079b80d8ac6d33605fef89c731223b498c7f55883b6de5",
+  "download_url": "files/159459045a049eda61079b80d8ac6d33605fef89c731223b498c7f55883b6de5"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/groza.png",
+  "file_hash": "3f20b21b077a80746d6057e739d6caccf388a27a44b39732bdc71210a2101051",
+  "download_url": "files/3f20b21b077a80746d6057e739d6caccf388a27a44b39732bdc71210a2101051"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/js9.png",
+  "file_hash": "793b6e03fc412bc31536298a8277b80e837944573061db7868ad0d7b6bb950b4",
+  "download_url": "files/793b6e03fc412bc31536298a8277b80e837944573061db7868ad0d7b6bb950b4"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/k2.png",
+  "file_hash": "87c073ab683445f9b3ea9cae2ddbdb2bda7eb7db6af71edda2f6510ede8e1bdc",
+  "download_url": "files/87c073ab683445f9b3ea9cae2ddbdb2bda7eb7db6af71edda2f6510ede8e1bdc"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/kar98k.png",
+  "file_hash": "43d194719b8f3197a85cfc767013c194490c74b4a9ac31a4fd17d94a432404b6",
+  "download_url": "files/43d194719b8f3197a85cfc767013c194490c74b4a9ac31a4fd17d94a432404b6"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/lynx_amr.png",
+  "file_hash": "3f8402be67a2c56bd4e0b572fc1de2c80bb9b9a57d366df499c9a894a6ec7053",
+  "download_url": "files/3f8402be67a2c56bd4e0b572fc1de2c80bb9b9a57d366df499c9a894a6ec7053"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/m16a4.png",
+  "file_hash": "aaa35ec890353e94a5ea0737edffb68ee4b5c9aa0674f0523ec096d57dde6ecd",
+  "download_url": "files/aaa35ec890353e94a5ea0737edffb68ee4b5c9aa0674f0523ec096d57dde6ecd"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/m24.png",
+  "file_hash": "355f3ce861c0062751722536ed032bfd33cc4e138533017ccfbdc8853ddba89a",
+  "download_url": "files/355f3ce861c0062751722536ed032bfd33cc4e138533017ccfbdc8853ddba89a"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/m249.png",
+  "file_hash": "b301960583268cfd9ffe2bdb03f0b80a20b1d8cc56b3fd948c28559dffdb4fb0",
+  "download_url": "files/b301960583268cfd9ffe2bdb03f0b80a20b1d8cc56b3fd948c28559dffdb4fb0"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/m416.png",
+  "file_hash": "f953b717a8dde13dc70ef8fd3cce8e0620e005f355167df18c6a36c720964889",
+  "download_url": "files/f953b717a8dde13dc70ef8fd3cce8e0620e005f355167df18c6a36c720964889"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/m79.png",
+  "file_hash": "f3c87da8a428990e61d6d03aaa0f8ed38e371f574ce31aee2af9ad220d906173",
+  "download_url": "files/f3c87da8a428990e61d6d03aaa0f8ed38e371f574ce31aee2af9ad220d906173"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/machete.png",
+  "file_hash": "4dd4f4bbe27ac213217a63edf2ebf941350427227950754f40d25cff34e4a5b1",
+  "download_url": "files/4dd4f4bbe27ac213217a63edf2ebf941350427227950754f40d25cff34e4a5b1"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mg3.png",
+  "file_hash": "0f111fe2f6f2693ea1ac0980f47e8735a4bfcc18f778dc94ec56ee6cbb1684af",
+  "download_url": "files/0f111fe2f6f2693ea1ac0980f47e8735a4bfcc18f778dc94ec56ee6cbb1684af"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/micro_uzi.png",
+  "file_hash": "618cf840946fc1dd54a0c9cb5a2b67f725819d993c4deec65e408539f159138f",
+  "download_url": "files/618cf840946fc1dd54a0c9cb5a2b67f725819d993c4deec65e408539f159138f"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mini_14.png",
+  "file_hash": "e6d29f76a87aefe112350428cce20a422a15a05ee88a411b82ce7bec9a8dd2e2",
+  "download_url": "files/e6d29f76a87aefe112350428cce20a422a15a05ee88a411b82ce7bec9a8dd2e2"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mk12.png",
+  "file_hash": "f8c52a7835ff83a11282d8ad18a064142e40f45aaf4a86eabd8aabbf3016348f",
+  "download_url": "files/f8c52a7835ff83a11282d8ad18a064142e40f45aaf4a86eabd8aabbf3016348f"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mk14.png",
+  "file_hash": "c29a7e001117ff6c4ebb1e42d5090ae385249b3d1ed1da25bfdaef55acb736fd",
+  "download_url": "files/c29a7e001117ff6c4ebb1e42d5090ae385249b3d1ed1da25bfdaef55acb736fd"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mk47_mutant.png",
+  "file_hash": "588c9d5ab85440edfee2ec70b86177ded38cffc881f7f31d0192d92d4c280c05",
+  "download_url": "files/588c9d5ab85440edfee2ec70b86177ded38cffc881f7f31d0192d92d4c280c05"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mortar.png",
+  "file_hash": "dc267edeafcf3aaf87314fdc81fcc9a8eacc0d2568632c4ab38e71c37be427a0",
+  "download_url": "files/dc267edeafcf3aaf87314fdc81fcc9a8eacc0d2568632c4ab38e71c37be427a0"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mp5k.png",
+  "file_hash": "b123598620d8aff3861d6bd221aa513779468b26f723509e65b6363210801aaa",
+  "download_url": "files/b123598620d8aff3861d6bd221aa513779468b26f723509e65b6363210801aaa"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/mp9.png",
+  "file_hash": "770aa37e8925e052940456010f265a8c8b20cde189865f6331e8f40470ba7971",
+  "download_url": "files/770aa37e8925e052940456010f265a8c8b20cde189865f6331e8f40470ba7971"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/o12.png",
+  "file_hash": "93c7cd1b2a59141a128c4ab744c3d32cc3036067aaec514c9c68b20519d2af33",
+  "download_url": "files/93c7cd1b2a59141a128c4ab744c3d32cc3036067aaec514c9c68b20519d2af33"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/p18c.png",
+  "file_hash": "580006ebd4f73015f3a7072b26ec833633f2bf6e8e598244ef07dc5d19720a8d",
+  "download_url": "files/580006ebd4f73015f3a7072b26ec833633f2bf6e8e598244ef07dc5d19720a8d"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/p90.png",
+  "file_hash": "6e64a9125011a2aa79f9c490108a42c767e7385c8642ed2f2fe1b5099828d144",
+  "download_url": "files/6e64a9125011a2aa79f9c490108a42c767e7385c8642ed2f2fe1b5099828d144"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/p92.png",
+  "file_hash": "2f5733e58f53d07787a82ddf60affcd9494a3fe14e25ad1b5908503078a5e01d",
+  "download_url": "files/2f5733e58f53d07787a82ddf60affcd9494a3fe14e25ad1b5908503078a5e01d"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/pan.png",
+  "file_hash": "06ff3c4ef097c115eb6af2276cf2a09a0e3ff873a7d8ed2f8a283d361859cbf4",
+  "download_url": "files/06ff3c4ef097c115eb6af2276cf2a09a0e3ff873a7d8ed2f8a283d361859cbf4"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/panzerfaust.png",
+  "file_hash": "c9cc097ec156cde9d55f4a3906df0d8b9bd4851c702bce4841d5311c8f5bc908",
+  "download_url": "files/c9cc097ec156cde9d55f4a3906df0d8b9bd4851c702bce4841d5311c8f5bc908"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/pickaxe.png",
+  "file_hash": "a1e0954b40a21c3c6ce5a9dd36b86b76959ff2a2baf3348b0d222a2f2ac2eff4",
+  "download_url": "files/a1e0954b40a21c3c6ce5a9dd36b86b76959ff2a2baf3348b0d222a2f2ac2eff4"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/qbz.png",
+  "file_hash": "a022708dbb0222c45cc3ca2b96b0c102c7210821a08ac48500eb447571c1f092",
+  "download_url": "files/a022708dbb0222c45cc3ca2b96b0c102c7210821a08ac48500eb447571c1f092"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/r1895.png",
+  "file_hash": "c8a5ec7cfd2d1e81da1e2b85ec314a25389d948917b296f5463622677226ef26",
+  "download_url": "files/c8a5ec7cfd2d1e81da1e2b85ec314a25389d948917b296f5463622677226ef26"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/rpd.png",
+  "file_hash": "0f613dff7a67998229bf0aad7dee9a23264d4e30fff09dc72d65e25a0ed155c3",
+  "download_url": "files/0f613dff7a67998229bf0aad7dee9a23264d4e30fff09dc72d65e25a0ed155c3"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/s12k.png",
+  "file_hash": "9165968ee322f704105c18537bbfbc460ea37db5b07176591ba41ab1ade87ee5",
+  "download_url": "files/9165968ee322f704105c18537bbfbc460ea37db5b07176591ba41ab1ade87ee5"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/s1897.png",
+  "file_hash": "93c6fa9ae169a85a9d36e314117d9c27bb4c544de2510b184e2de4b9e1b52263",
+  "download_url": "files/93c6fa9ae169a85a9d36e314117d9c27bb4c544de2510b184e2de4b9e1b52263"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/s686.png",
+  "file_hash": "378c02c7796d192d9f9c9ff2e94fc562ede309d8a554ff9efa576e5f94715b2c",
+  "download_url": "files/378c02c7796d192d9f9c9ff2e94fc562ede309d8a554ff9efa576e5f94715b2c"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/sawed_off.png",
+  "file_hash": "e2f3d0639071b7dd2fed1cf266cc917257388b5b4b37f1cf107127dae64bdf05",
+  "download_url": "files/e2f3d0639071b7dd2fed1cf266cc917257388b5b4b37f1cf107127dae64bdf05"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/scar_l.png",
+  "file_hash": "11c5c14b200042359ffe30f359cb313265b45bb76386da8342401c1022656324",
+  "download_url": "files/11c5c14b200042359ffe30f359cb313265b45bb76386da8342401c1022656324"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/sickle.png",
+  "file_hash": "070c85b1eefae2e62e69bc70a09086c3d1b966795d01816dbfe88f32b88dd484",
+  "download_url": "files/070c85b1eefae2e62e69bc70a09086c3d1b966795d01816dbfe88f32b88dd484"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/skorpion.png",
+  "file_hash": "196292a5b9bd1ba11ea8c2a47aba53ec4428829c5bbcd22a42c14789a0506a2a",
+  "download_url": "files/196292a5b9bd1ba11ea8c2a47aba53ec4428829c5bbcd22a42c14789a0506a2a"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/sks.png",
+  "file_hash": "9006903407b0621fc2a4f646d3d0d450898c9131833d7b868791b270bc222fed",
+  "download_url": "files/9006903407b0621fc2a4f646d3d0d450898c9131833d7b868791b270bc222fed"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/slr.png",
+  "file_hash": "3b8febae6a05a9d25f027b66ade24baa01747368f9f592f80da3568865d82c1b",
+  "download_url": "files/3b8febae6a05a9d25f027b66ade24baa01747368f9f592f80da3568865d82c1b"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/stun_gun.png",
+  "file_hash": "f03dfc509df4a6821772363f94331613191a03ec9ee5b539600c4e95fad755d2",
+  "download_url": "files/f03dfc509df4a6821772363f94331613191a03ec9ee5b539600c4e95fad755d2"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/tommy_gun.png",
+  "file_hash": "f1e68a7aa9eba4643a6fca801a25849950a4daa8986e5e657501119de5f2ec10",
+  "download_url": "files/f1e68a7aa9eba4643a6fca801a25849950a4daa8986e5e657501119de5f2ec10"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/ump45.png",
+  "file_hash": "c0d4369dfa154244950711b5f0a496224c5b4f5525ce9fc25720384a49143a7b",
+  "download_url": "files/c0d4369dfa154244950711b5f0a496224c5b4f5525ce9fc25720384a49143a7b"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/vector.png",
+  "file_hash": "a39a6522bc06a49fa98ac5e36cfedc7e3401dde7563450d16fe61ac499983b21",
+  "download_url": "files/a39a6522bc06a49fa98ac5e36cfedc7e3401dde7563450d16fe61ac499983b21"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/vss.png",
+  "file_hash": "255a21cae41660c9d95bace90e83d839e7bbc68707a9465ed64f23f7fe9fa88d",
+  "download_url": "files/255a21cae41660c9d95bace90e83d839e7bbc68707a9465ed64f23f7fe9fa88d"
+ },
+ {
+  "file_name": "exo/game-data/pubg/weapons/win94.png",
+  "file_hash": "108303452494e91d5b37549a2edb4f243dda8d5275495b55d0a41ee56183eead",
+  "download_url": "files/108303452494e91d5b37549a2edb4f243dda8d5275495b55d0a41ee56183eead"
  },
  {
   "file_name": "exo/game-data/rainbow-six-siege/SOURCES.md",
-  "file_hash": "6c9fc3f142f24a6daf939fe084efe06d1a93b3ee67f7897f13251d580a41c901",
-  "download_url": "files/6c9fc3f142f24a6daf939fe084efe06d1a93b3ee67f7897f13251d580a41c901"
+  "file_hash": "ce9cada84a2e092d7b61d6ca7b25e7b8b41f6ba380e8da648568c4184ad4466c",
+  "download_url": "files/ce9cada84a2e092d7b61d6ca7b25e7b8b41f6ba380e8da648568c4184ad4466c"
  },
  {
   "file_name": "exo/game-data/rainbow-six-siege/catalog.json",
-  "file_hash": "10d92a5b3d5243b0a75655180bd20fb304da132a411e2bfc0306a1e1ac9d1353",
-  "download_url": "files/10d92a5b3d5243b0a75655180bd20fb304da132a411e2bfc0306a1e1ac9d1353"
+  "file_hash": "ecea825119a828c442ca6e84af3c6d21b0a9ee11d9f4b2b4477acbf8d6c8d14e",
+  "download_url": "files/ecea825119a828c442ca6e84af3c6d21b0a9ee11d9f4b2b4477acbf8d6c8d14e"
  },
  {
   "file_name": "exo/game-data/rainbow-six-siege/operators/ace.png",
@@ -5486,18 +7036,293 @@
  },
  {
   "file_name": "exo/game-data/valorant/SOURCES.md",
-  "file_hash": "7197efbf016ce08b3ef948c2e2b3752c3c2339246c503efd94d29c6c87aada11",
-  "download_url": "files/7197efbf016ce08b3ef948c2e2b3752c3c2339246c503efd94d29c6c87aada11"
+  "file_hash": "afad45139c2fc7da29b555c0bf91f2bf697ba9f129370b1a7eae1de265ebe229",
+  "download_url": "files/afad45139c2fc7da29b555c0bf91f2bf697ba9f129370b1a7eae1de265ebe229"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/astra.png",
+  "file_hash": "79a25bd6f15f531f4e3ecd6f3e882b7b74f122db2f6a052be6169c8de1297714",
+  "download_url": "files/79a25bd6f15f531f4e3ecd6f3e882b7b74f122db2f6a052be6169c8de1297714"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/breach.png",
+  "file_hash": "6b2eef9a9f832358771cbce81c81a2fe148ffc5bb3728bf8728715bd4e5f7fc0",
+  "download_url": "files/6b2eef9a9f832358771cbce81c81a2fe148ffc5bb3728bf8728715bd4e5f7fc0"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/brimstone.png",
+  "file_hash": "b99cd9658a4ce17d49589c9089cb800603e9bda1256e115284ff6baa17fd39ad",
+  "download_url": "files/b99cd9658a4ce17d49589c9089cb800603e9bda1256e115284ff6baa17fd39ad"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/chamber.png",
+  "file_hash": "7085a07e5dd5752be1318bb745c78a16ac5dd2cb738b7fa2cc0a592b397a0a67",
+  "download_url": "files/7085a07e5dd5752be1318bb745c78a16ac5dd2cb738b7fa2cc0a592b397a0a67"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/clove.png",
+  "file_hash": "6c774e8bd3f2e6ddcaa8a6f50d7dcf35111d19ef7b046748f9448d6b29bd2a03",
+  "download_url": "files/6c774e8bd3f2e6ddcaa8a6f50d7dcf35111d19ef7b046748f9448d6b29bd2a03"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/cypher.png",
+  "file_hash": "07a81c82e7208f365e5a2b7d30e76d1ec57fa4fe203585e75cef09c4fd12ec0b",
+  "download_url": "files/07a81c82e7208f365e5a2b7d30e76d1ec57fa4fe203585e75cef09c4fd12ec0b"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/deadlock.png",
+  "file_hash": "c11e8d73093a424720ae62b0b9cc760aca9072421be7455408325dbf7656d1ce",
+  "download_url": "files/c11e8d73093a424720ae62b0b9cc760aca9072421be7455408325dbf7656d1ce"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/fade.png",
+  "file_hash": "8e84984819e6fb900bef6029451620f9ce0703b324854a30a3096877aa3fe804",
+  "download_url": "files/8e84984819e6fb900bef6029451620f9ce0703b324854a30a3096877aa3fe804"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/gekko.png",
+  "file_hash": "03f0e8441800b8cfcc3f381477b2ceddc5367c82e37b8ba91b7454d439376bc4",
+  "download_url": "files/03f0e8441800b8cfcc3f381477b2ceddc5367c82e37b8ba91b7454d439376bc4"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/harbor.png",
+  "file_hash": "7f7a86e03e37f03ef522805370d637d9434b7ea20feb6047ddd27c9019ee2a3a",
+  "download_url": "files/7f7a86e03e37f03ef522805370d637d9434b7ea20feb6047ddd27c9019ee2a3a"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/iso.png",
+  "file_hash": "0b9dcecb4d89108e2087bdf308a44a16fc028ea3f686c0f27dd6414f1c95ac4b",
+  "download_url": "files/0b9dcecb4d89108e2087bdf308a44a16fc028ea3f686c0f27dd6414f1c95ac4b"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/jett.png",
+  "file_hash": "714d3a3b74b05e0c03f37be5348be2e52a8b2688dce80593abf9485bb966ab5e",
+  "download_url": "files/714d3a3b74b05e0c03f37be5348be2e52a8b2688dce80593abf9485bb966ab5e"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/kay_o.png",
+  "file_hash": "5e2bc7dce9acc84450ce7869d0aa1adcb26cfab8296fa4f432a5ec8e1da78904",
+  "download_url": "files/5e2bc7dce9acc84450ce7869d0aa1adcb26cfab8296fa4f432a5ec8e1da78904"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/killjoy.png",
+  "file_hash": "3cf33d88c1218c0d25f641b5d3a413efce4eb40fa6405e75043ec31181c8ec74",
+  "download_url": "files/3cf33d88c1218c0d25f641b5d3a413efce4eb40fa6405e75043ec31181c8ec74"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/miks.png",
+  "file_hash": "6c9775cd1e420cf617368b63ec5885658ba4f1e8c764dedf5fb2a22e6a57d894",
+  "download_url": "files/6c9775cd1e420cf617368b63ec5885658ba4f1e8c764dedf5fb2a22e6a57d894"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/neon.png",
+  "file_hash": "4f7c2236f2604fd79756ce0a5280eb3fd009f0bb804e90ec1e52b0e94e5b6bc2",
+  "download_url": "files/4f7c2236f2604fd79756ce0a5280eb3fd009f0bb804e90ec1e52b0e94e5b6bc2"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/omen.png",
+  "file_hash": "ee70d1c529cd87a7159e99e4c2dd5126926a1edac7d07280396f8b572cfb91c4",
+  "download_url": "files/ee70d1c529cd87a7159e99e4c2dd5126926a1edac7d07280396f8b572cfb91c4"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/phoenix.png",
+  "file_hash": "cddde35523b4adc58d5dcfc2118df99fe7dc637252e47f5e24ab5c50cb3aa7bf",
+  "download_url": "files/cddde35523b4adc58d5dcfc2118df99fe7dc637252e47f5e24ab5c50cb3aa7bf"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/raze.png",
+  "file_hash": "44e31117953959464acdc51e8bf9c737a702be67048bc6e805101e1bdfedfaa5",
+  "download_url": "files/44e31117953959464acdc51e8bf9c737a702be67048bc6e805101e1bdfedfaa5"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/reyna.png",
+  "file_hash": "d8d802c7c29b85496a2afa9a50a93e1c6b066a966a26f7ebee2c08662dd415c9",
+  "download_url": "files/d8d802c7c29b85496a2afa9a50a93e1c6b066a966a26f7ebee2c08662dd415c9"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/sage.png",
+  "file_hash": "8960540f5af60e0720e7fa2c7876727a03adbc07e553c29cc11883fa3ebc9a1c",
+  "download_url": "files/8960540f5af60e0720e7fa2c7876727a03adbc07e553c29cc11883fa3ebc9a1c"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/skye.png",
+  "file_hash": "1d06dea5bd5abbd5a01a12423154c60be8ae485245fffc6ede86c49b3dd3a4f3",
+  "download_url": "files/1d06dea5bd5abbd5a01a12423154c60be8ae485245fffc6ede86c49b3dd3a4f3"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/sova.png",
+  "file_hash": "de4395a7539daed6ffc8805e5e54664c8e5f11ee6c3b5a8a2afdc6cc43c8c0b3",
+  "download_url": "files/de4395a7539daed6ffc8805e5e54664c8e5f11ee6c3b5a8a2afdc6cc43c8c0b3"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/tejo.png",
+  "file_hash": "e8b73947e2e8f5f56540f86fd15ab92206199297e9dd72ed85c40ce4245fc468",
+  "download_url": "files/e8b73947e2e8f5f56540f86fd15ab92206199297e9dd72ed85c40ce4245fc468"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/veto.png",
+  "file_hash": "7788547a3dfd22ed3aa0ec0c7295c52d1cab0953542205d825e7b0d705277ab4",
+  "download_url": "files/7788547a3dfd22ed3aa0ec0c7295c52d1cab0953542205d825e7b0d705277ab4"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/viper.png",
+  "file_hash": "9ec8e6ea105387faf510b575dce31ec8d4d0cbb40c6f075596beb164b2393d88",
+  "download_url": "files/9ec8e6ea105387faf510b575dce31ec8d4d0cbb40c6f075596beb164b2393d88"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/vyse.png",
+  "file_hash": "ccc8898743daf452f4e21aadb1be91d27e639966e6254142b462cf217f380cbf",
+  "download_url": "files/ccc8898743daf452f4e21aadb1be91d27e639966e6254142b462cf217f380cbf"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/waylay.png",
+  "file_hash": "917906690ddd455157c7b020a84035774314b7fb4464f47b65e23ddaa95453e7",
+  "download_url": "files/917906690ddd455157c7b020a84035774314b7fb4464f47b65e23ddaa95453e7"
+ },
+ {
+  "file_name": "exo/game-data/valorant/agents/yoru.png",
+  "file_hash": "2cbed63e688f370937d8e2f173bc7275e410d33b591561d94994ef0e20e3261b",
+  "download_url": "files/2cbed63e688f370937d8e2f173bc7275e410d33b591561d94994ef0e20e3261b"
  },
  {
   "file_name": "exo/game-data/valorant/catalog.json",
-  "file_hash": "797729c08c78cd60b12c533eda50b57fcea7a3292b6e4b9a29d453871773c704",
-  "download_url": "files/797729c08c78cd60b12c533eda50b57fcea7a3292b6e4b9a29d453871773c704"
+  "file_hash": "2beb4e5dec35f1f39d755a4a377075d4f68c0e1ee8defad4f64da0cb2729e897",
+  "download_url": "files/2beb4e5dec35f1f39d755a4a377075d4f68c0e1ee8defad4f64da0cb2729e897"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/ares.png",
+  "file_hash": "036b286c3dde72056c80949c919452cdba0a22c584aef1763c7e7eb0d3d779be",
+  "download_url": "files/036b286c3dde72056c80949c919452cdba0a22c584aef1763c7e7eb0d3d779be"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/bandit.png",
+  "file_hash": "a085ad5244df0170e324f0946096a0307087d1f4e6841c836553da14c64683ef",
+  "download_url": "files/a085ad5244df0170e324f0946096a0307087d1f4e6841c836553da14c64683ef"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/blade_storm.png",
+  "file_hash": "25c1a7d52b4654dde8adf18e10bea514d45c71d77c68360f7ceec83f0fbec780",
+  "download_url": "files/25c1a7d52b4654dde8adf18e10bea514d45c71d77c68360f7ceec83f0fbec780"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/bucky.png",
+  "file_hash": "342b281672151dad277dba6855479340e8c4c78462ac68070c9fe7a1e44b20c9",
+  "download_url": "files/342b281672151dad277dba6855479340e8c4c78462ac68070c9fe7a1e44b20c9"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/bulldog.png",
+  "file_hash": "91b75b4f7805b7ae4e59a7d01d98945e24412afb635b3ed5df1603fd6eb6bdfe",
+  "download_url": "files/91b75b4f7805b7ae4e59a7d01d98945e24412afb635b3ed5df1603fd6eb6bdfe"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/classic.png",
+  "file_hash": "2c0d3b18c53e1b11ed2aebd40b2473d68625a8e7af9e8557b7cee4581af275f5",
+  "download_url": "files/2c0d3b18c53e1b11ed2aebd40b2473d68625a8e7af9e8557b7cee4581af275f5"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/frenzy.png",
+  "file_hash": "4bfff928e83fe079c724d5131f220f1bf6dd19f6a0506446c871fe46c4a75f0a",
+  "download_url": "files/4bfff928e83fe079c724d5131f220f1bf6dd19f6a0506446c871fe46c4a75f0a"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/ghost.png",
+  "file_hash": "9b4d2a41cd740f5e7dd746e70c38b930d8d6b34a9373b4224373f8be1c1db516",
+  "download_url": "files/9b4d2a41cd740f5e7dd746e70c38b930d8d6b34a9373b4224373f8be1c1db516"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/guardian.png",
+  "file_hash": "c5a0bee888993d1d385d76ee6ad1167c5b779f7cdea7db65ba49d97c09b097dd",
+  "download_url": "files/c5a0bee888993d1d385d76ee6ad1167c5b779f7cdea7db65ba49d97c09b097dd"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/headhunter.png",
+  "file_hash": "2c2e2609acc3391559892c148049f11e12c97760ab9405ad5cfb44c711600d28",
+  "download_url": "files/2c2e2609acc3391559892c148049f11e12c97760ab9405ad5cfb44c711600d28"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/judge.png",
+  "file_hash": "2f870edaa9af995e908c4d42e56298e4a1dbdc2ab31a48d94b9ba64f313f8f16",
+  "download_url": "files/2f870edaa9af995e908c4d42e56298e4a1dbdc2ab31a48d94b9ba64f313f8f16"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/marshal.png",
+  "file_hash": "58da31dac0e8f1e836efe2fe5501057f7fa645b0eabb8384130c307533ace94d",
+  "download_url": "files/58da31dac0e8f1e836efe2fe5501057f7fa645b0eabb8384130c307533ace94d"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/odin.png",
+  "file_hash": "05522897852930084b5f73253f7e462081d90b1cd036c3e21ca8ec6dedfcff69",
+  "download_url": "files/05522897852930084b5f73253f7e462081d90b1cd036c3e21ca8ec6dedfcff69"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/operator.png",
+  "file_hash": "362f809a5d2513cccd472997d07f74cbc82250b3575de0ec36467ebf405ea081",
+  "download_url": "files/362f809a5d2513cccd472997d07f74cbc82250b3575de0ec36467ebf405ea081"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/outlaw.png",
+  "file_hash": "8ad7338f1c304653390c6ff0268e07a4e05229c8e2036cb55e1bd4458ba3d056",
+  "download_url": "files/8ad7338f1c304653390c6ff0268e07a4e05229c8e2036cb55e1bd4458ba3d056"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/overdrive.png",
+  "file_hash": "60e4eb7c301a6f1292eb0d60361b631d06252cbd49ad119e99a5ce3952e6ce9d",
+  "download_url": "files/60e4eb7c301a6f1292eb0d60361b631d06252cbd49ad119e99a5ce3952e6ce9d"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/phantom.png",
+  "file_hash": "8ffb69a8180d0d34f82ddac2812b8a3aa9b35269ea5cb120c866aa56e7200946",
+  "download_url": "files/8ffb69a8180d0d34f82ddac2812b8a3aa9b35269ea5cb120c866aa56e7200946"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/sheriff.png",
+  "file_hash": "8d6bce7a8af55e9bc1330c0c2b8883383564932e651f32fbc2e85b6a5d9decf2",
+  "download_url": "files/8d6bce7a8af55e9bc1330c0c2b8883383564932e651f32fbc2e85b6a5d9decf2"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/shorty.png",
+  "file_hash": "7b606f8d09a0d1358550f11ac9ceb1606576918bd4352c6bfc3c9dedf4f3fc56",
+  "download_url": "files/7b606f8d09a0d1358550f11ac9ceb1606576918bd4352c6bfc3c9dedf4f3fc56"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/showstopper.png",
+  "file_hash": "6cc6b2312b28951b8327566cbed2068da15de78f99aba94fc2531c8f68d61505",
+  "download_url": "files/6cc6b2312b28951b8327566cbed2068da15de78f99aba94fc2531c8f68d61505"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/spectre.png",
+  "file_hash": "43d456f579a9e90e1fcb35838d53c9218209491bb7afd3fb17c851c975b5529f",
+  "download_url": "files/43d456f579a9e90e1fcb35838d53c9218209491bb7afd3fb17c851c975b5529f"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/stinger.png",
+  "file_hash": "19f73f1cd913a2773ad25827037395572aaf6474402cefb82462c905624c2c60",
+  "download_url": "files/19f73f1cd913a2773ad25827037395572aaf6474402cefb82462c905624c2c60"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/tactical_knife.png",
+  "file_hash": "7b60ca12ceaf0187f3d19740eaf027c5a58d97b2944c42e60d84b301668d4472",
+  "download_url": "files/7b60ca12ceaf0187f3d19740eaf027c5a58d97b2944c42e60d84b301668d4472"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/tour_de_force.png",
+  "file_hash": "536b217537f91b591e196fdcccbc27d05033f17570ada836ece3686e48e45903",
+  "download_url": "files/536b217537f91b591e196fdcccbc27d05033f17570ada836ece3686e48e45903"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/vandal.png",
+  "file_hash": "07c9a2d4dc6b7926d023163237dd508104be3fec2b5712cdc1a5301bb294457d",
+  "download_url": "files/07c9a2d4dc6b7926d023163237dd508104be3fec2b5712cdc1a5301bb294457d"
+ },
+ {
+  "file_name": "exo/game-data/valorant/weapons/warden.png",
+  "file_hash": "542623ca588d834f14858de4e8945baa72cd28a8c0cd8496832b580bdecc2c13",
+  "download_url": "files/542623ca588d834f14858de4e8945baa72cd28a8c0cd8496832b580bdecc2c13"
  },
  {
   "file_name": "exo/game-packs.js",
-  "file_hash": "50833c81cfaeadd1a467dd7d216df120eee1b14a3b9310fbd98dc93c2b2aa11a",
-  "download_url": "files/50833c81cfaeadd1a467dd7d216df120eee1b14a3b9310fbd98dc93c2b2aa11a"
+  "file_hash": "0c4117bca1aa05552971f30f327f30f780a11886295cec95b5daaeda6dd3ee9c",
+  "download_url": "files/0c4117bca1aa05552971f30f327f30f780a11886295cec95b5daaeda6dd3ee9c"
  },
  {
   "file_name": "exo/game-packs/README.md",
@@ -5511,13 +7336,13 @@
  },
  {
   "file_name": "exo/game-packs/arc-raiders.json",
-  "file_hash": "dd1e5e5777951692fb10760008b63cab2e34461bad73273ad73e532cb22aabf8",
-  "download_url": "files/dd1e5e5777951692fb10760008b63cab2e34461bad73273ad73e532cb22aabf8"
+  "file_hash": "11a5a1a0d66eeccc4af5bf5016bac7ec362e46d49977e51aa9748370eeac431d",
+  "download_url": "files/11a5a1a0d66eeccc4af5bf5016bac7ec362e46d49977e51aa9748370eeac431d"
  },
  {
   "file_name": "exo/game-packs/art/SOURCES.md",
-  "file_hash": "c69cbb7a7791ea17ce454a68eeaf7a40aa51d7be7547a2185fa8355b227e647e",
-  "download_url": "files/c69cbb7a7791ea17ce454a68eeaf7a40aa51d7be7547a2185fa8355b227e647e"
+  "file_hash": "68a21a861ded69ce722d0b4ccded20012fc6640ace9f65bccdc8cf4f937a0376",
+  "download_url": "files/68a21a861ded69ce722d0b4ccded20012fc6640ace9f65bccdc8cf4f937a0376"
  },
  {
   "file_name": "exo/game-packs/art/apex-legends-panel.jpg",
@@ -5533,6 +7358,16 @@
   "file_name": "exo/game-packs/art/apex-legends.png",
   "file_hash": "9c317ef767d68a142f51c8a757b486eda4497f06542369f756843d65cebe2ca8",
   "download_url": "files/9c317ef767d68a142f51c8a757b486eda4497f06542369f756843d65cebe2ca8"
+ },
+ {
+  "file_name": "exo/game-packs/art/arc-raiders-tall.png",
+  "file_hash": "19f77a03656344b9ff9a56ea25a8ae92716c82f307b0948a2dc320f3ace74a0d",
+  "download_url": "files/19f77a03656344b9ff9a56ea25a8ae92716c82f307b0948a2dc320f3ace74a0d"
+ },
+ {
+  "file_name": "exo/game-packs/art/arc-raiders.png",
+  "file_hash": "67ecd3ff648d2eebe3a8be14f42a8bef17e32407e28377315901da88de64f6b9",
+  "download_url": "files/67ecd3ff648d2eebe3a8be14f42a8bef17e32407e28377315901da88de64f6b9"
  },
  {
   "file_name": "exo/game-packs/art/cod-bo2-panel.jpg",
@@ -5645,6 +7480,26 @@
   "download_url": "files/8abfb77a8b5c333a8acdd2886b11e44597c0b1584915a8aa9cdd55455106986a"
  },
  {
+  "file_name": "exo/game-packs/art/nba-2k27-tall.jpg",
+  "file_hash": "c5f1656e09145390a366a8eae579e2221e620b54c03314e79763885b2f9d267a",
+  "download_url": "files/c5f1656e09145390a366a8eae579e2221e620b54c03314e79763885b2f9d267a"
+ },
+ {
+  "file_name": "exo/game-packs/art/nba-2k27.jpg",
+  "file_hash": "c3dea6b88244268211d2db008c3d614377ecbe8e6e0876670d3b108132455533",
+  "download_url": "files/c3dea6b88244268211d2db008c3d614377ecbe8e6e0876670d3b108132455533"
+ },
+ {
+  "file_name": "exo/game-packs/art/pubg-tall.png",
+  "file_hash": "c9fcddae1814079361e998ba3dc45d6e47e0039929a0c3f7088e9298f3fc2b4b",
+  "download_url": "files/c9fcddae1814079361e998ba3dc45d6e47e0039929a0c3f7088e9298f3fc2b4b"
+ },
+ {
+  "file_name": "exo/game-packs/art/pubg.png",
+  "file_hash": "b90627c3a373fcf6af697826b651d096f9be505ce776a6f53d89a6a13d510a3a",
+  "download_url": "files/b90627c3a373fcf6af697826b651d096f9be505ce776a6f53d89a6a13d510a3a"
+ },
+ {
   "file_name": "exo/game-packs/art/rainbow-six-siege-panel.jpg",
   "file_hash": "83dad0cff4f6cc66a8bb97456b7d443ce09f2013b61fa1abe41d41597c50a1cf",
   "download_url": "files/83dad0cff4f6cc66a8bb97456b7d443ce09f2013b61fa1abe41d41597c50a1cf"
@@ -5685,6 +7540,21 @@
   "download_url": "files/941b2ede43ab8e3d5f627d50ca3b3f026323f043cf5dfdf1f9b2920abce49bce"
  },
  {
+  "file_name": "exo/game-packs/art/valorant-panel.jpg",
+  "file_hash": "3f122ea393eda622dd3835b3340ed974f9f50b733fcb091908bc891285944eb0",
+  "download_url": "files/3f122ea393eda622dd3835b3340ed974f9f50b733fcb091908bc891285944eb0"
+ },
+ {
+  "file_name": "exo/game-packs/art/valorant-tall.png",
+  "file_hash": "bc8cd12b2e55a2bfa4c34d51a0ab09b32d662fb5a4008ee27ec800212323c412",
+  "download_url": "files/bc8cd12b2e55a2bfa4c34d51a0ab09b32d662fb5a4008ee27ec800212323c412"
+ },
+ {
+  "file_name": "exo/game-packs/art/valorant.png",
+  "file_hash": "ec3c9cdbb20207f8df9ee7e1be0a7032eb53801357a3396a4d882e738a680014",
+  "download_url": "files/ec3c9cdbb20207f8df9ee7e1be0a7032eb53801357a3396a4d882e738a680014"
+ },
+ {
   "file_name": "exo/game-packs/battlefield-6.json",
   "file_hash": "0450c6e8cea867dd6880efd6b6966a12c8accb2679dabd69de19789592121166",
   "download_url": "files/0450c6e8cea867dd6880efd6b6966a12c8accb2679dabd69de19789592121166"
@@ -5715,6 +7585,11 @@
   "download_url": "files/75e002baf5bb4b12aa816e2538a36317f3c3490e632bc7677939ddc23de67c73"
  },
  {
+  "file_name": "exo/game-packs/counter-strike-2.json",
+  "file_hash": "0e092cfaf92dea275392bbbf64111d36acc06727ad60da155cb31b8b12b57b57",
+  "download_url": "files/0e092cfaf92dea275392bbbf64111d36acc06727ad60da155cb31b8b12b57b57"
+ },
+ {
   "file_name": "exo/game-packs/destiny-2.json",
   "file_hash": "42069e6a96efba6460ffb61eb07fb4dac18730cc66efd99b1a81e1593bb1a31d",
   "download_url": "files/42069e6a96efba6460ffb61eb07fb4dac18730cc66efd99b1a81e1593bb1a31d"
@@ -5731,8 +7606,8 @@
  },
  {
   "file_name": "exo/game-packs/index.json",
-  "file_hash": "5513b9dab74c718e2c2939dccf52b83f6124e4408ee3af57e78cbe7259aaeab0",
-  "download_url": "files/5513b9dab74c718e2c2939dccf52b83f6124e4408ee3af57e78cbe7259aaeab0"
+  "file_hash": "d59f72b73a3c0cb4fb539fbb237730c2da633dc9b058b5a54f66cb7c5e9f4336",
+  "download_url": "files/d59f72b73a3c0cb4fb539fbb237730c2da633dc9b058b5a54f66cb7c5e9f4336"
  },
  {
   "file_name": "exo/game-packs/marathon.json",
@@ -5751,8 +7626,8 @@
  },
  {
   "file_name": "exo/game-packs/nba-2k26.json",
-  "file_hash": "3cddfce3e320577ef9a8e114c46fb6946488758c4e32e6776e9dea2a95e0e30f",
-  "download_url": "files/3cddfce3e320577ef9a8e114c46fb6946488758c4e32e6776e9dea2a95e0e30f"
+  "file_hash": "04bac60290b34e1689f27e55314c4ee9f23dbbacfeee68dffb8037bce296273d",
+  "download_url": "files/04bac60290b34e1689f27e55314c4ee9f23dbbacfeee68dffb8037bce296273d"
  },
  {
   "file_name": "exo/game-packs/overwatch.json",
@@ -5761,8 +7636,8 @@
  },
  {
   "file_name": "exo/game-packs/pubg.json",
-  "file_hash": "223d7958b94484ce364eeac17624e2751f707508770e87af47ed552a6ce97c26",
-  "download_url": "files/223d7958b94484ce364eeac17624e2751f707508770e87af47ed552a6ce97c26"
+  "file_hash": "ed86964bd379debd95ecc9233087067ae813022b9e719f6051f89bd796ae5db4",
+  "download_url": "files/ed86964bd379debd95ecc9233087067ae813022b9e719f6051f89bd796ae5db4"
  },
  {
   "file_name": "exo/game-packs/rainbow-six-siege.json",
@@ -5801,8 +7676,8 @@
  },
  {
   "file_name": "exo/game-packs/valorant.json",
-  "file_hash": "bb2f981fc8729be339355baba404627b2cda4632e772827337c91f647ee65a99",
-  "download_url": "files/bb2f981fc8729be339355baba404627b2cda4632e772827337c91f647ee65a99"
+  "file_hash": "acfef1cb95b6e4342e3710a919c9476a7d57ab2f8b54d6e44e1bb2dee59df6f3",
+  "download_url": "files/acfef1cb95b6e4342e3710a919c9476a7d57ab2f8b54d6e44e1bb2dee59df6f3"
  },
  {
   "file_name": "exo/game-settings-games.js",
@@ -6966,8 +8841,8 @@
  },
  {
   "file_name": "exo/sections/09-overview.js",
-  "file_hash": "6eef19207242317c432ab33a5a8e271861f951c80db668fdae26a8b787b8e2ad",
-  "download_url": "files/6eef19207242317c432ab33a5a8e271861f951c80db668fdae26a8b787b8e2ad"
+  "file_hash": "7167ade172162d69c9dcc1db676369138b8f9e77eb6e09c1e39373c0107d657a",
+  "download_url": "files/7167ade172162d69c9dcc1db676369138b8f9e77eb6e09c1e39373c0107d657a"
  },
  {
   "file_name": "exo/sections/10-aim.js",
@@ -7041,8 +8916,8 @@
  },
  {
   "file_name": "exo/sections/23b-autogreen.js",
-  "file_hash": "a5643e6f4506c71757258b5b3e8729c8122ce8f035dd8cc97299ecda2fa396e9",
-  "download_url": "files/a5643e6f4506c71757258b5b3e8729c8122ce8f035dd8cc97299ecda2fa396e9"
+  "file_hash": "be571bf40a728dd8aeb5c88998005077f96c8c2503f51b1ca20a8da1ef020178",
+  "download_url": "files/be571bf40a728dd8aeb5c88998005077f96c8c2503f51b1ca20a8da1ef020178"
  },
  {
   "file_name": "exo/sections/24-wizard.js",
@@ -7051,8 +8926,8 @@
  },
  {
   "file_name": "exo/sections/25-profiles.js",
-  "file_hash": "11afc6d346166f26522bdf11963413c1447501d7345cc2b57193d4591f30052c",
-  "download_url": "files/11afc6d346166f26522bdf11963413c1447501d7345cc2b57193d4591f30052c"
+  "file_hash": "f072dfd02bd437eb1141e78b20135567fe7bb35e94ab4eb62305949435e1f428",
+  "download_url": "files/f072dfd02bd437eb1141e78b20135567fe7bb35e94ab4eb62305949435e1f428"
  },
  {
   "file_name": "exo/sections/99-finish.js",
@@ -7081,18 +8956,18 @@
  },
  {
   "file_name": "exo/shell/05-tiles.js",
-  "file_hash": "daf176e63c59fd07c514fcae78a19a3da7a9dacb1d22303db4e63d0bec40381a",
-  "download_url": "files/daf176e63c59fd07c514fcae78a19a3da7a9dacb1d22303db4e63d0bec40381a"
+  "file_hash": "74bba1aec17dbec99e0c34e040352898efde7ee69807c608b6cdcd86905234ea",
+  "download_url": "files/74bba1aec17dbec99e0c34e040352898efde7ee69807c608b6cdcd86905234ea"
  },
  {
   "file_name": "exo/shell/06-core-configs.js",
-  "file_hash": "08d2036e731906f387b5fa0489a09403678b527470c2485ca8a7e11ef9eb40ed",
-  "download_url": "files/08d2036e731906f387b5fa0489a09403678b527470c2485ca8a7e11ef9eb40ed"
+  "file_hash": "36d403afbcc396367a3a96d864340c526d541847a1045bc31f3b54330ebb282d",
+  "download_url": "files/36d403afbcc396367a3a96d864340c526d541847a1045bc31f3b54330ebb282d"
  },
  {
   "file_name": "exo/shell/07-inputs.js",
-  "file_hash": "2ec16c1aa367273e6e2d86bb722f13d3e292244428eeea3a356ede71953bd924",
-  "download_url": "files/2ec16c1aa367273e6e2d86bb722f13d3e292244428eeea3a356ede71953bd924"
+  "file_hash": "decb99550fc16da5564e8a5fa8a4f6bf783c98ddfce6557e7182f992454a9d23",
+  "download_url": "files/decb99550fc16da5564e8a5fa8a4f6bf783c98ddfce6557e7182f992454a9d23"
  },
  {
   "file_name": "exo/shell/08-product.js",
@@ -7101,23 +8976,23 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "2e0d28af058b2dce0f98800a7000edd8358542c83212b850113bc8db9fd65f9d",
-  "download_url": "files/2e0d28af058b2dce0f98800a7000edd8358542c83212b850113bc8db9fd65f9d"
+  "file_hash": "803f9391c81822574680b68dda2039d94da2ed09139be5713acff24adb1eabc1",
+  "download_url": "files/803f9391c81822574680b68dda2039d94da2ed09139be5713acff24adb1eabc1"
  },
  {
   "file_name": "exo/shell/10-editor.js",
-  "file_hash": "a4d432483db86750f94c8c488e26225b5330d60a48f477a0b77dd6affa8728eb",
-  "download_url": "files/a4d432483db86750f94c8c488e26225b5330d60a48f477a0b77dd6affa8728eb"
+  "file_hash": "0927fd747e3b1b850f8042bf222def536665e1d5b7733a7720ad4409bfead930",
+  "download_url": "files/0927fd747e3b1b850f8042bf222def536665e1d5b7733a7720ad4409bfead930"
  },
  {
   "file_name": "exo/shell/11-detail-swipe.js",
-  "file_hash": "83637ebe4f046b757f3a9e272938015efaa6ebef4a09f9625b502ffaf8d5f03c",
-  "download_url": "files/83637ebe4f046b757f3a9e272938015efaa6ebef4a09f9625b502ffaf8d5f03c"
+  "file_hash": "b266af637268887ee7f847d71922e025882b47429921559115a04bfa0c1ff622",
+  "download_url": "files/b266af637268887ee7f847d71922e025882b47429921559115a04bfa0c1ff622"
  },
  {
   "file_name": "exo/shell/12-sheets.js",
-  "file_hash": "99a7f0a4507411429e57d315138f8134da4125e83d94fcc572aa82ea5b43773c",
-  "download_url": "files/99a7f0a4507411429e57d315138f8134da4125e83d94fcc572aa82ea5b43773c"
+  "file_hash": "6fb753c93ed10d2b2d02accaeb386abd2fb48de55230724166cd9b6c55320c0a",
+  "download_url": "files/6fb753c93ed10d2b2d02accaeb386abd2fb48de55230724166cd9b6c55320c0a"
  },
  {
   "file_name": "exo/shell/13-wiring.js",
@@ -7131,13 +9006,13 @@
  },
  {
   "file_name": "exo/shell/15-configs-api.js",
-  "file_hash": "3db1026470e2bb9fb7bb1ed9e488cd27c0bf2fa21a98b0495b83bacf2b6d4c2b",
-  "download_url": "files/3db1026470e2bb9fb7bb1ed9e488cd27c0bf2fa21a98b0495b83bacf2b6d4c2b"
+  "file_hash": "29e9c87e7763cbb58fe33f300d5b7a1d09d7148ad19872f915e0999326b30e4b",
+  "download_url": "files/29e9c87e7763cbb58fe33f300d5b7a1d09d7148ad19872f915e0999326b30e4b"
  },
  {
   "file_name": "exo/shell/16-start.js",
-  "file_hash": "4b7b0dc39e5026cb48d8d75efd1f398e26a247213eb17e83d70e7fb72b4e7f96",
-  "download_url": "files/4b7b0dc39e5026cb48d8d75efd1f398e26a247213eb17e83d70e7fb72b4e7f96"
+  "file_hash": "56438894c2ca95988c3508e5baac824ee927f95173b91ec6110c950fd3ebba71",
+  "download_url": "files/56438894c2ca95988c3508e5baac824ee927f95173b91ec6110c950fd3ebba71"
  },
  {
   "file_name": "exo/smart-actions.js",
@@ -7256,8 +9131,8 @@
  },
  {
   "file_name": "exo/studio-room.js",
-  "file_hash": "f1f5c1b03399193f0a96f8a1f8bd06b2559e0e84f44eae9f35946ed3ce3841a3",
-  "download_url": "files/f1f5c1b03399193f0a96f8a1f8bd06b2559e0e84f44eae9f35946ed3ce3841a3"
+  "file_hash": "30582655b56081bc91b0fa40c616aa84386ed0eeacc7863c41cb3ada7d274809",
+  "download_url": "files/30582655b56081bc91b0fa40c616aa84386ed0eeacc7863c41cb3ada7d274809"
  },
  {
   "file_name": "exo/styles.css",
@@ -7686,8 +9561,8 @@
  },
  {
   "file_name": "exo/zs-fixes.css",
-  "file_hash": "1390acec8f6e4f7ae86426836524de5b315ec09d9442e383d7c1f0dc84762890",
-  "download_url": "files/1390acec8f6e4f7ae86426836524de5b315ec09d9442e383d7c1f0dc84762890"
+  "file_hash": "96f3381058d8e8d9a52ef011bd7c9e409d57db9f8181ac2bf6fa06a7d772114c",
+  "download_url": "files/96f3381058d8e8d9a52ef011bd7c9e409d57db9f8181ac2bf6fa06a7d772114c"
  },
  {
   "file_name": "exo/zs-flat.css",
@@ -7721,8 +9596,8 @@
  },
  {
   "file_name": "exo/zs-legal-docs.js",
-  "file_hash": "8c7d6534f2595eb189bee126d81ead39967265b4ae4f404211eedfba13a5d9f0",
-  "download_url": "files/8c7d6534f2595eb189bee126d81ead39967265b4ae4f404211eedfba13a5d9f0"
+  "file_hash": "9d765d99b7fba1309bf078d36f621b037f1cf7bbe9f54c0492030d0243e096b1",
+  "download_url": "files/9d765d99b7fba1309bf078d36f621b037f1cf7bbe9f54c0492030d0243e096b1"
  },
  {
   "file_name": "exo/zs-legal.js",
@@ -8186,8 +10061,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "34da79440c91be4416b1d011e49bc97e9800bfbeb3025da835ee371d39c37fda",
-  "download_url": "files/34da79440c91be4416b1d011e49bc97e9800bfbeb3025da835ee371d39c37fda"
+  "file_hash": "9ca8d3f3341055c4e50704597ba9220262e8072eb6924286627ae547a4925198",
+  "download_url": "files/9ca8d3f3341055c4e50704597ba9220262e8072eb6924286627ae547a4925198"
  },
  {
   "file_name": "zs-live-update.js",
