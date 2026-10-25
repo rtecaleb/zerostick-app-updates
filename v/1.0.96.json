@@ -76,8 +76,8 @@
  },
  {
   "file_name": "exo/auto-actions.js",
-  "file_hash": "66bdaa5f8cdcbc8344b7c15b8186bd99fc9529c74f876fd052259010f1e36d4e",
-  "download_url": "files/66bdaa5f8cdcbc8344b7c15b8186bd99fc9529c74f876fd052259010f1e36d4e"
+  "file_hash": "8f0189eee4984503f9f31a2a04789a7b94d40f2e040fe0961779d506f1ef89a9",
+  "download_url": "files/8f0189eee4984503f9f31a2a04789a7b94d40f2e040fe0961779d506f1ef89a9"
  },
  {
   "file_name": "exo/brand/consoles/SOURCES.md",
@@ -991,13 +991,13 @@
  },
  {
   "file_name": "exo/game-data/README.md",
-  "file_hash": "84d00a5cc2f060e5602df492382ed4b27cda10a03ffed7f16233943f1d056dd4",
-  "download_url": "files/84d00a5cc2f060e5602df492382ed4b27cda10a03ffed7f16233943f1d056dd4"
+  "file_hash": "5c67a0bf3d638fd44dd5dd0d7f0afe1c01680c14a0ddfbaa0927d1d7b5384325",
+  "download_url": "files/5c67a0bf3d638fd44dd5dd0d7f0afe1c01680c14a0ddfbaa0927d1d7b5384325"
  },
  {
   "file_name": "exo/game-data/RECOGNITION.md",
-  "file_hash": "6479596f567eb3682c9ddeeaa965cea138fdfab570edb37e403211dd85a80644",
-  "download_url": "files/6479596f567eb3682c9ddeeaa965cea138fdfab570edb37e403211dd85a80644"
+  "file_hash": "921ae5c8b7ba44ec7035f070725654dedce5ad5c3b4098b77c4e0c5e77b3ebd6",
+  "download_url": "files/921ae5c8b7ba44ec7035f070725654dedce5ad5c3b4098b77c4e0c5e77b3ebd6"
  },
  {
   "file_name": "exo/game-data/apex-legends/SOURCES.md",
@@ -1008,6 +1008,11 @@
   "file_name": "exo/game-data/apex-legends/catalog.json",
   "file_hash": "234dfdfb00d47470ee673539ba7d94644ed131c412b161fe3ee11c5f9b5bbeeb",
   "download_url": "files/234dfdfb00d47470ee673539ba7d94644ed131c412b161fe3ee11c5f9b5bbeeb"
+ },
+ {
+  "file_name": "exo/game-data/apex-legends/recognition.json",
+  "file_hash": "83b7b15d9d3ec415ec0b92a2560a4c98e1b4b8ed3b4a99151f8a17173009412c",
+  "download_url": "files/83b7b15d9d3ec415ec0b92a2560a4c98e1b4b8ed3b4a99151f8a17173009412c"
  },
  {
   "file_name": "exo/game-data/apex-legends/weapons/30_30_repeater.png",
@@ -1151,8 +1156,8 @@
  },
  {
   "file_name": "exo/game-data/arc-raiders/catalog.json",
-  "file_hash": "08bcbcbca837a579c0573dc1861ee3b0c5b6a24171ed1767614e32587233ca82",
-  "download_url": "files/08bcbcbca837a579c0573dc1861ee3b0c5b6a24171ed1767614e32587233ca82"
+  "file_hash": "5a4c286642f14b1fcfcac7d7228093d23bc53e482da7a0a18b917e1e9f2d284a",
+  "download_url": "files/5a4c286642f14b1fcfcac7d7228093d23bc53e482da7a0a18b917e1e9f2d284a"
  },
  {
   "file_name": "exo/game-data/arc-raiders/weapons/anvil.png",
@@ -1291,8 +1296,8 @@
  },
  {
   "file_name": "exo/game-data/battlefield-6/catalog.json",
-  "file_hash": "af06ea165a422c08820f43edcbe7abbeb80d70f21f1437387848a5d8f9494b05",
-  "download_url": "files/af06ea165a422c08820f43edcbe7abbeb80d70f21f1437387848a5d8f9494b05"
+  "file_hash": "200d4962b7449dec6d030a54983cf9ca8ac1220bb204ab2c9c8ca905e9d7055b",
+  "download_url": "files/200d4962b7449dec6d030a54983cf9ca8ac1220bb204ab2c9c8ca905e9d7055b"
  },
  {
   "file_name": "exo/game-data/battlefield-6/weapons/assault_rifles_ak4d.png",
@@ -2098,6 +2103,196 @@
   "file_name": "exo/game-data/cod-bo7/weapons/bo7_xr_3_ion.png",
   "file_hash": "61712f95dcbf368c6432cc288eb5131d70903e329a52a6db49bcae95db84aa12",
   "download_url": "files/61712f95dcbf368c6432cc288eb5131d70903e329a52a6db49bcae95db84aa12"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/SOURCES.md",
+  "file_hash": "c207e2ed3133ed6976be8c794743983a9428ec8c750aa976c614cade7b0cc246",
+  "download_url": "files/c207e2ed3133ed6976be8c794743983a9428ec8c750aa976c614cade7b0cc246"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/catalog.json",
+  "file_hash": "849caf644c228fd58a00a89f0a45d0909d3ecc57e7588b8a8e99843518ee6e8b",
+  "download_url": "files/849caf644c228fd58a00a89f0a45d0909d3ecc57e7588b8a8e99843518ee6e8b"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/recognition.json",
+  "file_hash": "d1e685843ecd2dcfe7651bd2bc86da767904a25ca5c6ba32e38f30954153668f",
+  "download_url": "files/d1e685843ecd2dcfe7651bd2bc86da767904a25ca5c6ba32e38f30954153668f"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_50_gs.png",
+  "file_hash": "67961cf8df8a3c9c4377863716f98912366a121184fd168210e88c390fe9a6da",
+  "download_url": "files/67961cf8df8a3c9c4377863716f98912366a121184fd168210e88c390fe9a6da"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_apoc_338.png",
+  "file_hash": "b3c2e69f60a7e1543baf1b2187ecd1b2fff50abaedb4dcca4514833983781da0",
+  "download_url": "files/b3c2e69f60a7e1543baf1b2187ecd1b2fff50abaedb4dcca4514833983781da0"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_astaroth_57.png",
+  "file_hash": "0a1648d11888b6d32be449b1a0dba542907384ac0d2abcd5ddcffe86a66f032e",
+  "download_url": "files/0a1648d11888b6d32be449b1a0dba542907384ac0d2abcd5ddcffe86a66f032e"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_axion.png",
+  "file_hash": "edad4fe4583b3d5299e9e3565a8ee86fa0f258b504d67663835556c321b4a0e3",
+  "download_url": "files/edad4fe4583b3d5299e9e3565a8ee86fa0f258b504d67663835556c321b4a0e3"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_cronen_squall.png",
+  "file_hash": "4034e2729226f14a6ba52a48b0cd878c618f146f5a5cdfc8a8517765edfbac49",
+  "download_url": "files/4034e2729226f14a6ba52a48b0cd878c618f146f5a5cdfc8a8517765edfbac49"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_finn_lmg.png",
+  "file_hash": "9fc44225eeaa72f67e6174d112caa75fe2bb8f62ec24a977150310dc62fd744a",
+  "download_url": "files/9fc44225eeaa72f67e6174d112caa75fe2bb8f62ec24a977150310dc62fd744a"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_fss_carbon_edge_1095.png",
+  "file_hash": "732addf11f1d582d71ad01e7dc29a99b75732ba0905e2d622797cbd3100be02f",
+  "download_url": "files/732addf11f1d582d71ad01e7dc29a99b75732ba0905e2d622797cbd3100be02f"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_han_86.png",
+  "file_hash": "214effb20c13eb969774d96c071f83cc619cf5f432fd268172ec883a337ffc6a",
+  "download_url": "files/214effb20c13eb969774d96c071f83cc619cf5f432fd268172ec883a337ffc6a"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_hyeon_burst.png",
+  "file_hash": "677003eb87a210a3882a8283d6e008d35cb2352e2445c8e8c3130c46ba81f39a",
+  "download_url": "files/677003eb87a210a3882a8283d6e008d35cb2352e2445c8e8c3130c46ba81f39a"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_iso_nightshade.png",
+  "file_hash": "e079ad54647e9cef985c4b1cf5427857b99f9e1e8f4b941feda2e6847ea341a2",
+  "download_url": "files/e079ad54647e9cef985c4b1cf5427857b99f9e1e8f4b941feda2e6847ea341a2"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_iso_trace.png",
+  "file_hash": "2e8ddca9a5b4edc152a66d34267d8bf58f68106cd43a9fa10205c6a3bdb56101",
+  "download_url": "files/2e8ddca9a5b4edc152a66d34267d8bf58f68106cd43a9fa10205c6a3bdb56101"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_jokr.png",
+  "file_hash": "6add6919401bb5ea8329b2cd57f8791a2e9223b76540fab861e1d9384ebb88ab",
+  "download_url": "files/6add6919401bb5ea8329b2cd57f8791a2e9223b76540fab861e1d9384ebb88ab"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_kastov_762.png",
+  "file_hash": "ddf6be1ec73e85ea4972473a022224c7fa9619866d859d4ef2983cbc5ace50c1",
+  "download_url": "files/ddf6be1ec73e85ea4972473a022224c7fa9619866d859d4ef2983cbc5ace50c1"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_kg_7_vulcan.png",
+  "file_hash": "62fc0f88ba40b17782e0e9e5972dd60204e3f50bf4309f18e06724a6bd43e08b",
+  "download_url": "files/62fc0f88ba40b17782e0e9e5972dd60204e3f50bf4309f18e06724a6bd43e08b"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_krait_p68.png",
+  "file_hash": "d8e8ffdb0acce9a69564a38ede1c983d0ff7e88f14deac2439e1f1039e8a9151",
+  "download_url": "files/d8e8ffdb0acce9a69564a38ede1c983d0ff7e88f14deac2439e1f1039e8a9151"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_m4.png",
+  "file_hash": "217e32651221a228414e577b22054a73ced70c2e50fbc931fffe39f572da7c93",
+  "download_url": "files/217e32651221a228414e577b22054a73ced70c2e50fbc931fffe39f572da7c93"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_mar_9.png",
+  "file_hash": "eeec6dd4fb9ea4fe16be6962ef07f7d0aed473dc4c90025bad8538c77bf68525",
+  "download_url": "files/eeec6dd4fb9ea4fe16be6962ef07f7d0aed473dc4c90025bad8538c77bf68525"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_mojave_357.png",
+  "file_hash": "dc5f4bcd6460b7217c8e341309e103f9368f39efea8c2fa0413aba8d12eceeb5",
+  "download_url": "files/dc5f4bcd6460b7217c8e341309e103f9368f39efea8c2fa0413aba8d12eceeb5"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_mosin_nagant.png",
+  "file_hash": "73d03ce2d60a586ed0e408d733a85be91105c1cf53bebe0ee8d5e9d347cdb4ec",
+  "download_url": "files/73d03ce2d60a586ed0e408d733a85be91105c1cf53bebe0ee8d5e9d347cdb4ec"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_oden.png",
+  "file_hash": "6f60d8ff87f7b805ff83cefeed7fab934479b1ebcebdf4a992bdb3c18d6b0095",
+  "download_url": "files/6f60d8ff87f7b805ff83cefeed7fab934479b1ebcebdf4a992bdb3c18d6b0095"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_oris_8_6.png",
+  "file_hash": "2f584dcafab40ba561386e8f453b30403f25176dea47bc49dc8ac8ff11eeab71",
+  "download_url": "files/2f584dcafab40ba561386e8f453b30403f25176dea47bc49dc8ac8ff11eeab71"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_patriot_xmr.png",
+  "file_hash": "20ebcf97c7257c5c3e0211dcac6d9f3175d0bf02f23899949b08fe059cf535ba",
+  "download_url": "files/20ebcf97c7257c5c3e0211dcac6d9f3175d0bf02f23899949b08fe059cf535ba"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_pila.png",
+  "file_hash": "e88eca19ca6ab3f8044f176035cb440e33abf8d834283b64446d4391fd48c46a",
+  "download_url": "files/e88eca19ca6ab3f8044f176035cb440e33abf8d834283b64446d4391fd48c46a"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_pm_40_anvil.png",
+  "file_hash": "825f3fa7da7de2bdadcd20a2751fc773664d9cdec2c841c28e848c550c07235b",
+  "download_url": "files/825f3fa7da7de2bdadcd20a2751fc773664d9cdec2c841c28e848c550c07235b"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_ppsh_41.png",
+  "file_hash": "d1069c0aef26b7910a286d2cd9a3f0c5715e68ced1526720082875b385e7bcc1",
+  "download_url": "files/d1069c0aef26b7910a286d2cd9a3f0c5715e68ced1526720082875b385e7bcc1"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_rezi_12.png",
+  "file_hash": "21127c460b161a99e67e784149f024d7188e09fee9684d95f5cc356fe4528f6a",
+  "download_url": "files/21127c460b161a99e67e784149f024d7188e09fee9684d95f5cc356fe4528f6a"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_rpg_8.png",
+  "file_hash": "523f1c4dc3531a4d53757f1e66c7080e0c6c054cb916aee3318b1891e2cb59b7",
+  "download_url": "files/523f1c4dc3531a4d53757f1e66c7080e0c6c054cb916aee3318b1891e2cb59b7"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_sang_9mm.png",
+  "file_hash": "108c53e2e09d601ad1e46657537f760d41231d71222a987846c8986a7d5fe867",
+  "download_url": "files/108c53e2e09d601ad1e46657537f760d41231d71222a987846c8986a7d5fe867"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_signal_50.png",
+  "file_hash": "cea758649e47ff746e76ea4e0e22a15c48e41d00df161fbc976a58cdc7a9a3d3",
+  "download_url": "files/cea758649e47ff746e76ea4e0e22a15c48e41d00df161fbc976a58cdc7a9a3d3"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_type_73.png",
+  "file_hash": "16e4c465a6d36dae813cc281512630d0b8e47248614e6d88cf17cfc31b926011",
+  "download_url": "files/16e4c465a6d36dae813cc281512630d0b8e47248614e6d88cf17cfc31b926011"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_vel_46.png",
+  "file_hash": "20782eba17da5d2f9776c244eeeb8e3988b8f526d944729427c9475ef06a682c",
+  "download_url": "files/20782eba17da5d2f9776c244eeeb8e3988b8f526d944729427c9475ef06a682c"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_warlord.png",
+  "file_hash": "be678f1a2a9c021d9ce2bd0ae70b6aeffb88a605cd226854d9be8b7e7e66a2a1",
+  "download_url": "files/be678f1a2a9c021d9ce2bd0ae70b6aeffb88a605cd226854d9be8b7e7e66a2a1"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_wz_55_striga.png",
+  "file_hash": "c479590d249301e193cd5ded2de6358432289b316d27f12ffd2cc342892546ec",
+  "download_url": "files/c479590d249301e193cd5ded2de6358432289b316d27f12ffd2cc342892546ec"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_x_58_nyx.png",
+  "file_hash": "a32532b9d03f342285b67e5c557f06a6e1a7c29add5b4946ca6db5feba4dca74",
+  "download_url": "files/a32532b9d03f342285b67e5c557f06a6e1a7c29add5b4946ca6db5feba4dca74"
+ },
+ {
+  "file_name": "exo/game-data/cod-mw4/weapons/mw4_zip_gun.png",
+  "file_hash": "d2e1c4ced4d398a0997403921fe09031d6f8f2bcf3ee0de719c6cdd417348c8f",
+  "download_url": "files/d2e1c4ced4d398a0997403921fe09031d6f8f2bcf3ee0de719c6cdd417348c8f"
  },
  {
   "file_name": "exo/game-data/cod-warzone/SOURCES.md",
@@ -3401,8 +3596,8 @@
  },
  {
   "file_name": "exo/game-data/counter-strike-2/catalog.json",
-  "file_hash": "ad3b0246716ec39eb01d2f6852bccb25b7a12cebfc6dd44736b9c6870ce818c6",
-  "download_url": "files/ad3b0246716ec39eb01d2f6852bccb25b7a12cebfc6dd44736b9c6870ce818c6"
+  "file_hash": "4fdf8fc47243a93f75f7ac39f5ae15a0a68a82bddd2b1f3b0e241d3d28dc64e3",
+  "download_url": "files/4fdf8fc47243a93f75f7ac39f5ae15a0a68a82bddd2b1f3b0e241d3d28dc64e3"
  },
  {
   "file_name": "exo/game-data/counter-strike-2/weapons/ak_47.png",
@@ -3731,13 +3926,13 @@
  },
  {
   "file_name": "exo/game-data/fortnite/SOURCES.md",
-  "file_hash": "d4f4359f4d299843aaf421baac35541095fd6db64235227a87194aeff55d6c7a",
-  "download_url": "files/d4f4359f4d299843aaf421baac35541095fd6db64235227a87194aeff55d6c7a"
+  "file_hash": "17ab83ab59a26490ad36941d101eee79860df19bcbf6e2ed2f8b5ed52732c27f",
+  "download_url": "files/17ab83ab59a26490ad36941d101eee79860df19bcbf6e2ed2f8b5ed52732c27f"
  },
  {
   "file_name": "exo/game-data/fortnite/catalog.json",
-  "file_hash": "323408029eaa65dea6af719cd5d21045052707d5b41242b627d39008347d58d4",
-  "download_url": "files/323408029eaa65dea6af719cd5d21045052707d5b41242b627d39008347d58d4"
+  "file_hash": "d92373b2e67a4519f0f7f25d6b1008d95cd37c276537946141090d1b464f5c1a",
+  "download_url": "files/d92373b2e67a4519f0f7f25d6b1008d95cd37c276537946141090d1b464f5c1a"
  },
  {
   "file_name": "exo/game-data/fortnite/modes/arenas_boxfights.png",
@@ -3770,9 +3965,24 @@
   "download_url": "files/e09c5b88b1ca3c10fea0f2bad343422aaa602153c6af393727a03a8aae472582"
  },
  {
+  "file_name": "exo/game-data/fortnite/recognition.json",
+  "file_hash": "67a642b068c6e885bdf1513f2878dd4d8efd580d5ce4b6f84abc11a1fa1a4553",
+  "download_url": "files/67a642b068c6e885bdf1513f2878dd4d8efd580d5ce4b6f84abc11a1fa1a4553"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/8_bit_shotgun.png",
   "file_hash": "f553c5a9f9fc6455b632df3e8dc8e793ffc8d18820be58779d89f92f2629b32f",
   "download_url": "files/f553c5a9f9fc6455b632df3e8dc8e793ffc8d18820be58779d89f92f2629b32f"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/9mm_baba_yaga.png",
+  "file_hash": "daea689f51bbf8f326ea8034c2e5e4ac9cdd1bcd0e1ddee92337c60833fd1e61",
+  "download_url": "files/daea689f51bbf8f326ea8034c2e5e4ac9cdd1bcd0e1ddee92337c60833fd1e61"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/accelerant_drum_gun.png",
+  "file_hash": "2c3043c193a01e7c62edc613f149d4cb1e00cc2af099de60dd64f692bc5f7cb3",
+  "download_url": "files/2c3043c193a01e7c62edc613f149d4cb1e00cc2af099de60dd64f692bc5f7cb3"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/air_strike.png",
@@ -3783,6 +3993,16 @@
   "file_name": "exo/game-data/fortnite/weapons/anvil_rocket_launcher.png",
   "file_hash": "ba9081b2dceec9864580863b791085f04c569d3e256c917ad0152861843a4bb0",
   "download_url": "files/ba9081b2dceec9864580863b791085f04c569d3e256c917ad0152861843a4bb0"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/ares_warforged_assault_rifle.png",
+  "file_hash": "d16198d0fb515687aecbff796e84cbf6c1a716e813e5ac440c9784876c91d6cb",
+  "download_url": "files/d16198d0fb515687aecbff796e84cbf6c1a716e813e5ac440c9784876c91d6cb"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/assault_rifle.png",
+  "file_hash": "4b00495f5974b517179e4ca1c2a718e6258fc74b1f46da35b7520a41f57463a3",
+  "download_url": "files/4b00495f5974b517179e4ca1c2a718e6258fc74b1f46da35b7520a41f57463a3"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/auto_shotgun.png",
@@ -3800,6 +4020,21 @@
   "download_url": "files/db7a49597594a103fc85c0f4342adf6555b7e345dfce3ee0d4b14a49684b51cc"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/balloon_popper_assault_rifle.png",
+  "file_hash": "51b8746f7712b8ba912361bb320ce36b21f9590a0e2b4aeebd37391d278b0484",
+  "download_url": "files/51b8746f7712b8ba912361bb320ce36b21f9590a0e2b4aeebd37391d278b0484"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/bank_shot_pistol.png",
+  "file_hash": "b959ae2e1f696003b783cb21c7b0fe2bd59c96410a4cb8e514e62dc33bf80a8e",
+  "download_url": "files/b959ae2e1f696003b783cb21c7b0fe2bd59c96410a4cb8e514e62dc33bf80a8e"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/barons_double_down_pistol.png",
+  "file_hash": "498d2f2f157707f27e5e425283f2c93b6904e119c97a6f5f39ff39e91f097592",
+  "download_url": "files/498d2f2f157707f27e5e425283f2c93b6904e119c97a6f5f39ff39e91f097592"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/bass_boost.png",
   "file_hash": "ed31dc3034ba6bdac3d537aa281941e48277a61b417466e838137b215f159554",
   "download_url": "files/ed31dc3034ba6bdac3d537aa281941e48277a61b417466e838137b215f159554"
@@ -3810,14 +4045,29 @@
   "download_url": "files/6ef4f1bb99726a81b259c90a5bf0cfbe3ca67710a7c23cb0b95116ea9d971a88"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/bigfoots_flex_smg.png",
+  "file_hash": "a23ced62d4e24786329b17b3e1176e8b5ab7d7233235cc8f2757b6d6d4e11c2d",
+  "download_url": "files/a23ced62d4e24786329b17b3e1176e8b5ab7d7233235cc8f2757b6d6d4e11c2d"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/blade_blaster.png",
   "file_hash": "1a6cfc0b496ab3613ecd764da6749af01fbb55ac6690bc7756f132600216cfdd",
   "download_url": "files/1a6cfc0b496ab3613ecd764da6749af01fbb55ac6690bc7756f132600216cfdd"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/blitz_pump_shotgun.png",
+  "file_hash": "c437ef21e46312ca14201eaf027705fbe4cdef3ed51bb433768227b44f7e25ca",
+  "download_url": "files/c437ef21e46312ca14201eaf027705fbe4cdef3ed51bb433768227b44f7e25ca"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/blizzard_grenade.png",
   "file_hash": "cf154e6be66e4b7e044bd330ae63e39f1470921744622e39440c1cf5dd8597ee",
   "download_url": "files/cf154e6be66e4b7e044bd330ae63e39f1470921744622e39440c1cf5dd8597ee"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/bolt_action_sniper_rifle.png",
+  "file_hash": "014b91ce0253b699ec3c3319b1073e8a4c25e3a803e9745a14d33f52020d1107",
+  "download_url": "files/014b91ce0253b699ec3c3319b1073e8a4c25e3a803e9745a14d33f52020d1107"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/bonerattler_smg.png",
@@ -3850,6 +4100,21 @@
   "download_url": "files/3eb1a5ffed1d54a216728004fd0fe517eb6a440a67f827b4e8c8928b1101e07c"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/brute_nemesis_ar.png",
+  "file_hash": "70812ebf696d79ca719cdb228bd8800932292b0df83118637c3c5cbde2a402ba",
+  "download_url": "files/70812ebf696d79ca719cdb228bd8800932292b0df83118637c3c5cbde2a402ba"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/brutus_minigun.png",
+  "file_hash": "d0b45cafc2239b412335f62d81e48d4273db35499ac8bfc3e56c3f0d82d1a251",
+  "download_url": "files/d0b45cafc2239b412335f62d81e48d4273db35499ac8bfc3e56c3f0d82d1a251"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/brutus_twin_hammer_shotguns.png",
+  "file_hash": "5015cee2fa571e8e3bb80232173743d844a7121aeda5a3bc4ee52dd1fbfcef7b",
+  "download_url": "files/5015cee2fa571e8e3bb80232173743d844a7121aeda5a3bc4ee52dd1fbfcef7b"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/bug_blaster.png",
   "file_hash": "01fdd645657ce9cb4b2537463475b3eee2d40a424096baa2a963788c1e92afbf",
   "download_url": "files/01fdd645657ce9cb4b2537463475b3eee2d40a424096baa2a963788c1e92afbf"
@@ -3863,6 +4128,21 @@
   "file_name": "exo/game-data/fortnite/weapons/ca_87_jawa_scatter_blaster.png",
   "file_hash": "cf105cf47394f37fcc92e981978e86d1528b5405b9627ed441895c426b796b8c",
   "download_url": "files/cf105cf47394f37fcc92e981978e86d1528b5405b9627ed441895c426b796b8c"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/cartoon_chainsaw.png",
+  "file_hash": "9471e429c634e70084072042214db250b04369c65dcf60e29c01eb15b9eebf2b",
+  "download_url": "files/9471e429c634e70084072042214db250b04369c65dcf60e29c01eb15b9eebf2b"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/cerberus_gatekeeper_shotgun.png",
+  "file_hash": "6816bf56705245f6f5b22affdd0f6e89d2d589f97d262117804a02ac80056654",
+  "download_url": "files/6816bf56705245f6f5b22affdd0f6e89d2d589f97d262117804a02ac80056654"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/chainsaw.png",
+  "file_hash": "4b8b76c5f4c5ae252d874af3ac9c41e9a6e08b23456abfae8fd3931dd5a9c39b",
+  "download_url": "files/4b8b76c5f4c5ae252d874af3ac9c41e9a6e08b23456abfae8fd3931dd5a9c39b"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/chaos_exploder_rifle.png",
@@ -3890,6 +4170,11 @@
   "download_url": "files/66f59f1f18999b5d46a5b45a95474adeaab52e65b23cad4a09a8c04666505bde"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/cobalt_slingshot.png",
+  "file_hash": "d94d5ed4e3439a293384643e5f657edb6dfb53dd233a5b00e2df966aeba7056f",
+  "download_url": "files/d94d5ed4e3439a293384643e5f657edb6dfb53dd233a5b00e2df966aeba7056f"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/cobra_dmr.png",
   "file_hash": "37d9a19b56c20b7e7253f290a79053e60f165ce545e5a1c1318cd2616bf9a7f6",
   "download_url": "files/37d9a19b56c20b7e7253f290a79053e60f165ce545e5a1c1318cd2616bf9a7f6"
@@ -3908,6 +4193,11 @@
   "file_name": "exo/game-data/fortnite/weapons/combat_pistol.png",
   "file_hash": "53787c951e81af62a995775111103b95ecb0c847e0e12e3790ddb3b3f3ab8fc3",
   "download_url": "files/53787c951e81af62a995775111103b95ecb0c847e0e12e3790ddb3b3f3ab8fc3"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/combat_shotgun.png",
+  "file_hash": "e4cdaab62a1d7529ed72804ca04be2605f20b8d96a97aaa2ad5328c45002ad17",
+  "download_url": "files/e4cdaab62a1d7529ed72804ca04be2605f20b8d96a97aaa2ad5328c45002ad17"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/combat_smg.png",
@@ -3960,6 +4250,11 @@
   "download_url": "files/dc8d13c593dc120e433524dc74d7319921f56d372ddb9049d6b49645bd9c1ef8"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/deodorant_applicator.png",
+  "file_hash": "f56b426c5fd822df52956240a4415da187f87d65eafef5b27213123b54b6038a",
+  "download_url": "files/f56b426c5fd822df52956240a4415da187f87d65eafef5b27213123b54b6038a"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/dl_44_blaster_pistol.png",
   "file_hash": "b726fa214a2009191f4d696a248d32d79a1a55b991db38be626285516b73313f",
   "download_url": "files/b726fa214a2009191f4d696a248d32d79a1a55b991db38be626285516b73313f"
@@ -3983,6 +4278,11 @@
   "file_name": "exo/game-data/fortnite/weapons/double_trouble.png",
   "file_hash": "c2a5277a166bacaf51c5ced62d3ff8f0f1a1eead7ce954b5d575c6c24c415418",
   "download_url": "files/c2a5277a166bacaf51c5ced62d3ff8f0f1a1eead7ce954b5d575c6c24c415418"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/dragons_belch_shotgun.png",
+  "file_hash": "c65fc8e8944186075cf726c8c8dd16e7acf77d9b272e5f4450372b1b5d545752",
+  "download_url": "files/c65fc8e8944186075cf726c8c8dd16e7acf77d9b272e5f4450372b1b5d545752"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/drum_gun.png",
@@ -4025,6 +4325,21 @@
   "download_url": "files/d1edc53d9178d5d6dbc253fa002aa6e98781ff2c235b98d9dae17dd63dfe9685"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/embiggened_assault_rifle.png",
+  "file_hash": "15ad353aa0e38af80b760c12ac31287d9e545eecbee16530da6ae5611769f26b",
+  "download_url": "files/15ad353aa0e38af80b760c12ac31287d9e545eecbee16530da6ae5611769f26b"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/enforcer_ar.png",
+  "file_hash": "e0400caee8cf0ca7ec32fe2d7ed3d66513d41f057397e97d712e717bd4d94162",
+  "download_url": "files/e0400caee8cf0ca7ec32fe2d7ed3d66513d41f057397e97d712e717bd4d94162"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/eradicator_hop_rock_fury_assault_rifle.png",
+  "file_hash": "55711cd0fa07502662446f1dbae6dd382b572a9b307647203fa03adcd81258e5",
+  "download_url": "files/55711cd0fa07502662446f1dbae6dd382b572a9b307647203fa03adcd81258e5"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/eradicator_marksman_wrecker_revolver.png",
   "file_hash": "bffa0da1c92e9df2b94123e2f2800d0b8474b873e68917828aa1a47a6cef2759",
   "download_url": "files/bffa0da1c92e9df2b94123e2f2800d0b8474b873e68917828aa1a47a6cef2759"
@@ -4033,6 +4348,11 @@
   "file_name": "exo/game-data/fortnite/weapons/eradicator_o_x_r_rifle.png",
   "file_hash": "d937f209d8b7237ce349e200f8c670023f72d104f7db7d79c3014b27a9752724",
   "download_url": "files/d937f209d8b7237ce349e200f8c670023f72d104f7db7d79c3014b27a9752724"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/eradicator_shadow_precision_smg.png",
+  "file_hash": "a96892b5b2a5349948b197c3639ac8e7a6037ff2312f5a45c5c04b12e277e8f8",
+  "download_url": "files/a96892b5b2a5349948b197c3639ac8e7a6037ff2312f5a45c5c04b12e277e8f8"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/eradicator_shock_n_slow_shockwave_launcher.png",
@@ -4080,6 +4400,11 @@
   "download_url": "files/d9193f015fba1e7e09e0ae7e0439260171159e15d855e90fe5456000df97075c"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/finger_guns.png",
+  "file_hash": "c9a2eac28a8a61adbcf6c0a6bd94ce87badddc7222cf86123678fde807da8780",
+  "download_url": "files/c9a2eac28a8a61adbcf6c0a6bd94ce87badddc7222cf86123678fde807da8780"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/fire_grenade.png",
   "file_hash": "bafbee3769deb230942d6a917435d79d37fb9dd02f08fd7d495161219fce26aa",
   "download_url": "files/bafbee3769deb230942d6a917435d79d37fb9dd02f08fd7d495161219fce26aa"
@@ -4100,9 +4425,19 @@
   "download_url": "files/a0506f28e6499beb8e69f722a8bb3f0678761cb3d881825855d60d163f138f0a"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/five_gun.png",
+  "file_hash": "e3c1fee553c7208dfc922c684567ed8f67401c88258a3a26fb5c52fffecf3203",
+  "download_url": "files/e3c1fee553c7208dfc922c684567ed8f67401c88258a3a26fb5c52fffecf3203"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/flapjack_rifle.png",
   "file_hash": "e24d477dd38e80bec4740a0ca242b88c0614262540e03ec486918b5ac0e46bfa",
   "download_url": "files/e24d477dd38e80bec4740a0ca242b88c0614262540e03ec486918b5ac0e46bfa"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/flex_smg.png",
+  "file_hash": "a23ced62d4e24786329b17b3e1176e8b5ab7d7233235cc8f2757b6d6d4e11c2d",
+  "download_url": "files/a23ced62d4e24786329b17b3e1176e8b5ab7d7233235cc8f2757b6d6d4e11c2d"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/flint_knock_pistol.png",
@@ -4125,6 +4460,11 @@
   "download_url": "files/e51e46520f9c7fb97416c6b5d92a4616d1062c20774396d68d6ec740a32f7914"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/fury_assault_rifle.png",
+  "file_hash": "b56e624ad631ad225826738fcb9c27322788316120184ee53d9fc93c9c400796",
+  "download_url": "files/b56e624ad631ad225826738fcb9c27322788316120184ee53d9fc93c9c400796"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/gatekeeper_shotgun.png",
   "file_hash": "3796b80991284b86f3d681c9a809279b72814da05a65ea771f3d4750c27f1bec",
   "download_url": "files/3796b80991284b86f3d681c9a809279b72814da05a65ea771f3d4750c27f1bec"
@@ -4140,6 +4480,16 @@
   "download_url": "files/46eb0ebeb228719dfee64af0f388a16f4933c7018733766c9241f6341c8a0f42"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/grenade.png",
+  "file_hash": "0b146d21c4bf98df2d3f218c35447ad830dc288644472a1db1e9bd68dc2755ec",
+  "download_url": "files/0b146d21c4bf98df2d3f218c35447ad830dc288644472a1db1e9bd68dc2755ec"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/grenade_launcher.png",
+  "file_hash": "231d9861684d580ecd13aba193c7d9eb7dc7bf47848a7cb4089d8d08989a7016",
+  "download_url": "files/231d9861684d580ecd13aba193c7d9eb7dc7bf47848a7cb4089d8d08989a7016"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/gunnars_stinger_smg.png",
   "file_hash": "f305de1fa3422ed3462895e9c6873b2926c1a2cdab413fb9586c7588a6d372e4",
   "download_url": "files/f305de1fa3422ed3462895e9c6873b2926c1a2cdab413fb9586c7588a6d372e4"
@@ -4150,6 +4500,11 @@
   "download_url": "files/53a6d6b7d91aea5e70f737fa76768309dfdb870d6bf519dd1cd2a0c4ea948b21"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/hades_harbinger_smg.png",
+  "file_hash": "fe5cc98cccb5ca44ba58bcb9719364dfd3b77bef00cc1b8c5754c0ed3e743647",
+  "download_url": "files/fe5cc98cccb5ca44ba58bcb9719364dfd3b77bef00cc1b8c5754c0ed3e743647"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/hammer_assault_rifle.png",
   "file_hash": "ce0bedda3f05e6012c75c50b7bc6d74ede0c1f66c39563815a5d45b8d823433f",
   "download_url": "files/ce0bedda3f05e6012c75c50b7bc6d74ede0c1f66c39563815a5d45b8d823433f"
@@ -4158,6 +4513,11 @@
   "file_name": "exo/game-data/fortnite/weapons/hammer_pump_shotgun.png",
   "file_hash": "921ca2396fdf4351ebd2c41d8556594729c662b87a0928d94e3a83ed04c5b83b",
   "download_url": "files/921ca2396fdf4351ebd2c41d8556594729c662b87a0928d94e3a83ed04c5b83b"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/hand_cannon.png",
+  "file_hash": "2ee992609edc85a7eb65936b6d9a60001b410b4d737eb7c2eca6e2e4c1d584da",
+  "download_url": "files/2ee992609edc85a7eb65936b6d9a60001b410b4d737eb7c2eca6e2e4c1d584da"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/harbinger_smg.png",
@@ -4183,6 +4543,11 @@
   "file_name": "exo/game-data/fortnite/weapons/heavy_assault_rifle.png",
   "file_hash": "b4bca8809adea89c47aba6e5c796d456add93f55e3965546e9a0cb62e6d0601f",
   "download_url": "files/b4bca8809adea89c47aba6e5c796d456add93f55e3965546e9a0cb62e6d0601f"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/heavy_impact_sniper_rifle.png",
+  "file_hash": "325c7c3b419c0d452b3a34ae74a3452b15fb1bab33d5dc80e1ee07bcbaa35915",
+  "download_url": "files/325c7c3b419c0d452b3a34ae74a3452b15fb1bab33d5dc80e1ee07bcbaa35915"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/heavy_sniper_rifle.png",
@@ -4213,6 +4578,21 @@
   "file_name": "exo/game-data/fortnite/weapons/heisted_run_n_gun_smg.png",
   "file_hash": "2a9d09552f0d6dd621db48ca64c6505720057cc0b8945b059636c5701818aa75",
   "download_url": "files/2a9d09552f0d6dd621db48ca64c6505720057cc0b8945b059636c5701818aa75"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/high_stakes_shotgun.png",
+  "file_hash": "bdd7a321e6e7074ec8279d6606f10ce2508fca4c67bd775dae7da261b93a0b2c",
+  "download_url": "files/bdd7a321e6e7074ec8279d6606f10ce2508fca4c67bd775dae7da261b93a0b2c"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/holo_twister_assault_rifle.png",
+  "file_hash": "97ae390ecf25e67ed1517c9e9582dc9b2299022d22ec351e543729a5f80d0733",
+  "download_url": "files/97ae390ecf25e67ed1517c9e9582dc9b2299022d22ec351e543729a5f80d0733"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/hop_rock_dualies.png",
+  "file_hash": "645cff2160a48d9442c3b9cd35ac4921bd08a7293bfeb44feb378a352a36d6e3",
+  "download_url": "files/645cff2160a48d9442c3b9cd35ac4921bd08a7293bfeb44feb378a352a36d6e3"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/howler_claws.png",
@@ -4270,6 +4650,11 @@
   "download_url": "files/f205444010b79b944f251f8ddf1c9da41f5b5af5756ac903cf463a9a4bfa548b"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/iron_pump_shotgun.png",
+  "file_hash": "cd3b3e0ea2af1445017fd5829b553a636bb07719028cfc71c879c6f04b79038e",
+  "download_url": "files/cd3b3e0ea2af1445017fd5829b553a636bb07719028cfc71c879c6f04b79038e"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/jedi_padawan_lightsaber.png",
   "file_hash": "765e9e66ca9bf017e3fd2f443944278c865e12564d436714a64722d0ead80039",
   "download_url": "files/765e9e66ca9bf017e3fd2f443944278c865e12564d436714a64722d0ead80039"
@@ -4310,6 +4695,16 @@
   "download_url": "files/a13152c191fb0cbc85dff80255f75fc9b70261c7c88d8d993e225cfdbb75d449"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/kits_shockwave_launcher.png",
+  "file_hash": "92ebc0f36a4be276d757bbb29704a84e3a1f2222988fd90389bd32f9912cf66e",
+  "download_url": "files/92ebc0f36a4be276d757bbb29704a84e3a1f2222988fd90389bd32f9912cf66e"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/krustys_mr_blasty.png",
+  "file_hash": "6cea67f33dc3777dde1d02886a8fb9d2c6a6ab5c631cbfb1ea37e5d1088abfbb",
+  "download_url": "files/6cea67f33dc3777dde1d02886a8fb9d2c6a6ab5c631cbfb1ea37e5d1088abfbb"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/kymera_ray_gun.png",
   "file_hash": "522f97fe3027865f8ba96fd3e36e6086ba5695dcbde57b04aa283c171020828e",
   "download_url": "files/522f97fe3027865f8ba96fd3e36e6086ba5695dcbde57b04aa283c171020828e"
@@ -4320,9 +4715,19 @@
   "download_url": "files/276f71b1f6a922157e11a1a671a7e4f67197e8d50434f4238d31a689dfa71616"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/last_call.png",
+  "file_hash": "9aff21614af06fa7da8600bf95b5cdc4978f529296aef52bee8d2fbc6ab427a5",
+  "download_url": "files/9aff21614af06fa7da8600bf95b5cdc4978f529296aef52bee8d2fbc6ab427a5"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/lawful_shockwave_rocket_launcher.png",
   "file_hash": "e6928400e4a78f5545588319c8561eb0f459bdd0aac009c1cd61f806d151cc6d",
   "download_url": "files/e6928400e4a78f5545588319c8561eb0f459bdd0aac009c1cd61f806d151cc6d"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/lawless_accelerant_holo_twister_ar.png",
+  "file_hash": "13883158f4981ae689291473d42db26bc4bc775257b8a3dd2ce98458afa5f2b7",
+  "download_url": "files/13883158f4981ae689291473d42db26bc4bc775257b8a3dd2ce98458afa5f2b7"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/lawless_blink_pump_dump.png",
@@ -4330,14 +4735,34 @@
   "download_url": "files/c0bdaeb95b5500dc374cf74507a928d67971bd61a4b20cd483e0378818870f90"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/lawless_explosive_mammoth_pistol.png",
+  "file_hash": "54ae8b1ec396870c293fc6247e2f96003bd74d256a1eb7edc52d16d6fb88fc3e",
+  "download_url": "files/54ae8b1ec396870c293fc6247e2f96003bd74d256a1eb7edc52d16d6fb88fc3e"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/lawless_heavy_impact_tracking_rifle.png",
+  "file_hash": "4a2561801e3b316e27de6bed1467ca10efd9e43d4eaf490f17b564781573269e",
+  "download_url": "files/4a2561801e3b316e27de6bed1467ca10efd9e43d4eaf490f17b564781573269e"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/lawless_shockwave_rocket_launcher.png",
   "file_hash": "e05701b759963352cee2701b11aa18f532de035e05ecf9dfe7427db2ecb9ac63",
   "download_url": "files/e05701b759963352cee2701b11aa18f532de035e05ecf9dfe7427db2ecb9ac63"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/lawless_stink_rifle.png",
+  "file_hash": "6a97bb1a14c4c88187b7ef4e6a84bcc14fed3d2c07576c036028dd8cdec16705",
+  "download_url": "files/6a97bb1a14c4c88187b7ef4e6a84bcc14fed3d2c07576c036028dd8cdec16705"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/lawless_trinity_assault_rifle.png",
   "file_hash": "d9efe149175332c11a1ce87f75bf61cc2a7cb38b94d6ef8694b45a9e7d3f62db",
   "download_url": "files/d9efe149175332c11a1ce87f75bf61cc2a7cb38b94d6ef8694b45a9e7d3f62db"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/lawless_twinfire_slap_shotgun.png",
+  "file_hash": "8e31f9a0ec081df486230a715f5fd75d6cf18d6476cc3f65385a0d22802ca230",
+  "download_url": "files/8e31f9a0ec081df486230a715f5fd75d6cf18d6476cc3f65385a0d22802ca230"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/leadspitter_3000.png",
@@ -4375,6 +4800,11 @@
   "download_url": "files/1aab5803aad962b0003da878503783819722348be287d22bdfda142207af6eed"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/makeshift_revolver.png",
+  "file_hash": "c6203c2960da52ddf14f0ff6089ee7ae3b4aaafbb3cd1c0cedd5a0e2be366da5",
+  "download_url": "files/c6203c2960da52ddf14f0ff6089ee7ae3b4aaafbb3cd1c0cedd5a0e2be366da5"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/mammoth_pistol.png",
   "file_hash": "23677a8cea2c5d91e274f56704aef3e1bb466d8f109b40db4222355eb648a5da",
   "download_url": "files/23677a8cea2c5d91e274f56704aef3e1bb466d8f109b40db4222355eb648a5da"
@@ -4390,9 +4820,34 @@
   "download_url": "files/ad852ef08dc09d22cd633fa167e1433e15ad0fd9c6b1580d0cb6919beeccb685"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/mega_buster.png",
+  "file_hash": "c9ab4296359d38b3368e7d331644577c8e5019cf6fd79804b6faf7ca783d8da1",
+  "download_url": "files/c9ab4296359d38b3368e7d331644577c8e5019cf6fd79804b6faf7ca783d8da1"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/megalo_dons_combat_shotgun.png",
+  "file_hash": "fde408142682d08513f83e22e5a0bc57ee795a1546a3bc24d744ba01ba5760c3",
+  "download_url": "files/fde408142682d08513f83e22e5a0bc57ee795a1546a3bc24d744ba01ba5760c3"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/meowscles_peow_peow_rifle.png",
+  "file_hash": "c08713602d64b023a7824e7b1ba568c58a9508bf81d7c7f5e0ee6b3faf57609c",
+  "download_url": "files/c08713602d64b023a7824e7b1ba568c58a9508bf81d7c7f5e0ee6b3faf57609c"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/michelangelos_nunchaku.png",
   "file_hash": "5281e34ae2038862cc6aa9329fd76c514f292c83e4a77712f608c6ad14c035e1",
   "download_url": "files/5281e34ae2038862cc6aa9329fd76c514f292c83e4a77712f608c6ad14c035e1"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/midas_drum_gun.png",
+  "file_hash": "6b02de74639e15a69ea9f85e85c991ef4547d274e0f44840c855bfb5bbae10fa",
+  "download_url": "files/6b02de74639e15a69ea9f85e85c991ef4547d274e0f44840c855bfb5bbae10fa"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/midas_gilded_eye_drum_gun.png",
+  "file_hash": "865839a7767373bcdfed85be34f7150aff64e344e214aaff23adcb5af9fac293",
+  "download_url": "files/865839a7767373bcdfed85be34f7150aff64e344e214aaff23adcb5af9fac293"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/midas_masterpiece.png",
@@ -4420,14 +4875,59 @@
   "download_url": "files/f6821ec89e0362d505ab3258aeb519bdd74f096e5d61d163170a140ec3a1a7e4"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/morphite_havoc_pump_shotgun.png",
+  "file_hash": "98aa0794183ffb142074e948a8bb7d2cd147aa5d7dd9495fae8538a0a2bc74f7",
+  "download_url": "files/98aa0794183ffb142074e948a8bb7d2cd147aa5d7dd9495fae8538a0a2bc74f7"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/morphite_heavy_assault_rifle.png",
+  "file_hash": "3f617a0b4f6ce75499dd71dc474ada04adc633b376c74706a16c0da98fa4d118",
+  "download_url": "files/3f617a0b4f6ce75499dd71dc474ada04adc633b376c74706a16c0da98fa4d118"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/morphite_spire_rifle.png",
+  "file_hash": "0cdc9cafd7a0587557d5912dafe2d52052e6d3fc981bd1842472b9136522d51a",
+  "download_url": "files/0cdc9cafd7a0587557d5912dafe2d52052e6d3fc981bd1842472b9136522d51a"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/morphite_submachine_gun.png",
+  "file_hash": "6c81fc66de34f1d8af482c25d05ccd76cdec8bba98742b348ef8c5b46891a757",
+  "download_url": "files/6c81fc66de34f1d8af482c25d05ccd76cdec8bba98742b348ef8c5b46891a757"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/morphite_tactical_shotgun.png",
+  "file_hash": "085072305f12e30109afbe10034a71befbe5947044d3f1f8973877b8ca309817",
+  "download_url": "files/085072305f12e30109afbe10034a71befbe5947044d3f1f8973877b8ca309817"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/mr_blasty.png",
+  "file_hash": "679182e0146a0e98c1e1ed67fc5938a1bc982780d7a3ff539a082a9d61504bd6",
+  "download_url": "files/679182e0146a0e98c1e1ed67fc5938a1bc982780d7a3ff539a082a9d61504bd6"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/myst_gauntlets.png",
   "file_hash": "a42a15746d5d448a4d6df3534fbe4b940329551cd8fe7bcccd0d38043990efff",
   "download_url": "files/a42a15746d5d448a4d6df3534fbe4b940329551cd8fe7bcccd0d38043990efff"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/mythic_goldfish.png",
+  "file_hash": "60b1aa230564d9179578ba349ca6c10e3849329e3ec068bc1229da7c1852d4fd",
+  "download_url": "files/60b1aa230564d9179578ba349ca6c10e3849329e3ec068bc1229da7c1852d4fd"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/nemesis_ar.png",
+  "file_hash": "70812ebf696d79ca719cdb228bd8800932292b0df83118637c3c5cbde2a402ba",
+  "download_url": "files/70812ebf696d79ca719cdb228bd8800932292b0df83118637c3c5cbde2a402ba"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/night_hawk.png",
   "file_hash": "3e224a75fd857c25f85b59b0f7306a6cc9bc5026c1063cb27ec6bcc85cdb2df2",
   "download_url": "files/3e224a75fd857c25f85b59b0f7306a6cc9bc5026c1063cb27ec6bcc85cdb2df2"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/night_rose_veiled_precision_smg.png",
+  "file_hash": "aeff6ea682ad7e76eb24efc702c003b1fff0b19f49d1e067e815aa018176e635",
+  "download_url": "files/aeff6ea682ad7e76eb24efc702c003b1fff0b19f49d1e067e815aa018176e635"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/nitro_fists.png",
@@ -4440,9 +4940,24 @@
   "download_url": "files/fa2ee7d674c5a5d48ae6b6ce42eb98ad7cee9dd996c0eabc21b861c1d1fbb157"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/oni_shotgun.png",
+  "file_hash": "302dd4b6d667eacc798804b491796b5c8c586257fd92a387a1955121c12cc9c8",
+  "download_url": "files/302dd4b6d667eacc798804b491796b5c8c586257fd92a387a1955121c12cc9c8"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/oscars_frenzy_auto_shotgun.png",
+  "file_hash": "ddf843ad11ddc3d3f69336e191f476229ac1c951639422ea8813ba27bcb16237",
+  "download_url": "files/ddf843ad11ddc3d3f69336e191f476229ac1c951639422ea8813ba27bcb16237"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/outlaw_shotgun.png",
   "file_hash": "b81db0c2f06bfad8847e9227f5e8b634fa0843f695d1e86bc8f3c6cec7c34ef8",
   "download_url": "files/b81db0c2f06bfad8847e9227f5e8b634fa0843f695d1e86bc8f3c6cec7c34ef8"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/overclocked_8_bit_shotgun.png",
+  "file_hash": "b48653ccc1a1d188391230ef99ae9b72e8cdcd4c58b2df13c925bda1ca5fdc88",
+  "download_url": "files/b48653ccc1a1d188391230ef99ae9b72e8cdcd4c58b2df13c925bda1ca5fdc88"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/overclocked_pulse_rifle.png",
@@ -4450,9 +4965,34 @@
   "download_url": "files/6dc5974fa60a0bace81a7b0aa13628315297c9eea1bd8af9c3f3a04c498ca854"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/overdrive_grenade.png",
+  "file_hash": "422809230bf8c20e7f7ab85a094758420751664ed4e996a23459625f5415a1e4",
+  "download_url": "files/422809230bf8c20e7f7ab85a094758420751664ed4e996a23459625f5415a1e4"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/overdrive_tactical_pistol.png",
+  "file_hash": "4173af82abc7088caecdf135057662d9a611661b2bea4a177ca1886220872ef2",
+  "download_url": "files/4173af82abc7088caecdf135057662d9a611661b2bea4a177ca1886220872ef2"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/overpowered_pump_shotgun.png",
+  "file_hash": "8fb7f2ef8a31498353b7c8e47e16e1d188331704328174847b2b3e58c87950e0",
+  "download_url": "files/8fb7f2ef8a31498353b7c8e47e16e1d188331704328174847b2b3e58c87950e0"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/paper_bomb_kunai.png",
   "file_hash": "99f0569b7b596a8a71bd59bc6b66b7042d59be5552aedd13945748ddb88131ba",
   "download_url": "files/99f0569b7b596a8a71bd59bc6b66b7042d59be5552aedd13945748ddb88131ba"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/pinpoint_iron_pump_shotgun.png",
+  "file_hash": "cd3b3e0ea2af1445017fd5829b553a636bb07719028cfc71c879c6f04b79038e",
+  "download_url": "files/cd3b3e0ea2af1445017fd5829b553a636bb07719028cfc71c879c6f04b79038e"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/pistol.png",
+  "file_hash": "ff888906cc3f668fb6473e8648bb129cef97e740fd0f10974b0febbb19e83f6c",
+  "download_url": "files/ff888906cc3f668fb6473e8648bb129cef97e740fd0f10974b0febbb19e83f6c"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/plasma_burst_laser.png",
@@ -4463,6 +5003,11 @@
   "file_name": "exo/game-data/fortnite/weapons/plasma_cannon.png",
   "file_hash": "0ca1e12ccb58b074ffc02a8b5d1ff2c9f531eb2dced5dcd3400d32433b93edeb",
   "download_url": "files/0ca1e12ccb58b074ffc02a8b5d1ff2c9f531eb2dced5dcd3400d32433b93edeb"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/precision_air_strike.png",
+  "file_hash": "a1de01593984f2eda823c9851ff98afd17ebe5c3dc5a258fd04e2964efcb0e29",
+  "download_url": "files/a1de01593984f2eda823c9851ff98afd17ebe5c3dc5a258fd04e2964efcb0e29"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/prime_shotgun.png",
@@ -4530,9 +5075,19 @@
   "download_url": "files/7dbe21fb5b358191deb466aa86ff8acebc617c7edf55aba1ba41a861cb577ff8"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/rebeccas_guns.png",
+  "file_hash": "29c1b7a2a6d6c6eea162d37046223d9e6dfe3fa8a073204a38bf7e3675e1ec3a",
+  "download_url": "files/29c1b7a2a6d6c6eea162d37046223d9e6dfe3fa8a073204a38bf7e3675e1ec3a"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/red_eye_assault_rifle.png",
   "file_hash": "b2789c90ea90e0715bf855f9f686afcdcdb5f518acac6314c06e3175917ce593",
   "download_url": "files/b2789c90ea90e0715bf855f9f686afcdcdb5f518acac6314c06e3175917ce593"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/red_eye_caramba_assault_rifle.png",
+  "file_hash": "446230bbc595455432557fd377bd0b0b2ae8cb5bf724c7f28d7f36e10dd477af",
+  "download_url": "files/446230bbc595455432557fd377bd0b0b2ae8cb5bf724c7f28d7f36e10dd477af"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/red_eye_submachine_gun.png",
@@ -4560,6 +5115,11 @@
   "download_url": "files/25907a9252de93efd78ae81eb566623ec1458ca09450cf2bb0195d7b066f6534"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/ringmasters_boom_bolt.png",
+  "file_hash": "726f1d8b018a2d8d8fa005d776523d078971f866b92ec43907fcff6763d09cf2",
+  "download_url": "files/726f1d8b018a2d8d8fa005d776523d078971f866b92ec43907fcff6763d09cf2"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/ripsaw_launcher.png",
   "file_hash": "61f162e4ca435e62489ab4fea7c23bed0ca54c9b6ddf86a595eeff4d5429b61f",
   "download_url": "files/61f162e4ca435e62489ab4fea7c23bed0ca54c9b6ddf86a595eeff4d5429b61f"
@@ -4568,6 +5128,11 @@
   "file_name": "exo/game-data/fortnite/weapons/rocket_drill.png",
   "file_hash": "034f020aee4284f68697e6d69b082777b4183d8b6de4371ea97c93c66731ab19",
   "download_url": "files/034f020aee4284f68697e6d69b082777b4183d8b6de4371ea97c93c66731ab19"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/rocket_launcher.png",
+  "file_hash": "cf8e9a51dd877106db1b2f72138df390c200ee5c46a2bcd507e265c601da8076",
+  "download_url": "files/cf8e9a51dd877106db1b2f72138df390c200ee5c46a2bcd507e265c601da8076"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/rocket_ram.png",
@@ -4600,6 +5165,11 @@
   "download_url": "files/6be28c1b8faf44c44616ea0240b480f503806ddcd0f2019b01201252efbedc1d"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/sentinel_pump_shotgun.png",
+  "file_hash": "0e4764421958c5c8550660934c07f82cb785574cafb05f8c589480451478d564",
+  "download_url": "files/0e4764421958c5c8550660934c07f82cb785574cafb05f8c589480451478d564"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/seven_cluster_cannon.png",
   "file_hash": "0d75dd2d3de7d26e51c6e73d695b5260c5869fdc631f26a01315a58121bf5ef0",
   "download_url": "files/0d75dd2d3de7d26e51c6e73d695b5260c5869fdc631f26a01315a58121bf5ef0"
@@ -4608,6 +5178,11 @@
   "file_name": "exo/game-data/fortnite/weapons/seven_power_gloves.png",
   "file_hash": "96ef91f64e029cb3b21cae2f1225cdc4f0d4e56b88fc44099eec93bb43f6f411",
   "download_url": "files/96ef91f64e029cb3b21cae2f1225cdc4f0d4e56b88fc44099eec93bb43f6f411"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/shadow_tracker.png",
+  "file_hash": "c449af5c3a892e05da720a653373eaffb9f063a5e14b67219303572ef2b61a88",
+  "download_url": "files/c449af5c3a892e05da720a653373eaffb9f063a5e14b67219303572ef2b61a88"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/sharp_tooth_shotgun.png",
@@ -4670,6 +5245,11 @@
   "download_url": "files/b7e903dee655393e231706a99f614e1576c29b77c74225ef9e4ff5f08b435b43"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/sonic_power_sneakers.png",
+  "file_hash": "6664c8b3f91ab1e5886272815c41df165599fead067f53920e8916fbae27e1db",
+  "download_url": "files/6664c8b3f91ab1e5886272815c41df165599fead067f53920e8916fbae27e1db"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/sovereign_shotgun.png",
   "file_hash": "5260092e0266132aa90421acfe1a8dba089d93064a2a6856369ea71372413eaf",
   "download_url": "files/5260092e0266132aa90421acfe1a8dba089d93064a2a6856369ea71372413eaf"
@@ -4710,6 +5290,11 @@
   "download_url": "files/c2a29644207119e1612a9e6c74daee63877b0dc782a268cec100123a9e5ac5b6"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/striker_ar.png",
+  "file_hash": "df9a943856ed659eaa9bd8d08f36ecd940d2babd44e9c75aab7e83c90d218367",
+  "download_url": "files/df9a943856ed659eaa9bd8d08f36ecd940d2babd44e9c75aab7e83c90d218367"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/striker_burst_rifle.png",
   "file_hash": "94f3efa2b6e2b2763e997edc70f04497e876c97060d2539d4def4bd283b7f7a9",
   "download_url": "files/94f3efa2b6e2b2763e997edc70f04497e876c97060d2539d4def4bd283b7f7a9"
@@ -4743,6 +5328,16 @@
   "file_name": "exo/game-data/fortnite/weapons/suppressed_sniper_rifle.png",
   "file_hash": "114cd814d685082cadc3f8f2ddb643e3ef40a9f2ccfbe992e4fbe8886f11544c",
   "download_url": "files/114cd814d685082cadc3f8f2ddb643e3ef40a9f2ccfbe992e4fbe8886f11544c"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/suppressed_submachine_gun.png",
+  "file_hash": "71f53ed64e759b58ce209d3ab9b2240aad63ed721a4ffd5da34328310cbc6c62",
+  "download_url": "files/71f53ed64e759b58ce209d3ab9b2240aad63ed721a4ffd5da34328310cbc6c62"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/surgefire_smg.png",
+  "file_hash": "a048c2f546caadf6237d62ce915584e7b3b9be6d61f897771b32dc88e3c25257",
+  "download_url": "files/a048c2f546caadf6237d62ce915584e7b3b9be6d61f897771b32dc88e3c25257"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/surgical_burst_rifle.png",
@@ -4780,9 +5375,39 @@
   "download_url": "files/0a168f6e332bbff12672e59ee88634503c209298d81cda95995b0228999ab10d"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/tamzarian_twin_mag_submachine_gun.png",
+  "file_hash": "4ff08aef419e8e1add75318d389a96e1464f3faeddd556634fa846557cc0c10d",
+  "download_url": "files/4ff08aef419e8e1add75318d389a96e1464f3faeddd556634fa846557cc0c10d"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/tetris_rift.png",
+  "file_hash": "90659a02da9faf65f433840cf8bfc189885484967f56616553dc22496abd5513",
+  "download_url": "files/90659a02da9faf65f433840cf8bfc189885484967f56616553dc22496abd5513"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/the_ageless_champions_ex_caliber_rifle.png",
+  "file_hash": "96918faacb76ae555657d17ae8d7ad49ee2d6676614be5d01cfc142eec9fbba4",
+  "download_url": "files/96918faacb76ae555657d17ae8d7ad49ee2d6676614be5d01cfc142eec9fbba4"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/the_ageless_champions_shockwave_hammer.png",
+  "file_hash": "cb0c59c8187a55954bd0eaeb520baab98b496f852460ada1d901ca2b57bd0f81",
+  "download_url": "files/cb0c59c8187a55954bd0eaeb520baab98b496f852460ada1d901ca2b57bd0f81"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/the_dub.png",
+  "file_hash": "834b37c7bb1bd5c8e9fd37d395a8671d718ecb567e7b6c985bd1b8063c657709",
+  "download_url": "files/834b37c7bb1bd5c8e9fd37d395a8671d718ecb567e7b6c985bd1b8063c657709"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/the_foundations_mk_seven_assault_rifle.png",
   "file_hash": "e91986ea4d11d3d44c2cc856c0193a213c0f56d047efb613524f4c1c52a190d5",
   "download_url": "files/e91986ea4d11d3d44c2cc856c0193a213c0f56d047efb613524f4c1c52a190d5"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/the_foundations_rift_rifle.png",
+  "file_hash": "d71669f18abb44903f0f051e5d49133402177b8ca6b97c9f8fbd26d6d421c330",
+  "download_url": "files/d71669f18abb44903f0f051e5d49133402177b8ca6b97c9f8fbd26d6d421c330"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/the_kneecapper.png",
@@ -4815,6 +5440,11 @@
   "download_url": "files/4df24930bda79c68daf71c8f5e4c57f27ba9e8bb3d97ef9e5b257fc225f78868"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/thunder_burst_smg.png",
+  "file_hash": "a0825c4ac799160d8adcde99b3590a9ad21ad43badb3335280df39b3d16483b6",
+  "download_url": "files/a0825c4ac799160d8adcde99b3590a9ad21ad43badb3335280df39b3d16483b6"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/thunder_shotgun.png",
   "file_hash": "059f822766d409bf4d50282e4dee22cfa8fe35d9027ef9d26f0b29f0328471e5",
   "download_url": "files/059f822766d409bf4d50282e4dee22cfa8fe35d9027ef9d26f0b29f0328471e5"
@@ -4840,6 +5470,11 @@
   "download_url": "files/8b799d87ade6ccde110f51518ae7f80076fd85cbcd49721e735111a4db92208c"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/twinfire_auto_shotgun.png",
+  "file_hash": "1cfbaafba3d2a582fe6ab047d9a2b703164bddb9596be0a7284711ab75cd1f50",
+  "download_url": "files/1cfbaafba3d2a582fe6ab047d9a2b703164bddb9596be0a7284711ab75cd1f50"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/two_shot_shotgun.png",
   "file_hash": "76a6a1e784adb9f6b8f49f4e6a46f426bf2a6833021c16ac46e90997946fe95b",
   "download_url": "files/76a6a1e784adb9f6b8f49f4e6a46f426bf2a6833021c16ac46e90997946fe95b"
@@ -4850,9 +5485,29 @@
   "download_url": "files/ad2de22f391b2a81219724742145e9ed963e5dbec73b32d40f35d06b0357d963"
  },
  {
+  "file_name": "exo/game-data/fortnite/weapons/unstable_frostfire_shotgun.png",
+  "file_hash": "20599fdc9f5e83627ad509c286d2541ded32b5c14d7e60e6f34758a048b0c3c8",
+  "download_url": "files/20599fdc9f5e83627ad509c286d2541ded32b5c14d7e60e6f34758a048b0c3c8"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/unstable_thunderclap_dmr.png",
+  "file_hash": "29ce9f7d2421db8f87f43d5d9b79b352f2bdab59356d5c25bc8694eec144c3df",
+  "download_url": "files/29ce9f7d2421db8f87f43d5d9b79b352f2bdab59356d5c25bc8694eec144c3df"
+ },
+ {
   "file_name": "exo/game-data/fortnite/weapons/unstable_voltage_burst_pistol.png",
   "file_hash": "34d1b788a93cb4face4d327c89c87fa5c950e6c4dff597d97c7bcbfdd3163685",
   "download_url": "files/34d1b788a93cb4face4d327c89c87fa5c950e6c4dff597d97c7bcbfdd3163685"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/unstable_yoink_shotgun.png",
+  "file_hash": "ab44c6f3df4bb62df75435a6749fb24009dac9c1cdcfc043fcb9e43e91c55762",
+  "download_url": "files/ab44c6f3df4bb62df75435a6749fb24009dac9c1cdcfc043fcb9e43e91c55762"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/valerias_hyper_smg.png",
+  "file_hash": "f3711591e32486851266e53b126e2297cb5a507cb853aa97a38280280c9d7901",
+  "download_url": "files/f3711591e32486851266e53b126e2297cb5a507cb853aa97a38280280c9d7901"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/vector_7_dmr.png",
@@ -4878,6 +5533,11 @@
   "file_name": "exo/game-data/fortnite/weapons/westar_34_blaster_pistols.png",
   "file_hash": "ebf25d74eabc69b67ded432a6c5fcb76833502bb8f8b03d6aa2dea1b4d459ee8",
   "download_url": "files/ebf25d74eabc69b67ded432a6c5fcb76833502bb8f8b03d6aa2dea1b4d459ee8"
+ },
+ {
+  "file_name": "exo/game-data/fortnite/weapons/where_we_droppin_pistol.png",
+  "file_hash": "d5f3af27e835f9f29c0ec9d4b166efd8a0d884d43f2ab287bdc1c8c729485f4e",
+  "download_url": "files/d5f3af27e835f9f29c0ec9d4b166efd8a0d884d43f2ab287bdc1c8c729485f4e"
  },
  {
   "file_name": "exo/game-data/fortnite/weapons/wildwasp_jar.png",
@@ -4906,8 +5566,8 @@
  },
  {
   "file_name": "exo/game-data/marvel-rivals/catalog.json",
-  "file_hash": "c17b761a43641d982879574acf7e496b4ee2191615b323c2c728b01b4e172aed",
-  "download_url": "files/c17b761a43641d982879574acf7e496b4ee2191615b323c2c728b01b4e172aed"
+  "file_hash": "726b763473f7bc02b2c6880c4a181e707b3e445901b888c782bfafe18e86ab18",
+  "download_url": "files/726b763473f7bc02b2c6880c4a181e707b3e445901b888c782bfafe18e86ab18"
  },
  {
   "file_name": "exo/game-data/marvel-rivals/heroes/adam_warlock.png",
@@ -5186,8 +5846,8 @@
  },
  {
   "file_name": "exo/game-data/overwatch/catalog.json",
-  "file_hash": "e3d3773fe713618bbd61a2ad70f796516e038f67caca6e4be0d551b5098e4eb6",
-  "download_url": "files/e3d3773fe713618bbd61a2ad70f796516e038f67caca6e4be0d551b5098e4eb6"
+  "file_hash": "9b2bf7272fb39786dc285c831e735677a66e3d192f979c5c20a0198ff55bc034",
+  "download_url": "files/9b2bf7272fb39786dc285c831e735677a66e3d192f979c5c20a0198ff55bc034"
  },
  {
   "file_name": "exo/game-data/overwatch/heroes/ana.png",
@@ -5466,8 +6126,8 @@
  },
  {
   "file_name": "exo/game-data/pubg/catalog.json",
-  "file_hash": "c75be4b0d1b2811fe635c822f0342f769ced374161780d17461d9e78a7185d3a",
-  "download_url": "files/c75be4b0d1b2811fe635c822f0342f769ced374161780d17461d9e78a7185d3a"
+  "file_hash": "08295977ad7392422daf5caa6133eab4c2f89bcc268bdfe97b9f6761364cec38",
+  "download_url": "files/08295977ad7392422daf5caa6133eab4c2f89bcc268bdfe97b9f6761364cec38"
  },
  {
   "file_name": "exo/game-data/pubg/weapons/ace32.png",
@@ -6755,6 +7415,11 @@
   "download_url": "files/ba3c886db09ec4404bbf04ead9d8fa50ff4d4c51da63638680173fc52885450f"
  },
  {
+  "file_name": "exo/game-data/rust/recognition.json",
+  "file_hash": "858d698dd4c96c5f06f734da5ab36c7355c6791b80df8f1b7cff7cba249373f2",
+  "download_url": "files/858d698dd4c96c5f06f734da5ab36c7355c6791b80df8f1b7cff7cba249373f2"
+ },
+ {
   "file_name": "exo/game-data/rust/weapons/assault_rifle.png",
   "file_hash": "c83a2893a9c321f5c866bbda7ae347c14f05f1a7fc9cdfab327194791997169a",
   "download_url": "files/c83a2893a9c321f5c866bbda7ae347c14f05f1a7fc9cdfab327194791997169a"
@@ -7186,8 +7851,8 @@
  },
  {
   "file_name": "exo/game-data/valorant/catalog.json",
-  "file_hash": "2beb4e5dec35f1f39d755a4a377075d4f68c0e1ee8defad4f64da0cb2729e897",
-  "download_url": "files/2beb4e5dec35f1f39d755a4a377075d4f68c0e1ee8defad4f64da0cb2729e897"
+  "file_hash": "e8fa117505372e178f1f520d175e42bb8e18578203dd9cc9b78cb3b37da02c1b",
+  "download_url": "files/e8fa117505372e178f1f520d175e42bb8e18578203dd9cc9b78cb3b37da02c1b"
  },
  {
   "file_name": "exo/game-data/valorant/weapons/ares.png",
@@ -7321,13 +7986,13 @@
  },
  {
   "file_name": "exo/game-packs.js",
-  "file_hash": "0c4117bca1aa05552971f30f327f30f780a11886295cec95b5daaeda6dd3ee9c",
-  "download_url": "files/0c4117bca1aa05552971f30f327f30f780a11886295cec95b5daaeda6dd3ee9c"
+  "file_hash": "58fdc6b3c344d207eed28d10d783b1c769fdd66c55832222088ee43e51c48bf6",
+  "download_url": "files/58fdc6b3c344d207eed28d10d783b1c769fdd66c55832222088ee43e51c48bf6"
  },
  {
   "file_name": "exo/game-packs/README.md",
-  "file_hash": "77a5743ae204b2f6defd61d28ab9dac1662e1909c00a1477e590eb5f2bb59608",
-  "download_url": "files/77a5743ae204b2f6defd61d28ab9dac1662e1909c00a1477e590eb5f2bb59608"
+  "file_hash": "fde94e68c03065d63b371cce2740fa124a0282faf24f04d0e2d2d74bb4412d11",
+  "download_url": "files/fde94e68c03065d63b371cce2740fa124a0282faf24f04d0e2d2d74bb4412d11"
  },
  {
   "file_name": "exo/game-packs/apex-legends.json",
@@ -7341,8 +8006,8 @@
  },
  {
   "file_name": "exo/game-packs/art/SOURCES.md",
-  "file_hash": "68a21a861ded69ce722d0b4ccded20012fc6640ace9f65bccdc8cf4f937a0376",
-  "download_url": "files/68a21a861ded69ce722d0b4ccded20012fc6640ace9f65bccdc8cf4f937a0376"
+  "file_hash": "0577777e787461a64d49b1c57c6edc1f58369e9971e7819aeec9c564b8b0620c",
+  "download_url": "files/0577777e787461a64d49b1c57c6edc1f58369e9971e7819aeec9c564b8b0620c"
  },
  {
   "file_name": "exo/game-packs/art/apex-legends-panel.jpg",
@@ -7408,6 +8073,21 @@
   "file_name": "exo/game-packs/art/cod-mw3.png",
   "file_hash": "e4a65ef6b3443dd704f8ec8957af6c5737e608ccd0b47878d87b703f6e24e9f1",
   "download_url": "files/e4a65ef6b3443dd704f8ec8957af6c5737e608ccd0b47878d87b703f6e24e9f1"
+ },
+ {
+  "file_name": "exo/game-packs/art/cod-mw4-panel.jpg",
+  "file_hash": "eac780c2bb5e50c7e4cb363cb4b22bd0e1e461534ba915eb31c5b69446029e4c",
+  "download_url": "files/eac780c2bb5e50c7e4cb363cb4b22bd0e1e461534ba915eb31c5b69446029e4c"
+ },
+ {
+  "file_name": "exo/game-packs/art/cod-mw4-tall.png",
+  "file_hash": "986e4cf71076d401f1dd5e385a741efe42039f99fbf37cd2db0b59d6e6a8c3bb",
+  "download_url": "files/986e4cf71076d401f1dd5e385a741efe42039f99fbf37cd2db0b59d6e6a8c3bb"
+ },
+ {
+  "file_name": "exo/game-packs/art/cod-mw4.png",
+  "file_hash": "5bed9d6f2c1045b1ebc8b468ea7d71c6a23ab1b9467f2ad945687d3a29c9d9b2",
+  "download_url": "files/5bed9d6f2c1045b1ebc8b468ea7d71c6a23ab1b9467f2ad945687d3a29c9d9b2"
  },
  {
   "file_name": "exo/game-packs/art/cod-warzone-panel.jpg",
@@ -7580,6 +8260,11 @@
   "download_url": "files/6a14020fb4fdbb3313c00e04f897b34721a7213cd489e1c09ef099ef5a1d650c"
  },
  {
+  "file_name": "exo/game-packs/cod-mw4.json",
+  "file_hash": "0e436de742a8f27d91a28364e7c2c8d56bc0052845bafa980251f304d7e002d2",
+  "download_url": "files/0e436de742a8f27d91a28364e7c2c8d56bc0052845bafa980251f304d7e002d2"
+ },
+ {
   "file_name": "exo/game-packs/cod-warzone.json",
   "file_hash": "75e002baf5bb4b12aa816e2538a36317f3c3490e632bc7677939ddc23de67c73",
   "download_url": "files/75e002baf5bb4b12aa816e2538a36317f3c3490e632bc7677939ddc23de67c73"
@@ -7596,8 +8281,8 @@
  },
  {
   "file_name": "exo/game-packs/fortnite.json",
-  "file_hash": "680b99a2c59238d1b982ad1434e66c16d9a473515da8a481b85d082e35b41214",
-  "download_url": "files/680b99a2c59238d1b982ad1434e66c16d9a473515da8a481b85d082e35b41214"
+  "file_hash": "139d51b15119751ba00afaf7870cc035c5a99a8a4f6b385552b744401b39cd02",
+  "download_url": "files/139d51b15119751ba00afaf7870cc035c5a99a8a4f6b385552b744401b39cd02"
  },
  {
   "file_name": "exo/game-packs/halo-infinite.json",
@@ -7606,8 +8291,8 @@
  },
  {
   "file_name": "exo/game-packs/index.json",
-  "file_hash": "d59f72b73a3c0cb4fb539fbb237730c2da633dc9b058b5a54f66cb7c5e9f4336",
-  "download_url": "files/d59f72b73a3c0cb4fb539fbb237730c2da633dc9b058b5a54f66cb7c5e9f4336"
+  "file_hash": "29eba3060b0cfa975a501d273fccbcd2fd817418242309e094d7780fd8c819ac",
+  "download_url": "files/29eba3060b0cfa975a501d273fccbcd2fd817418242309e094d7780fd8c819ac"
  },
  {
   "file_name": "exo/game-packs/marathon.json",
@@ -8716,8 +9401,13 @@
  },
  {
   "file_name": "exo/name-reader.js",
-  "file_hash": "79114ffa02fe5e8e3e90bc96b02d891d946df519f81d8fded19a0d14d729a82d",
-  "download_url": "files/79114ffa02fe5e8e3e90bc96b02d891d946df519f81d8fded19a0d14d729a82d"
+  "file_hash": "8285bc872fa4563d7a0ca0a7b8d15151f20b483ded500055242062ef010d65bd",
+  "download_url": "files/8285bc872fa4563d7a0ca0a7b8d15151f20b483ded500055242062ef010d65bd"
+ },
+ {
+  "file_name": "exo/native-kbm.js",
+  "file_hash": "ec9449c6204c695174503e0775bc0cf1d895bde1caac795e2064fc0d8b8917a7",
+  "download_url": "files/ec9449c6204c695174503e0775bc0cf1d895bde1caac795e2064fc0d8b8917a7"
  },
  {
   "file_name": "exo/nba2k26-shot-timing-assist.json",
@@ -8751,8 +9441,8 @@
  },
  {
   "file_name": "exo/phone.html",
-  "file_hash": "12becf2a3bef9cdbe0b222bd0f1254fdb52fe9e3a49aa63275f788a1ff772990",
-  "download_url": "files/12becf2a3bef9cdbe0b222bd0f1254fdb52fe9e3a49aa63275f788a1ff772990"
+  "file_hash": "a7b98f162cae16877b1ddcac77cff23906c9f6e266ee6079bfa1028a3cfc1fc5",
+  "download_url": "files/a7b98f162cae16877b1ddcac77cff23906c9f6e266ee6079bfa1028a3cfc1fc5"
  },
  {
   "file_name": "exo/psn-oauth.js",
@@ -8801,8 +9491,8 @@
  },
  {
   "file_name": "exo/sections/02-play-setup.js",
-  "file_hash": "c8d986e807a9aadbb561407d39ce86a39fed7d6149aca2d5b7039d1281d51a28",
-  "download_url": "files/c8d986e807a9aadbb561407d39ce86a39fed7d6149aca2d5b7039d1281d51a28"
+  "file_hash": "bf31324b6ff4a3bd619a21e13ce92e90e6b1f6600aebe7feb534abaf6acc86e7",
+  "download_url": "files/bf31324b6ff4a3bd619a21e13ce92e90e6b1f6600aebe7feb534abaf6acc86e7"
  },
  {
   "file_name": "exo/sections/03-stick-modes.js",
@@ -8841,8 +9531,8 @@
  },
  {
   "file_name": "exo/sections/09-overview.js",
-  "file_hash": "7167ade172162d69c9dcc1db676369138b8f9e77eb6e09c1e39373c0107d657a",
-  "download_url": "files/7167ade172162d69c9dcc1db676369138b8f9e77eb6e09c1e39373c0107d657a"
+  "file_hash": "20ce4f5a9d6d4987ed4fa7c88a6b838746473de072dc811d1b22877dff49e531",
+  "download_url": "files/20ce4f5a9d6d4987ed4fa7c88a6b838746473de072dc811d1b22877dff49e531"
  },
  {
   "file_name": "exo/sections/10-aim.js",
@@ -8921,13 +9611,13 @@
  },
  {
   "file_name": "exo/sections/24-wizard.js",
-  "file_hash": "a36f7f66ec40eb279380701579976d9e6e71c63673db816869b0d5d55233b110",
-  "download_url": "files/a36f7f66ec40eb279380701579976d9e6e71c63673db816869b0d5d55233b110"
+  "file_hash": "7e0fb751dfb3c2deebc24d67798b158ffba34772477944a258bd955d7ffd3121",
+  "download_url": "files/7e0fb751dfb3c2deebc24d67798b158ffba34772477944a258bd955d7ffd3121"
  },
  {
   "file_name": "exo/sections/25-profiles.js",
-  "file_hash": "f072dfd02bd437eb1141e78b20135567fe7bb35e94ab4eb62305949435e1f428",
-  "download_url": "files/f072dfd02bd437eb1141e78b20135567fe7bb35e94ab4eb62305949435e1f428"
+  "file_hash": "a7b4ab26e3c3ffb5c614d84b2506716e7283ce5e90a00feda5178920e8ff341e",
+  "download_url": "files/a7b4ab26e3c3ffb5c614d84b2506716e7283ce5e90a00feda5178920e8ff341e"
  },
  {
   "file_name": "exo/sections/99-finish.js",
@@ -8966,8 +9656,8 @@
  },
  {
   "file_name": "exo/shell/07-inputs.js",
-  "file_hash": "decb99550fc16da5564e8a5fa8a4f6bf783c98ddfce6557e7182f992454a9d23",
-  "download_url": "files/decb99550fc16da5564e8a5fa8a4f6bf783c98ddfce6557e7182f992454a9d23"
+  "file_hash": "d50c47c2bd9e4762e0b11d599a55af3c4925ffe1ae6f913441dd2a3e5f02d714",
+  "download_url": "files/d50c47c2bd9e4762e0b11d599a55af3c4925ffe1ae6f913441dd2a3e5f02d714"
  },
  {
   "file_name": "exo/shell/08-product.js",
@@ -8976,13 +9666,13 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "803f9391c81822574680b68dda2039d94da2ed09139be5713acff24adb1eabc1",
-  "download_url": "files/803f9391c81822574680b68dda2039d94da2ed09139be5713acff24adb1eabc1"
+  "file_hash": "a2c855a12cbae4e33bc4a14ca06a8f270edd22623c4280c792ee3f91ff952dab",
+  "download_url": "files/a2c855a12cbae4e33bc4a14ca06a8f270edd22623c4280c792ee3f91ff952dab"
  },
  {
   "file_name": "exo/shell/10-editor.js",
-  "file_hash": "0927fd747e3b1b850f8042bf222def536665e1d5b7733a7720ad4409bfead930",
-  "download_url": "files/0927fd747e3b1b850f8042bf222def536665e1d5b7733a7720ad4409bfead930"
+  "file_hash": "dd88a55b256cbf7228d506d6eafe75b0597dac334f942eba8ac6d62fe6bc5e55",
+  "download_url": "files/dd88a55b256cbf7228d506d6eafe75b0597dac334f942eba8ac6d62fe6bc5e55"
  },
  {
   "file_name": "exo/shell/11-detail-swipe.js",
@@ -9006,8 +9696,8 @@
  },
  {
   "file_name": "exo/shell/15-configs-api.js",
-  "file_hash": "29e9c87e7763cbb58fe33f300d5b7a1d09d7148ad19872f915e0999326b30e4b",
-  "download_url": "files/29e9c87e7763cbb58fe33f300d5b7a1d09d7148ad19872f915e0999326b30e4b"
+  "file_hash": "365754ec2aa66d33803a1adc83155f9c433b02b288daf6851b9e434b0b8cbf85",
+  "download_url": "files/365754ec2aa66d33803a1adc83155f9c433b02b288daf6851b9e434b0b8cbf85"
  },
  {
   "file_name": "exo/shell/16-start.js",
@@ -9046,8 +9736,8 @@
  },
  {
   "file_name": "exo/smart-actions/06-mappings.js",
-  "file_hash": "ae9fa38b8660a4a0199751e86f81f8540249bce888d8343d8deacc5416a3a5c1",
-  "download_url": "files/ae9fa38b8660a4a0199751e86f81f8540249bce888d8343d8deacc5416a3a5c1"
+  "file_hash": "e862f04efd37b406e866279dff352967fcd34511233f6eda35b351f82a88632a",
+  "download_url": "files/e862f04efd37b406e866279dff352967fcd34511233f6eda35b351f82a88632a"
  },
  {
   "file_name": "exo/smart-actions/07-recoil-doors.js",
@@ -9121,8 +9811,8 @@
  },
  {
   "file_name": "exo/smart-actions/21-rooms-exports.js",
-  "file_hash": "54beb772f0b9eca5fe596ebdfe72fc626ea30a1ed3c9d056214c651eebe060a4",
-  "download_url": "files/54beb772f0b9eca5fe596ebdfe72fc626ea30a1ed3c9d056214c651eebe060a4"
+  "file_hash": "4d8a8168ae336caba1c59d108898fc4de329a44fbc3ce6ad3f30a63b86a265d3",
+  "download_url": "files/4d8a8168ae336caba1c59d108898fc4de329a44fbc3ce6ad3f30a63b86a265d3"
  },
  {
   "file_name": "exo/smart-actions/99-selfcheck.js",
@@ -9481,8 +10171,8 @@
  },
  {
   "file_name": "exo/weapon-live.js",
-  "file_hash": "607b73cc4a49408044a8d3848a7f96a1027d1ddbc009c3f79682e700376a934a",
-  "download_url": "files/607b73cc4a49408044a8d3848a7f96a1027d1ddbc009c3f79682e700376a934a"
+  "file_hash": "d9d5d715c7975771a35a5254086aa4d484c38dc5aab65aa1ed05c666dbbd83c3",
+  "download_url": "files/d9d5d715c7975771a35a5254086aa4d484c38dc5aab65aa1ed05c666dbbd83c3"
  },
  {
   "file_name": "exo/xim-import-screen.js",
@@ -9646,8 +10336,8 @@
  },
  {
   "file_name": "exo/zs-profile-encode.js",
-  "file_hash": "aa70188cc183b6bdde577a11188d7f6d49cc8ed8ee94944f2120fa244f6245c0",
-  "download_url": "files/aa70188cc183b6bdde577a11188d7f6d49cc8ed8ee94944f2120fa244f6245c0"
+  "file_hash": "96adb408f783a0a13f41f94268ff4e910744752fd137f42c6b8225811285a786",
+  "download_url": "files/96adb408f783a0a13f41f94268ff4e910744752fd137f42c6b8225811285a786"
  },
  {
   "file_name": "exo/zs-serial.js",
@@ -10061,8 +10751,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "a89433a44fa06ef7602b75846716b2fe7d4cbe12afb5cb6e0825066bc8b8382d",
-  "download_url": "files/a89433a44fa06ef7602b75846716b2fe7d4cbe12afb5cb6e0825066bc8b8382d"
+  "file_hash": "2b84aeccda19ff7bffd1fbff5dba410c766443224116aa68e84bd741694393ba",
+  "download_url": "files/2b84aeccda19ff7bffd1fbff5dba410c766443224116aa68e84bd741694393ba"
  },
  {
   "file_name": "zs-live-update.js",

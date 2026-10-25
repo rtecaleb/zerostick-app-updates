@@ -1,0 +1,498 @@
+{
+  "zerostickGamePack": 1,
+  "id": "cod-mw4",
+  "name": "Call of Duty: Modern Warfare 4",
+  "aliases": [
+    "Modern Warfare 4",
+    "MW4",
+    "COD MW4",
+    "COD Modern Warfare 4",
+    "Call of Duty MW4"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "cod-mw4.png",
+    "tall": "cod-mw4-tall.png",
+    "panel": "cod-mw4-panel.jpg"
+  },
+  "aimPreset": "cod",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "cod-mw4",
+    "name": "Modern Warfare 4 (Linear) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "Seed 2026-10-23: Black Ops 7's XIM top speeds (hip 1122/1070, aiming 383/379 PS5/Xbox) and priors, copied because MW4 shipped today with no XIM translator and no measurement; see ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2"
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS (cod-bo2 pack))."
+      },
+      {
+        "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Right Stick Min deadzone to 0; 0.02 allows for a resting pad's own zone)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Horizontal / Vertical Stick Sensitivity",
+        "value": "Highest (the top of the decimal scale)"
+      },
+      {
+        "setting": "Aim Response Curve Type",
+        "value": "Linear"
+      },
+      {
+        "setting": "Aim Response Curve Slope Scale",
+        "value": "1.00 (if the slider exists)"
+      },
+      {
+        "setting": "Right Stick Min Deadzone",
+        "value": "0 (the default is 15)"
+      },
+      {
+        "setting": "Right Stick Max Deadzone",
+        "value": "99"
+      },
+      {
+        "setting": "ADS Sensitivity Multiplier (every zoom)",
+        "value": "1.00"
+      },
+      {
+        "setting": "ADS Sens Transition Timing",
+        "value": "Instant"
+      },
+      {
+        "setting": "Field of View",
+        "value": "90"
+      },
+      {
+        "setting": "ADS Field of View",
+        "value": "Affected (default)"
+      },
+      {
+        "setting": "1st / 3rd Person Camera Movement",
+        "value": "Least (50%)"
+      }
+    ],
+    "stickHz": 120,
+    "hip": {
+      "deadzone": 0.02,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 1122,
+        "pitch": 370.3
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 1122,
+          "pitch": 370.3
+        },
+        "xbox": {
+          "yaw": 1070,
+          "pitch": 353.1
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 383,
+        "pitch": 210.7
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 383,
+          "pitch": 210.7
+        },
+        "xbox": {
+          "yaw": 379,
+          "pitch": 208.5
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "standard",
+      "label": "Standard",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Standard) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23: Black Ops 7's XIM top speeds (hip 1122/1070, aiming 383/379 PS5/Xbox) and priors, copied because MW4 shipped today with no XIM translator and no measurement; see ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2"
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS (cod-bo2 pack))."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Right Stick Min deadzone to 0; 0.02 allows for a resting pad's own zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Standard"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 1102,
+            "pitch": 363.7
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1102,
+              "pitch": 363.7
+            },
+            "xbox": {
+              "yaw": 1102,
+              "pitch": 363.7
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 381,
+            "pitch": 209.6
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 381,
+              "pitch": 209.6
+            },
+            "xbox": {
+              "yaw": 381,
+              "pitch": 209.6
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Linear) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23: Black Ops 7's XIM top speeds (hip 1122/1070, aiming 383/379 PS5/Xbox) and priors, copied because MW4 shipped today with no XIM translator and no measurement; see ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2"
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS (cod-bo2 pack))."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Right Stick Min deadzone to 0; 0.02 allows for a resting pad's own zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Linear"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 1122,
+            "pitch": 370.3
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1122,
+              "pitch": 370.3
+            },
+            "xbox": {
+              "yaw": 1070,
+              "pitch": 353.1
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 383,
+            "pitch": 210.7
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 383,
+              "pitch": 210.7
+            },
+            "xbox": {
+              "yaw": 379,
+              "pitch": 208.5
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "dynamic",
+      "label": "Dynamic",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Dynamic) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23: Black Ops 7's XIM top speeds (hip 1122/1070, aiming 383/379 PS5/Xbox) and priors, copied because MW4 shipped today with no XIM translator and no measurement; see ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2"
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS (cod-bo2 pack))."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set Right Stick Min deadzone to 0; 0.02 allows for a resting pad's own zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Dynamic"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.25,
+                0.18
+              ],
+              [
+                0.5,
+                0.33
+              ],
+              [
+                0.75,
+                0.55
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 1104,
+            "pitch": 364.3
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1104,
+              "pitch": 364.3
+            },
+            "xbox": {
+              "yaw": 1075,
+              "pitch": 354.8
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 381,
+            "pitch": 209.6
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 381,
+              "pitch": 209.6
+            },
+            "xbox": {
+              "yaw": 381,
+              "pitch": 209.6
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Modern Warfare 4 (2026, Infinity Ward), released 2026-10-23. DRAFT for the owner's review. The aim translator is SEEDED FROM BLACK OPS 7 (its XIM top speeds and priors) because MW4 has no XIM translator and nothing is measured yet (ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2): needsCalibration, and the picker shows it Not started. Warzone moves onto MW4 in Season 1 (expected 2026-11-06). The gun-name reader is game-data/cod-mw4/recognition.json (luma2x, box 0.715 0.872 0.112 0.030).",
+  "smartActions": [
+    {
+      "template": "slidecancel",
+      "enabled": false
+    },
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Call of Duty: Modern Warfare 4 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Modern Warfare 4 is seeded from Black Ops 7 (aimModel): every number is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Modern Warfare 4 is seeded from Black Ops 7 (aimModel): every number is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

@@ -1,0 +1,112 @@
+# Where the Modern Warfare 4 multiplayer weapon catalog comes from
+
+Everything here was read on **2026-10-24**, the day after launch (2026-10-23).
+`catalog.json` lists every weapon a player can put in a Modern Warfare 4
+multiplayer loadout at launch, plus three names the HUD showed in gameplay
+video that are not launch weapons of their own. The owner approved it on 2026-10-24 (the catalog's `review` line
+is gone, D132), so it reaches a Core's AI Scripts.
+
+**Pictures (2026-10-24, the owner: real publisher art, now).** Every picture
+in `weapons/` is Activision's own, from the launch blog above (its weapon
+cards, served by imgs.callofduty.com): cropped to the weapon, scaled to at
+most 480 x 300 and saved as a 256-colour PNG. The cards have no cut-out
+renders, so each keeps the card's own near-black backdrop; the MW4 | DMZ
+logo in a card's top-right corner, where a crop reached it, is painted over
+in that same near-black. 35 of the 36 entries have one (all 33 launch weapons,
+the ISO Trace and the Zip Gun); `unconfirmed.volt_edge` has none (it is on
+no Activision page). They are Activision's copyright, used to identify the
+weapon (D116). Delete a `.png` and set its `image` to `null` and the app
+shows the class symbol instead. The table is under **Pictures** below.
+
+## The list
+
+- **Activision, "Ready for Launch: All Modern Warfare 4 Operators, Weapons,
+  Equipment, and Multiplayer Create-a-Class Features"**
+  ([blog](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class)),
+  read 2026-10-24: **33 weapons**, 24 primary, 8 secondary, 1 melee, under the
+  class headings Assault Rifles (8), Submachine Guns (5), Shotguns (2), Light
+  Machine Guns (3), Marksman Rifles (3), Sniper Rifles (3), Pistols (4),
+  Launchers (4), Melee Weapon (1). Every name and class in the catalog is that
+  page's, spelt as it spells them in the weapon cards:
+  `Signal 50` (no dot), `PM-40 Anvil`, `Wz.55 Striga`, `SANG 9mm`, `FiNN LMG`.
+  Gfinity Esports and Dexerto's MW4 wiki list the same 33 in the same classes.
+- **Fire modes:** `burst` for the Hyeon Burst (by name, 375 RPM) and the Krait
+  P68 (the blog gives its rate in BPM, bursts a minute). Others are left out.
+- **Not a weapon of its own:**
+  - `smgs.iso_trace`: the ISO Nightshade's **Apex Attachment** (the blog's
+    card: "Apex Attachment: ISO Trace"); the HUD prints "ISO Trace" while it
+    is fitted. Every launch gun has one (Han X20 Skybreaker, M4 Hurricane,
+    Patriot XMR Volt, Kastov ARC, ...); only ISO Trace has been SEEN on the
+    HUD, so only it is listed. If the others also rename the HUD, they are
+    added the same way when a frame shows one.
+  - `lethal.zip_gun`: lethal equipment (unlocked at Player Level 17); its name
+    was seen once on the HUD at a swap.
+  - `unconfirmed.volt_edge`: seen on the HUD in an Oris 8.6 gameplay video;
+    on no Activision page. Class unknown.
+
+## The HUD's spellings
+
+The gun-name reader (`recognition.json`, D411 route, taught on public
+gameplay video: ZeroStick Model Library, Call of Duty/Modern Warfare 4)
+reads the HUD's own spellings. `names.hud` records `Signal 50`,
+`PM-40 Anvil` and `Wz.55 Striga`; since Activision's list spells them the
+same way, the catalog names now match and the entries are kept as the
+record of what the HUD prints.
+
+## Ids
+
+Re-made on 2026-10-24 from the class groups (`<group>.<slug>`), replacing the
+first draft's single `weapons.` group: the draft never shipped (it carried no
+classes and the app held it), so no config or taught picture names an old id.
+From now on the README's rule holds: an id never changes.
+
+## Update the list
+
+New weapons arrive with Season 1 (expected 2026-11-06, when Warzone moves onto
+Modern Warfare 4): read that season's Modern Warfare 4 patch notes at
+https://www.callofduty.com/patchnotes, add each weapon at the end of its group,
+and check its name on the HUD (a new letter needs the reader re-taught).
+
+## Pictures
+
+"crop" is cut from the launch blog's 1920 x 1080 weapon card (or, for the
+ISO Trace and the Zip Gun, from the picture named), at the pixel box given,
+then scaled. Every card is shown on the launch blog, fetched 2026-10-24.
+
+| file | weapon | picture (source URL) | kind | shown on | fetched |
+|---|---|---|---|---|---|
+| weapons/mw4_han_86.png | Han 86 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-009.webp | crop: the weapon card's render, x 236-1696, y 162-614 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_m4.png | M4 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-010.webp | crop: the weapon card's render, x 241-1673, y 135-646 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_hyeon_burst.png | Hyeon Burst (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-011.webp | crop: the weapon card's render, x 250-1663, y 120-631 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_patriot_xmr.png | Patriot XMR (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-012.webp | crop: the weapon card's render, x 236-1624, y 120-608 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_kastov_762.png | Kastov 762 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-013.webp | crop: the weapon card's render, x 260-1676, y 161-609 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_oden.png | Oden (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-014.webp | crop: the weapon card's render, x 288-1679, y 105-668 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_axion.png | Axion (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-015.webp | crop: the weapon card's render, x 270-1631, y 123-628 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_cronen_squall.png | Cronen Squall (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-016.webp | crop: the weapon card's render, x 241-1664, y 128-582 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_iso_nightshade.png | ISO Nightshade (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-017.webp | crop: the weapon card's render, x 383-1589, y 99-666 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_vel_46.png | VEL 46 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-018.webp | crop: the weapon card's render, x 504-1462, y 71-639 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_wz_55_striga.png | Wz.55 Striga (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-019.webp | crop: the weapon card's render, x 684-1524, y 86-663 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_ppsh_41.png | PPSh-41 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-020.webp | crop: the weapon card's render, x 334-1632, y 164-524 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_x_58_nyx.png | X-58 Nyx (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-021.webp | crop: the weapon card's render, x 329-1662, y 180-544 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_iso_trace.png | ISO Trace (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-017.webp | crop: the ISO Nightshade card's Apex Attachment picture (ISO Trace), x 750-1240, y 715-1015 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_rezi_12.png | Rezi 12 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-022.webp | crop: the weapon card's render, x 235-1699, y 190-526 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_warlord.png | Warlord (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-023.webp | crop: the weapon card's render, x 287-1678, y 119-614 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_finn_lmg.png | FiNN LMG (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-024.webp | crop: the weapon card's render, x 224-1695, y 135-567 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_type_73.png | Type 73 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-025.webp | crop: the weapon card's render, x 223-1694, y 118-629 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_apoc_338.png | APOC-338 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-026.webp | crop: the weapon card's render, x 236-1707, y 174-511 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_mar_9.png | MAR-9 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-027.webp | crop: the weapon card's render, x 279-1653, y 156-542 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_oris_8_6.png | Oris 8.6 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-028.webp | crop: the weapon card's render, x 259-1697, y 165-542 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_mosin_nagant.png | Mosin-Nagant (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-029.webp | crop: the weapon card's render, x 240-1701, y 232-489 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_kg_7_vulcan.png | KG-7 Vulcan (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-030.webp | crop: the weapon card's render, x 117-1794, y 103-526 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_astaroth_57.png | Astaroth .57 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-031.webp | crop: the weapon card's render, x 77-1827, y 142-588 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_signal_50.png | Signal 50 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-032.webp | crop: the weapon card's render, x 178-1703, y 87-610 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_sang_9mm.png | SANG 9mm (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-033.webp | crop: the weapon card's render, x 684-1353, y 92-644 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_krait_p68.png | Krait P68 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-034.webp | crop: the weapon card's render, x 687-1357, y 93-607 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_50_gs.png | .50 GS (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-035.webp | crop: the weapon card's render, x 595-1461, y 105-629 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_mojave_357.png | Mojave .357 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-036.webp | crop: the weapon card's render, x 612-1455, y 118-605 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_pila.png | PILA (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-037.webp | crop: the weapon card's render, x 112-1837, y 196-610 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_rpg_8.png | RPG-8 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-038.webp | crop: the weapon card's render, x 143-1797, y 197-616 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_jokr.png | JOKR (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-039.webp | crop: the weapon card's render, x 180-1707, y 156-690 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_pm_40_anvil.png | PM-40 Anvil (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-040.webp | crop: the weapon card's render, x 224-1785, y 133-670 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_fss_carbon_edge_1095.png | FSS Carbon Edge 1095 (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-041.webp | crop: the weapon card's render, x 571-1428, y 283-467 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
+| weapons/mw4_zip_gun.png | Zip Gun (Modern Warfare 4) | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/blog/body/mw4/rfl-ops-and-weapons/MW4-RFL-OPS-WEAPONS-050.webp | crop: the Lethals picture's Zip Gun tile, x 540-960, y 400-655 of 1920 x 1080 | [page](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class) | 2026-10-24 |
