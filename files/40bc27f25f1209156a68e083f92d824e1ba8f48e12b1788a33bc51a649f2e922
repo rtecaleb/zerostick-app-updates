@@ -1,0 +1,62 @@
+# Where the Modern Warfare 4 multiplayer weapon catalog comes from
+
+Everything here was read on **2026-10-24**, the day after launch (2026-10-23).
+`catalog.json` lists every weapon a player can put in a Modern Warfare 4
+multiplayer loadout at launch, plus three names the HUD showed in gameplay
+video that are not launch weapons of their own. **Held for the owner's review**
+(`review` in catalog.json, D132): nothing of it reaches a Core's AI Scripts
+until he deletes that line.
+
+**Pictures: none.** Every `image` is `null` (owner, 2026-10-24: leave pictures
+out; the app falls back to the class symbol). A picture added later follows
+D116: Activision's own, from callofduty.com or imgs.callofduty.com, with a row
+in a Pictures table here.
+
+## The list
+
+- **Activision, "Ready for Launch: All Modern Warfare 4 Operators, Weapons,
+  Equipment, and Multiplayer Create-a-Class Features"**
+  ([blog](https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class)),
+  read 2026-10-24: **33 weapons**, 24 primary, 8 secondary, 1 melee, under the
+  class headings Assault Rifles (8), Submachine Guns (5), Shotguns (2), Light
+  Machine Guns (3), Marksman Rifles (3), Sniper Rifles (3), Pistols (4),
+  Launchers (4), Melee Weapon (1). Every name and class in the catalog is that
+  page's, spelt as it spells them in the weapon cards:
+  `Signal 50` (no dot), `PM-40 Anvil`, `Wz.55 Striga`, `SANG 9mm`, `FiNN LMG`.
+  Gfinity Esports and Dexerto's MW4 wiki list the same 33 in the same classes.
+- **Fire modes:** `burst` for the Hyeon Burst (by name, 375 RPM) and the Krait
+  P68 (the blog gives its rate in BPM, bursts a minute). Others are left out.
+- **Not a weapon of its own:**
+  - `smgs.iso_trace`: the ISO Nightshade's **Apex Attachment** (the blog's
+    card: "Apex Attachment: ISO Trace"); the HUD prints "ISO Trace" while it
+    is fitted. Every launch gun has one (Han X20 Skybreaker, M4 Hurricane,
+    Patriot XMR Volt, Kastov ARC, ...); only ISO Trace has been SEEN on the
+    HUD, so only it is listed. If the others also rename the HUD, they are
+    added the same way when a frame shows one.
+  - `lethal.zip_gun`: lethal equipment (unlocked at Player Level 17); its name
+    was seen once on the HUD at a swap.
+  - `unconfirmed.volt_edge`: seen on the HUD in an Oris 8.6 gameplay video;
+    on no Activision page. Class unknown.
+
+## The HUD's spellings
+
+The gun-name reader (`recognition.json`, D411 route, taught on public
+gameplay video: ZeroStick Model Library, Call of Duty/Modern Warfare 4)
+reads the HUD's own spellings. `names.hud` records `Signal 50`,
+`PM-40 Anvil` and `Wz.55 Striga`; since Activision's list spells them the
+same way, the catalog names now match and the entries are kept as the
+record of what the HUD prints.
+
+## Ids
+
+Re-made on 2026-10-24 from the class groups (`<group>.<slug>`), replacing the
+first draft's single `weapons.` group: the draft never shipped (it carried no
+classes and the app held it), so no config or taught picture names an old id.
+From now on the README's rule holds: an id never changes.
+
+## Update the list
+
+New weapons arrive with Season 1 (expected 2026-11-06, when Warzone moves onto
+Modern Warfare 4): read that season's Modern Warfare 4 patch notes at
+https://www.callofduty.com/patchnotes, add each weapon at the end of its group,
+and check its name on the HUD (a new letter needs the reader re-taught).

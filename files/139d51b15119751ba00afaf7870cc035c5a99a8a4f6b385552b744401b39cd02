@@ -1,0 +1,331 @@
+{
+  "zerostickGamePack": 1,
+  "id": "fortnite",
+  "name": "Fortnite",
+  "aliases": [
+    "Fortnite Battle Royale",
+    "Fortnite Zero Build",
+    "Fortnite BR"
+  ],
+  "version": 2,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "fortnite.png",
+    "tall": "fortnite-tall.png",
+    "panel": "fortnite-panel.jpg"
+  },
+  "aimPreset": "fn",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "fortnite",
+    "name": "Fortnite (Linear)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4389 (Ftnt:BRLi, curves Ftnt:BRLi-ADS-P4.5 / Ftnt:BRLi-ADS-X1.5 / Ftnt:BRLi-Hip-P4.5 / Ftnt:BRLi-Hip-X1.5). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 916, aiming 687 on PS5; Xbox Series hip 920, aiming 690 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Horizontal and Vertical Speed set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Input Curve",
+        "value": "Linear"
+      },
+      {
+        "setting": "Look Horizontal Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "Look Vertical Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Look Horizontal Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Look Vertical Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "Scope Speed Multiplier",
+        "value": "1.00"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.12,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 916,
+        "pitch": 916
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 916,
+          "pitch": 916
+        },
+        "xbox": {
+          "yaw": 920,
+          "pitch": 920
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 687,
+        "pitch": 687
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 687,
+          "pitch": 687
+        },
+        "xbox": {
+          "yaw": 690,
+          "pitch": 690
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "exponential",
+      "label": "Exponential",
+      "setting": "Look Input Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "fortnite",
+        "name": "Fortnite (Exponential)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4318 (Ftnt:BR, curves Ftnt:BR-ADS-P4.8 / Ftnt:BR-ADS-X1.7 / Ftnt:BR-Hip-P4.8 / Ftnt:BR-Hip-X1.7). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 920, aiming 690 on PS5; Xbox Series hip 920, aiming 690 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Horizontal and Vertical Speed set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (an \"exponential\" stick curve; no exponent is published, 2 is the usual one). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Input Curve",
+            "value": "Exponential"
+          },
+          {
+            "setting": "Look Horizontal Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Vertical Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Look Horizontal Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Look Vertical Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Scope Speed Multiplier",
+            "value": "1.00"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.12,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 920,
+            "pitch": 920
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 920,
+              "pitch": 920
+            },
+            "xbox": {
+              "yaw": 920,
+              "pitch": 920
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 690,
+            "pitch": 690
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 690,
+              "pitch": 690
+            },
+            "xbox": {
+              "yaw": 690,
+              "pitch": 690
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Look Input Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "fortnite",
+        "name": "Fortnite (Linear)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4389 (Ftnt:BRLi, curves Ftnt:BRLi-ADS-P4.5 / Ftnt:BRLi-ADS-X1.5 / Ftnt:BRLi-Hip-P4.5 / Ftnt:BRLi-Hip-X1.5). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 916, aiming 687 on PS5; Xbox Series hip 920, aiming 690 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Horizontal and Vertical Speed set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.12 is a PRIOR, not in XIM's plaintext (not published; the engine's generic zone)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Input Curve",
+            "value": "Linear"
+          },
+          {
+            "setting": "Look Horizontal Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Vertical Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Look Horizontal Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Look Vertical Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Scope Speed Multiplier",
+            "value": "1.00"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.12,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 916,
+            "pitch": 916
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 916,
+              "pitch": 916
+            },
+            "xbox": {
+              "yaw": 920,
+              "pitch": 920
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 687,
+            "pitch": 687
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 687,
+              "pitch": 687
+            },
+            "xbox": {
+              "yaw": 690,
+              "pitch": 690
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Fortnite is not sold on Steam, so its picture is the PlayStation Store's own 16:9 banner for the game, which Epic supplies; see art/SOURCES.md. A game translator exists (fortnite-linear), but its numbers are pending the capture-card sweep, so it is not set here. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/fortnite.json, and --remove takes it out.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "gunMemory": {
+    "button": "west",
+    "hold": false
+  },
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Fortnite are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Fortnite comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Fortnite comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

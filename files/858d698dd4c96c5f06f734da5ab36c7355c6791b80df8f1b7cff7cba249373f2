@@ -1,0 +1,136 @@
+{
+  "zerostickRecognition": 1,
+  "game": "rust",
+  "trainedOn": "2026-10-24",
+  "catalogAsOf": "2026-10-21",
+  "reader": "zs_iconread 1",
+  "icons": {
+    "finder": "blue",
+    "rows": 48,
+    "pool": 3,
+    "mask": 1,
+    "accept": 0.82,
+    "lead": 0.1,
+    "search": [
+      2,
+      2
+    ],
+    "every": 4,
+    "items": [
+      {
+        "id": "assault_rifles.assault_rifle"
+      },
+      {
+        "id": "sniper_rifles.bolt_action_rifle"
+      },
+      {
+        "name": "Bow A",
+        "decoy": true
+      },
+      {
+        "name": "Bow B",
+        "decoy": true
+      },
+      {
+        "id": "bows.crossbow"
+      },
+      {
+        "id": "smgs.custom_smg"
+      },
+      {
+        "id": "shotguns.double_barrel_shotgun"
+      },
+      {
+        "id": "lmgs.hmlmg"
+      },
+      {
+        "id": "sniper_rifles.l96_rifle"
+      },
+      {
+        "id": "assault_rifles.lr_300_assault_rifle"
+      },
+      {
+        "id": "smgs.mp5a4"
+      },
+      {
+        "id": "shotguns.pump_shotgun"
+      },
+      {
+        "id": "launchers.rocket_launcher"
+      },
+      {
+        "id": "marksman_rifles.semi_automatic_rifle"
+      },
+      {
+        "id": "smgs.thompson"
+      },
+      {
+        "id": "shotguns.waterpipe_shotgun"
+      }
+    ],
+    "templates": 29,
+    "bytes": 7484,
+    "b64": "HQAAAGh3d3d3d3mHaHd2Z3d3rLhnd2Znd5rLt2d3Zmd727uHZ3d3eMuryHdmZnebut+Yd2Zmecys//t3Z3eL/s7//ndneL3aqIiId2is65qnd3d3armXd3ZmZmZqyId2ZmZmZmm4d3ZmZmZmZ3d2ZmZmZmZnd3d2ZmZmZmi7u7hmZmZmmZmZmZmZmIiZmZmZmZlxN5mZmZmZliBImZmZmZcRJYmZmZmZYQApmZmaqZYQA4mZmaqYYxCvlZmqqqeGAFw0qpmZqzRYmImZmGfqdGmZmZmYZoiYmZmZmZqneZmZmZmZmaiZmZmZmZmZiZmZmZmZmZmZmZmZmZmZmGZmaJmZmZkAAGd3d3d3d3eHZ3dmZnd3eclndmZmZ3eO+Wd2ZmZ3jcuXZ3Znd4z9x3dndmd4/O2Hd2Z3d6/fyHd3Znd7z/zM2Xdnd57vzN75d2d53v+HeHd3aL35zndmZmZompd3ZmZmZmqXd3ZmZmZmbLd3ZmZmZmZnd3d2ZmZmZmd3d3ZmZmZmd3d3d3d3d3d3d3d3d3d4uHd3d3d3d2vod3d3d3d4mXd3d3d3ec+3d3d3d3ev/Hd3d3d3fv5md3d3d3j/3d3Id3d3b/Qa7vl3d3eWv2d2d3d3bJWNd3d3d3dYd3d3d3d3eGZ3d3d3d3d6h3d3d3d3d3d3d3d3d3d3d3d3d3d3d3cAAGqId3d3d3iHaYd3d3d3i6hph3Zmd3m7qGh3dmd4y6uXaHd3d4qpyXdnd3eKuq3Id2dmeK2q//t3Z3d6783//4dnd4vbuqu7d2eazLqYd3d3aavJeId3ZmZquId2ZmZmZmnJh3ZmZmZmZ4h3dmZmZmZnd3d2ZmZmZmd3d3ZmZmZmmpmZmZmZiIiZmZmZmZmFRpqZmZmZmFAVmZmZmZlSImiaqZmZhAAHiZmqqZhAAFiZmaqZgxEtxomZqqhpAD/giaqqqWQ2d3eqmYnMY1eZmZmYRpiIiJmZmZmIeImZmZmZmcmJmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZkBAGeHd4ie+nd3Z3d3id+Xd3dnh3ed/Jd3d2d4iv+nd3d3Z3ie+Yd3d3dneM/ph3d3d2eb/Zd2Z3d3aMy5d3Znd3dr/qh3dmd3d2vviHd2Z3d3bf+Id3Zmd3dt7Id3ZmZmZmr9iHdmZmZmaKp3d2ZmZmZniHd3ZmZmZmd3d3dmZmZmiIiIh3r4iIiIiIiHn2eIiIiIiHr8d4iHiIh33Jh4iIiIiGT3iIiIiIiIj7eIeIiIiIjEaHiIiIiIf6aIiIiIiIn5h4iIiIiIjP94h4iIiIiGnHiIiIiIiIYAeIiIiIiIiQCIiIiIiIiHNIeIiIiIiIdXd4iIiIiIiHd3iIiIiIgCAHeIiIiIiIiId3d3d3d3d4h3h3d3d3d3iHvamId3d3eIedq+uHd3d4h3m8/8h3d3iHd4vP/4h3eHd3ec3/t3d3d3d3jM/6d3iHd3d4zf+HeId3d3eJrXd3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3mZmZmZmZmZiImZmZmZmZmIiZmZmZmZmYlyeZmJmZmZmYITSJmZmZmZmUUAeZmZmZmZlFDFmZmZmZmZNdBpmZmZmZmTQQiZmZmZmZk0AJmZmZmZmZZziZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZkDAGmJmIiZmZmZaIh3d3d3d3hryod3d3d3eGm6qYd3d3d4Z4iv/YiHd3hneJz/2Yd3eGd3er3/h3d4Z3d4mN/4d3hnd3eJr/l3d2d3d3eayod4Z3d3d3iJd3dnd3d3ZmZmZmd3d3dmZmZmZ3d3d2ZmZmZnd3d3ZmZmZmnMzMhmZmZmuWeIiImJmISHd4iImZmYhYUomImZmYiFiAA3iJmZmZaIhEX3eJmZlomXRf8WiZmWiZh0YI6ZmZaJmZdEbqiZloiZmYVN+ImWiJmZmFQ0mZeImZmZh4aIh4mZqZmIiIiIiZmqqYiIiIiJqpmZiIiIiImqqqmIiIiIhhERFoiIiIgDAHiZmIh3eIqaeoh3d3d3d3h6yod3d3d3eHnLqYh3d3d4d4i9/5iHd3h3eYz/uId3eHh4i9//l3d4d3d4md/Id3h3d3iJr/p3eHd3eIes/Id4d3d3d3mId3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3eIh3d3d3d3mGiJqZiHdGKWVniYmYd4lpYYmYiIl3iGmQFoh3iIiIeIlVLjmIiZlYioNv9YiJmViahzcK+ImpWJqYc0X5iKhXiYiHQO+JmEeJmZhzRpqIWImqqYdoaIh4iqqpiIiIiIiJmamIiIiIiImZmYiIiIiIiZmqiIiIiI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aqt3ZmZmZmZmu2ZmZmZmZmZ4d2ZmZmZmRYiIiJmqu6qbqZmYiJqpNpqpmZmZqXUonKmZmZqnRombmZmZlASJmZypmIcTB6qamYmXAIcoqZmpirUYMAmqmZmaogAxKaqZmZgYgliJmZqZYFmXiZmZmZeGmpiZmZmZloaqmZmZmZmYJKqpmZmZmZlUqqmZmZmZmZqZmZmZmZkOAGyYiIeHiImpbJd3d3d3m7lsh2Zmd4qpqWqHZmd5ypm4Z3ZmeKyYzJdmdmeK/by4d2ZneKz/mHd3Zniau/+Xd3dmeZ2Z/7dnd2eKmqq8x2d3aKqrz4iGZmZqmrqpZmZmZmupmHZmZmZma5l3ZmZmZmZomHdmZmZmZmd3d3ZmZmZmm6mZmZmZmGabqZmZmZmFJZupmZmZl0EnmqmaqpliAUiZqqqphQAEiZmqqZhkEmmqmamZddh4mZmZmHcwb5mqqpmXZQAOuaqqqpZTEGipqqqZhVMkmYmaqphVRXiZmZmZl0Z4mZmZmZmXN5mZmZmZmZhomZmZmZmZmZmZmZmZmZkOAGd3dmd3d3vKZ3ZmZmZ43MlndmZmd76oyGZmZmeNyJ23ZmZmebyb+ndmZne73N2HZmZom776h3dnZ4qsmvyHZmZnmpqb/JdmZme6ms2st2Zma7q+/3d2ZmZtu9mYZmZmZm65d3ZmZmZmbch2ZmZmZmZol3ZmZmZmZmi7u7dmZmZmmZmZmZmZmEaZmaqqmplyF5maqqqqhRBJmaqqqpcwAnmZqqqpYgA4mpmqqYZkRpqqmamXQpiZqqmap2MASpqqqqqVQQBJmqqqqpVDE5eKu7uoUzUlmZqqqpd2WJmZmZmZl0iaqZmZmZmXSaqpmZmZmZmJmqmZmZmZmXd3iZmZmZkOAG/JiIiIiImpb8d3d3d3iqlvx3Zmd3mpmW+3Zmd3qpmoZ3dmd4uom5hnd2Z4zarIiGZ3d4n/qXd3ZneIq/+3d3dneIu4z+d3d2d5mpi8yGd3Z4marpiHZndoiJmYZmZmZmmYiHZmZmZmaZl3dmZmZmZnmXd2ZmZmZmd3d3ZmZmZmnMmZmZmZmHad2ZmZmZmGNZ7ZmZmZmGMmncmZmZl0EUeaqZmZlyACeJmpmZl1EUiZmZmZhqtnmZmZmYhSP5mamZmYZxAMyaqpmahUADe5qqmZh1QkiYmZmZhVVGiZmZmZmDV3iZmZmZmYNImZmZmZmZlmmZmZmZmZmZmZmZmZmZkPAGh3d3d3d3mYZ3d3d3d3nLhnd3Z3d4v7h2d3d3d53+h3Z3dmeL7sd3dnd3ee76d3d2Z3ef/5d3d3Zmd8/+d3Zndnd37up3dnd2d43tqHdmd3Z56793ZmZndp+prnZmZmZmurqpdmZmZmaty7d2ZmZmZneJh2ZmZmZmd3d3dmZmZmeIiIiIiId2eIiIiIiIh4doiIiIh3d5l3iIiIh3dr2IeIiIiHY6p4h4iIiHN0Z4iHiIiIIwV4iIeIiInAB3iIh4h4i/ZHiIiHiIif+HeIiIeIfP/3iIiIh4iv/+eIiIiIiv//h4iIiIiInOt4iIiIiIh3dniIiIiIiIiIiIiIiIg="
+  },
+  "read": {
+    "streak": 2,
+    "blank": "hold"
+  },
+  "box": {
+    "suggested": [
+      0.3297,
+      0.8903,
+      0.3406,
+      0.1
+    ]
+  },
+  "verified": {
+    "how": "each creator held out in turn, read by the Core's own code",
+    "strips": 1031,
+    "right": 719,
+    "none": 312,
+    "wrong": 0,
+    "moments": {
+      "n": 59,
+      "right": 48,
+      "none": 11,
+      "wrong": 0
+    },
+    "perItem": {
+      "double_barrel_shotgun": {
+        "right": 225,
+        "none": 21
+      },
+      "l96_rifle": {
+        "none": 10,
+        "right": 6
+      },
+      "thompson": {
+        "right": 381,
+        "none": 111
+      },
+      "assault_rifle": {
+        "none": 170,
+        "right": 107
+      }
+    }
+  },
+  "training": {
+    "strips": 1614,
+    "creators": [
+      "cush",
+      "garbage",
+      "godz",
+      "jackj",
+      "kylelevo",
+      "majordio",
+      "razor",
+      "rico",
+      "timesup",
+      "xenix",
+      "xfear"
+    ],
+    "frameSet": "D:/zs-scratch/gunread/rust-core",
+    "decision": "D461"
+  }
+}

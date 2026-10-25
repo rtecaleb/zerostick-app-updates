@@ -1,0 +1,172 @@
+{
+  "zerostickRecognition": 1,
+  "game": "fortnite",
+  "trainedOn": "2026-10-24",
+  "catalogAsOf": "2026-10-21",
+  "reader": "zs_iconread 1",
+  "icons": {
+    "finder": "band",
+    "rows": 36,
+    "pool": 3,
+    "mask": 0,
+    "accept": 0.8,
+    "lead": 0.1,
+    "search": [
+      4,
+      2
+    ],
+    "every": 4,
+    "items": [
+      {
+        "id": "assault_rifles.assault_rifle"
+      },
+      {
+        "id": "smgs.bonerattler_smg"
+      },
+      {
+        "id": "shotguns.brutus_twin_hammer_shotguns"
+      },
+      {
+        "id": "shotguns.dragons_belch_shotgun"
+      },
+      {
+        "id": "shotguns.extending_focus_shotgun"
+      },
+      {
+        "id": "shotguns.gatekeeper_shotgun"
+      },
+      {
+        "id": "assault_rifles.heavy_assault_rifle"
+      },
+      {
+        "id": "sniper_rifles.heavy_impact_sniper_rifle"
+      },
+      {
+        "id": "shotguns.iron_pump_shotgun"
+      },
+      {
+        "id": "pistols.krustys_mr_blasty"
+      },
+      {
+        "name": "Med Kit",
+        "decoy": true
+      },
+      {
+        "id": "assault_rifles.morphite_heavy_assault_rifle"
+      },
+      {
+        "id": "items.overdrive_grenade"
+      },
+      {
+        "id": "pistols.pistol"
+      },
+      {
+        "id": "shotguns.pump_shotgun"
+      },
+      {
+        "id": "pistols.ranger_pistol"
+      },
+      {
+        "id": "smgs.rebeccas_guns"
+      },
+      {
+        "id": "shotguns.sentinel_pump_shotgun"
+      },
+      {
+        "name": "Shield Potion",
+        "decoy": true
+      },
+      {
+        "name": "Small Shield Potion",
+        "decoy": true
+      },
+      {
+        "id": "items.sonic_power_sneakers"
+      },
+      {
+        "id": "shotguns.sweeper_shotgun"
+      },
+      {
+        "id": "assault_rifles.tactical_assault_rifle"
+      },
+      {
+        "id": "pistols.tactical_pistol"
+      },
+      {
+        "id": "melee.thornes_vampiric_blade"
+      },
+      {
+        "id": "assault_rifles.warforged_assault_rifle"
+      }
+    ],
+    "templates": 43,
+    "bytes": 8344,
+    "b64": "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rN7fyWZmZmqarOmWZmZmapzKdmZmZnabqcZmZmZmdqq5xmZmZmZmiXind3d3d3iJmqqqqZiHeJmqu7aWSYeJmqu7uFEGmImaq7uaMSiYiZqrppUDqZiJqrtmYgSqmJmqp2UXOaqYiakzEVubqZiJmDJZu6qZiImUM4u6qpmIiXJ2W6qqqZh4hphKqqqZmQYAhmZmZmZo34d2ZmZnl3z6d3ZmZmf8vZdmdmZmaPzoZmZ2Z3Z635dmZnZpmKzddmZmdo3qzNdmZmaGncvdhmZmZoaMzddmZmZmh6/Ml2ZmZmaK/LqYdmZmZniJmXh2ZmZmdWeJmZmZkGVlZ4mqq6s3ZXZ4mrtLyKhmdniavXeLh2Z2eJrOQ7mHZnaJu+cJqYdmh5RvgJyqmGeHk8cJyqmIZnaG9JupmYdmdpyIu5mYh2Z4tFyeqZiHZncoeL25mYdmBgCGZmZmZmZ3d3ZmZmZneMp2dmZmeJr8uHZ2ZmZ92/t3ZnZnd9/vp2Zmdne//+h2ZmaHe6r6dmZmZoe9rqdmZmZmiO7d6nZmZmaHzMnedmZmZod3h3l2ZmZ3dmZmZmZnd3d2eJmqqqmHZmZ4maqqqWZldniau8xmaGaHiavMZDmod4eJq7Uiu5h3h4q2Q3y6mHeHmQBMy7qYd4eCAMu7qph3iBZXbLuqmHeHeHxjy6mYd3eJmqmqmYdmZniZmqmZmHcHAJiHd3d3d4p3h2ZmZmZ5/neGZmZmZp/5Z4ZmZmZ6/od3hmZmZp/Xd3eGZmeK/Xd3d4Z3jc/nZmZ3h3n8/LZmZneHfv37dmZmd4eK7bdmZmZ3h8zPhmZmZnd2qapmZmZ3d1eImqqqqYd2V4maqqqpQnZYiaq7u5QXdmiZq7u6RImGaImqu6VZmIZXiaqqVaqYhmiap3RKuqmHeZlTEYu7qZd5lRMIu7upl3iGMHu7uqmHeIEBm7uqqYd4cleru6qZhwcAd2Z2Znd3rHZ3ZmZmZnvvdnZmZmZnrvl2ZmZnd3v+h2ZmZmZ3ztd3ZmZmeY3td3dmZ3e+/Od2ZmZne/qux2ZmZmeemPx3dmZmd66Nx3ZmZmZ467+HdnZmZmjKu3d3d3d3d3d3d3d3iHd3d3d3d3jcd3d3d3d3jNh3d3d3d3jLd3d3d3d3jKd3d3d3d3nad3d3d3d8v9dnd3d3eM//p2dnd3d8//p3Z3d3d3z/p3dn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mZiJm6ZkWqqpmImZdDN7uqmYiZqVOWqqqYhneIY5iqu8zREAdmZmZmect2Z2ZmZmes+6ZnZmZmncqYt2dmZmjLyInHZ2Zmiv64yXZnZmnaz/2mZmdme5mfuXZmZ2acm/p2ZmZnZ9m8p2ZmZmdou5dmZmZmZ2rsdmZmZmZnedd3d3iZqpZnd4iIicp2ZmZ3iImd+5ZWVmd4nf/+tlZWZ3jP/+22Vmd3ic/f6XZneImHZs+4h3h4l1Qjy5iHd3iXUyqZiId3d2R5mZmId3d4RamIiIh3Z2g3mIiIh3ZmVih4iIiZmYEQCGZmZmZpy3Z4ZmZmZ6z7pnhmZmaeype3eGZmaMzIicZ4ZmaK/bjIdnhmacrf/ZZmeGZ7mY+4ZmZ4Zpyb+nZmZnhn2bynZmZmeGi7l2ZmZmZ4aux2ZmZmZndp12ZmZ3ial2d3iIiJynZnZneIiJ37hmZWZ3id//62VlZneM//7aZWZneJ39/Zdmd3iYdm36iHeHiXVCTLmId4eJZTKpmIh3h3Y3mZmIh3d3hEqYiIh3d3aDeYiIiHdmdmKIiIiIiIgSAHZmZmZndmZmZmZmmKy4ZmZmZnrtvdp2ZmZmjrrd7YZmZmavzcefx2Z3q8+at4zJZmeJnqqpi8dmZmZ9yYi7xmZmZmvZqL6GZmZmZ8zJqWZmZmZmeId2ZmZmZmZmZmZmZlZ3iImYiHdlVniImYeoh2VniJqVNZiYdneJqiE3xph2Z3iZiMzaZ2ZWZ2zd/M+FVFVFf9u776ZUVneOx5jPt2VneIu0e8+Xdmd4iMmLyndlZ3eIiamId2Vmd4iIiIh3ZhIAd3d3d3ZmZmZmZmZmZ3ZmZmZmZniql2ZmZmZo/r3IZmZmZm3b7vt2ZmZ3n+/Yz6d2Zpu/qreep3ZmiZ3Kqq52dmZma+uY32ZmZmZp3Li7ZmZmZmeaqYZmZmZmZmZ2ZmZmZneIiZmId2VWd4iZmZh3ZVZ4iZmHmIdlZ4mZhCZ5iHZ4makQF5eYdmeIl5nM1nhlZ2d7//7/Z3Zndn77rP93ZWd4nMV5/4dmZ3iJtHvrh2ZmeIiqqph3ZWZ4iJmYiHdlEwB2Znvdl2ZmZnZmjYu6ZmZmdmaeq96GZmZ2Zq3NnLZmZnZmrJl51mZmdmafqpn3ZmZ2Zn+piedmZnZmbsl56GZmdmZq+YjaZmZ2Zmf6mcpmZnZmZ8282WZmdmZmeah2ZmZmZnebh3dmZmZmesyYd2ZmZmZ7vLp3dmZmZnvNzId2ZmZmfM3Ml2ZmZmZ77d23ZmZmZnrv/sdmZmZmeO7+x2ZmZmZ3zu7YZmZmZneu7chmZmZmd4y7p2ZmZmZ3eId3ZmYUAGVVVmVVVVrmZVWId3dlWtZlVou8ybhaxmVXx7vZu2rGZVt4zLurmsZlbGacmJuaxmVsZml3jIvGZX13eHesi8ZlbHZnd9trxmVp12dqtlzWZVfNyap1XPZVVWiYdmZnpmd4mZmZmYdVZ4mHiZmZiKVoiYiGmXmZ1niZc2pZlpnmiZgji2eIiueapyJFd4p7+Ku2EjN4i4z5q7czQ2eLjPmaqDMjV5qr+ImYYzRXuqr3eJiHZnmZmfd4iYiJmZmYlxQAZWVmZWVVWshkVYiamIVauGRWurznuVq3ZFp3q6qbirhkW1fNmZmKuGRcVWmHinq3ZGxWaHeLe7hkbVVXZ6truFRbhVZ211rIVFjphnuFXNhlVpupqFZq+FVneL3Lze3bV4mHiZqZiMRoiXmYmImZxHiZhVdqiJrFeZgzi1iGmtaKpzN4aIl755u2IzR4i434m7YiRGiLjfibuDREaIqd95qoMzRXuqz3iZiERWiqmuV4mXiYmJmJlEVnd3eaqrvLFQB3dmZmZnmHZnZmZmZnzqhmdmZmZnzvqGZ2ZmZnv/+XZnZmZ4zv3ZdmdmZo3766hmZ2Z4zfqqh2ZnZn7euah2ZmdmnqqpdmZmd3i5mXdmZmZ3e8qHZmZmZndniHd3d3d3d2d3eIiHh2ZnZnd4iIvEdmZmd4iIv/R2ZmZ3eJvb+HZmZneJ3813dmZmd47/3HdmZmZ437/Zh2ZmZnvt7sh3ZmdnjXeriHd2Z2eXaJiHd3ZnaaaIiId3ZmZnZ4d3d3d3cWAHZmZmZmZ712dmZmZmZ7/HZ2ZmZme++3ZnZmZme8+3ZmdmZneu/HZmZ2Zme9/HdmZnZme863ZmZmdmeqn4dmZmZ3eNreiGZmZnd///d3ZmZmd9vKx2dmZ3d3qrd3d3iJmHZ4maqqmYR2dniZqrqpBnZ3eJq7u6GIdoeJq7zSKZh3h4mqvFCamHeHiarDCrqYd4eJqlC7qZh3iImUdsuqmHeHiYSH26qYd4eGGEu6qZh3h2B6eqqpiHZlYGmZmaqZmRcAd3ZmZnmpZnd2ZmZnzelmd3ZmZnvu92Z3dmZnru6nZ3d2Znjv+4dmd3Znvf/4dmZmdmfv/8dmZnd2Z8rqp2Znd3ZneryGd3d3dmZovpZmZmZ2Zmect2ZmZnZmZnqnd3d3ZniZqqqZh2ZmeJq7oCqYh2Z4mrsAbJiIZniasgrrqIdniatxmbqYd3eJlF5suph2Z4khqbu6mIdmeFqpmqqYeGZ4mlvKqZh3d4iaacqph3Z3iZqmmpmIdnZ4maQ7qZiHFwCGZmZnn+9mZoZmZmf4y3eHhmZmf7nZh4eGZmbrmNmJh3ZmfdqepmZmdmf7m/h3ZmZ2a7mP+Hd3d3Zq6pv3d3d2dmZ+fnZmZmZ2ZmuspmZmZnZmZ9jWZmZmZmZmibZmZneZmZmqlzSZmZmZmqpwB6mZmZqqqAAomZmZqqqRAlmZmZmZqTEjipmZmZlyFDmpqZmZmSE2apqZmamqREVqqZmZmZmYJaqZmZmZmZkzmpmZmZmZmXNqmZmZmZmZlFqZmZoYAId3d3d3eZd3d3eHd4iZl3d3eJiImbqHd3d4iJea2oh3d3d3d533d3d3d3d534d3d3d3eI37h3d3d2d439d3d3d3d3//d2Z3d3d3r/l3d3d3d3n/d3dmd3d2fddmZmd3d0V4mqu6qXdUVnmbvLumiGVniJquy5eYdmZ4mr7amohlVnirzdl6h2VWeavMg7qXZWaJqrgquphmZ4mrkHuqmHZniacFuqqYdmaJkDu6qZhmZokiqqqph2ZWcimaqpmIdxgAVVVlVWZphVVmZ4Z2iJuXZomJmZaIq4iXiJmb6p2+iJdmZ+qO6InGZmZo5r9u1uZVeIjYu5zIx3WHh8e3voyYhmZ317iKjWZlVWntnt3mVVVVV5hmd2ZVVVVndlVWZmZmd3d3d3d3d3d3d3d3h4uHd3dnd3ZniXd3Z3d3hmm4dndmZp35v/+GZlVVvunrrpVVVWaNy+i+llVlZ4291912ZWZmv77s6mZmZmbOmu63ZmZ3d5l3h3d3d3d4h3d3d3d3GQB3d3d3d3eHd3Z2ZmZ3eup3dmZmZ4iO+Xd2ZmZ33d+XZnZmZni/6HZmdmZni++4dmd2d3nv2pdmZnZ3n/6XdmZmd3ivyHdmZnd3ie+HdmZmZ3fK7KdnZmdnd5q5l2ZmZmZVZ4maqpiGVVVniZqqmiVVZXiZq7q2BmVmeJq8l4SYZmZ4mrzNS4dlZniazem6h2VleJv/fMmHVWZ4rfi7mYdmdohmjLqph2ZmiMu6mZh2VXaDhrqpmIdmd3Y3W6qZiHcZALqZiHd3d3hopmZmZmd52WimZmZmeH35Z6ZmZme+zpdnpmZmd6/odmemZmeKz7dmaKZmeO/ahmZnlmee/YdmZmiWaK7XdmZmaKaK74dmZmZop7rct2ZmZmiGirmWZmZmZ6d4mZmZh2U0hFeJmqqZJFaVZ4mrurYHV5VomrymhJdnlWeKvL07hleVZ4q96LmGV5Vnmv9ryXZXlXic97qZh2emeGV8upmHaJV3u7qZiHZXpoN2qpmYh2emZjc7qZmHaA=="
+  },
+  "read": {
+    "streak": 2,
+    "blank": "hold"
+  },
+  "box": {
+    "suggested": [
+      0.55,
+      0.8194,
+      0.45,
+      0.1708
+    ]
+  },
+  "verified": {
+    "how": "each creator held out in turn, read by the Core's own code",
+    "strips": 1025,
+    "right": 556,
+    "none": 468,
+    "wrong": 1,
+    "moments": {
+      "n": 244,
+      "right": 152,
+      "none": 91,
+      "wrong": 1
+    },
+    "perItem": {
+      "Iron Pump Shotgun": {
+        "none": 188,
+        "right": 68
+      },
+      "Heavy Assault Rifle": {
+        "none": 147
+      },
+      "Shield Potion": {
+        "none": 10,
+        "right": 44
+      },
+      "Bonerattler SMG": {
+        "right": 261,
+        "none": 94
+      },
+      "Sonic Power Sneakers": {
+        "right": 40,
+        "none": 17
+      },
+      "Extending Focus Shotgun": {
+        "right": 143,
+        "none": 12,
+        "wrong": 1
+      }
+    }
+  },
+  "training": {
+    "strips": 2829,
+    "creators": [
+      "aboy",
+      "coffee",
+      "dkay",
+      "duffy",
+      "enigma",
+      "jasser",
+      "mcy",
+      "whadonaite"
+    ],
+    "frameSet": "D:/zs-scratch/gunread/fortnite-core",
+    "decision": "D461"
+  }
+}
