@@ -1,0 +1,439 @@
+{
+  "zerostickRecognition": 1,
+  "game": "counter-strike-2",
+  "trainedOn": "2026-10-24",
+  "catalogAsOf": "2026-10-24",
+  "reader": "zs_iconread 1",
+  "icons": {
+    "finder": "text",
+    "rows": 18,
+    "pool": 3,
+    "mask": 6,
+    "accept": 0.85,
+    "lead": 0.05,
+    "search": [
+      2,
+      2
+    ],
+    "every": 4,
+    "items": [
+      {
+        "id": "rifles.ak_47"
+      },
+      {
+        "id": "rifles.aug"
+      },
+      {
+        "id": "sniper_rifles.awp"
+      },
+      {
+        "id": "c4.c4_explosive"
+      },
+      {
+        "id": "pistols.cz75_auto"
+      },
+      {
+        "id": "pistols.desert_eagle"
+      },
+      {
+        "id": "pistols.dual_berettas"
+      },
+      {
+        "id": "rifles.famas"
+      },
+      {
+        "id": "pistols.five_seven"
+      },
+      {
+        "id": "rifles.galil_ar"
+      },
+      {
+        "id": "pistols.glock_18"
+      },
+      {
+        "name": "Grenade",
+        "decoy": true
+      },
+      {
+        "name": "Knife",
+        "decoy": true
+      },
+      {
+        "id": "machine_guns.m249"
+      },
+      {
+        "id": "rifles.m4a1_s"
+      },
+      {
+        "id": "rifles.m4a4"
+      },
+      {
+        "id": "smgs.mac_10"
+      },
+      {
+        "id": "shotguns.mag_7"
+      },
+      {
+        "id": "smgs.mp5_sd"
+      },
+      {
+        "id": "smgs.mp7"
+      },
+      {
+        "id": "smgs.mp9"
+      },
+      {
+        "id": "equipment.medi_shot"
+      },
+      {
+        "id": "machine_guns.negev"
+      },
+      {
+        "id": "shotguns.nova"
+      },
+      {
+        "id": "pistols.p2000"
+      },
+      {
+        "id": "pistols.p250"
+      },
+      {
+        "id": "smgs.p90"
+      },
+      {
+        "id": "smgs.pp_bizon"
+      },
+      {
+        "id": "pistols.r8_revolver"
+      },
+      {
+        "id": "sniper_rifles.scar_20"
+      },
+      {
+        "id": "rifles.sg_553"
+      },
+      {
+        "id": "sniper_rifles.ssg_08"
+      },
+      {
+        "id": "shotguns.sawed_off"
+      },
+      {
+        "id": "pistols.tec_9"
+      },
+      {
+        "id": "smgs.ump_45"
+      },
+      {
+        "id": "pistols.usp_s"
+      },
+      {
+        "id": "shotguns.xm1014"
+      },
+      {
+        "id": "equipment.zeus_x27"
+      }
+    ],
+    "templates": 44,
+    "bytes": 4314,
+    "b64": "LAAAANm7u7u7u3d2zcu7mFdoqatmZmaMfKzJalVVVYrGvmjMVVVWyaVoZVVVVVWaVVVVVWRomZmIlkRENFZ3iIiIZlNVVVVp6tu+7Hd3d37on3jMiIiIv6iJiIiIiIibiIiIiAEAVVVoqquFVVXN3dmGWKu7uXd3qrqatYZaVVWsfdzIrHtVVXpmirtnp1VVVVVXulVVd3d3jdyHd3dnZnqsy4h3dRERKHiYeZmWZmZtaZ2Pivp3d3p3mc93qHd3d3d3y3d3AgBVVVVZvMtlVau7u713a3Z2u7u6ZmVZu6pVVVyZyWm2WVVVV4mLzPupVVVVVVVouamIiIiJu7qIiIiIiInu7nd3VmZniZmYRWQRERSZeJiJmHd3d4h5273tiIiIiIiI2asDAFZ3dqu4Z1ZlyZd3fdd3ZWV52qqMqWd3dmdnmf/6ZWZlaIl4ibvKl3ZmZnZniXd5l4mqqXFImqmWaZq5gTmIqpiXV3qkCJmZqqq5hkMKqpmJmZiKpyVoq6mqqpiqg4h3igQAzv2qqqqqq6VnislXqYVYtVVVenupx1ilVVW3uFV8ZbdVV7bGVVqom1VYu4VVVpqmRmeIiIiIh1MiNFeIiImYQlVVasmInMx1d3ed2Hd77sh3d763d3je6nd4vJd3eJmYBQC7u7u7u7u8pcqqqqd3VVbYZ3d3jN5lWrhVVVZoqrValVVVVVZmxmbGVVVVVVWbqrVod3d3eIiHQzd3d3d3d3dAZmZmaajd3Id3d3d3qs/+h3d3d3d3n//Hd3d3d3eM3bcGAKvMzMzMzMx1u6qpaJhVWNdnd3q83HVZpmVVVXmqxla3ZVVVVVWoZppVVVVVVXq7pmh3d3eIiIdUN3d3h3iIhzBWZme5ed3cdWZmZniIvu63h3d3d3eO//p3d3d3d4vMqAcAVWvd3du5mKeauru7umd4aqqqiIVYZVVZVVd3m5vGu6tVVVVVvKelZlVVVVVnioVVZmq7zMyWZ3ZES3d3eszLyCM2d3d3d3d1VVVmbNqerNl3d3d3ro+nd3d3d3d4jZd3CACru7u7u7u7x7upmGZmVVWKZoiKve51WLdVVWabu6VXtlVVVVZmt1WnVVVVVVWLu7dYd3d3d3eIdCZ3d3d3d3dyRVVWqIjMzHVmZmZ5mc7upnd3d3d3r//od3d3d3eM3cgJAIiMuqu7u2Zm3du2Z3Zou8tlZ3qqqrur7VVVVVeru2asVVVVWpmKZVZVVVVYxlVVVWZqmZmIqWZmNVd5mIiHQzJERUiIvduJqYh3eIf8n3idiIiIiPqMiIh4iIiI6IiIiAoAu7u7u7u7u6XLqpeIZVVapWd3jN7HVXtlVVVoqpyFWrZVVVVVZsZVmlVVVVVVi6q5WHd3d3d3eFM3d3d3d3d3IFVWapiszMhVZmZniIne7YZ3d3d3d7//6Xd3d3d3jN3JCwBWesu7u7unVXq5dVVVVpqWiGVVVVVXd4aIZVVVVVd3hom8zMzMyYimery7u7vLl2VmeKzMzMuHZiV4mqqqqoYyJpqqqqqYVVIWmqqqqphVUjeaqqqqqXd0R5qquqqoZEQLAFVWzsy7u3VVVVZ6ZVe8ymVqzMplWKupt6hVVVVVVVaIm5ZVVVVWi5hWnMu7vMynmHd3m8zMyXd3ZmZ67u7tp2Y0Z4m7uoiZYyeIiIiIiIhyFoiIiIiIhlJFZ5qqqZdldgsAVWd82qvbdVV4m7llVXqphnrKZ1VWaKuWi9x3VVZ5vbdVa7plWcymVVVWnLu8xlVVd3d4zd2oh3dERoq7u7l0RDVniaqqiHVDNFaJqqqIhlRVV5rN3Il1VXd3jN3dt3d3CwBmZmZmaLvMt2ZmZmZ6l4rIZmZ73dqMyXZmnchmathmZp2mZozadmZmjNy8t2ZmZmZmZmZmZ5qZh2ZmZmZovd23ZmZmiazcl2ZVZ6zd3aZVVmi93dyXVVVVeKzLh2ZmZmYMAFVVVVW4VVVVaKu7q+3MzMnKdmd3dWVWbMy6qruWh3iMVniHd9yqqstVVVVVilVVVYiIiIi5iIiIZniHd8+auZgEeIh3iZmZggWIiHeJmZmSZniHd6+rusuIiIiIjIiIiAwAVVVVVtdVVmaHd4qr/LzLytqqmHdnZVZru2VVWYmHeJtpzMzL+pqpmlVVVVbGVVVViIiIiMiIiIh3d3eI6qu6mxVFZ4iYmZmTBoiIh4eIiII1vu73t3iHZ4iIiIjZiIiIDABVeoiqq7zJVavJqoiIZmvG11VolYmXVZucvMm9uZvIa1ZlVV1VVXy6VVVVVlVVVrZ3eIiZmsyodxFZd6mqm7ggJ4iIiIaIiHA6yoVbdVe92YiIiIuIiIz7iIiIiIiIiLgMAFVWaJrLy5ZVVpy5h1aHjHVslljKjLuGx72MumeWZpyMy+llVVVVVr6aplVVVVVVV4iIiIi9yoiIIjV5qruapSIDeZh3hmeIQJzsuGeGZozoyNiIiIiIiK2sqIiIiIiIiA0AVVZY6Wd1VVWavMu7uryXuqrLplVlZ6ppVWaL1qrarHlVVVanzNZomVVVVYundWVVd3d4yYiIiIhVWIm6rLhlZwEneIiIiHWGRERYns2Xe+x3d3ePy9d5qneIiI64iIiIDgBmZYqIm+hmZsvM2piZm9u6qqiKu8Z7nJpVVVVVurxWiVVVVVW7rWVVVVVVVappZVV3d3l3i9h3d2d0SJqYmFZmVmRFiJ7rWOt3d3d3r913ind3d3fPf3d3d3d3d6t5d3cPAFq6qqrMeKmn3pd3dmbNmZpmmaq1iKrJWVVVVbi7pWnKVVVVu2zVVWlVVVW6V4VVVXmHd3eKd3iIJYiIiIhVZmREVmat3WS923d3d8+/hnjed3d333vnd3l3d3e7eJd3dxAAjMzMzMzLusisuWZmZnh3iWZ6zehXyqzKZmZnmWe2ZmVmZmZ6a7ZlVVVVVWq5ZVVVRpd5ZmaJqqUViIiId3d3cURGmpzddWi3d3d4jv/Hd3d3d3d9/ad3d3d3d3vqd3d3EQCry7u7u7u7u7zHZmZmZmZ7ZnzNrMpmnMdmZmami9bHZmZmZmZmmnxlZVVVVWZrvGUjOIiIiIiIhSVoiIiIiIiEIiaHuZq7qGOIiIiYit/4iIiIiIiIj/uIiIiIiIiK7IgSAHmZq7u7u7yn3MzHZmZVVYtmZnqquql72lVVVVW8ibx5VVVVWMtmvGVVVVVZtVVVVVVVWXiHeJllNmZoiIiIiHJVVVd3fP/8m3d3d3ePiv+KiHd3d/uHn4h3d3d52Ih3dxMAesqqqqqqrMnfxpyIVWiZa1a3prylyYq8Vby1VrXGVodVZ2VXp6VVVVVVVVi7dVVVIViIiIiIhjI1eHeHiIiIhGZuhYnOt2fah4+nd8/Xd4iIiHiH36d3d4iIeHjeiIiIFABmZWm7u7u8ls3d2mVVVVab1lZ7u2WKh8jmZlZqd7y5hmZmZmtbZrelVVVWaptmmpZVVVaJiIiIVUREVoiIiIh0cyIniJqYmYS4iHd478q+h4iIiIr+iK+oiIiIityIjJgVAFVVVWi7qrvZVVVWu664m6ZVVmqrl6qmZVZ8yYvvzHZlnLm8p3dmVVWquHZlVWVVVWZmZmZ3d4rIVVVVe8q824ZmZmbK7symZlVWnNy7ymVVeb7sl3d2ZmaduHZmZmZmdxYAZmZ4vpiKZmbe7smIiIe8ymZmyqxne5vaZmbXa2rZZohmVtdrnGZmZlVWtmZmZlVVd3d3rIeJd3dXd3mqqquHZSIieYjMyFWJdme4ev75d4l3d7h6/od3d3d3qHeIh3d3FwDLvLu8vLZmZcx2ZmZmjLupaMzMrMy3ZnpmZmeGaI23amZmZmZmZ42LVVVmVWVmZqqIiIiJmnZmZkWIiIiIhDIRImiImHiaqqh3iHiIiI3v/oiIiIiIiZz+iIiIiIiIiKsYAKu7zMy7vLvHuqqXh3VVV8lniKvKyFVbhVVVaJmchVfGVVVVVVe1VqlVVVVVVqvMt0eId3d4d4hjJ3d4d3d3d2FFVWl5jMzKVGZmZ3eJ3u6md3d3d3e///l3d3d3d6zLqBkAuqqqzKqpmtjKu6iodlVVq3iIqsvIVVnGVVV5mq2FVshVVVVVV8ZWilVVVVVVq8zIR3iHZnd3d1I3d3d4eIiHc0VVaHmLzMt1VVVnd3ne3bd3d3d3eM//+3d3d3d3ncyoGgBWy6y1VFVVVFt5mZu7u6qou1VVVVVVVVqsd6layFVVWlvMu7nIeoiLVVq7i6qXiIeIuZm4iIiIiHn+7viIiIiIJYiIiIiIiIUUiHeHWJmZlQA1Z4hImZmVZVfLfN2YiIgbAIy7u7u6ZWVVx1VVVVe6qqnGVVVYZqjKu6u7u7y6es69ZmVVZqmlZ7tVVVVVapVVVXyZm7mYd3d3OJmZmZlCIRApmZmZmYhmZjmZmaebNYdHiYiImZ+4mc2ZmIiZnrmZmRwAvMy7u7zbdmbbu7uGZmjJZWZmZ9vKhm12ZmZmaKvcZ8ZmZWZmZmuGmlVVVVVVZ7u6aHiImZh1RERHd3eIiIdCEXd3d6zN3dp3d3d3eJq87qd3d3d3d3ju6Xd3d3d3d6zKHQBVVru7vGVVVYu8u4q6u5ZV6HZVVoiq3dvHi7hriHZmZsmmzItVVVVVVVe3qVVVVVV3d6vLzHd3d0eGq8usl1REJnd3d3d3QzK+6r3rd2ZVZbmXy+t3d3d3d3e3ynd3d3ceAGaWZmaryFVVq8q7u6V8u7q6zLu7dna3WlVWVVa6yqvLVVVVV6xtpXhVVVVYuVVVVXeId3ec2HeIM3iIiJu4REQSN3d3iIh4hnd3d3ffz4rtd3d3d/19p3mId3d42nd3dx8AVVVVi728VVWru7vFZmx7pqqsm7uVacaKVVnGVbu7ynhVWsZVVm2oylVZhVVVV2V2d3d3i5uad3d3d3eN3dtWZCIih3eIiFiEVVa1VX3Ore13d8d3d3yY3nd5l3d3eHeIIAC7u7u7vMzXZbVVVVVVVX2H13d4mppmZ6uKqqmIiN3delVVVmZlarfLVVVVVVVmZql4iIiIiaqFVViIiIiIiIIASIiIh4iIiFRYiIdlVaza/YiIiIiIirj/iIiIiIiIiKohAKy7u7u7u7vIu7u3VVVVVXpWVWula6ZXx1VVZ7V7vGbHVVVmtbZot4tVVVWqtVWaqFh3d3iYiIh1Nnd3iIiIiIMzMzWbuZq6ZFVVVa3Kit2md3d3r9h4z/t3d3etyIiamCIAjKqpmquGVVXWZmVVVoq66auKlWdqq53oWraqzIpWnPtZxqtnvFVVVlVnqFV2VVVVbXd5mat4iIg4iIiIiHREUyeGeZmXWJYIZbWszOZVasyI5+t33nh3d4iI6YiIiIh4IwDKqru8u7y71szMzM2Id2WLZmZmZ5rNlbhmZVZmZojGt2ZmZWZmZqiKVVVVVVVVe7loiIiHd2Z3YkZmZmaqqqqkZmZmd4m57+h3d3d3d4m/+Hd3d3d3d3/6d3d3d3d3fNkkALu7u7u7vLuWt4h2ZmVWZpvLu8u7u7tpalVVVlZWjLnKVVVVVVVYuptVVVVVVVbJVZh3d3eqq5dmN2Z4iIiIiGAlVWiIeIeqpnd3d3d3jfn/d3d3d3d3+413d3d3d3fadyUAnMy6u7u7u9a2ZlVVeGVWx4zMyqrfdVe2ZmZ4iJrGZsZVVVVmZqhmilVVVVVVeqvIVniZl3eIiYRIiIiIiIiIcSRVeIh1iIgxd3d4eIi+7sd4iIiId47/+oiIiIiHjNy5"
+  },
+  "read": {
+    "streak": 3,
+    "blank": "hold"
+  },
+  "box": {
+    "suggested": [
+      0.8,
+      0.62,
+      0.2,
+      0.38
+    ]
+  },
+  "verified": {
+    "how": "each creator held out in turn, read by the Core's own code",
+    "strips": 2771,
+    "right": 1965,
+    "none": 805,
+    "wrong": 1,
+    "moments": {
+      "n": 1366,
+      "right": 1012,
+      "none": 353,
+      "wrong": 1
+    },
+    "perItem": {
+      "AK-47": {
+        "right": 257,
+        "none": 65
+      },
+      "FAMAS": {
+        "right": 38,
+        "none": 14
+      },
+      "Glock-18": {
+        "right": 66,
+        "none": 51
+      },
+      "UMP-45": {
+        "right": 4,
+        "none": 2
+      },
+      "MAG-7": {
+        "right": 10
+      },
+      "Knife": {
+        "none": 185,
+        "right": 368
+      },
+      "Grenade": {
+        "none": 58,
+        "right": 116
+      },
+      "USP-S": {
+        "right": 121,
+        "none": 21
+      },
+      "C4 Explosive": {
+        "none": 52
+      },
+      "Desert Eagle": {
+        "right": 72,
+        "none": 23
+      },
+      "R8 Revolver": {
+        "none": 20,
+        "right": 63
+      },
+      "P2000": {
+        "none": 22,
+        "right": 12
+      },
+      "M4A4": {
+        "right": 18,
+        "none": 15
+      },
+      "SCAR-20": {
+        "none": 6,
+        "right": 29
+      },
+      "SSG 08": {
+        "right": 13,
+        "none": 3
+      },
+      "CZ75-Auto": {
+        "none": 8
+      },
+      "Five-SeveN": {
+        "right": 12,
+        "none": 4
+      },
+      "Tec-9": {
+        "right": 17,
+        "none": 2
+      },
+      "XM1014": {
+        "right": 86,
+        "none": 22
+      },
+      "M4A1-S": {
+        "right": 191,
+        "none": 36
+      },
+      "Dual Berettas": {
+        "none": 16,
+        "right": 22
+      },
+      "Sawed-Off": {
+        "right": 8,
+        "none": 4
+      },
+      "M249": {
+        "right": 5,
+        "none": 29
+      },
+      "MP5-SD": {
+        "none": 4,
+        "right": 8
+      },
+      "Negev": {
+        "right": 14,
+        "none": 14
+      },
+      "Medi-Shot": {
+        "right": 7
+      },
+      "AWP": {
+        "right": 123,
+        "none": 22
+      },
+      "Galil AR": {
+        "none": 11,
+        "right": 33
+      },
+      "P250": {
+        "none": 4,
+        "wrong": 1
+      },
+      "MAC-10": {
+        "right": 36,
+        "none": 8
+      },
+      "MP7": {
+        "right": 39
+      },
+      "SG 553": {
+        "right": 38,
+        "none": 6
+      },
+      "PP-Bizon": {
+        "right": 61,
+        "none": 16
+      },
+      "AUG": {
+        "right": 38,
+        "none": 1
+      },
+      "Zeus x27": {
+        "right": 17,
+        "none": 50
+      },
+      "Nova": {
+        "none": 11,
+        "right": 23
+      }
+    }
+  },
+  "training": {
+    "strips": 2849,
+    "creators": [
+      "3kliksphilip3kli",
+      "abnerfsabnerfs",
+      "adolafadolaf",
+      "ajcs2",
+      "allcrocuscs2",
+      "alllouiecs2",
+      "azuretruelightaz",
+      "basicallyvietbas",
+      "blackjohnblackjo",
+      "blueeyesdobbydob",
+      "bonmp5sdbonmp5sd",
+      "brunnosbrunnos",
+      "championofsheets",
+      "clbob",
+      "cmeticcmetic",
+      "colafles12colafl",
+      "cs2clipzonecs2cl",
+      "cs2provodscs2pro",
+      "dashcambdashcamb",
+      "demonwolf",
+      "dexondexon",
+      "ditarcade",
+      "dualityduality",
+      "fireintheholefir",
+      "firepixel",
+      "gabych",
+      "gamemodeactivate",
+      "gefhlgefhl",
+      "hawkeye",
+      "holythumbholythu",
+      "honeybadgerhoney",
+      "hytron",
+      "ijazcs2ijazcs2",
+      "imfcnd",
+      "imperialagent199",
+      "ityansire",
+      "izunuh",
+      "jindargameplayji",
+      "joyfuljoystickjo",
+      "jumpyjumpy",
+      "kryptek",
+      "legemdaryarchiev",
+      "limcs",
+      "m4youm4you",
+      "mirath",
+      "moretimthetatman",
+      "mortugamingmortu",
+      "mrtweeday",
+      "muahmuah",
+      "naveenchoudharyn",
+      "njava",
+      "nthacker",
+      "onelefty",
+      "p4rty",
+      "pixelrpixelr",
+      "pol0",
+      "poultrypunisherp",
+      "pythoncs",
+      "pythoncspythoncs",
+      "richardquinonesr",
+      "rtx3060",
+      "ryzentra",
+      "salamisuissesala",
+      "sauden",
+      "savathoonsavatho",
+      "sefasefa",
+      "shifterztvshifte",
+      "siez",
+      "sinyee0516sinyee",
+      "sitback",
+      "slickshotgamessl",
+      "slicksnc",
+      "spawntaneous",
+      "strix",
+      "t0k3nt0k3n",
+      "techupgradetechu",
+      "tekvextekvex",
+      "thefeaturesguyth",
+      "throneful",
+      "twelvehundred",
+      "ugcs",
+      "ukkoukko",
+      "unclebeardgaming",
+      "unpaidmooseunpai",
+      "v0lfukasv0lfukas",
+      "vltvlt",
+      "wick",
+      "xanniarcs2xannia",
+      "yndwadeyndwade"
+    ],
+    "frameSet": "ZeroStick Model Library/Counter-Strike 2/frames/strips-2026-10-24",
+    "decision": "D473"
+  },
+  "round": {
+    "about": "D473: CS2's round memory. Everything here is this game's own and rides only in CS2 configs.",
+    "prior": "The panel shows on every buy and swap, so the gun read as the round's loadout is bought becomes the gun (read.streak reads in a row); it is held while the panel is faded (blank: hold).",
+    "pickup": {
+      "streak": 3,
+      "rule": "A different gun replaces the round's gun only after `streak` agreeing icon reads in a row. The panel names a gun someone else bought \"<player>'s <gun>\" (the game's own Panorama_WeaponSelection_OwnedName): a pickup or a teammate's drop."
+    },
+    "reset": "No HUD-gone forget: after death CS2 shows the spectated teammate's HUD, so no HUD element says you are dead. The next round's first reads replace the gun. A per-round slot table cleared at round start comes with the key hook (D466).",
+    "slots": {
+      "1": "primary",
+      "2": "secondary",
+      "3": "knife, Zeus x27",
+      "4": "grenades",
+      "5": "C4"
+    },
+    "keys": {
+      "source": "the game's own cfg/user_keys_default.vcfg (build 2000559)",
+      "1": "slot1",
+      "2": "slot2",
+      "3": "slot3",
+      "4": "slot4",
+      "5": "slot5",
+      "6": "slot6",
+      "7": "slot7",
+      "8": "slot8",
+      "9": "slot9",
+      "0": "slot10",
+      "x": "slot12",
+      "q": "lastinv",
+      "MWHEELDOWN": "invnext",
+      "MWHEELUP": "invprev",
+      "g": "drop",
+      "e": "+use",
+      "b": "buymenu"
+    }
+  }
+}
