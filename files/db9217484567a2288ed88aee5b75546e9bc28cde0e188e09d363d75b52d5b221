@@ -1,0 +1,231 @@
+/* onboarding/boot.js — first-time onboarding's small always-loaded half (D481).
+ *
+ * The owner's choice, "video + light tips":
+ *   1. the first time the app reaches a ZeroStick Core, offer the setup
+ *      video (skippable); Global Settings > Access > Help reopens it;
+ *   2. the first time each main screen opens, ONE short tip (two or three
+ *      with Next on a few screens), pointing at the control it is about;
+ *   3. Replay tips / Turn tips off, in the same Help card.
+ *
+ * NO COST WHEN OFF, NOTHING AT START. This file is the only part phone.html
+ * loads, and it does nothing but read three localStorage keys. The words
+ * (onboarding-text.js) and the engine (onboarding.js) are fetched only:
+ *   - a few seconds after the app has loaded, when tips are on (the
+ *     default) - the engine then watches which screen is open; or
+ *   - when the video is about to be offered or opened.
+ * With tips off and the video already offered, neither file is ever loaded
+ * and nothing watches anything.
+ *
+ * WHAT IS REMEMBERED (this phone / PC only: a per-viewer convenience):
+ *   zs.tips.off    '1' = the player turned tips off
+ *   zs.tips.seen   {"<tip id>":1,...} one flag per tip, set when it shows
+ *   zs.onb.video   '1' = the first-connect video offer has been made
+ * Every read and write is in try/catch: a store that refuses (a private
+ * window) still works for this session, from memory.
+ *
+ * window.ZS_ONBOARD_SKIP (truthy) turns the whole thing off for a run:
+ * the headless screenshots and the suites set it, like ZS_WIFI_PROMPT_SKIP.
+ *
+ * ES5 only (DESIGN.md). Tests: tools/test-onboarding.js.
+ */
+(function () {
+  'use strict';
+
+  var K_OFF = 'zs.tips.off', K_SEEN = 'zs.tips.seen', K_VIDEO = 'zs.onb.video';
+  var START_DELAY_MS = 2500;      /* after load: never on the start path */
+  var mem = {};
+
+  function lsGet(k) {
+    /* the store is the truth whenever it answers; memory only stands in
+       for one that refuses */
+    try { return window.localStorage.getItem(k); }
+    catch (e) { return mem[k] == null ? null : mem[k]; }
+  }
+  function lsSet(k, v) {
+    mem[k] = v;
+    try { window.localStorage.setItem(k, v); } catch (e) { /* memory only */ }
+  }
+  function lsDel(k) {
+    delete mem[k];
+    try { window.localStorage.removeItem(k); } catch (e) { /* memory only */ }
+  }
+
+  function seenMap() {
+    var raw = lsGet(K_SEEN), m = null;
+    try { m = raw ? JSON.parse(raw) : null; } catch (e) { m = null; }
+    return (m && typeof m === 'object') ? m : {};
+  }
+  function isSeen(id) { return !!seenMap()[id]; }
+  function markSeen(id) {
+    var m = seenMap();
+    if (m[id]) { return; }
+    m[id] = 1;
+    lsSet(K_SEEN, JSON.stringify(m));
+  }
+  function isOff() { return lsGet(K_OFF) === '1'; }
+  function skipped() { return !!window.ZS_ONBOARD_SKIP; }
+
+  /* THE CHOICE, PURE: which tips to show now. `tips` is the list from
+     onboarding-text.js, `screens` the screens open now (in priority order),
+     `where(tip)` answers 'shown' (its anchor is on screen), 'away' (it
+     exists but is scrolled out of view), or 'none'. Returns the first
+     screen that has anything to show, with at most three tips, in the
+     list's order: [{tip, at}] where at is 'anchor' or 'centre'. A tip whose
+     anchor is away waits (it is not marked, so it can show later); one with
+     needsAnchor and no anchor waits too. */
+  function pick(tips, screens, where) {
+    if (isOff() || skipped()) { return []; }
+    var seen = seenMap();
+    for (var s = 0; s < screens.length; s++) {
+      var out = [];
+      for (var i = 0; i < tips.length && out.length < 3; i++) {
+        var t = tips[i];
+        if (!t || t.screen !== screens[s] || seen[t.id]) { continue; }
+        var w = where(t);
+        if (w === 'shown') { out.push({ tip: t, at: 'anchor' }); }
+        else if (w === 'none' && !t.needsAnchor) { out.push({ tip: t, at: 'centre' }); }
+      }
+      if (out.length) { return out; }
+    }
+    return [];
+  }
+
+  /* ── loading the rest, once ──────────────────────────────────────── */
+  var loading = null;
+  function base() {
+    var me = document.querySelector && document.querySelector('script[src$="onboarding/boot.js"]');
+    var src = me && me.getAttribute('src');
+    return src ? src.replace(/boot\.js$/, '') : 'onboarding/';
+  }
+  function addScript(src) {
+    return new Promise(function (ok, bad) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = false;
+      s.onload = function () { ok(); };
+      s.onerror = function () { bad(new Error('could not load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function load() {
+    if (window.ZS_ONBOARDING && window.ZS_ONBOARDING_TEXT) { return Promise.resolve(window.ZS_ONBOARDING); }
+    if (loading) { return loading; }
+    var b = base();
+    loading = addScript(b + 'onboarding-text.js')
+      .then(function () { return addScript(b + 'onboarding.js'); })
+      .then(function () { return window.ZS_ONBOARDING; },
+        function (e) { loading = null; throw e; });
+    return loading;
+  }
+  function withEngine(fn) {
+    return load().then(function (E) { if (E) { return fn(E); } }, function () { /* offline: no tips */ });
+  }
+
+  /* ── the tips' watcher: started late, and only when tips are on ──── */
+  var started = false;
+  function startTips() {
+    if (started || isOff() || skipped()) { return; }
+    started = true;
+    withEngine(function (E) { E.start(); });
+  }
+  function stopTips() {
+    if (window.ZS_ONBOARDING) { window.ZS_ONBOARDING.stop(); }
+    started = false;
+  }
+  function later() {
+    setTimeout(function () {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(startTips, { timeout: 4000 });
+      } else { startTips(); }
+    }, START_DELAY_MS);
+  }
+  if (document.readyState === 'complete') { later(); }
+  else if (window.addEventListener) { window.addEventListener('load', later); }
+
+  /* ── the first-connect video offer ──────────────────────────────── */
+  /* called by renderHome (shell/09-home.js) on every draw: cheap when the
+     offer has been made, which is every draw but one */
+  function homeDrawn() {
+    if (skipped() || lsGet(K_VIDEO) === '1') { return; }
+    var z = window.ZS;
+    if (!z || !z.live || z.live.online !== true) { return; }
+    if (z.productId && z.productId() !== 'core') { return; }
+    withEngine(function (E) { E.maybeOfferVideo(); });
+  }
+
+  /* ── Global Settings > Access > Help ────────────────────────────── */
+  var SET_WORDS = { heading: 'Getting started', video: 'Setup video', replay: 'Replay tips',
+    off: 'Turn tips off', on: 'Turn tips on' };
+  function words() {
+    var T = window.ZS_ONBOARDING_TEXT;
+    return (T && T.settings) || SET_WORDS;
+  }
+  function settingsHTML() {
+    var w = words();
+    return '<div class="zs-onb-set" id="onb-set">' +
+      '<button class="btn" id="onb-video" type="button">' + w.video + '</button>' +
+      '<button class="btn" id="onb-replay" type="button">' + w.replay + '</button>' +
+      '<button class="btn" id="onb-off" type="button">' +
+        (isOff() ? w.on : w.off) + '</button></div>';
+  }
+  function say(t) { if (window.ZS && window.ZS.toast && t) { window.ZS.toast(t); } }
+  function wireSettings(root, redraw) {
+    if (!root || !root.querySelector) { return; }
+    var v = root.querySelector('#onb-video'), r = root.querySelector('#onb-replay'), o = root.querySelector('#onb-off');
+    /* the words live in onboarding-text.js: once it is in, the buttons wear them */
+    if (!window.ZS_ONBOARDING_TEXT) {
+      load().then(function () {
+        var w = words();
+        if (v) { v.textContent = w.video; }
+        if (r) { r.textContent = w.replay; }
+        if (o) { o.textContent = isOff() ? w.on : w.off; }
+      }, function () {});
+    }
+    if (v) { v.addEventListener('click', function () { openVideo(v); }); }
+    if (r) {
+      r.addEventListener('click', function () {
+        reset();
+        load().then(function () { say(words().replayed); }, function () {});
+        if (redraw) { redraw(); }
+      });
+    }
+    if (o) {
+      o.addEventListener('click', function () {
+        var nowOff = !isOff();
+        setOff(nowOff);
+        load().then(function () { say(nowOff ? words().turnedOff : words().turnedOn); }, function () {});
+        if (redraw) { redraw(); }
+      });
+    }
+  }
+
+  function openVideo(opener) {
+    return withEngine(function (E) { E.openVideo(opener); });
+  }
+  function reset() {
+    lsDel(K_SEEN);
+    lsDel(K_OFF);
+    if (window.ZS_ONBOARDING) { window.ZS_ONBOARDING.dismiss(false); }
+    startTips();
+  }
+  function setOff(on) {
+    if (on) {
+      lsSet(K_OFF, '1');
+      stopTips();
+    } else {
+      lsDel(K_OFF);
+      startTips();
+    }
+  }
+
+  window.ZSTIPS = {
+    KEYS: { off: K_OFF, seen: K_SEEN, video: K_VIDEO },
+    isOff: isOff, setOff: setOff, reset: reset,
+    isSeen: isSeen, markSeen: markSeen, seenMap: seenMap,
+    videoOffered: function () { return lsGet(K_VIDEO) === '1'; },
+    markVideoOffered: function () { lsSet(K_VIDEO, '1'); },
+    pick: pick, load: load, start: startTips, homeDrawn: homeDrawn,
+    openVideo: openVideo, settingsHTML: settingsHTML, wireSettings: wireSettings,
+    started: function () { return started; }
+  };
+})();

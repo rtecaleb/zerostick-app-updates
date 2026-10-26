@@ -1,0 +1,138 @@
+/* onboarding/onboarding-text.js — EVERY WORD of first-time onboarding (D481),
+ * and the ONE place the setup video is set.
+ *
+ * THE OWNER EDITS THIS FILE. Change the words between the quote marks and
+ * nothing else; keep each tip to one or two short sentences, plain English,
+ * no jargon (many players use a controller, and some cannot read a long
+ * paragraph comfortably). docs/DECISIONS.md D481 lists the same tips.
+ *
+ * THE SETUP VIDEO: put the address in `video.src`.
+ *   - a file shipped with the app: copy it into this folder
+ *     (dashboard/public/onboarding/) and write its name, for example
+ *       src: 'onboarding/zerostick-setup.mp4'
+ *   - or a web address of an .mp4 / .webm file:
+ *       src: 'https://zerostickgaming.com/videos/setup.mp4'
+ *   - or a YouTube / Vimeo page: it is shown in the app's own player frame.
+ *   Leave src empty ('') and the app says "Video coming soon" instead.
+ *   `captions` (optional) is a .vtt subtitles file, shown on by default.
+ *
+ * THE TIPS: one list. Each tip:
+ *   id       never change it once shipped: it is how a phone remembers the
+ *            tip was seen (change it and everyone sees that tip again)
+ *   screen   which screen it belongs to (home, new-config, ai-scripts,
+ *            script-editor, auto-green, mappings, aim, game-settings, device)
+ *   text     what it says (title is the short bold line above it)
+ *   anchor   what it points at, first match wins. A [data-tip="..."] name
+ *            first, so a redesign only has to keep that one attribute
+ *   needsAnchor  true: only show when the thing it points at is on screen
+ *            (otherwise it waits for a later visit); false/absent: with
+ *            nothing to point at it shows in the middle of the screen
+ * Tips of one screen show in this order, at most three, with "Next".
+ *
+ * ES5 (DESIGN.md: every file phone.html loads). Loaded only when a tip or
+ * the video is about to be shown (onboarding/boot.js), never at app start.
+ */
+window.ZS_ONBOARDING_TEXT = {
+  video: {
+    src: '',
+    poster: '',
+    captions: '',
+    minutes: 2,
+    offerTitle: 'Welcome to ZeroStick',
+    offerText: 'Your Core is connected. A short video shows you how to set it up and play.',
+    watch: 'Watch the 2-minute setup',
+    skip: 'Skip for now',
+    later: 'You can watch it any time: Global Settings, Access, Help.',
+    playerTitle: 'Setup video',
+    soonTitle: 'Video coming soon',
+    soonText: 'The setup video is on its way. Until then, short tips will show you around the first time you open each screen.',
+    errorText: 'The video could not play right now. Check your internet connection and try again.',
+    close: 'Close'
+  },
+
+  buttons: {
+    gotIt: 'Got it',
+    next: 'Next',
+    skipAll: 'Skip tips'
+  },
+
+  settings: {
+    heading: 'Getting started',
+    video: 'Setup video',
+    replay: 'Replay tips',
+    off: 'Turn tips off',
+    on: 'Turn tips on',
+    replayed: 'Tips will show again as you open each screen.',
+    turnedOff: 'Tips are off. Turn them on here any time.',
+    turnedOn: 'Tips are on.'
+  },
+
+  tips: [
+    /* HOME */
+    { id: 'home-card', screen: 'home', title: 'Your config',
+      text: 'This picture is the config playing now. Tap Settings on it to change how it plays.',
+      anchor: ['[data-tip="home-card"]', '#hsart'] },
+    { id: 'home-switch', screen: 'home', title: 'Switch configs',
+      text: 'To play a different config, tap here, then Your configs.',
+      anchor: ['[data-tip="home-menu"]', '#cog'] },
+    { id: 'home-device', screen: 'home', title: 'Your Core',
+      text: 'This card shows your Core is connected and what it is doing. Tap it for more.',
+      anchor: ['[data-tip="home-device"]', '#livechip'], needsAnchor: true },
+
+    /* MAKING A CONFIG (the New config steps) */
+    { id: 'new-game', screen: 'new-config', title: 'Pick your game',
+      text: 'Choose the game this config is for. Each game gets its own config.',
+      anchor: ['[data-tip="new-game"]', '#wzsearch'], needsAnchor: true },
+    { id: 'new-native', screen: 'new-config', title: 'The red option',
+      text: 'Native Mouse & Keyboard sends your real mouse and keyboard to the game, with AI Scripts on top. You pick it once, when you make the config.',
+      anchor: ['[data-tip="new-native"]', '#dbody [data-v="native"]'], needsAnchor: true },
+
+    /* AI SCRIPTS */
+    { id: 'ai-what', screen: 'ai-scripts', title: 'What a script is',
+      text: 'A script is a small helper that runs while you play, like less recoil. Tap a gun to see its scripts.',
+      anchor: ['[data-tip="ai-scripts"]', '#dbody .acc.aa-cls', '#aa-room'], needsAnchor: true },
+    { id: 'ai-switch', screen: 'ai-scripts', title: 'It switches for you',
+      text: 'Your Core sees which gun is in your hands and turns on that gun’s scripts by itself.',
+      anchor: ['[data-tip="ai-gun"]', '#aa-outnow', '#aa-room'], needsAnchor: true },
+
+    /* THE SCRIPT EDITOR (another branch is redesigning it: the data-tip
+       names are the contract, the ids after them are today's screen) */
+    { id: 'script-steps', screen: 'script-editor', title: 'Build it step by step',
+      text: 'Tap what this button should do. Each tap adds a step, and the steps run in order.',
+      anchor: ['[data-tip="script-add"]', '[data-tip="script-steps"]', '#sa-edit .saedstick'] },
+    { id: 'script-save', screen: 'script-editor', title: 'Save it',
+      text: 'Tap Save when it does what you want.',
+      anchor: ['[data-tip="script-save"]', '#sa-save'], needsAnchor: true },
+
+    /* AUTO GREEN (NBA 2K) */
+    { id: 'ag-build', screen: 'auto-green', title: 'Pick your build',
+      text: 'Choose your player’s build first, so Auto Green knows your jump shot.',
+      anchor: ['[data-tip="ag-build"]'], needsAnchor: true },
+    { id: 'ag-learn', screen: 'auto-green', title: 'It learns from you',
+      text: 'Turn it on and shoot like normal. It learns your timing from your shots and gets better as you play.',
+      anchor: ['[data-tip="ag-switch"]', '#ag-live', '#ag-room'] },
+
+    /* MAPPINGS */
+    { id: 'mappings', screen: 'mappings', title: 'Change any button',
+      text: 'Tap a button to change what it does. Any button can do another button’s job.',
+      anchor: ['[data-tip="mappings"]', '#dbody .samaphd', '#dbody .grp-card'] },
+
+    /* AIM */
+    { id: 'aim', screen: 'aim', title: 'How aiming feels',
+      text: 'This page sets how your aim feels. Change one thing at a time, then try it in your game.',
+      anchor: ['[data-tip="aim"]', '#aimtabs', '#dbody .zkcard', '#dbody .grp-card'] },
+
+    /* GAME SETTINGS (Controller vs Native) */
+    { id: 'game-settings', screen: 'game-settings', title: 'Your game’s settings',
+      text: 'Type these just as your game shows them. A Controller config uses the game’s controller settings; a Native config uses its mouse and keyboard ones.',
+      anchor: ['[data-tip="game-settings"]', '#dbody [data-gskind]'], needsAnchor: true },
+
+    /* THE DEVICE PAGE */
+    { id: 'device', screen: 'device', title: 'This config’s setup',
+      text: 'Its name, picture and where it plays all live here.',
+      anchor: ['[data-tip="device"]', '#ov-banner', '#dbody .grp-card'] },
+    { id: 'device-conn', screen: 'device', title: 'Where it plays',
+      text: 'This is how your Core reaches your console or PC. Change it here if you move to another one.',
+      anchor: ['[data-tip="device-conn"]', '#ov-conn'], needsAnchor: true }
+  ]
+};
