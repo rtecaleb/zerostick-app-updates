@@ -1,0 +1,785 @@
+/* pad-cal.js: Calibration (D410), ZSPADCAL.
+ *
+ * The owner, 2026-10-19: "transplant [the ZeroStick calibration] feature and
+ * calibration workflow into the ESP32-P4. In Controller Aim, at the bottom,
+ * a button you click - 'Calibration' - opens a sub-menu with that
+ * calibration UI and functions, so you can calibrate your controller (PS5),
+ * and include my 8K controller."
+ *
+ * WHAT IT IS
+ *   The Calibration button at the foot of Controller Aim opens one screen
+ *   (back key "‹ Aim"). The Core says which pad is on its controller port
+ *   (GET /padcal/pad) and lends it to this screen (POST /padcal/open): from
+ *   then until the screen closes, the console does not see that pad at all
+ *   (the Core tells the console it let go, then forwards nothing), so
+ *   spinning the sticks and pressing Cross to confirm never reach a game.
+ *
+ *   A DualSense, DualSense Edge or DualShock 4 gets the ZS Pad Calibrator,
+ *   1:1: the dualshock-tools site (MIT, (c) 2024 the_al) with the owner's
+ *   hotkeys and auto-save, vendored whole in vendor/dualshock-tools/ and run
+ *   in a frame. Its WebHID is zs-core-hid.js, which reaches the pad through
+ *   ZSPadCalBridge below and the Core's /padcal/... routes. The flow, its
+ *   steps and its timings are the site's own; nothing here changes them.
+ *
+ *   A ZS 8K gets its own calibration (the dualshock-tools clone checks
+ *   would rightly refuse it): the ZS8K Configurator's wizard, ported with
+ *   its constants (zs8k-cal.js has the numbers), through the 8K's setup
+ *   port (/padcal/zs8k/...). Circle calibrates the sticks and Cross saves (the PlayStation
+ *   flow's hotkeys); range and fine-tune open only from the app (owner,
+ *   2026-10-21); the d-pad nudges inside fine-tune.
+ *
+ *   The pad goes back to the console when the screen closes (back key, or
+ *   any other way: a watcher sees the screen gone and closes), and by itself
+ *   15 s after the app goes quiet (the Core's lease).
+ *
+ * ES5 (DESIGN.md). Load after zs8k-cal.js.
+ */
+(function () {
+  'use strict';
+
+  var SCREEN = 'padcal';
+  var CSS_ID = 'pcal-css';
+  var FRAME_SRC = 'vendor/dualshock-tools/index.html';
+
+  var S = {
+    p: null,            /* the config the Aim screen was showing */
+    pad: null,          /* GET /padcal/pad's data */
+    open: null,         /* POST /padcal/open's reply */
+    watch: null,        /* the screen-gone watcher */
+    gen: 0,             /* bumps on every render: stale answers are dropped */
+    rtt: [],            /* feature report round trips, ms (the frame's) */
+    z: null             /* the 8K view's state */
+  };
+
+  function Z() { return window.ZS || {}; }
+  function esc(s) {
+    var z = Z();
+    if (z.esc) return z.esc(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function $(id) { return document.getElementById(id); }
+  function api(path, method, body) {
+    var z = Z();
+    if (!z.api) return Promise.resolve({ ok: false, error: 'no answer' });
+    return z.api(path, method || 'GET', body).then(function (j) { return j || { ok: false, error: 'no answer' }; },
+      function (e) { return { ok: false, error: String((e && e.message) || e || 'no answer') }; });
+  }
+  function dataOf(j) {
+    if (!j || j.ok === false) return null;
+    return (j.data !== undefined && j.data !== null) ? j.data : j;
+  }
+  function noRoute(j) {
+    return /not found|no such|unknown route|not implemented|does not answer|\b404\b|\b501\b/i.test(String((j && (j.error || j.e)) || ''));
+  }
+  /* Bluetooth is the slow link: the frame pulls fewer, trimmed reports */
+  function slow() {
+    try {
+      var ble = window.ZSBLE && ZSBLE.isConnected && ZSBLE.isConnected();
+      var usb = window.ZSSERIAL && ZSSERIAL.isConnected && ZSSERIAL.isConnected();
+      return !!ble && !usb;
+    } catch (e) { return false; }
+  }
+  function linkName() {
+    try {
+      if (window.ZSSERIAL && ZSSERIAL.isConnected && ZSSERIAL.isConnected()) return 'USB';
+      if (window.ZSBLE && ZSBLE.isConnected && ZSBLE.isConnected()) return 'Bluetooth';
+    } catch (e) { /* nothing */ }
+    return '';
+  }
+  function onScreen() {
+    var d = $('detail');
+    return !!$('pcal') && (!d || d.classList.contains('open'));
+  }
+
+  function injectCss() {
+    if ($(CSS_ID)) return;
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.pcal-foot{margin:14px 0 4px}',
+      '.pcal-foot .btn.pcal-open{width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;font-weight:700}',
+      '.pcal-foot .pcal-sub{display:block;color:var(--muted);font-size:12.5px;text-align:center;margin-top:6px}',
+      /* D482 (owner, 2026-10-26: "the Calibration button should look like the
+         ZeroStick Calibrator's theme ... almost rainbow, not a full rainbow,
+         shiny, glass"): the Calibrator's own lights (its blue #8fbeff, its
+         ion #7ff0e6, its violet wash #a371f7) as one pastel iridescent sweep
+         with a touch of rose, a glass sheen over the top half and a lit top
+         edge; the Calibrator's dark button ink on it. Static: no animation
+         runs while it sits there; a press dips it and slides the sweep. */
+      'html body #dbody .pcal-foot .btn.pcal-open{position:relative;overflow:hidden;isolation:isolate;' +
+        'color:#06172e !important;border:1px solid rgba(255,255,255,.34) !important;border-radius:14px;' +
+        'background:linear-gradient(112deg,#9cc4ff 0%,#8ff0e6 30%,#c4b3ff 62%,#f2c4dd 84%,#a9caff 100%) !important;' +
+        'background-size:135% 100% !important;background-position:0% 50% !important;' +
+        'box-shadow:inset 0 1px 0 rgba(255,255,255,.7),inset 0 -1px 0 rgba(6,23,46,.22),' +
+        '0 12px 26px -16px rgba(124,170,255,.75) !important;text-shadow:0 1px 0 rgba(255,255,255,.35) !important;' +
+        'transition:background-position .45s cubic-bezier(.22,1,.36,1),transform .1s ease-out}',
+      'html body #dbody .pcal-foot .btn.pcal-open::before{content:"";position:absolute;inset:0 0 50% 0;z-index:-1;' +
+        'pointer-events:none;border-radius:inherit;' +
+        'background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.08)) !important;box-shadow:none !important}',
+      'html body #dbody .pcal-foot .btn.pcal-open::after{content:none !important}',
+      'html body #dbody .pcal-foot .btn.pcal-open svg{color:#06172e !important;fill:none !important}',
+      'html body #dbody .pcal-foot .btn.pcal-open:active,html body #dbody .pcal-foot .btn.pcal-open.zs-pressing{' +
+        'transform:scale(.97);background-position:100% 50% !important}',
+      '@media (prefers-reduced-transparency: reduce){html body #dbody .pcal-foot .btn.pcal-open::before{display:none}}',
+      'html body.a11y-contrast #dbody .pcal-foot .btn.pcal-open{border-color:#06172e !important}',
+      '#pcal{display:flex;flex-direction:column;gap:12px}',
+      '#pcal .pcal-head{display:flex;align-items:center;gap:12px}',
+      '#pcal .pcal-head .pcal-t{flex:1;min-width:0}',
+      '#pcal .pcal-head b{display:block;font-size:17px}',
+      '#pcal .pcal-head span{display:block;color:var(--muted);font-size:12.5px;line-height:1.45}',
+      '#pcal .pcal-held{color:var(--text);font-size:13px;line-height:1.5;margin:0}',
+      '#pcal .pcal-msg{color:var(--text);font-size:14px;line-height:1.55;margin:0}',
+      /* D414: the site fills the rest of the screen (fitFrame sets the height) */
+      '#pcal .pcal-frame{width:100%;height:calc(100vh - 230px);min-height:420px;border:1px solid var(--line);border-radius:14px;background:var(--bg);display:block}',
+      '#pcal[data-state=sony]{gap:8px}',
+      '#dbody:has(#pcal[data-state=sony]){padding-bottom:var(--pcal-padb,70px) !important}',
+      '#pcal .pcal-sonyhead{padding:10px 12px}',
+      '#pcal .pcal-sonyhead .pcal-head b{font-size:16px}',
+      '#pcal .pcal-sonyhead .pcal-head span{font-size:12px;line-height:1.35}',
+      '#pcal .pcal-sonyhead .qhrow{flex:none;margin:0}',
+      '#pcal .pcal-sonyhead .qhfold{margin:10px 0 0}',
+      /* D414: the 8K in the dualshock-tools look (pad-dial.js draws the sticks) */
+      '#pcal .pb-stack{display:flex;flex-direction:column;gap:10px}',
+      '#pcal .pb-btn{width:100%;min-height:50px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-size:16px;font-weight:650;display:flex;align-items:center;justify-content:center;padding:0 12px;cursor:pointer}',
+      '#pcal .pb-btn.ghost{background:none;color:var(--accent)}',
+      '#pcal .pb-btn.quiet{background:none;border-color:var(--line);color:var(--text)}',
+      /* the site's green Save (Aim's #dbody.zkaim turns --green into its accent, so the value is set) */
+      '#pcal .pb-btn.ok{background:#3fb950;border-color:#3fb950;color:#04210c}',
+      '#pcal .pb-hint{color:var(--muted);font-size:12.5px;text-align:center;line-height:1.6}',
+      '#pcal .pb-hint b{color:var(--text)}',
+      '#pcal .pb-hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}',
+      '#pcal .pb-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}',
+      '#pcal .pb-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:15px;color:var(--text)}',
+      '#pcal .pb-head .pb-off{margin-left:auto;color:var(--muted);font-size:12.5px}',
+      '#pcal .pb-body{padding:10px}',
+      '#pcal canvas.pb-joy{display:block;width:100%;max-width:420px;height:auto;margin:0 auto}',
+      '#pcal .pb-reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:4px;text-align:center;margin:4px 0 8px}',
+      '#pcal .pb-reads span{display:block;color:var(--text);font-size:14px}',
+      '#pcal .pb-reads pre{margin:2px 0 0;font:600 15px/1.3 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--text);min-height:20px}',
+      '#pcal .pb-seg{display:flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden;margin-bottom:10px}',
+      '#pcal .pb-seg button{flex:1 1 0;min-height:46px;background:none;border:0;border-left:1px solid var(--accent);color:var(--accent);font:inherit;font-size:15px;padding:4px 6px;line-height:1.15;cursor:pointer}',
+      '#pcal .pb-seg button:first-child{border-left:0}',
+      '#pcal .pb-seg button.on{background:var(--accent);color:var(--accent-ink);font-weight:700}',
+      '#pcal .pb-seg.sm{border-color:var(--line)}',
+      '#pcal .pb-seg.sm button{min-height:44px;font-size:13.5px;color:var(--text);border-left-color:var(--line)}',
+      '#pcal .pb-seg.sm button.on{background:var(--panel2);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}',
+      '#pcal .pb-sheet{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--panel);min-height:calc(100vh - 290px)}',
+      '#pcal .pb-sh-head{padding:14px;border-bottom:1px solid var(--line);font-size:17px;font-weight:650;color:var(--text)}',
+      '#pcal .pb-sh-body{padding:14px;flex:1 1 auto;display:flex;flex-direction:column;gap:12px}',
+      '#pcal .pb-sh-foot{position:sticky;bottom:calc(62px - 26px - var(--dvb-h, 96px));z-index:2;display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--panel);border-radius:0 0 12px 12px}',
+      '#pcal .pb-sh-foot:empty{display:none}',
+      '#pcal .pb-sh-foot .pb-btn{flex:1 1 0;width:auto;min-width:0}',
+      /* fine-tune: Save across the top, the three quieter moves under it */
+      '#pcal .pb-sh-foot .pb-btn.ok{flex:1 1 100%;order:-1}',
+      '#pcal .pb-sh-foot [data-pc=range],#pcal .pb-sh-foot [data-pc=centres]{order:1}',
+      '#pcal .pb-sh-foot:has(.pb-btn.ok) .pb-btn:not(.ok){min-height:44px;font-size:14px;padding:0 6px;line-height:1.15}',
+      '#pcal .pb-sh-foot:has(.pb-btn.ok) .pb-btn:not(.ok) .pcal-key{width:18px;height:18px;font-size:10px;margin-right:5px}',
+      '#pcal .pb-prog{height:12px;border-radius:6px;background:var(--panel2);overflow:hidden}',
+      '#pcal .pb-prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s linear}',
+      '#pcal .pb-progt{color:var(--muted);font-size:13px}',
+      '#pcal .pb-pulse{animation:pbpulse .75s ease-in-out infinite}',
+      '@keyframes pbpulse{0%,100%{opacity:1}50%{opacity:.5}}',
+      '@media (prefers-reduced-motion: reduce){#pcal .pb-pulse{animation:none}}',
+      '#pcal .pb-range{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;align-items:center}',
+      '#pcal .pb-range canvas{display:block;width:100%;max-width:170px;height:auto;margin:0 auto}',
+      '#pcal .pb-range .pb-reads{margin:0}',
+      '#pcal .pb-alert{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:13.5px;line-height:1.5;color:var(--text);background:var(--panel2)}',
+      '#pcal .pb-stick{cursor:pointer}',
+      '#pcal .pb-stick.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}',
+      '#pcal .pb-stick.on .pb-head{background:var(--accent);color:var(--accent-ink)}',
+      '#pcal .pb-stick.on .pb-head .pb-off{color:var(--accent-ink)}',
+      '#pcal .pb-ftgrid{display:grid;grid-template-columns:1fr auto 1fr;grid-template-areas:". top ." "left center right" ". bottom .";align-items:center;justify-items:center;gap:4px}',
+      '#pcal .pb-ft-top{grid-area:top}#pcal .pb-ft-left{grid-area:left}#pcal .pb-ft-right{grid-area:right}#pcal .pb-ft-bottom{grid-area:bottom}#pcal .pb-ft-center{grid-area:center}',
+      '#pcal .pb-ftgrid label{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;color:var(--muted)}',
+      '#pcal .pb-ftgrid input{width:62px;min-height:36px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;text-align:center;font:inherit;font-size:14px}',
+      '#pcal canvas.pb-ftc{display:block;width:min(180px,46vw);height:auto}',
+      '#pcal .pcal-credit{color:var(--muted);font-size:11.5px;text-align:center;margin:0}',
+      '#pcal .pcal-link{color:var(--muted);font-size:11.5px;margin:0}',
+      '#pcal .pcal-row{display:flex;gap:8px;flex-wrap:wrap}',
+      '#pcal .pcal-row .btn{flex:1 1 45%;min-height:48px;white-space:nowrap;font-size:15px;padding:0 10px;display:flex;align-items:center;justify-content:center}',
+      '#pcal .pcal-key{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1.5px solid currentColor;font-size:12px;margin-right:8px;flex:none}',
+      '#pcal .pcal-bar{height:10px;border-radius:5px;background:var(--panel2);overflow:hidden}',
+      '#pcal .pcal-bar i{display:block;height:100%;width:0;background:var(--accent)}',
+      '#pcal .pcal-trig{display:grid;grid-template-columns:34px 1fr 52px;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}',
+      '#pcal .pcal-count{font-size:44px;font-weight:800;text-align:center;margin:4px 0}',
+      '#pcal .pcal-state{font-size:12.5px;color:var(--muted);text-align:center;min-height:18px}',
+      '#pcal .pcal-state.ok{color:var(--green)}',
+      '#pcal .pcal-state.bad{color:var(--amber)}'
+    ].join('')));
+    (document.head || document.body).appendChild(s);
+  }
+
+  /* ══════════════════════════════════ the button on Controller Aim ══ */
+  var PAD_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 8h11a4 4 0 0 1 3.9 4.9l-1 4.3a2.3 2.3 0 0 1-3.9 1.1L14.4 16H9.6l-2.1 2.3a2.3 2.3 0 0 1-3.9-1.1l-1-4.3A4 4 0 0 1 6.5 8z"/>' +
+    '<circle cx="9" cy="12" r="1.6"/><path d="M15 10.5v3M13.5 12h3"/></svg>';
+
+  function buttonHTML() {
+    injectCss();
+    return '<div class="pcal-foot"><button type="button" class="btn primary pcal-open" id="zk-cal">' +
+      PAD_ICON + 'Calibration</button>' +
+      '<span class="pcal-sub">Re-centre and re-range your controller’s sticks</span></div>';
+  }
+  function wire(root, p) {
+    var b = root && root.querySelector('#zk-cal');
+    if (b) b.addEventListener('click', function () { open(p); });
+  }
+
+  function open(p) {
+    S.p = p || S.p;
+    Z().openDetail({ id: SCREEN, lab: 'Calibration', backLabel: '‹ Aim', onBack: back }, S.p);
+  }
+  function back() {
+    closeSession();
+    Z().openDetail({ id: 'aim', lab: 'Aim' }, S.p);
+  }
+
+  function closeSession() {
+    S.gen++;
+    stop8k();
+    if (S.watch) { clearInterval(S.watch); S.watch = null; }
+    if (S.open) {
+      S.open = null;
+      api('/padcal/close', 'POST', {});
+    }
+    try { delete window.ZSPadCalBridge; } catch (e) { window.ZSPadCalBridge = undefined; }
+  }
+
+  /* ═══════════════════════════════════════════════ the screen ══ */
+  function render(p) {
+    injectCss();
+    S.p = p || S.p;
+    S.gen++;
+    var gen = S.gen;
+    return {
+      html: '<div id="pcal" data-state="looking">' + headHTML('Looking for your controller…', '') + '</div>',
+      after: function () { start(gen); }
+    };
+  }
+
+  function headHTML(title, sub) {
+    return '<div class="zkcard pcal-card"><div class="pcal-head">' + PAD_ICON +
+      '<div class="pcal-t"><b id="pcal-title">' + esc(title) + '</b><span id="pcal-sub">' + esc(sub) + '</span></div></div></div>';
+  }
+  function help() {
+    var z = Z();
+    var text = 'Calibration teaches your controller where its sticks rest and how far they reach, so it ' +
+      'stops drifting and reaches the edges.<br>' +
+      'While this screen is open your console does not see the controller, so nothing you press reaches a game.<br>' +
+      'Use the controller’s buttons: ○ Circle centres the sticks and ✕ Cross confirms and saves. ' +
+      'Range and fine-tune only open when you tap them here, so a stray press never starts one.';
+    return z.helpHTML ? z.helpHTML('pcal-how', 'Calibration', text) : '';
+  }
+  function setState(name) { var r = $('pcal'); if (r) r.setAttribute('data-state', name); }
+
+  function message(title, text, retry) {
+    var r = $('pcal');
+    if (!r) return;
+    r.innerHTML = headHTML(title, '') +
+      '<div class="zkcard"><p class="pcal-msg">' + esc(text) + '</p>' +
+      (retry ? '<div class="pcal-row" style="margin-top:12px"><button type="button" class="btn" id="pcal-again">Check again</button></div>' : '') +
+      '</div>' + help();
+    var a = $('pcal-again');
+    if (a) a.addEventListener('click', function () { var g = ++S.gen; start(g); });
+  }
+
+  function start(gen) {
+    if (!S.watch) {
+      /* the screen can close without the back key (HOME, another screen):
+         the pad goes back to the console as soon as this screen is gone */
+      S.watch = setInterval(function () { if (!onScreen()) closeSession(); }, 1000);
+    }
+    api('/padcal/pad').then(function (j) {
+      if (gen !== S.gen || !onScreen()) return;
+      var d = dataOf(j);
+      if (!d) {
+        setState('old');
+        message('Calibration', noRoute(j)
+          ? 'Your Core needs a firmware update for Calibration. Update it from the Device page, then come back.'
+          : 'The Core did not answer. Check it is connected, then try again.', !noRoute(j));
+        return;
+      }
+      S.pad = d;
+      if (!d.present || !d.supported) {
+        setState(d.present ? 'unsupported' : 'none');
+        message(d.present ? (d.title || d.name || 'This controller') : 'No controller', d.why || 'Plug a controller into the Core.', true);
+        return;
+      }
+      api('/padcal/open', 'POST', {}).then(function (o) {
+        if (gen !== S.gen || !onScreen()) { if (dataOf(o)) api('/padcal/close', 'POST', {}); return; }
+        var od = dataOf(o);
+        if (!od) {
+          setState('error');
+          message(d.title || 'Calibration', (o && o.error) || 'The Core would not open the controller.', true);
+          return;
+        }
+        S.open = o;
+        if (od.family === 'zs8k') show8k(od, gen);
+        else showSony(od, gen);
+      });
+    });
+  }
+
+  /* ═══════════════════ a DualSense / Edge / DualShock 4: the site ══ */
+  function showSony(od, gen) {
+    var r = $('pcal');
+    if (!r) return;
+    setState('sony');
+    S.rtt = [];
+    window.ZSPadCalBridge = {
+      call: function (method, path, body) { return api(path, method, body); },
+      open: function () { return Promise.resolve(S.open); },
+      slow: slow,
+      rtt: function (ms) {
+        S.rtt.push(ms);
+        if (S.rtt.length > 40) S.rtt.shift();
+        var l = $('pcal-link');
+        if (l && S.rtt.length >= 3) {
+          var avg = Math.round(S.rtt.reduce(function (a, b) { return a + b; }, 0) / S.rtt.length);
+          l.textContent = (linkName() ? linkName() + ' · ' : '') + 'about ' + avg + ' ms a step';
+        }
+      }
+    };
+    var held = od.held
+      ? 'Your console can’t see this controller while Calibration is open.'
+      : 'Heads up: your console may still see this controller while you calibrate.';
+    /* D414: the held line shares its row with the ?, and the frame is sized
+       to exactly what is left of the screen (fitFrame), so the app's page
+       does not scroll round it: only the site scrolls, like a page of its own */
+    var hp = help(), cut = hp.indexOf('<div class="note qhfold"');
+    r.innerHTML = '<div class="zkcard pcal-card pcal-sonyhead"><div class="pcal-head">' + PAD_ICON +
+      '<div class="pcal-t"><b id="pcal-title">' + esc(od.title || 'Controller') + '</b><span id="pcal-sub" class="pcal-held">' +
+      esc(held) + '</span></div>' + (cut > 0 ? hp.slice(0, cut) : hp) + '</div>' + (cut > 0 ? hp.slice(cut) : '') + '</div>' +
+      '<iframe class="pcal-frame" id="pcal-frame" title="Controller calibration" src="' + FRAME_SRC + '"></iframe>' +
+      ((Z().devMode && Z().devMode()) ? '<p class="pcal-link" id="pcal-link">' + esc(linkName()) + '</p>' : '') +
+      '<p class="pcal-credit">Calibration screens: dualshock-tools, MIT licence, © 2024 the_al</p>';
+    if (gen !== S.gen) return;
+    fitFrame();
+    r.addEventListener('click', function () { setTimeout(fitFrame, 60); });
+    if (!S.fitWired) {
+      S.fitWired = true;
+      if (window.addEventListener) window.addEventListener('resize', function () { if ($('pcal-frame')) fitFrame(); });
+    }
+  }
+
+  /* the frame takes what is left of the screen under the head, above the
+     credit line and the app's bottom bar (never less than a phone's worth) */
+  function fitFrame() {
+    var f = $('pcal-frame'), d = $('dbody');
+    if (!f || !d || !d.getBoundingClientRect) return;
+    /* the always-on bar (.devbar) lies over the page's foot. Its reserve
+       (--dvb-h) is roomier than the bar, so while the site is framed the
+       page keeps only what the bar really covers (--pcal-padb, CSS above) */
+    var dr = d.getBoundingClientRect(), bar = document.querySelector('.devbar');
+    var br = bar && bar.offsetHeight ? bar.getBoundingClientRect() : null;
+    var cover = br && br.top < dr.bottom ? dr.bottom - br.top : 0;
+    if (d.style && d.style.setProperty) d.style.setProperty('--pcal-padb', Math.ceil(cover + 10) + 'px');
+    var cs = window.getComputedStyle ? getComputedStyle(d) : null;
+    var padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
+    var top = f.getBoundingClientRect().top - dr.top + d.scrollTop;
+    var after = 0, n = f.nextElementSibling;
+    while (n) { after += (n.offsetHeight || 0) + 8; n = n.nextElementSibling; }
+    var h = Math.floor(d.clientHeight - top - after - padB);
+    if (!(h > 0)) return;
+    f.style.height = Math.max(420, h) + 'px';
+  }
+
+  /* ══════════════════════════════════════ a ZS 8K: its own wizard ══ */
+  function stop8k() {
+    if (S.z && S.z.timer) clearTimeout(S.z.timer);
+    if (S.z) S.z.dead = true;
+    S.z = null;
+  }
+
+  function show8k(od, gen) {
+    var C = window.ZS8KCAL;
+    stop8k();
+    var z = S.z = { gen: gen, mode: 'home', cal: C.def(), saved: false, dirty: false, info: null,
+                    v: null, btn: 0, hold: {}, wiz: null, trig: null, fine: 'center', stick: 'L',
+                    circ: null, raw: null, state: '', stateKind: '', timer: null, dead: false,
+                    fails: 0, od: od, view: 'normal', cd: { L: [], R: [] } };
+    setState('zs8k');
+    Promise.all([api('/padcal/zs8k/info'), api('/padcal/zs8k/cal')]).then(function (a) {
+      if (z.dead) return;
+      z.info = dataOf(a[0]);
+      var c = dataOf(a[1]);
+      if (c && c.cal && c.cal.length >= 12) { z.cal = C.fill(c.cal); z.saved = true; }
+      draw8k();
+      poll8k();
+    });
+    draw8k();
+  }
+
+  function zsub(z) {
+    var i = z.info || {};
+    var bits = [];
+    if (z.od.zs8k && z.od.zs8k.mode) bits.push(z.od.zs8k.mode + ' mode');
+    if (i.fw) bits.push('firmware ' + i.fw);
+    bits.push(z.saved ? 'calibration saved on the controller' : 'factory calibration');
+    return bits.join(' · ');
+  }
+  function key(sym) { return '<span class="pcal-key" aria-hidden="true">' + sym + '</span>'; }
+
+  /* D414: the 8K's screens wear the dualshock-tools look - its Joystick Info
+     card (both sticks in one 300 x 150 drawing, LX/LY/RX/RY under it, Normal
+     / 10x zoom / Check circularity), its step sheets (title, words, progress,
+     the button that moves on at the foot) and its finetune cards (a stick per
+     card, the numbers round the drawing, the readouts under it). The
+     drawing is the site's own (pad-dial.js); the steps, words and buttons
+     are still the 8K's own wizard's. */
+  function canvasHTML(id, w, h, cls) {
+    return '<canvas id="' + id + '" class="' + (cls || '') + '" width="' + (w * 2) + '" height="' + (h * 2) +
+      '" data-w="' + w + '" data-h="' + h + '" style="aspect-ratio:' + w + '/' + h + '"></canvas>';
+  }
+  function readHTML(names, pre) {
+    return '<div class="pb-reads">' + names.map(function (n) {
+      return '<div><span>' + n + ':</span><pre id="' + (pre || 'pcal-') + n.toLowerCase() + '"></pre></div>';
+    }).join('') + '</div>';
+  }
+  function joyCardHTML() {
+    var z = S.z;
+    var modes = [['normal', 'Normal'], ['zoom', '10x zoom'], ['circ', 'Check circularity']];
+    return '<div class="pb-card"><div class="pb-head">' + CROSSHAIR + 'Joystick Info</div>' +
+      '<div class="pb-body">' + canvasHTML('pcal-js', 300, 150, 'pb-joy') +
+      readHTML(['LX', 'LY', 'RX', 'RY']) +
+      '<div class="pb-seg sm" role="radiogroup" aria-label="Display mode options">' + modes.map(function (m) {
+        return '<button type="button" role="radio" aria-checked="' + (z.view === m[0]) + '" data-pcv="' + m[0] + '"' +
+          (z.view === m[0] ? ' class="on"' : '') + '>' + m[1] + '</button>';
+      }).join('') + '</div>' + trigHTML() + '</div></div>';
+  }
+  function trigHTML() {
+    return '<div class="pcal-trig"><b>L2</b><div class="pcal-bar"><i id="pcal-l2"></i></div><span id="pcal-l2n"></span></div>' +
+      '<div class="pcal-trig"><b>R2</b><div class="pcal-bar"><i id="pcal-r2"></i></div><span id="pcal-r2n"></span></div>';
+  }
+  function stateHTML(z) {
+    return '<div class="pcal-state' + (z.stateKind ? ' ' + z.stateKind : '') + '" id="pcal-state">' +
+      esc(z.state || (z.dirty ? 'Not saved yet' : '')) + '</div>';
+  }
+  /* a step, the way the site's modals look: title, body, the buttons at the foot */
+  function sheetHTML(title, body, foot) {
+    return '<div class="pb-sheet"><div class="pb-sh-head">' + esc(title) + '</div>' +
+      '<div class="pb-sh-body">' + body + '</div><div class="pb-sh-foot">' + foot + '</div></div>';
+  }
+  function progHTML(withText) {
+    return '<div class="pb-prog"><i id="pcal-prog"></i></div>' +
+      (withText ? '<div class="pb-progt">Progress: <span id="pcal-progn">0%</span></div>' : '');
+  }
+  /* one finetune card: the stick's numbers round its drawing, LX/LY under it */
+  function fineCardHTML(sd) {
+    var z = S.z, m = window.ZS8KCAL.FMAP[sd];
+    var inp = function (pos, i, lab) {
+      return '<label class="pb-ft-' + pos + '"><span>' + lab + '</span><input inputmode="numeric" aria-label="' +
+        (sd === 'L' ? 'Left' : 'Right') + ' ' + lab + '" data-pcf="' + i + '" value="' + z.cal[i] + '"></label>';
+    };
+    var grid = z.fine === 'center'
+      ? inp('top', m[1], 'Y') + inp('left', m[0], 'X')
+      : inp('top', m[5], 'Top') + inp('left', m[2], 'Left') + inp('right', m[3], 'Right') + inp('bottom', m[4], 'Bottom');
+    var off = z.fine === 'circ' && z.circ && z.circ[sd] != null ? ' · off by ' + z.circ[sd] + '%' : '';
+    return '<div class="pb-card pb-stick' + (z.stick === sd ? ' on' : '') + '" data-stick="' + sd + '">' +
+      '<div class="pb-head">' + (sd === 'L' ? 'Left stick' : 'Right stick') + '<span class="pb-off">' + esc(off) + '</span></div>' +
+      '<div class="pb-body"><div class="pb-ftgrid">' + grid +
+      '<div class="pb-ft-center">' + canvasHTML('pcal-f' + sd, 210, 210, 'pb-ftc') + '</div></div>' +
+      readHTML(sd === 'L' ? ['LX', 'LY'] : ['RX', 'RY']) + '</div></div>';
+  }
+  var CROSSHAIR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>';
+
+  function draw8k() {
+    var z = S.z, r = $('pcal');
+    if (!z || !r) return;
+    var h = headHTML('ZS 8K', zsub(z)) +
+      '<p class="pcal-held">' + esc(z.od.held ? 'Your console can’t see this controller while Calibration is open.'
+        : 'Heads up: your console may still see this controller while you calibrate.') + '</p>';
+    if (z.mode === 'home') {
+      h += '<div class="pb-stack">' +
+          '<button type="button" class="pb-btn" data-pc="calib">' + key('○') + 'Calibrate sticks</button>' +
+          '<button type="button" class="pb-btn" data-pc="range">Range only</button>' +
+          '<button type="button" class="pb-btn" data-pc="fine">Fine-tune</button>' +
+          '<button type="button" class="pb-btn" data-pc="trig">Calibrate triggers</button>' +
+          '<div class="pb-hint">Pad shortcuts: <b>○</b> calibrate sticks · <b>✕</b> save. Range and fine-tune open from these buttons only</div>' +
+          '<hr class="pb-hr">' +
+          '<button type="button" class="pb-btn ok" data-pc="save">' + key('✕') + 'Save to controller</button>' +
+        '</div>' + stateHTML(z) + joyCardHTML() + help();
+    } else if (z.mode === 'wizard' && z.wiz && z.wiz.stage === 'hands') {
+      h += sheetHTML('Step 1: hands off',
+        '<p class="pcal-msg">Take both hands off the controller. The stick centres are being measured.</p>' +
+        '<div class="pcal-count" id="pcal-count">' + z.wiz.left + '</div>' + progHTML(false),
+        '<button type="button" class="pb-btn ghost" data-pc="cancel">' + key('○') + 'Cancel</button>');
+    } else if (z.mode === 'wizard' && z.wiz && z.wiz.stage === 'range') {
+      h += sheetHTML('Step 2: spin the sticks',
+        '<p class="pcal-msg"><b class="pb-pulse">Slowly roll both sticks in full circles, a few times each way, until the bar fills.</b></p>' +
+        '<div class="pb-range"><div>' + canvasHTML('pcal-rL', 150, 150, 'pb-rc') + '</div><div>' + canvasHTML('pcal-rR', 150, 150, 'pb-rc') + '</div>' +
+        readHTML(['LX', 'LY']) + readHTML(['RX', 'RY']) + '</div>' + progHTML(true),
+        '<button type="button" class="pb-btn ghost" data-pc="cancel">' + key('○') + 'Cancel</button>');
+    } else if (z.mode === 'trig') {
+      h += sheetHTML('Calibrate triggers',
+        '<p class="pcal-msg">Hands off both triggers for a second, then squeeze each one all the way a few times.</p>' + trigHTML(),
+        '<button type="button" class="pb-btn ghost" data-pc="cancel">' + key('○') + 'Cancel</button>' +
+        '<button type="button" class="pb-btn" data-pc="trigdone">' + key('✕') + 'Done</button>');
+    } else if (z.mode === 'fine') {
+      h += sheetHTML('Fine-tune',
+        '<div class="pb-seg pcal-seg" role="tablist"><button type="button" data-pcm="center"' + (z.fine === 'center' ? ' class="on"' : '') + '>Centre</button>' +
+        '<button type="button" data-pcm="circ"' + (z.fine === 'circ' ? ' class="on"' : '') + '>Roundness</button></div>' +
+        '<div class="pb-alert">' + (z.fine === 'center'
+          ? 'Press the d-pad to move the dot onto the cross. Tap a stick to choose it.'
+          : 'Hold the stick toward an edge, then up or left grows that edge, down or right shrinks it, until the line meets the circle.') + '</div>' +
+        fineCardHTML('L') + fineCardHTML('R') + stateHTML(z),
+        '<button type="button" class="pb-btn quiet" data-pc="range">Re-spin range</button>' +
+        '<button type="button" class="pb-btn quiet" data-pc="centres">Re-do centres</button>' +
+        '<button type="button" class="pb-btn ghost" data-pc="home">' + key('○') + 'Done</button>' +
+        '<button type="button" class="pb-btn ok" data-pc="save">' + key('✕') + 'Save to controller</button>');
+    } else {
+      h += sheetHTML('Calibrated', '<div class="pcal-count">✓</div><p class="pcal-msg" style="text-align:center">Calibrated. Opening fine-tune…</p>', '');
+    }
+    r.innerHTML = h;
+    Array.prototype.forEach.call(r.querySelectorAll('[data-pc]'), function (b) {
+      b.addEventListener('click', function () { act(b.getAttribute('data-pc')); });
+    });
+    Array.prototype.forEach.call(r.querySelectorAll('[data-pcm]'), function (b) {
+      b.addEventListener('click', function () { z.fine = b.getAttribute('data-pcm'); draw8k(); });
+    });
+    /* the display modes start their drawing over, the site's way (resetStickDiagrams) */
+    Array.prototype.forEach.call(r.querySelectorAll('[data-pcv]'), function (b) {
+      b.addEventListener('click', function () { z.view = b.getAttribute('data-pcv'); z.cd = { L: [], R: [] }; draw8k(); });
+    });
+    Array.prototype.forEach.call(r.querySelectorAll('.pb-stick'), function (b) {
+      b.addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'INPUT') return;
+        if (z.mode === 'fine' && z.stick !== b.getAttribute('data-stick')) { z.stick = b.getAttribute('data-stick'); draw8k(); }
+      });
+    });
+    Array.prototype.forEach.call(r.querySelectorAll('[data-pcf]'), function (inp) {
+      inp.addEventListener('change', function () {
+        z.cal[+inp.getAttribute('data-pcf')] = Math.max(0, Math.min(4095, parseInt(inp.value, 10) || 0));
+        z.circ = window.ZS8KCAL.circBins(z.cal, z.raw);
+        z.dirty = true;
+        z.state = '';
+        paint8k();
+      });
+    });
+    paint8k();
+  }
+
+  function act(what) {
+    var z = S.z, C = window.ZS8KCAL;
+    if (!z) return;
+    var now = Date.now();
+    if (what === 'calib') { z.wiz = C.wizard('hands', null, now); z.mode = 'wizard'; }
+    else if (what === 'range') { z.wiz = C.wizard('range', z.mode === 'fine' ? 'fine' : null, now); z.mode = 'wizard'; }
+    else if (what === 'centres') { z.wiz = C.wizard('hands', 'fine', now); z.mode = 'wizard'; }
+    else if (what === 'fine') { z.mode = 'fine'; z.circ = C.circBins(z.cal, z.raw); }
+    else if (what === 'trig') { z.trig = C.trigStart(); z.mode = 'trig'; }
+    else if (what === 'trigdone') { if (z.trig) { C.trigDone(z.trig, z.cal); z.dirty = true; } z.mode = 'home'; }
+    else if (what === 'cancel') { z.mode = z.wiz && z.wiz.returnTo === 'fine' ? 'fine' : 'home'; z.wiz = null; z.trig = null; }
+    else if (what === 'home') { z.mode = 'home'; }
+    else if (what === 'save') { save8k(); return; }
+    z.state = '';
+    z.stateKind = '';
+    draw8k();
+  }
+
+  function save8k() {
+    var z = S.z;
+    if (!z) return;
+    z.state = 'Saving…';
+    z.stateKind = '';
+    paintState();
+    api('/padcal/zs8k/save', 'POST', { cal: z.cal.slice(0, 28) }).then(function (j) {
+      if (z.dead) return;
+      var d = dataOf(j);
+      if (d && d.saved) {
+        z.dirty = false;
+        z.saved = true;
+        if (d.cal && d.cal.length >= 12) z.cal = window.ZS8KCAL.fill(d.cal);
+        z.state = d.verified ? 'Saved on the controller ✓' : 'Saved, but the controller read back something else. Save again.';
+        z.stateKind = d.verified ? 'ok' : 'bad';
+      } else {
+        z.state = (j && j.error) || 'The controller did not save. Try again.';
+        z.stateKind = 'bad';
+      }
+      draw8k();
+    });
+  }
+  function paintState() {
+    var el = $('pcal-state');
+    if (el && S.z) { el.textContent = S.z.state; el.className = 'pcal-state' + (S.z.stateKind ? ' ' + S.z.stateKind : ''); }
+  }
+
+  function poll8k() {
+    var z = S.z;
+    if (!z || z.dead) return;
+    if (!onScreen()) { closeSession(); return; }
+    api('/padcal/zs8k/raw').then(function (j) {
+      if (z.dead) return;
+      var d = dataOf(j);
+      if (d && d.v) { z.fails = 0; tick8k(d.v, +d.btn || 0); }
+      else if (/unplugged|went quiet|Open calibration/.test(String(j && j.error))) {
+        stop8k();
+        message('ZS 8K', 'The controller was unplugged or the screen was idle too long. Plug it back in and check again.', true);
+        return;
+      } else z.fails++;
+      z.timer = setTimeout(poll8k, slow() ? 110 : 30);
+    });
+  }
+
+  function tick8k(v, btn) {
+    var z = S.z, C = window.ZS8KCAL, now = Date.now();
+    var prev = z.btn;
+    z.v = v;
+    z.btn = btn;
+    var keys = C.pressed(prev, btn);
+    if (z.mode === 'wizard' && z.wiz) {
+      var before = z.wiz.stage;
+      C.wizTick(z.wiz, v, z.cal, now);
+      if (z.wiz.raw.L.length) z.raw = z.wiz.raw;
+      if (keys.indexOf('circle') >= 0) { act('cancel'); return; }
+      if (z.wiz.stage !== before) {
+        z.dirty = true;
+        if (z.wiz.stage === 'done') {
+          z.circ = C.circBins(z.cal, z.raw);
+          var back = z.wiz.returnTo;
+          z.mode = back === 'fine' ? 'fine' : 'done';
+          z.wiz = null;
+          draw8k();
+          if (z.mode === 'done') {
+            setTimeout(function () { if (S.z === z && z.mode === 'done') { z.mode = 'fine'; draw8k(); } }, 1100);
+          }
+          return;
+        }
+        draw8k();
+        return;
+      }
+    } else if (z.mode === 'trig' && z.trig) {
+      C.trigTick(z.trig, v);
+      if (keys.indexOf('cross') >= 0) { act('trigdone'); return; }
+      if (keys.indexOf('circle') >= 0) { act('cancel'); return; }
+    } else if (z.mode === 'fine') {
+      var dirs = C.dpad(z.hold, btn, now);
+      var changed = false;
+      dirs.forEach(function (d) { if (C.fineStep(z.cal, z.fine, z.stick, d, v)) changed = true; });
+      if (changed) {
+        z.dirty = true;
+        z.state = '';
+        if (z.fine === 'circ') z.circ = C.circBins(z.cal, z.raw);
+        Array.prototype.forEach.call(document.querySelectorAll('#pcal [data-pcf]'), function (inp) {
+          if (document.activeElement !== inp) inp.value = z.cal[+inp.getAttribute('data-pcf')];
+        });
+        paintState();
+      }
+      if (keys.indexOf('cross') >= 0) { save8k(); return; }
+      if (keys.indexOf('circle') >= 0) { act('home'); return; }
+    } else if (z.mode === 'home') {
+      if (keys.indexOf('circle') >= 0) { act('calib'); return; }
+      if (keys.indexOf('cross') >= 0) { save8k(); return; }
+    }
+    paint8k();
+  }
+
+  /* the live parts, without rebuilding the screen */
+  function paint8k() {
+    var z = S.z, C = window.ZS8KCAL;
+    if (!z) return;
+    if (z.wiz) {
+      var pr = $('pcal-prog'), ct = $('pcal-count'), pn = $('pcal-progn');
+      if (pr) pr.style.width = Math.round(z.wiz.pct) + '%';
+      if (ct) ct.textContent = z.wiz.left;
+      if (pn) pn.textContent = Math.round(z.wiz.pct) + '%';
+    }
+    if (z.v) {
+      [0, 1].forEach(function (i) {
+        var bar = $(i ? 'pcal-r2' : 'pcal-l2'), n = $(i ? 'pcal-r2n' : 'pcal-l2n');
+        var pct = z.mode === 'trig' && z.trig
+          ? Math.max(0, Math.min(1, (z.v[4 + i] - z.trig.rest[i]) / Math.max(1, C.trigPressed(z.trig, i) - z.trig.rest[i])))
+          : C.trigPct(z.cal, z.v, i);
+        if (bar) bar.style.width = Math.round(pct * 100) + '%';
+        if (n) n.textContent = Math.round(pct * 100) + '%';
+      });
+    }
+    paintSticks();
+  }
+
+  /* where a stick is, the site's way round: x right, y DOWN, -1..1 */
+  function sitePt(side) {
+    var z = S.z, C = window.ZS8KCAL;
+    if (!z || !z.v) return { x: 0, y: 0 };
+    var raw = C.pairOf(z.v, side);
+    var n = C.nrmPt(z.cal, raw[0], raw[1], side);
+    return { x: n[0], y: -n[1] };
+  }
+  /* the 8K's roundness map (its 48 sectors, y up) as the site's (y down) */
+  function siteBins(side) {
+    var z = S.z, N = window.ZSDIAL.N;
+    if (!z || !z.circ || !z.circ.bins || !z.circ.bins[side]) return [];
+    var b = z.circ.bins[side], out = [];
+    for (var j = 0; j < N; j++) out.push(b[(N - j) % N] || 0);
+    return out;
+  }
+  function dark() { return true; }   /* D444: the app is dark only */
+  function ctxOf(id) {
+    var cv = $(id);
+    if (!cv || !cv.getContext) return null;
+    var g = cv.getContext('2d');
+    if (!g) return null;
+    var w = +cv.getAttribute('data-w') || cv.width, h = +cv.getAttribute('data-h') || cv.height;
+    if (g.setTransform) g.setTransform(cv.width / w, 0, 0, cv.height / h, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return { g: g, w: w, h: h };
+  }
+  function setText(id, t) { var el = $(id); if (el) el.textContent = t; }
+
+  function paintSticks() {
+    var z = S.z, D = window.ZSDIAL;
+    if (!z || !D) return;
+    var L = sitePt('L'), R = sitePt('R'), dk = dark(), c;
+    if (z.mode === 'home') {
+      /* the site's Joystick Info: refresh_stick_pos's geometry, 1:1 */
+      if (z.view === 'circ' && z.v) { D.collect(z.cd.L, L.x, L.y); D.collect(z.cd.R, R.x, R.y); }
+      c = ctxOf('pcal-js');
+      if (c) {
+        var sz = 60, yb = 15 + sz, hb = 20 + sz, zoom = z.view === 'zoom';
+        D.draw(c.g, hb, yb, sz, L.x, L.y, { dark: dk, zoom: zoom, circ: z.view === 'circ' ? z.cd.L : null });
+        D.draw(c.g, c.w - hb, yb, sz, R.x, R.y, { dark: dk, zoom: zoom, circ: z.view === 'circ' ? z.cd.R : null });
+      }
+      var p = z.view === 'zoom' ? 3 : 2;
+      setText('pcal-lx', D.str(L.x, p)); setText('pcal-ly', D.str(L.y, p));
+      setText('pcal-rx', D.str(R.x, p)); setText('pcal-ry', D.str(R.y, p));
+    } else if (z.mode === 'wizard' && z.wiz && z.wiz.stage === 'range') {
+      /* the site's range sheet: two plain dials, two decimals */
+      [['L', L], ['R', R]].forEach(function (s) {
+        var k = ctxOf('pcal-r' + s[0]);
+        if (k) D.draw(k.g, k.w / 2, k.h / 2, 60, s[1].x, s[1].y, { dark: dk });
+      });
+      setText('pcal-lx', D.str(L.x, 2)); setText('pcal-ly', D.str(L.y, 2));
+      setText('pcal-rx', D.str(R.x, 2)); setText('pcal-ry', D.str(R.y, 2));
+    } else if (z.mode === 'fine') {
+      /* the site's finetune: centre = the 10x zoom, roundness = the sector
+         map with its % figure; the stick being tuned is highlighted */
+      [['L', L], ['R', R]].forEach(function (s) {
+        var k = ctxOf('pcal-f' + s[0]);
+        if (k) {
+          var r = k.w / 2 - 5;
+          D.draw(k.g, r + 5, r + 5, r, s[1].x, s[1].y, z.fine === 'circ'
+            ? { dark: dk, circ: siteBins(s[0]), highlight: z.stick === s[0] }
+            : { dark: dk, zoom: true, highlight: z.stick === s[0] });
+        }
+        setText('pcal-' + s[0].toLowerCase() + 'x', D.str(s[1].x, 3));
+        setText('pcal-' + s[0].toLowerCase() + 'y', D.str(s[1].y, 3));
+      });
+    }
+  }
+  /* the screen's renderer, and the button the Aim screen draws */
+  window.RENDERERS = window.RENDERERS || {};
+  window.RENDERERS[SCREEN] = render;
+  window.ZSPADCAL = {
+    buttonHTML: buttonHTML,
+    wire: wire,
+    open: open,
+    close: closeSession,
+    /* for tests */
+    _state: function () { return S; },
+    _act: act,
+    _tick: function (v, btn) { if (S.z) tick8k(v, btn); }
+  };
+})();

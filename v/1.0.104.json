@@ -76,8 +76,8 @@
  },
  {
   "file_name": "exo/auto-actions.js",
-  "file_hash": "729410b290a7956cdea1f929669f0e9e3290f061afc4f12f21c62fa7e71e69ce",
-  "download_url": "files/729410b290a7956cdea1f929669f0e9e3290f061afc4f12f21c62fa7e71e69ce"
+  "file_hash": "94ea90c8415e80ae6c342d1a5871ccd9318323f630591cc77666ca39e17fc5f9",
+  "download_url": "files/94ea90c8415e80ae6c342d1a5871ccd9318323f630591cc77666ca39e17fc5f9"
  },
  {
   "file_name": "exo/brand/consoles/SOURCES.md",
@@ -9420,9 +9420,24 @@
   "download_url": "files/eef1c0e2f5bda3159962307498653404c0aa5fa132de209a3848f51ca7e9913e"
  },
  {
+  "file_name": "exo/onboarding/boot.js",
+  "file_hash": "db9217484567a2288ed88aee5b75546e9bc28cde0e188e09d363d75b52d5b221",
+  "download_url": "files/db9217484567a2288ed88aee5b75546e9bc28cde0e188e09d363d75b52d5b221"
+ },
+ {
+  "file_name": "exo/onboarding/onboarding-text.js",
+  "file_hash": "588cc919e063783789af808235b5011f36d84f7ceebb332385890f8201c8b06a",
+  "download_url": "files/588cc919e063783789af808235b5011f36d84f7ceebb332385890f8201c8b06a"
+ },
+ {
+  "file_name": "exo/onboarding/onboarding.js",
+  "file_hash": "82c11e389d77f07c2b4c7e34df71816f8caa187b0fedab5238859faae9a44a7f",
+  "download_url": "files/82c11e389d77f07c2b4c7e34df71816f8caa187b0fedab5238859faae9a44a7f"
+ },
+ {
   "file_name": "exo/pad-cal.js",
-  "file_hash": "ae9c57962dad29bbe9825ba171528e7cd1ffb75d8c009b85c9ee1d23dd5ad673",
-  "download_url": "files/ae9c57962dad29bbe9825ba171528e7cd1ffb75d8c009b85c9ee1d23dd5ad673"
+  "file_hash": "b30f35a87e249a1b19205c01319bf16341d7ef144cf79428f5ba0f9959388455",
+  "download_url": "files/b30f35a87e249a1b19205c01319bf16341d7ef144cf79428f5ba0f9959388455"
  },
  {
   "file_name": "exo/pad-dial.js",
@@ -9446,8 +9461,8 @@
  },
  {
   "file_name": "exo/phone.html",
-  "file_hash": "a7b98f162cae16877b1ddcac77cff23906c9f6e266ee6079bfa1028a3cfc1fc5",
-  "download_url": "files/a7b98f162cae16877b1ddcac77cff23906c9f6e266ee6079bfa1028a3cfc1fc5"
+  "file_hash": "bf7d6b23b53ae767fe55a48e04caef164016e5d6b23b695fbfb43df1e3937f09",
+  "download_url": "files/bf7d6b23b53ae767fe55a48e04caef164016e5d6b23b695fbfb43df1e3937f09"
  },
  {
   "file_name": "exo/psn-oauth.js",
@@ -9466,8 +9481,8 @@
  },
  {
   "file_name": "exo/recoil-wall.js",
-  "file_hash": "170b047406b0386c0d76ceef35afdbf34777e47237b4098833e45d7948ae056f",
-  "download_url": "files/170b047406b0386c0d76ceef35afdbf34777e47237b4098833e45d7948ae056f"
+  "file_hash": "d34d8346551e929318f1c9b95316d9e5a7f5e163410b4cadbf855b6095d3180d",
+  "download_url": "files/d34d8346551e929318f1c9b95316d9e5a7f5e163410b4cadbf855b6095d3180d"
  },
  {
   "file_name": "exo/recoil-workshop.js",
@@ -9541,18 +9556,18 @@
  },
  {
   "file_name": "exo/sections/10-aim.js",
-  "file_hash": "f5f7deb5bcaac18e28ddab2f3f3bcb5d5392cd367bb568ab8bfc6dd7d13fc8c4",
-  "download_url": "files/f5f7deb5bcaac18e28ddab2f3f3bcb5d5392cd367bb568ab8bfc6dd7d13fc8c4"
+  "file_hash": "805fe5ce1b9d975057c461a44e912193cc86865f25d558360bddd1a39802799b",
+  "download_url": "files/805fe5ce1b9d975057c461a44e912193cc86865f25d558360bddd1a39802799b"
  },
  {
   "file_name": "exo/sections/11-kbmove-behavior.js",
-  "file_hash": "e65dc56ad114fb8b36476768501021d2b10802a4885790c6c880f061e7065691",
-  "download_url": "files/e65dc56ad114fb8b36476768501021d2b10802a4885790c6c880f061e7065691"
+  "file_hash": "532f258f25884d4bdabdf06483e624c448a71eb064b4d50f67e6de3d57b43b92",
+  "download_url": "files/532f258f25884d4bdabdf06483e624c448a71eb064b4d50f67e6de3d57b43b92"
  },
  {
   "file_name": "exo/sections/12-translation.js",
-  "file_hash": "1d2f33cff4da240f22722d912a68e31dfb530b0fe0a90579a9152891375c82f3",
-  "download_url": "files/1d2f33cff4da240f22722d912a68e31dfb530b0fe0a90579a9152891375c82f3"
+  "file_hash": "652638be5b78c2d5449f767b4ea7fcfc7b402fdb568a1dba3ffe7f21129bd018",
+  "download_url": "files/652638be5b78c2d5449f767b4ea7fcfc7b402fdb568a1dba3ffe7f21129bd018"
  },
  {
   "file_name": "exo/sections/13-calibrate.js",
@@ -9601,8 +9616,8 @@
  },
  {
   "file_name": "exo/sections/22-global.js",
-  "file_hash": "b6a737e883624d2833373e4464a354973cdf231e1ed737933f9077bfbab12d0f",
-  "download_url": "files/b6a737e883624d2833373e4464a354973cdf231e1ed737933f9077bfbab12d0f"
+  "file_hash": "7eaaf2a7af688b0e9f86269c4bd70571cf9885dc0a12d3c85cf7c37f04afb28d",
+  "download_url": "files/7eaaf2a7af688b0e9f86269c4bd70571cf9885dc0a12d3c85cf7c37f04afb28d"
  },
  {
   "file_name": "exo/sections/23-vision.js",
@@ -9656,8 +9671,8 @@
  },
  {
   "file_name": "exo/shell/06-core-configs.js",
-  "file_hash": "36d403afbcc396367a3a96d864340c526d541847a1045bc31f3b54330ebb282d",
-  "download_url": "files/36d403afbcc396367a3a96d864340c526d541847a1045bc31f3b54330ebb282d"
+  "file_hash": "15c9b20ab92af28179d7b1226548315bc04bd5f934fcafbfa4f7f1a67060db90",
+  "download_url": "files/15c9b20ab92af28179d7b1226548315bc04bd5f934fcafbfa4f7f1a67060db90"
  },
  {
   "file_name": "exo/shell/07-inputs.js",
@@ -9671,8 +9686,8 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "a2c855a12cbae4e33bc4a14ca06a8f270edd22623c4280c792ee3f91ff952dab",
-  "download_url": "files/a2c855a12cbae4e33bc4a14ca06a8f270edd22623c4280c792ee3f91ff952dab"
+  "file_hash": "a08611ae06b82de626f93238cf94ea1cef605697dad20c3a566ea871d5ea0d34",
+  "download_url": "files/a08611ae06b82de626f93238cf94ea1cef605697dad20c3a566ea871d5ea0d34"
  },
  {
   "file_name": "exo/shell/10-editor.js",
@@ -9701,8 +9716,8 @@
  },
  {
   "file_name": "exo/shell/15-configs-api.js",
-  "file_hash": "365754ec2aa66d33803a1adc83155f9c433b02b288daf6851b9e434b0b8cbf85",
-  "download_url": "files/365754ec2aa66d33803a1adc83155f9c433b02b288daf6851b9e434b0b8cbf85"
+  "file_hash": "c66fd2d6af9b879960cc69fc7e4766f85bd071cf292ec53995cdc9342e933076",
+  "download_url": "files/c66fd2d6af9b879960cc69fc7e4766f85bd071cf292ec53995cdc9342e933076"
  },
  {
   "file_name": "exo/shell/16-start.js",
@@ -9731,8 +9746,8 @@
  },
  {
   "file_name": "exo/smart-actions/04-styling.js",
-  "file_hash": "9b0ebaa42e3c053c6939d7cd420031ee9bccc3fbd302d68eef89a6f25e802341",
-  "download_url": "files/9b0ebaa42e3c053c6939d7cd420031ee9bccc3fbd302d68eef89a6f25e802341"
+  "file_hash": "b896e55ec98ebde0d6bd03499e978675f974c3290ea051cb40ff40b9dcadae40",
+  "download_url": "files/b896e55ec98ebde0d6bd03499e978675f974c3290ea051cb40ff40b9dcadae40"
  },
  {
   "file_name": "exo/smart-actions/05-list.js",
@@ -9741,13 +9756,13 @@
  },
  {
   "file_name": "exo/smart-actions/06-mappings.js",
-  "file_hash": "e862f04efd37b406e866279dff352967fcd34511233f6eda35b351f82a88632a",
-  "download_url": "files/e862f04efd37b406e866279dff352967fcd34511233f6eda35b351f82a88632a"
+  "file_hash": "a5720b5806ab597bdee766896912313e41eb268cea809165538ffbac04b2be1c",
+  "download_url": "files/a5720b5806ab597bdee766896912313e41eb268cea809165538ffbac04b2be1c"
  },
  {
   "file_name": "exo/smart-actions/07-recoil-doors.js",
-  "file_hash": "da703f420b5a28c1285695acd4a88559a01cd52ffd6c0687e7e4972426a39787",
-  "download_url": "files/da703f420b5a28c1285695acd4a88559a01cd52ffd6c0687e7e4972426a39787"
+  "file_hash": "a9e88cddefcb2b8c899c71b9ad4681f9e08eb885561685562b252ab947b9f64f",
+  "download_url": "files/a9e88cddefcb2b8c899c71b9ad4681f9e08eb885561685562b252ab947b9f64f"
  },
  {
   "file_name": "exo/smart-actions/08-editor-view.js",
@@ -9791,13 +9806,13 @@
  },
  {
   "file_name": "exo/smart-actions/16-buttons.js",
-  "file_hash": "560941b057843d6f7a4af4d184c5d5bc3647eb05dc9fbab1a037732f24311243",
-  "download_url": "files/560941b057843d6f7a4af4d184c5d5bc3647eb05dc9fbab1a037732f24311243"
+  "file_hash": "aab40a270a70b61dcbd4681c59a458572cee3faa513604f9dbbdbc7d37c950a6",
+  "download_url": "files/aab40a270a70b61dcbd4681c59a458572cee3faa513604f9dbbdbc7d37c950a6"
  },
  {
   "file_name": "exo/smart-actions/17-editor-sheet.js",
-  "file_hash": "f927cded3ec222685f117a19c19311021bfd2aca11505cd60a5e9e8bc128996e",
-  "download_url": "files/f927cded3ec222685f117a19c19311021bfd2aca11505cd60a5e9e8bc128996e"
+  "file_hash": "5f6915510c052d80618c1a535f4906cdc00308f89667132b869a7f7bc9ddaee3",
+  "download_url": "files/5f6915510c052d80618c1a535f4906cdc00308f89667132b869a7f7bc9ddaee3"
  },
  {
   "file_name": "exo/smart-actions/18-pills.js",
@@ -9811,8 +9826,8 @@
  },
  {
   "file_name": "exo/smart-actions/20-in-place.js",
-  "file_hash": "6bde0ff024b5fcab83858b484c25168e177dc1ce4ae0e6de8fc12df93826933f",
-  "download_url": "files/6bde0ff024b5fcab83858b484c25168e177dc1ce4ae0e6de8fc12df93826933f"
+  "file_hash": "a464165d60b969612d5e73cfde5a798851a1f87c5ca77ca7810ed5ff90027243",
+  "download_url": "files/a464165d60b969612d5e73cfde5a798851a1f87c5ca77ca7810ed5ff90027243"
  },
  {
   "file_name": "exo/smart-actions/21-rooms-exports.js",
@@ -10196,8 +10211,8 @@
  },
  {
   "file_name": "exo/zk-pad.js",
-  "file_hash": "8c056418d6af99f5089e77c7549b6deb76417510ece3d8e1368da2db5d605436",
-  "download_url": "files/8c056418d6af99f5089e77c7549b6deb76417510ece3d8e1368da2db5d605436"
+  "file_hash": "e60958ed1a695d463aa1f4904a19d4fcc945bc86203aa0b4d91b69f36b3fa00a",
+  "download_url": "files/e60958ed1a695d463aa1f4904a19d4fcc945bc86203aa0b4d91b69f36b3fa00a"
  },
  {
   "file_name": "exo/zs-aim-model.js",
@@ -10256,8 +10271,8 @@
  },
  {
   "file_name": "exo/zs-fixes.css",
-  "file_hash": "96f3381058d8e8d9a52ef011bd7c9e409d57db9f8181ac2bf6fa06a7d772114c",
-  "download_url": "files/96f3381058d8e8d9a52ef011bd7c9e409d57db9f8181ac2bf6fa06a7d772114c"
+  "file_hash": "891fbb61fd33ab173f82ef0023eb1f1d8dde88b6f8696e508cbe3f9b4d95f4fd",
+  "download_url": "files/891fbb61fd33ab173f82ef0023eb1f1d8dde88b6f8696e508cbe3f9b4d95f4fd"
  },
  {
   "file_name": "exo/zs-flat.css",
@@ -10756,8 +10771,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "ec05ecc98cdfe0dafe1f3d2554a0e39c41348540f2640939c7c11327d6acfd98",
-  "download_url": "files/ec05ecc98cdfe0dafe1f3d2554a0e39c41348540f2640939c7c11327d6acfd98"
+  "file_hash": "63a3f2bed989c3629bb109f425f48dba9ada60ff2d561f7016d71fc3b9736ebd",
+  "download_url": "files/63a3f2bed989c3629bb109f425f48dba9ada60ff2d561f7016d71fc3b9736ebd"
  },
  {
   "file_name": "zs-live-update.js",

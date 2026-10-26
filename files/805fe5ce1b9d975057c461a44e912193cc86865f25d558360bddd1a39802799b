@@ -1,0 +1,2524 @@
+/* sections/10-aim.js — the Aim page: the mouse translator's and the sticks' settings.
+ *
+ * R.aim: Hip / ADS stances with Speed (cm/360 = 500 / Speed), the response
+ * curve, smoothing (Standard EMA / 1 euro, Classic D191 presets and steppers),
+ * Fine aim, the Mechanics fold (Y scale, noise, Feel, invert, a read-only
+ * Mouse DPI line that opens Device's card D375,
+ * quantization D189; the XIM import door moved to Legacy Devices, D215),
+ * the stick pages (sensitivity, rest zone, Native / EXO Linear / Custom
+ * with the grid curve editor zs-curve-grid.js),
+ * and the ADS binding. Every field is under mouseTranslation.*, stick.*, curves.*
+ * or smoothing.* in the config (docs/CODE-GUIDE.md "Aim" traces each one to
+ * the firmware).
+ *
+ * Screens (window.RENDERERS):  R.aim
+ * Tests:                      test-aim-simple.js (D376), test-aim-help.js, test-aim-stance.js, test-smoothing.js, test-stick-modes.js, test-vertical-balance.js, test-aim-xim.js, test-xim-import.js, test-mouse-dpi.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('aim', function (SEC) {
+  /* from the files before this one */
+  var B = SEC.B, btn = SEC.btn, card = SEC.card, curveBox = SEC.curveBox,
+      curvePath = SEC.curvePath, door = SEC.door, esc = SEC.esc, helpHTML = SEC.helpHTML,
+      liveOutput = SEC.liveOutput, note = SEC.note, pic = SEC.pic, R = SEC.R,
+      screenLive = SEC.screenLive, seg = SEC.seg, sh = SEC.sh, srcNameOf = SEC.srcNameOf,
+      stepper = SEC.stepper, slider = SEC.slider, toggleFld = SEC.toggleFld, warnHTML = SEC.warnHTML,
+      warnList = SEC.warnList, wireDoors = SEC.wireDoors, ZS = SEC.ZS,
+      stickChoiceOf = SEC.stickChoiceOf, stickChoiceWrite = SEC.stickChoiceWrite,
+      stickModesCore = SEC.stickModesCore, calObj = SEC.calObj, cpVal = SEC.cpVal,
+      vhBalanceHTML = SEC.vhBalanceHTML, ovSetTab = SEC.ovSetTab;
+  /* from files after this one, bound once every file has run (never used
+     while this file is loading) */
+  var trModelOf;
+  ZS_SECTIONS.after(function () {
+    trModelOf = SEC.trModelOf;
+  });
+
+  /* ── Aim Settings ─────────────────────────────────────────────── */
+  /* D376: the Advanced switch (per install) and the open Quantization
+     buttons (per config and stance, for the session, like XMECH_OPEN) */
+  var AIM_ADV_KEY = 'zs.aimAdvanced';
+  function aimAdvOn(){
+    try { return window.localStorage.getItem(AIM_ADV_KEY) === '1'; } catch (e) { return false; }
+  }
+  function aimAdvSet(on){
+    try { window.localStorage.setItem(AIM_ADV_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+  /* D376 amended (owner, 2026-10-14: "collapse the Activation tab in
+     ADS"): ADS's Activation card opens and closes from its header,
+     remembered per install, CLOSED by default (missing or throwing
+     storage = closed; the header still works for the session) */
+  var AIM_ACT_KEY = 'zs.aimActOpen';
+  var aimActSession = null;
+  function aimActOpen(){
+    if(aimActSession !== null) return aimActSession;
+    try { return window.localStorage.getItem(AIM_ACT_KEY) === '1'; } catch (e) { return false; }
+  }
+  function aimActSet(on){
+    aimActSession = !!on;
+    try { window.localStorage.setItem(AIM_ACT_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+  var XQUANT_OPEN = {};
+  var aimPollTimer=null;   /* live-feedback poller (one, app-wide) — the Smart
+    Actions poller that shared this line moved to smart-actions.js with the
+    rest of that screen (screen-map §5.4) */
+  /* Curve preset <-> the two real curve field-sets. Module scope because both
+     the Aim screen (which WRITES a preset) and its read-back (which has to
+     agree with Controller Feel -> Stick response, a different screen writing
+     the SAME fields) need the same table. */
+  /* Feel words, not maths words. "Expo" and "Aggro" told a beginner nothing
+     about what the slider would do to their aim; these say it. The stored
+     values are unchanged, so a config written by the old names still reads
+     back correctly through the same table. */
+  var CURVE_MAP = { 'Even':{curve:'linear',curveStrength:1.0},
+                    'Gentle':{curve:'power',curveStrength:1.9},
+                    'Aggressive':{curve:'power',curveStrength:0.55} };
+  var CURVE_NAMES = ['Even','Gentle','Aggressive','Custom'];
+  /* Which preset name the board's stored curve corresponds to. Returns null
+     when the board holds something no preset can name (then keep what the
+     user last picked locally rather than lying about it). */
+  function curveFromBoard(full, mnk){
+    if(!full) return null;
+    var type, strength;
+    if(mnk){ var mt=full.mouseTranslation||{}; type=mt.curve; strength=mt.curveStrength; }
+    else { var rs=(full.curves||{}).rightStick||{}; type=rs.type; strength=rs.strength; }
+    if(!type) return null;
+    if(type==='piecewise') return 'Custom';
+    if(type==='linear') return 'Even';
+    if(type==='power') return (+strength >= 1) ? 'Gentle' : 'Aggressive';
+    return null;
+  }
+  /* The stored piecewise points back into the 3 draggable handles (25/50/75%). */
+  function customFromBoard(full, mnk){
+    var pts = mnk ? ((full.mouseTranslation||{}).curvePoints)
+                  : (((full.curves||{}).rightStick||{}).points);
+    if(!pts || pts.length < 5) return null;
+    var out=[];
+    for(var i=1;i<=3;i++){
+      var v = pts[i] && pts[i][1];
+      if(typeof v!=='number') return null;
+      out.push(Math.max(0, Math.min(100, Math.round(v*100))));
+    }
+    return out;
+  }
+
+  /* ── the smoothing preset ladder (the aim pager's carousel) ────────
+     A preset writes ALL THREE filter fields at once, so the name on the
+     carousel can never disagree with the filter underneath it — and the
+     read-back below names a preset only when the stored trio matches it
+     exactly. D191 (XIM MATRIX's Aim Settings): the smoothing has two STYLES,
+     XIM's Custom mode button. STANDARD is the speed-adaptive filter these
+     four presets always were (Precision / Response / Easing on Custom);
+     CLASSIC is XIM APEX's static weighted average (Smooth / Decay / Synch,
+     docs/SMOOTHING.md). "Synchronous" came back with D191: it is Classic
+     with only Synch on, an average over one game frame, which the Core now
+     really runs (it was left out before because nothing ran it).
+     [name, smoothing, oneEuroBeta, smoothingEasing, what-it-feels-like] */
+  var SM_PRESETS = [
+    ['Disabled', 0,    1.0, 0.35, 'Mouse movement is unprocessed and may show aim jitter.'],
+    ['Light',    0.15, 1.5, 0.35, 'A little steadying, barely any delay.'],
+    ['Balanced', 0.35, 1.0, 0.35, 'Steadier aim for a touch of delay.'],
+    ['Heavy',    0.55, 0.7, 0.5,  'Strongest steadying — the most delay.']
+  ];
+  /* D191: the Classic presets. [name, Smooth, Decay, Synch, feel] */
+  var SM_CLASSIC_PRESETS = [
+    ['Synchronous', 0, 9, 16, 'Evens your aim out over one game frame (60 fps) — about 8 ms of delay.']
+  ];
+  /* The first switch to Classic starts here: a light Smooth on XIM APEX's own
+     Decay 9.0 and its Default Synch 8 (XIM's guide gives both). */
+  var CLASSIC_SEED = [20, 9, 8];
+  /* D392: the MOUSE's Classic has no Synch of its own any more: frame sync is
+     ONE control, Sync to game on the Translation page (the two did the same
+     job, docs/MOUSE-AUDIT.md F7), so the mouse's Classic starts at Synch 0
+     and its carousel offers no "Synchronous". The aim STICK keeps both. */
+  var MOUSE_CLASSIC_SEED = [20, 9, 0];
+  var CLASSIC_RANGE = { Smooth: 100, Decay: 20, Synch: 64 };
+  var SM_CAPTIONS = {
+    'Custom':      'Tune the filter yourself with the three dials below.',
+    'Same as hip': 'Aiming down sights uses your Hip Aim smoothing.'
+  };
+  /* Which Classic preset the stored three are, or null. Missing numbers read
+     as the Core's defaults (Smooth 0, Decay 9, Synch 0). */
+  function smClassicFromValues(sm, dc, sy){
+    var a = typeof sm==='number' ? sm : 0;
+    var b = typeof dc==='number' ? dc : 9;
+    var c = typeof sy==='number' ? sy : 0;
+    for(var i=0;i<SM_CLASSIC_PRESETS.length;i++){
+      var pr = SM_CLASSIC_PRESETS[i];
+      if(Math.abs(a-pr[1])<0.05 && Math.abs(b-pr[2])<0.05 && Math.abs(c-pr[3])<0.05) return pr[0];
+    }
+    return null;
+  }
+  function smClassicPreset(name){
+    for(var i=0;i<SM_CLASSIC_PRESETS.length;i++){ if(SM_CLASSIC_PRESETS[i][0]===name) return SM_CLASSIC_PRESETS[i]; }
+    return null;
+  }
+  /* Classic's MEAN LAG in ms, the closed form docs/SMOOTHING.md gives and
+     zs_classic_mean_lag_s computes on the Core: a window T = 2 ms x Smooth
+     weighted exp(-Decay x age / T), plus half the Synch box. */
+  function classicLagMs(sm, dc, sy){
+    var t = 2 * Math.max(0, Math.min(100, +sm || 0));
+    var d = Math.max(0, Math.min(20, typeof dc==='number' ? dc : 9));
+    var y = Math.max(0, Math.min(64, +sy || 0));
+    var lag = d < 1e-3 ? t / 2 : t * (1 / d - Math.exp(-d) / (1 - Math.exp(-d)));
+    return lag + y / 2;
+  }
+  /* Classic is the Core's (zs_classic2d); the A7S agent has no such filter,
+     so an EXO is offered Standard only (no option that does nothing). */
+  function classicShown(){ return !(ZS.productHides && ZS.productHides('classicSmoothing')); }
+  /* Which preset the stored trio IS, or null for "none of them" (shown as
+     Custom). Missing fields read as the engine defaults (0 / 1.0 / 0.35) so
+     a board from before smoothingEasing still names its presets. */
+  function smPresetFromValues(sm, beta, eas){
+    var s = typeof sm==='number'   ? sm   : 0;
+    var b = typeof beta==='number' ? beta : 1.0;
+    var e = typeof eas==='number'  ? eas  : 0.35;
+    for(var i=0;i<SM_PRESETS.length;i++){
+      var pr = SM_PRESETS[i];
+      if(Math.abs(s-pr[1])<0.005 && Math.abs(b-pr[2])<0.005 && Math.abs(e-pr[3])<0.005) return pr[0];
+    }
+    return null;
+  }
+  function smCaption(name){
+    for(var i=0;i<SM_PRESETS.length;i++){ if(SM_PRESETS[i][0]===name) return SM_PRESETS[i][4]; }
+    var cp = smClassicPreset(name);
+    if(cp) return cp[4];
+    return SM_CAPTIONS[name] || '';
+  }
+  /* ── the stick's smoothing ladder ─────────────────────────────────
+     ONE field, not the mouse's three. core/stages.SmoothingStage hands
+     smoothing.rightStick straight to Ema2D, whose alpha is derived from the
+     real dt — so a strength means the same delay at 125 Hz as at 1000 Hz, and
+     these captions may quote milliseconds instead of adjectives.
+
+     THE NUMBER IN EACH CAPTION IS A SETTLING TIME, AND THE VERB SAYS SO.
+     90% of a step lands after t90 = (1/250) * ln(0.1)/ln(strength):
+
+         0.15 -> 4.9 ms     0.35 -> 8.8 ms     0.55 -> 15.4 ms
+
+     The filter's own time constant is smaller still (tau = (1/250)/-ln s, so
+     2.1 / 3.8 / 6.7 ms), which is why "settles in ~9 ms" is honest where
+     "9 ms behind your thumb" would not have been — a number the product
+     asserts about someone's hand has to be the number the filter produces.
+     The ladder stops at 0.55 because the schema ceiling 0.95 settles in
+     180 ms and still lags by ~78 ms; it stays reachable through Custom, it is
+     just not a thing the carousel recommends.
+
+     THE NAMES ARE THE MOUSE LADDER'S NAMES ON PURPOSE: a Joystick + Mouse
+     config draws both carousels on one screen and one word may not mean two
+     different amounts of steadying. (Controller Feel's old "Stick response
+     -> Smooth" wrote 0.35 too; that screen is gone, D246.)
+
+     GAME_PRESETS lands on this ladder more often than not: ZS standard and
+     Fortnite write 0.0 (reads back as Disabled) and Destiny 2 writes 0.15
+     (Light). Only CoD's 0.20 and Apex's 0.10 are off-ladder, and those
+     configs read as Custom showing 20% / 10%, which is true rather than
+     rounded. Do NOT re-tune GAME_PRESETS to fit the ladder — that would
+     silently change what Apply writes.
+     [name, smoothing.rightStick, what it feels like] */
+  var SM_STICK = [
+    ['Disabled', 0,    'Your stick reaches the game unfiltered.'],
+    ['Light',    0.15, 'Takes the shake off with no delay you can feel (settles in ~5 ms).'],
+    ['Balanced', 0.35, 'Noticeably steadier — a step settles in about 9 ms.'],
+    ['Heavy',    0.55, 'The steadiest hand, and the most delay (settles in ~15 ms).']
+  ];
+  function smStickCaption(name){
+    for(var i=0;i<SM_STICK.length;i++){ if(SM_STICK[i][0]===name) return SM_STICK[i][2]; }
+    var cp = smClassicPreset(name);
+    if(cp) return cp[4];
+    return name==='Custom' ? 'Set the steadying yourself below: Standard or Classic.' : '';
+  }
+  /* invert, said as one choice over two booleans — [label, invertX, invertY] */
+  var INV_OPTS = [['Off',false,false],['Vertical',false,true],['Horizontal',true,false],['Both',true,true]];
+  function invNameOf(mt){
+    var x = !!(mt && mt.invertX), y = !!(mt && mt.invertY);
+    return y ? (x?'Both':'Vertical') : (x?'Horizontal':'Off');
+  }
+  /* the Mouse card's picture: the set's mouse (D91; our own drawing before) */
+  function mouseSVG(){ return pic('mouse', 68); }
+
+  /* which ••• folds are open, keyed p.id|stance. Module-level on purpose:
+     render() runs on every preset tap and redrawOpenScreen() re-enters
+     R.aim, and a fold that snapped shut on either would make the
+     mechanics untunable. */
+  var XMECH_OPEN = {};
+
+  /* ── a "?" beside every setting's own label (D285, the Aim screen) ──
+     The owner, 2026-10-14: "how is there no question marks in the Aim tab
+     at all, that's the most complicated one on mouse and keyboard." Every
+     setting on the stance pages (and in their ••• folds and the Custom
+     smoothing dials) gets ONE purple "?" right after its label, and its fold
+     opens right under that setting. The chip is the app's own helpHTML (one
+     open-state set, one delegated listener, bullets per D260, hidden with
+     Show help buttons off, D236), only placed inline: a span inside the
+     label, AFTER the label's own text node, so labFor()'s childNodes[0]
+     (the local-cache key) and every /^Label/ lookup read exactly as before.
+     It is a <button>, which every row/stepper/seg/slider wiring already
+     ignores; the fold sits outside the control, so tapping its words cannot
+     move anything either. */
+  var AIMQH_CSS = 'zs-aimqh-css';
+  function aimQhCss(){
+    if(document.getElementById(AIMQH_CSS)) return;
+    var s = document.createElement('style');
+    s.id = AIMQH_CSS;
+    s.appendChild(document.createTextNode(
+      '.qhrow.qhin{display:inline-flex;margin:0 0 0 8px;vertical-align:middle;justify-content:flex-start}'+
+      /* the label rows are 11-17 px type: a 24 px ring keeps the line calm,
+         and the hit box stays 44 px (24 + 2 x 10) */
+      '.qhin .qh{width:24px;height:24px;font-size:12.5px;letter-spacing:0;text-transform:none;'+
+        'font-weight:700;line-height:1}'+
+      '.qhin .qh::after{inset:-10px}'+
+      '.aimpage .qhfold,.smcustom .qhfold{text-align:left;margin:6px 0 8px}'+
+      /* D376: the ••• and Advanced side by side; the quantization button */
+      '.xcard .xmorerow{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:12px}'+
+      '.xcard .xmorerow .xmore{margin:0}'+
+      '.xcard .xadv{border:1px solid var(--line);border-radius:16px;background:transparent;color:var(--muted);'+
+        'font:inherit;font-size:13px;font-weight:600;padding:6px 14px;min-height:36px;cursor:pointer}'+
+      '.xcard .xadv[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}'+
+      '.xcard .xadvhint{flex-basis:100%;text-align:center;font-size:12px;color:var(--amber)}'+
+      '.xcard .xadvhint[hidden]{display:none}'+
+      '.xcard .xquanthd{display:flex;align-items:center;justify-content:center;margin-top:12px}'+
+      '.xcard .xquantbtn{border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg,var(--text));'+
+        'font:inherit;font-size:16px;font-weight:600;padding:8px 18px;min-height:44px;cursor:pointer}'+
+      '.xcard .xquantbtn[aria-expanded="true"]{border-color:var(--accent)}'+
+      '.xcard .smdis{text-align:center;margin:6px 0 2px}'+
+      /* D377: a stepper at its 0 switch says the word (Standard / Same as
+         hip) instead of "0 cm/360"; the number stays the value underneath */
+      '.stp .sv.svzero{font-size:0 !important}'+
+      '.stp .sv.svzero::after{content:attr(data-zeroword);font-size:16px !important;font-weight:600;color:inherit;margin-left:0}'+
+      '.xact .xdelay{margin-top:14px;text-align:left}'+
+      /* D376 amended: Activation's header is the card's open/close; the
+         one-line summary says what is set while it is closed */
+      '.xact .xacthdrow{display:flex;align-items:center;gap:6px}'+
+      '.xact .xacthd{flex:1;display:flex;align-items:center;gap:10px;min-height:44px;background:none;border:0;'+
+        'padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}'+
+      '.xact .xacthd .xtitle{margin:0}'+
+      '.xact .xactsum{flex:1;text-align:right;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;'+
+        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.xact .xacthd[aria-expanded="true"] .xactsum{visibility:hidden}'+
+      '.xact .xchev{flex:none;width:18px;text-align:center;font-size:20px;line-height:1;color:var(--muted);'+
+        'transform:rotate(90deg);transition:transform var(--t-quick,170ms) var(--ease-settle,ease-out)}'+
+      '.xact .xacthd[aria-expanded="true"] .xchev{transform:rotate(-90deg)}'+
+      '.xact .xactbody[hidden]{display:none}'+
+      '.xact .xactbody{margin-top:6px}'+
+      /* D376 amended: the Advanced section, its own card under everything */
+      '.xadvsec[hidden]{display:none}'+
+      '.xadvsec .xsub.xadvlead{margin-bottom:6px}'+
+      '.xcard .xadvwhere{flex-basis:100%;text-align:center;font-size:12px;color:var(--muted)}'+
+      '.xcard .xadvwhere[hidden]{display:none}'+
+      /* D376 amended: Speed is the face; cm/360 is its small print */
+      '.xcm{flex-basis:100%;width:100%;font-size:11.5px;color:var(--muted);text-align:center;margin:6px 0 0;'+
+        'font-variant-numeric:tabular-nums;letter-spacing:var(--tr-caption,.004em)}'+
+      '.xact .xdelay .xsec{font-size:15px;font-weight:600;text-align:center}'));
+    (document.head || document.documentElement).appendChild(s);
+  }
+  /* the chip (inline, a span) and its fold, from the app's one helpHTML */
+  function qhParts(id, label, text){
+    aimQhCss();
+    var h = helpHTML(id, label, text);
+    var b0 = h.indexOf('<button'), b1 = h.indexOf('</button>') + 9;
+    var r1 = h.indexOf('</div>', b1) + 6;
+    return { chip: '<span class="qhrow qhin">'+h.slice(b0, b1)+'</span>', fold: h.slice(r1) };
+  }
+  /* `html` is ONE setting (a kit fld, or a title div): the chip goes into
+     its first label element after the label text (and its live dot), the
+     fold after the whole thing, or with `near` straight after the label
+     element (a setting whose control is tall, like a curve editor) */
+  function labHelp(html, id, label, text, near){
+    var q = qhParts(id, label, text);
+    var m = /class="(?:flab|smtitle|xtitle|xsec|src)"[^>]*>/.exec(html);
+    if(!m) return html + q.chip + q.fold;
+    var at = m.index + m[0].length;
+    var lt = html.indexOf('<', at);
+    if(lt < 0) lt = html.length;
+    if(html.indexOf('<span class="livedot"', lt) === lt) lt = html.indexOf('</span>', lt) + 7;
+    var out = html.slice(0, lt) + q.chip + html.slice(lt);
+    if(near){
+      var close = out.indexOf('</div>', lt + q.chip.length) + 6;
+      return out.slice(0, close) + q.fold + out.slice(close);
+    }
+    return out + q.fold;
+  }
+  /* the words. Facts from the code and docs only: D162 (Fine aim), D164
+     (Speed = 500 / cm), D189 (quantization, XIM's tip), D191 (smoothing and
+     XIM's numbers), docs/MOUSE-FEEL.md (Feel). */
+  var AIM_HELP = {
+    speed: 'How far the camera turns when you move the mouse. Higher = faster turns for the same hand '+
+      'movement.<br>If you fly past targets, lower it. If you run out of mouse pad before you finish a '+
+      'turn, raise it.<br>0 = <b>Standard</b>: 34 cm/360 (Speed 14.7). A config made before this '+
+      'keeps the speed it always had at 0 until it is next saved, and then shows it as its own number. '+
+      'The first + from 0 starts you at <b>14.5</b>, a comfortable middle.<br>Tenths are allowed: tap the number to type one, like 14.5.<br>'+
+      '<b>Coming from another adapter?</b> The small number under Speed is the same setting in cm/360: the '+
+      'centimetres of mouse for one full turn of the camera (a lower cm/360 is faster). '+
+      'Speed = 500 ÷ cm/360, so 34.5 cm/360 is Speed 14.5, and Speed 100 is 5 cm.',
+    speedAds: 'How far the camera turns when you move the mouse <b>while aiming down sights</b>. Higher = '+
+      'faster.<br>Many players set it a little lower than Hip, for steadier aim on a target.<br>0 = '+
+      'exactly the same speed as Hip. Your own number here works whatever Hip says.<br><b>Coming from another adapter?</b> The small number under Speed is this setting in cm/360 '+
+      '(Speed = 500 ÷ cm/360), so an ADS of 50 cm/360 is Speed 10.',
+    fine: 'Makes small, slow mouse moves turn the camera a bit more, so tiny corrections register.<br>'+
+      'Fast flicks are not changed.<br>At 100% the very slowest moves count up to 3.4 times as much, '+
+      'easing back to normal by half your top turn speed.<br>Raise it if small moves feel like they do '+
+      'nothing. 0 = off.<br>Leave it off on a game with a measured translator: there every move already '+
+      'turns exactly as far as your hand, and Fine aim bends that.',
+    fineAds: 'Fine aim <b>while aiming down sights</b>: small, slow mouse moves turn the camera a bit '+
+      'more, so tiny corrections register. Flicks are not changed.<br>Until you change it here, it uses '+
+      'Hip’s number. 0 = off.',
+    style: '<b>Standard</b> changes with your speed: more steadying when you move slowly, less when you '+
+      'move fast. It uses Precision, Response and Easing.<br><b>Classic</b> is a steady weighted average: '+
+      'the same amount at every speed. It uses Smooth and Decay (the aim stick also has Synch; for the '+
+      'mouse, frame sync is <b>Sync to game</b> on the Translation page).<br>The first switch to Classic '+
+      'starts at Smooth 20, Decay 9.0.',
+    precision: 'Steadying at slow hand speeds. Higher = smoother, with a heavier reticle when you aim '+
+      'slowly.<br>It mostly steadies slow aim: how fast swipes feel is <b>Response</b>.<br>100 is as '+
+      'steady as it gets; whatever it holds back is still turned once your hand stops, so a swipe '+
+      'always turns its full distance.<br>0 = none. A good start is 67.5.',
+    response: 'How quickly the steadying lets go as your hand speeds up. Higher = a lighter reticle on '+
+      'fast moves.<br>A good start is 55.0.',
+    easing: 'How a movement starts from rest. Higher = a smoother start, but slower to react.<br>The '+
+      'presets use 35. A good start is 42.5.',
+    smooth: 'How much smoothing. Higher = smoother, and a little more delay.<br>0 = off. 20 is a good '+
+      'start.',
+    decay: 'How much older movement still counts. Higher = older movement counts less, so it reacts '+
+      'faster.<br>9.0 is the usual setting.',
+    synch: 'Evens your aim out over this many milliseconds, to match the game’s frames.<br>'+
+      '8 is Default, 16 Common, 32 Slow, 0 Off.<br>The line under the three numbers says how much delay '+
+      'they add together.',
+    steady: 'How hard the aim stick is steadied. Higher = steadier, and a little more delay.<br>0 = '+
+      'none. The presets use 15 (Light), 35 (Balanced) and 55 (Heavy).',
+    hipCurve: 'Changes how your hand speed becomes turn speed.<br><b>Linear</b> (a straight line): turn '+
+      'speed rises evenly with hand speed.<br>Bend the left of the line <b>down</b> for finer slow aim; '+
+      'bend it <b>up</b> so small moves react faster.<br>The “?” under the editor says how to '+
+      'drag it.',
+    adsCurve: 'The same idea as the Hip curve, for <b>while you aim down sights</b>.<br><b>Same as hip</b> '+
+      'keeps one curve for both.<br><b>Even</b>: turn speed rises evenly with hand speed. <b>Gentle</b>: '+
+      'slow moves turn less, for fine aim. <b>Aggressive</b>: slow moves turn more, for quick reactions.',
+    magnitude: 'Snaps the turn speed ZeroStick asks the game for to steps. The steps get bigger the '+
+      'faster you aim.<br>Some games’ aim assist treats stepped input like a controller’s, and '+
+      'helps more.<br>0 = off.',
+    angle: 'Snaps your aim direction to a set of angles, at any speed.<br>Like Magnitude, it can make '+
+      'some games’ aim assist help more.<br>0 = off.',
+    yscale: 'How fast up-and-down aim is compared with left-and-right.<br>100 = the same, for the same '+
+      'hand movement.<br>Raise it if looking up and down feels slow; lower it if it feels fast.',
+    noise: 'Hand movement slower than this, in millimetres a second, is ignored.<br>Use it only if your '+
+      'aim creeps while your hand rests on the mouse. Keep it as low as works: it also hides your '+
+      'smallest real moves (13 mm/s already hides a slow track).<br>0 = off.',
+    invert: 'Flips your aim direction.<br><b>Off</b> is normal. <b>Vertical</b>: push the mouse away to '+
+      'look down, the classic flight style. <b>Horizontal</b> flips left and right. <b>Both</b> flips both.',
+    /* D375: dpi and dpiFind moved, merged, to Device's Mouse DPI card's
+       "?" (09-overview.js ovDpiHTML) with the controls */
+    feel: 'How your aim stops when your hand stops.<br><b>Snappy</b> stops the instant your hand does. '+
+      'Recommended.<br><b>Balanced</b> adds a touch of glide, for unstable connections.<br><b>Smooth</b> '+
+      'is the original ZeroStick feel, with the longest glide.',
+    startup: 'How gently a movement starts after your hand was still. The first moment eases in '+
+      'instead of jumping.<br>0 = instant. Up to 200 ms.<br>Raise it a little if the reticle jumps when '+
+      'you start to move.',
+    activation: 'Your ADS settings apply only while this is on.<br>It turns on while you hold the '+
+      'aiming button (on a mouse that is usually the right button).<br>Tap ••• to choose '+
+      'which button counts as aiming.',
+    measured: '<b>Reticle velocity</b> is how fast your game really turns, measured once for this stance.'+
+      '<br>With it measured, your Speed means the same in every game.<br>Tap the row to measure it.'
+  };
+  /* the Smoothing carousel's "?": each preset in one line, from the same
+     tables the carousel reads (so the words can never disagree) */
+  function smHelpText(ads){
+    var pts = SM_PRESETS.map(function(pr){   /* D392: no Synchronous on the mouse */
+      return '<b>'+esc(pr[0])+'</b>: '+esc(pr[pr.length-1]);
+    });
+    pts.push('<b>Custom</b>: '+esc(SM_CAPTIONS.Custom));
+    if(ads) pts.unshift('<b>Same as hip</b>: '+esc(SM_CAPTIONS['Same as hip']));
+    pts.unshift('Steadies a shaky hand. Each step up adds a little delay.',
+      'Start at <b>Disabled</b> and go up only if your aim shakes.');
+    return '<ul class="qhlist">'+pts.map(function(x){ return '<li>'+x+'</li>'; }).join('')+'</ul>';
+  }
+  R.aim = function(p){
+    /* TWO questions, not one either/or. `var mnk = p.input==='mnk'` meant
+       "not mnk" silently became "controller", so a Joystick + Mouse config
+       would have been handed a controller-only Aim screen with the mouse
+       untunable anywhere in the app. It answers YES to both and gets both
+       halves of this screen. */
+    var hasMouse = ZS.inputShows(p.input, 'mouse');
+    var hasPad   = ZS.inputShows(p.input, 'controller');
+    /* D238 (owner, 2026-10-09): a pad AND a mouse/keyboard plugged in -> the
+       screen first asks which half to tune, two big halves, and then shows
+       only that half with a key to switch (window.ZS_AIM_VIEW, per config,
+       for the app's life; Mappings keeps its own choice) */
+    var dcA = (typeof ZS.deviceClasses === 'function') ? ZS.deviceClasses() : null;
+    var aimBoth = hasMouse && hasPad && !!(dcA && dcA.controller && (dcA.mouse || dcA.keyboard));
+    var AIMV = window.ZS_AIM_VIEW || (window.ZS_AIM_VIEW = {});
+    var aimView = aimBoth ? (AIMV[p.id] || null) : null;
+    if (aimView === 'pad') hasMouse = false;
+    else if (aimView === 'kbm') hasPad = false;
+    var baseNs = p.id+'/aim';
+    /* D482 (owner, 2026-10-26): Response Curve, Triggers and Deadzones are
+       folded EVERY time the page opens. A redraw of the page already on
+       screen (a setting, the poll, the M&K / Controller switch) keeps what
+       the player opened; anything else is a fresh open and starts folded. */
+    if(window.ZSZK && ZSZK.resetFolds && typeof document!=='undefined'){
+      var dtEl = document.getElementById('detail'), dbEl = document.getElementById('dbody');
+      var redraw = !!(dtEl && dtEl.classList.contains('open') && dbEl &&
+        dbEl.querySelector('.zkapp, .aimpage, [data-aimview], #aim-switch'));
+      if(!redraw) ZSZK.resetFolds();
+    }
+    /* the aim pager: which page is showing (survives the re-render every
+       preset tap causes — a pager that snapped back to Hip on each tap would
+       make ADS untunable), and the preset the user just picked, held ahead of
+       the debounced write because the eye is faster than the board. `stick` is
+       the pad card's own rung on the same ladder; smApply only ever writes
+       'hip'/'ads', so the three keys cannot collide.
+       (This comment used to cite `gameSel` as the precedent. There was no such
+       variable — it was an assignment to an undeclared name inside a ghost
+       wiring, and both went out with the .seg2 sweep below.) */
+    var pagerPage = 0;
+    var smSel = { hip:null, ads:null, stick:null };
+    /* The board wins. Controller Feel -> Stick response writes the SAME
+       curves.<side> fields this screen's preset writes, so a curve name kept
+       only in localStorage could show "Even" while the board held power/1.9 —
+       and the next preset tap would then overwrite the other screen's choice
+       from a stale starting point. */
+    var boardFull = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+    /* ONE curve state per half. They are different board fields —
+       mouseTranslation.curve* for the mouse, curves.rightStick.* for the
+       stick — so a config showing both halves needs both. A single shared
+       `st` would have let the mouse's preset seg overwrite the stick's.
+       The mouse half keeps the store keys it has always used; the stick half
+       gets new ones, and falls back to the old key so a config that WAS a
+       Controller config does not forget its curve name on upgrade. */
+    function curveState(isMouse, ck, cck, altCk, altCck){
+      var bc = curveFromBoard(boardFull, isMouse);
+      var bx = bc==='Custom' ? customFromBoard(boardFull, isMouse) : null;
+      var s = {
+        ck: ck, cck: cck,
+        curve: bc || ZS.store.vals[baseNs+'|'+ck] || (altCk && ZS.store.vals[baseNs+'|'+altCk]) || 'Even',
+        custom: bx || ZS.store.vals[baseNs+'|'+cck] || (altCck && ZS.store.vals[baseNs+'|'+altCck]) || [30,55,80]
+      };
+      if(CURVE_NAMES.indexOf(s.curve) < 0) s.curve = 'Even';   /* stale old name */
+      return s;
+    }
+    var stM = curveState(true,  'curve', 'custom');
+    var stP = curveState(false, 'padcurve', 'padcustom', 'curve', 'custom');
+    function saveSt(){
+      [stM, stP].forEach(function(s){
+        ZS.store.vals[baseNs+'|'+s.ck]=s.curve; ZS.store.vals[baseNs+'|'+s.cck]=s.custom;
+      });
+      ZS.persistStore();
+    }
+    /* curveHalves() is gone with the last curve preset on this screen: BOTH
+       editors are sheet-side now (the mouse's in openMech, the stick's in
+       openStickMech), so which board fields a preset writes is settled by
+       which sheet drew it rather than by DOM order. The warning it carried
+       moved with the risk — see openStickMech's curve wiring. */
+
+    /* XIM-style real-time feedback: the board's actual aim output, so every
+       tweak can be FELT while tuning (also surfaces running Smart Actions) */
+    function aimPadHTML(){
+      return '<div class="vizbox" style="display:flex;gap:14px;align-items:center;padding:12px;text-align:left">'+
+        '<svg viewBox="0 0 100 100" style="width:92px;height:92px;flex:none" aria-hidden="true">'+
+        '<circle cx="50" cy="50" r="46" fill="none" stroke="var(--line)"/>'+
+        '<circle cx="50" cy="50" r="23" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>'+
+        '<line x1="50" y1="4" x2="50" y2="96" stroke="var(--line)" opacity=".35"/>'+
+        '<line x1="4" y1="50" x2="96" y2="50" stroke="var(--line)" opacity=".35"/>'+
+        '<circle id="aim-dot" cx="50" cy="50" r="5" fill="var(--accent)"/></svg>'+
+        '<div style="min-width:0"><div style="font-weight:700;font-size:13px">Live aim response</div>'+
+        /* "Take your hand off and it should sit dead centre" was an instruction
+           to run a test the app already runs: #aim-rest below prints in red the
+           moment the resting dot is NOT centred. Asking the reader to do by eye
+           what the card does for him is the "restates its label" case — the
+           30-word lead is 11 words now, and the check is unchanged. */
+        '<div style="color:var(--muted);font-size:12px;line-height:1.45">move your '+(hasMouse?'mouse':'stick')+
+        ' — this dot is your board’s output <b>right now</b>.</div>'+
+        '<div id="aim-mag" style="font-size:12px;margin-top:4px;color:var(--muted)">aim stick · 0%</div>'+
+        '<div id="aim-rest" style="font-size:12px;color:var(--red);display:none"></div>'+
+        '<div id="aim-run" style="font-size:12px;color:var(--green);display:none"></div></div></div>';
+    }
+    function liveResponsePad(){
+      if(aimPollTimer) clearInterval(aimPollTimer);
+      var myNs = document.getElementById('dbody').dataset.ns;
+      /* "hands off = dead centre" is the one thing a user can check by eye, so
+         the pad says it out loud rather than leaving a 1-pixel offset to be
+         noticed. restSince tracks how long the output has been non-zero while
+         nothing is moving. */
+      var restSince = 0, lastMag = -1;
+      aimPollTimer = setInterval(function(){
+        var dot = document.getElementById('aim-dot');
+        var dbody = document.getElementById('dbody');
+        /* stop the moment this screen is gone OR replaced by another one —
+           an element check alone leaks when a re-render rebuilds the node */
+        if(!dot || !screenLive(myNs) || !dbody || !dbody.contains(dot)){
+          clearInterval(aimPollTimer); aimPollTimer=null; return;
+        }
+        if(document.hidden) return;               /* don't poll a phone in your pocket */
+        liveOutput(function(data){
+          var dot=document.getElementById('aim-dot'); if(!dot) return;
+          var s=(data&&data.state)||{}; var ax=s.axes||{};
+          var rx=+ax.rx||0, ry=+ax.ry||0;
+          dot.setAttribute('cx', (50+rx*44).toFixed(1));
+          dot.setAttribute('cy', (50-ry*44).toFixed(1));   /* engine +Y = up */
+          var m = Math.hypot(rx,ry);
+          var mag=document.getElementById('aim-mag');
+          if(mag) mag.textContent='aim stick · '+Math.round(Math.min(1,m)*100)+'%';
+          /* still (within a hair) AND off centre for 3s = a real resting drift */
+          if(m > 0 && Math.abs(m-lastMag) < 0.002 && m < 0.08){
+            if(!restSince) restSince = Date.now();
+          } else { restSince = 0; }
+          lastMag = m;
+          var rest=document.getElementById('aim-rest');
+          if(rest){
+            var drifting = restSince && (Date.now()-restSince > 3000);
+            rest.style.display = drifting ? '' : 'none';
+            /* the control it names is behind the ⋯ door now, so the sentence
+               says the whole route — a message that points at a control the
+               reader cannot find on the screen is worse than no message */
+            if(drifting && rest.getAttribute('data-wh')!=='1'){
+              rest.setAttribute('data-wh','1');
+              rest.innerHTML = warnHTML('your aim is sitting off centre with your hands off — raise <b>Inner deadzone</b> in <b>Mechanics ⋯</b>', 'aim-drift');
+            }
+          }
+          var run=document.getElementById('aim-run');
+          if(run){
+            var seqs=(data&&data.activeSequences)||[];
+            if(seqs.length){ run.style.display=''; run.textContent='▶ Script running: '+seqs.map(function(q){ return q.name; }).join(', '); }
+            else run.style.display='none';
+          }
+        });
+      }, 150);
+    }
+
+    /* Mouse mode, said plainly and switchable from the screen it changes.
+
+       Neither choice turns any device off — Caleb's instruction is that mouse
+       mode opens the mouse options and the controller keeps working. This
+       switch only decides which tuning sections the app shows, and the copy
+       says exactly that so nobody unplugs a pad they didn't need to.
+
+       If a device's stream IS being dropped (a role someone set on the
+       Devices screen, or this config's device list), the board's own sentence
+       for it is shown right here too — those are the only two things left
+       that can silence anything, and neither is this switch. */
+    function suppressionNote(){
+      var live = ZS.live.online!==false && ZS.live.status;
+      var items = (live && ZS.live.status.inputSuppression) || [];
+      var h = '', i;
+      for(i=0;i<items.length;i++){
+        h += note('⚠ <b>'+esc(items[i].name||'A device')+'</b> — '+esc(items[i].reason),'warn');
+      }
+      return h;
+    }
+    /* The input-type switch is GONE from this screen (screen-map §3, rule 2
+       — one home per setting, and it is the owner's named complaint: "in aim
+       you have like what you play with when that is literally in overview").
+       Overview's Setup card is the one home; nothing else changed hands. */
+
+    /* stickSwitchHTML() went into openStickMech: "what kind of stick is this"
+       is the once-per-config question, which is exactly what the ⋯ door is
+       for. It is not hidden in effect — the card above it holds the two
+       controls THIS MODE HONOURS and nothing else, so the card's shape is the
+       answer even before the sheet is opened. */
+
+    /* One line of calibration truth per stance pane (screen-map §3.4): has
+       this stance been measured, straight from the same calibration object
+       the velocity screen writes. A door row, so the fix is one tap away. */
+    function calChipHTML(ads){
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      var c = calObj(full);
+      var m = ads ? 'ads' : 'hip';
+      /* D392: a Core is sent the RESOLVED model, never the calibration
+         object, so its copy of a config may not carry one: a measured
+         translator (calibrated, or a pack's measured model) counts too */
+      var r = full && full.mouseTranslation && full.mouseTranslation.resolvedAimModel;
+      var done = !!(c && cpVal(c, m+'X') && cpVal(c, m+'Y')) ||
+        !!(r && typeof r==='object' && r.generic!==true && r.needsCalibration===false &&
+           r[m] && typeof r[m]==='object');
+      var word = (ads?'ADS':'Hip')+(done ? ': measured ✓' : ': not measured');
+      return labHelp('<div class="lrow tapper" role="button" tabindex="0" '+
+        'data-door="velocity" data-doorlab="Aim Speed Match" '+
+        'aria-label="'+esc(word+' — reticle velocity calibration')+'">'+
+        '<span class="src" style="font-size:12.5px;'+(done?'':'color:var(--amber)')+'">'+esc(word)+
+        '<em style="display:block;font-weight:400;font-style:normal;color:var(--muted);'+
+        'font-size:11px;white-space:normal">reticle velocity — tap to measure</em></span>'+
+        '<span class="rt"><span class="arrow">›</span></span></div>', 'aim-cal-'+m, 'Reticle velocity', AIM_HELP.measured);
+    }
+
+    /* padStanceTailHTML() is GONE (2026-09-04, the owner's second ask). Its
+       whole job was to explain why a pad had no Hip / ADS tabs — true while
+       a stick had one gain, and false the day core/stages.SensitivityStage
+       grew curves.rightStick.adsGain. The pad has the tabs now
+       (stickAdsPageHTML below); the fold and the Fire & Aim door it carried
+       moved onto the ADS page, where the thing they explain is. */
+
+    /* ── the hip/ADS aim pager (mouse branch) ─────────────────────────
+       XIM's shape on our fields: two swipeable full-width cards, gold Hip
+       and green ADS, each holding ONE sensitivity stepper and ONE smoothing
+       carousel, with ⋯ into Mechanics. The controls that used to sit flat on
+       this screen (Smoothing, Aim distance while aiming, the drawer's filter
+       detail, both invert toggles, Vertical ratio) live here now and ONLY
+       here — one control per field. */
+
+    /* Which preset each page shows. The tap the user just made wins, then
+       the board's stored trio, then what was last picked here — never a
+       name the values deny. */
+    /* D191: the seven ADS fields that say "this stance has its own
+       smoothing"; all null = Same as hip. */
+    var SM_ADS_KEYS = ['adsSmoothing','adsOneEuroBeta','adsSmoothingEasing',
+                       'adsSmoothingStyle','adsClassicSmooth','adsClassicDecay','adsClassicSynch'];
+    function smInherits(mt){
+      return SM_ADS_KEYS.every(function(k){ return mt[k]==null; });
+    }
+    /* Before hip's style changes: an ADS stance with numbers of its own but
+       no style named was riding hip's style; name it, so the hip change
+       cannot quietly switch ADS's filter family under its numbers. */
+    function smPinAds(mt){
+      if(!smInherits(mt) && mt.adsSmoothingStyle==null)
+        mt.adsSmoothingStyle = mt.smoothingStyle==='classic' ? 'classic' : 'standard';
+    }
+    /* The EFFECTIVE smoothing of a stance, read off the board's document the
+       way the Core resolves it (zs_mouse.c configure): ADS overlays hip. */
+    function smEffective(mt, mode){
+      var ads = mode==='ads';
+      function pick(a, h){ return (ads && mt[a]!=null) ? mt[a] : mt[h]; }
+      var style = pick('adsSmoothingStyle', 'smoothingStyle')==='classic' && classicShown() ? 'classic' : 'standard';
+      return { style: style,
+               sm: pick('adsSmoothing','smoothing'), beta: pick('adsOneEuroBeta','oneEuroBeta'),
+               eas: pick('adsSmoothingEasing','smoothingEasing'),
+               cs: pick('adsClassicSmooth','classicSmooth'), cd: pick('adsClassicDecay','classicDecay'),
+               cy: pick('adsClassicSynch','classicSynch') };
+    }
+    function smPresetOf(mode){
+      if(smSel[mode]) return smSel[mode];
+      var local = ZS.store.vals[baseNs+'|sm-'+mode];
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      var mt = full && full.mouseTranslation;
+      if(!mt) return local || (mode==='ads' ? 'Same as hip' : 'Disabled');
+      /* all seven null/absent = inherit — the board has nothing of its own */
+      if(mode==='ads' && smInherits(mt)) return 'Same as hip';
+      if(local==='Custom') return 'Custom';   /* an exact match may still be MY numbers */
+      var e = smEffective(mt, mode);
+      if(e.style==='classic') return 'Custom';   /* D392: no Classic preset on the mouse */
+      return smPresetFromValues(e.sm, e.beta, e.eas) || 'Custom';
+    }
+    function smOptionsOf(mode){
+      /* D392: no "Synchronous" here: it was Classic with only Synch on, which
+         is Sync to game's job (Classic itself is under Custom) */
+      var names = SM_PRESETS.map(function(pr){ return pr[0]; })
+        .concat(['Custom']);
+      return mode==='ads' ? ['Same as hip'].concat(names) : names;
+    }
+    /* ── Custom: XIM's mode button and its three values (D191) ─────────
+       Custom reveals, right under the carousel, a Standard | Classic button
+       and the chosen style's three numbers, 0-100% with one decimal on
+       Standard (XIM's own words and example 67.5 / 55.0 / 42.5) and XIM
+       APEX's numbers on Classic. Standard's three ARE the fields Precision
+       / Response / Easing always wrote, rescaled to XIM's 0-100%:
+         Precision % = smoothing / 0.90     (the 1 euro floor cutoff; D392:
+                                             it was / 0.95, and the filter
+                                             has done all it can by 0.90, so
+                                             the top of the slider did
+                                             nothing, docs/MOUSE-AUDIT.md)
+         Response %  = oneEuroBeta x 10     (how fast the cutoff opens)
+         Easing %    = smoothingEasing x 100 (the derivative cutoff)
+       so every config keeps its filter bit for bit. One control per field:
+       the fold no longer draws them. */
+    function smStyleSeg(attrs, style){
+      return '<div class="seg2 smstyle" data-nosave="1"'+attrs+' data-smcur="'+style+'" aria-label="Smoothing mode">'+
+        [['standard','Standard'],['classic','Classic']].map(function(o){
+          return '<button data-smstyle="'+o[0]+'"'+(o[0]===style?' class="on"':'')+'>'+o[1]+'</button>';
+        }).join('')+'</div>';
+    }
+    function classicLagLine(cs, cd, cy){
+      return '<div class="xsub smlag" aria-live="polite">Adds about '+
+        (Math.round(classicLagMs(cs, cd, cy)*10)/10)+' ms of delay.</div>';
+    }
+    function classicSteppers(keys, vals, who, mouse){
+      /* keys: [smooth, decay, synch] field paths; who: hip | ads | stick,
+         which keeps the three "?" of each stance apart */
+      return labHelp(stepper('Smooth', vals[0], 0.5, 0, 100, '',
+          'Higher = more smoothing.',
+          B(keys[0], 1, {mn:0, mx:100, dp:1})), 'aim-csmooth-'+who, 'Smooth', AIM_HELP.smooth)+
+        labHelp(stepper('Decay', vals[1], 0.5, 0, 20, '',
+          'How much Smooth leans on past movement. Higher = older movement counts less. Usual: 9.0.',
+          B(keys[1], 1, {mn:0, mx:20, dp:1})), 'aim-cdecay-'+who, 'Decay', AIM_HELP.decay)+
+        (mouse ? synchMovedHTML(vals[2]) :
+        labHelp(stepper('Synch', vals[2], 1, 0, 64, ' ms',
+          'Evens aim out over this many ms, to match the game\u2019s frames. 8 Default, 16 Common, 32 Slow, 0 Off.',
+          B(keys[2], 1, {mn:0, mx:64, dp:0})), 'aim-csynch-'+who, 'Synch', AIM_HELP.synch))+
+        classicLagLine(vals[0], vals[1], vals[2]);
+    }
+    /* D392: a mouse stance whose Classic still holds a Synch (an older setup,
+       or an XIM import before D392) says so, with the one tap that moves it
+       to Sync to game, so nothing runs that no control on the screen shows */
+    function synchMovedHTML(sy){
+      if(!(+sy > 0)) return '';
+      return '<div class="lrow synchmoved" style="font-size:12.5px;gap:10px">'+
+        '<span class="src" style="white-space:normal">Synch '+esc(String(Math.round(+sy)))+' ms is on from an older setup</span>'+
+        '<button class="btn ghost" data-synchmove="'+esc(String(Math.round(+sy)))+'" style="flex:none">Use Sync to game</button></div>'+
+        helpHTML('aim-synchmoved', 'Synch', 'Frame sync is one setting now: <b>Sync to game</b> on the Translation page. '+
+          'This moves your Synch there (8 ms becomes 120, longer becomes 60) and turns it off here, so the two never stack.');
+    }
+    /* Standard | Classic: a seg with no label of its own, so its "?" is the
+       app's usual row under it */
+    function smStyleHelp(who){
+      return helpHTML('aim-smstyle-'+who, 'Smoothing mode', AIM_HELP.style);
+    }
+    function smCustomHTML(mode){
+      var ads = mode==='ads';
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      var e = smEffective(mt, mode);
+      var h = '<div class="smcustom" data-smcustom="'+mode+'">';
+      if(classicShown()) h += smStyleSeg(' data-smstylefor="'+mode+'"', e.style)+smStyleHelp(mode);
+      if(e.style==='classic'){
+        h += classicSteppers(ads ? ['mouseTranslation.adsClassicSmooth','mouseTranslation.adsClassicDecay','mouseTranslation.adsClassicSynch']
+                                 : ['mouseTranslation.classicSmooth','mouseTranslation.classicDecay','mouseTranslation.classicSynch'],
+          [typeof e.cs==='number' ? e.cs : 0, typeof e.cd==='number' ? e.cd : 9, typeof e.cy==='number' ? e.cy : 0], mode, true);
+      } else {
+        h += labHelp(stepper('Precision', 0, 0.5, 0, 100, '%',
+               'Fine aim. Higher = smoother at low speeds, a heavier reticle.',
+               B(ads?'mouseTranslation.adsSmoothing':'mouseTranslation.smoothing', 0.009, {mn:0, mx:0.9, dp:1})),
+               'aim-precision-'+mode, 'Precision', AIM_HELP.precision)+
+             labHelp(stepper('Response', 10, 0.5, 0, 100, '%',
+               'Fast aim. Higher = a lighter reticle at faster speeds.',
+               B(ads?'mouseTranslation.adsOneEuroBeta':'mouseTranslation.oneEuroBeta', 0.1, {mn:0, mx:10, dp:1})),
+               'aim-response-'+mode, 'Response', AIM_HELP.response)+
+             labHelp(stepper('Easing', 35, 0.5, 0, 100, '%',
+               'Aim from rest. Higher = a smoother start, but slower to respond.',
+               B(ads?'mouseTranslation.adsSmoothingEasing':'mouseTranslation.smoothingEasing', 0.01, {mn:0, mx:1, dp:1})),
+               'aim-easing-'+mode, 'Easing', AIM_HELP.easing);
+      }
+      return h+'</div>';
+    }
+    /* The mode button. Switching writes the stance's style; the first switch
+       to Classic seeds its three from CLASSIC_SEED, Standard's three stay
+       where they were (and come back exactly when you switch back). */
+    /* A smoothing write lands on the page's own copy at once (the redraw
+       that follows reads it) and goes to the board debounced, as the stick
+       switch's feelWrite does. Every mutation here is idempotent, so running
+       it twice, here and on the board's fresh copy, writes the same thing. */
+    /* M8: through ZS.editProfile, which applies fn to a clone and makes
+       that the cached copy; changing the cached copy in place first put
+       the change into D257's staged base, where a discard could not undo it */
+    function smWrite(fn){
+      if(ZS.live.online===false || !ZS.live.full[p.id]) return;
+      ZS.editProfile(p.id, fn);
+    }
+    function smStyleSet(mode, style, root){
+      {
+        smWrite(function(f){
+          if(!f.mouseTranslation) f.mouseTranslation={};
+          var mt = f.mouseTranslation;
+          var pre = mode==='ads' ? 'adsClassic' : 'classic';
+          if(mode==='ads') mt.adsSmoothingStyle = style;
+          else { smPinAds(mt); mt.smoothingStyle = style; }
+          if(style==='classic'){
+            ['Smooth','Decay','Synch'].forEach(function(n, i){
+              if(typeof mt[pre+n]!=='number')
+                mt[pre+n] = (mode==='ads' && typeof mt['classic'+n]==='number') ? mt['classic'+n] : MOUSE_CLASSIC_SEED[i];
+            });
+          } else if(mode==='hip'){
+            if(typeof mt.smoothingEasing!=='number') mt.smoothingEasing = 0.35;
+          } else {
+            if(mt.adsSmoothing==null)       mt.adsSmoothing       = typeof mt.smoothing==='number' ? mt.smoothing : 0;
+            if(mt.adsOneEuroBeta==null)     mt.adsOneEuroBeta     = typeof mt.oneEuroBeta==='number' ? mt.oneEuroBeta : 1.0;
+            if(mt.adsSmoothingEasing==null) mt.adsSmoothingEasing = typeof mt.smoothingEasing==='number' ? mt.smoothingEasing : 0.35;
+          }
+        });
+      }
+      render(root);
+    }
+
+    /* ── XIM-shaped stance pages (owner, 2026-09-05) ─────────────────
+       "This is how it should look… this is all I want on these aim tabs,
+       nothing more AT ALL, just this content." A coloured stance banner,
+       ONE device card — the device's name and picture, Sensitivity,
+       Smoothing on the mouse — and a ••• that unfolds the card IN PLACE to
+       show the mechanics. On ADS, an Activation card and one footer line
+       saying what is inherited from hip. No section headers, no shared
+       card, no doors on the page, no live pad: everything that is not on
+       the card face lives inside the ••• fold, where every field keeps
+       exactly one control (test-aim-stance §1 counts them across the whole
+       screen, fold included; shared fields — Y scale, quantization, invert,
+       DPI, feel — are drawn in HIP's fold only, and ADS's fold says so).
+       This reverses the 2026-08-14 "too close to XIM" call: the owner
+       brought the XIM screenshots back and asked for exactly them (D77).
+       The stance tabs (#aimtabs / #stickTabs) stay: they are the switch
+       and the swipe's strip, not content. */
+    function bannerHTML(ads){
+      return '<div class="aimban'+(ads?' ads':' hip')+'"><b>'+(ads?'Aim Down Sight':'Hip Aim')+'</b>'+
+        '<em>'+(ads ? 'Your aim while aiming down sights.' : 'Your aim when not aiming down sights.')+'</em></div>';
+    }
+    /* the card: title, picture, the face controls, then ••• and its fold.
+       `key` scopes the fold's remembered state and the data-xmore/xmech pair. */
+    function xcardHTML(key, title, art, body, mech){
+      var open = !!XMECH_OPEN[p.id+'|'+key];
+      return '<div class="grp-card xcard" data-xcard="'+key+'">'+
+        '<div class="xtitle">'+esc(title)+'</div>'+
+        '<div class="xart" aria-hidden="true">'+art+'</div>'+
+        body+
+        (mech
+          ? '<div class="xmorerow"><button class="xmore" data-xmore="'+key+'" aria-expanded="'+(open?'true':'false')+'" aria-label="More settings — mechanics">•••</button>'+
+            /* D376: Advanced, beside the •••: every other setting this page
+               has, shown or hidden for the whole Aim screen at once */
+            advBtnHTML()+'</div>'+
+            '<div class="xmech" data-xmech="'+key+'"'+(open?'':' hidden')+'>'+mech+'</div>'
+          : '')+
+        '</div>';
+    }
+    /* The ADS page's second card. Its ••• is a DOOR (wireDoors), not a fold:
+       the activation chooser is the Fire & Aim screen (R.roles, which writes
+       adsBinding), and this page offers its door rather than a second
+       picker. The sub-line says what raises aiming today. */
+    /* D377: XIM's Activation > Delay, on the Core (zs_engine.h, the ADS
+       transition): the mouse translation stays Hip for Activate ms after
+       aiming starts and stays ADS for Deactivate ms after it ends, because
+       the game is still zooming; Smooth ADS Transition blends the
+       sensitivity across that time instead of one step at its end. The
+       aiming itself (scripts set to "only while aiming", Screen Assist,
+       a controller's ADS settings) still starts on the press. 4 ms steps:
+       the Core's tick at 250 Hz; a typed value keeps its own. An EXO's
+       agent has no such stage ('aimXim'): not drawn there. */
+    function adsDelayHTML(mt){
+      if(ZS.productHides && ZS.productHides('aimXim')) return '';
+      var act = (typeof mt.adsActivateMs === 'number' && mt.adsActivateMs > 0) ? mt.adsActivateMs : 0;
+      var deact = (typeof mt.adsDeactivateMs === 'number' && mt.adsDeactivateMs > 0) ? mt.adsDeactivateMs : 0;
+      return '<div class="xdelay">'+
+        '<div class="xsec">Delay</div>'+
+        '<div class="xsub">Set game’s time delay when transitioning to (and sometimes from) ADS.</div>'+
+        labHelp(stepper('Activate', act, 4, 0, 1000, ' ms', null,
+          B('mouseTranslation.adsActivateMs', 1, {mn:0, mx:1000})),
+          'aim-ads-delay', 'Activate',
+          'The time your game takes to go into aim down sights. '+
+          'While it is still zooming, the game turns at its hip speed. '+
+          'After you start aiming, your Core keeps your Hip settings this long, then uses your ADS settings. '+
+          'Scripts set to only while aiming, and Screen Assist, still start the moment you aim. '+
+          '<b>0 ms</b> switches at once, as before.')+
+        labHelp(stepper('Deactivate', deact, 4, 0, 1000, ' ms', null,
+          B('mouseTranslation.adsDeactivateMs', 1, {mn:0, mx:1000})),
+          'aim-ads-undelay', 'Deactivate',
+          'The time your game takes to come back out of aim down sights. '+
+          'After you stop aiming, your Core keeps your ADS settings this long. '+
+          '<b>0 ms</b> switches back at once, as before.')+
+        labHelp(toggleFld('Smooth ADS Transition', mt.adsSmoothTransition === true, null, false,
+          B('mouseTranslation.adsSmoothTransition', 1, {t:'bool'})),
+          'aim-ads-smooth', 'Smooth ADS Transition',
+          'Blends from your Hip sensitivity to your ADS sensitivity across the Activate time, '+
+          'and back across the Deactivate time, instead of one jump at the end. '+
+          'With both times at 0 it changes nothing.')+
+      '</div>';
+    }
+    function activationHTML(){
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      var mt = (full || {}).mouseTranslation || {};
+      var src = (typeof mt.adsBinding === 'string' && mt.adsBinding) ? mt.adsBinding : '';
+      /* the board's default adsBinding is the RIGHT MOUSE BUTTON, which on a
+         pad-only rig is a control this config cannot even send — naming it
+         would be the "green dot that never fires" bug in copy form */
+      var usable = !!src && ZS.inputShowsSource(p.input, src);
+      var aimName = usable ? srcNameOf(src, p) : '';
+      var line = hasPad
+        ? 'Turns on when you pull <b>L2</b>, or while you hold '+
+          (aimName ? '<b>'+esc(aimName)+'</b>.' : 'the button you choose here.')
+        : (aimName ? 'Turns on while you hold <b>'+esc(aimName)+'</b>.'
+                   : 'Choose the button that counts as aiming.');
+      /* D376 amended (owner: "collapse the Activation tab in ADS"): the
+         header is a button that opens and closes the card (closed by
+         default, remembered per install), with a one-line summary of what
+         is set while it is closed; the "?" stays beside the header */
+      var open = aimActOpen();
+      var q = hasPad ? null : qhParts('aim-activation', 'Activation', AIM_HELP.activation);
+      return '<div class="grp-card xcard xact" data-xact="1">'+
+        '<div class="xacthdrow">'+
+          '<button type="button" class="xacthd" data-xacttog="1" aria-expanded="'+(open?'true':'false')+'" aria-controls="xact-body">'+
+            '<span class="xtitle">Activation</span>'+
+            '<span class="xactsum">'+esc(actSummary(mt, aimName))+'</span>'+
+            '<span class="xchev" aria-hidden="true">›</span>'+
+          '</button>'+(q ? q.chip : '')+
+        '</div>'+(q ? q.fold : '')+
+        '<div class="xactbody" id="xact-body"'+(open ? '' : ' hidden')+'>'+
+        /* D377: XIM's sentence first, then what raises aiming today */
+        '<div class="xsub">Customize how Aim Down Sight gets activated.</div>'+
+        '<div class="xsub">'+line+'</div>'+
+        '<button class="xmore" data-door="roles" data-doorlab="Fire & Aim" aria-label="Activation — choose which button counts as aiming">•••</button>'+
+        adsDelayHTML(mt)+
+        (hasPad
+          ? helpHTML('aim-stance-pad', 'ADS on a controller',
+              '<b>What aiming means on a pad.</b> Your board raises “aiming” when you pull <b>L2</b>'+
+              (aimName ? ', or hold <b>'+esc(aimName)+'</b>' : ' (or hold the button set here)')+
+              ' — a hair trigger in Aim > Trigger Settings lowers that point. <b>ADS sensitivity</b> applies '+
+              'only while that is true; inherited from hip, your hip Sensitivity applies whether you aim or '+
+              'not. <b>Aim help</b> reads the same flag — Screen Assist ▸ “When it works” can be set to '+
+              'fire only while you aim — and so does any Script set to “only while aiming”.')
+          : '')+
+        '</div></div>';
+    }
+    /* the closed Activation card's one line: the Core's delay ("Delay
+       224 ms · smooth on", "No delay" when there is none: a bare "Off" read
+       as if aiming itself were off); an EXO has no delay
+       stage, so it names the aim button instead */
+    function actSummary(mt, aimName){
+      if(ZS.productHides && ZS.productHides('aimXim'))
+        return aimName ? 'Hold '+aimName : (hasPad ? 'L2' : 'Choose a button');
+      var act = (typeof mt.adsActivateMs === 'number' && mt.adsActivateMs > 0) ? mt.adsActivateMs : 0;
+      var deact = (typeof mt.adsDeactivateMs === 'number' && mt.adsDeactivateMs > 0) ? mt.adsDeactivateMs : 0;
+      return actSummaryOf(act, deact, mt.adsSmoothTransition === true);
+    }
+    function actSummaryOf(act, deact, smooth){
+      if(!(act > 0) && !(deact > 0)) return 'No delay';
+      var n = function(v){ return String(Math.round(v * 10) / 10); };
+      return 'Delay '+n(act)+' ms'+(deact > 0 ? ' · '+n(deact)+' ms out' : '')+
+        (smooth ? ' · smooth on' : '');
+    }
+    /* the summary follows the card's own controls (a step, a typed
+       number, the switch) so it is right the moment the card closes */
+    function wireActivation(root){
+      var card = root.querySelector('[data-xact]');
+      if(!card) return;
+      var tog = card.querySelector('[data-xacttog]');
+      var body = card.querySelector('.xactbody');
+      var sum = card.querySelector('.xactsum');
+      function paint(){
+        if(!sum || (ZS.productHides && ZS.productHides('aimXim'))) return;
+        var svs = card.querySelectorAll('.xdelay .stp .sv');
+        var a = svs[0] ? parseFloat(svs[0].textContent) || 0 : 0;
+        var d = svs[1] ? parseFloat(svs[1].textContent) || 0 : 0;
+        var sw = card.querySelector('.xdelay .sw');
+        sum.textContent = actSummaryOf(a, d, !!(sw && sw.classList.contains('on')));
+      }
+      card.addEventListener('zsstep', paint);
+      card.addEventListener('click', function(){ setTimeout(paint, 0); });
+      if(tog && body) tog.addEventListener('click', function(){
+        var open = body.hasAttribute('hidden');
+        if(open) body.removeAttribute('hidden'); else body.setAttribute('hidden', '');
+        tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+        aimActSet(open);
+        paint();
+      });
+    }
+    /* the footer line under an ADS page: a button when a tap can flip the
+       inheritance (the stick's adsGain), a plain line when the controls
+       above already are the switch (the mouse's 0 / "Same as hip") */
+    function footHTML(text, key){
+      return key
+        ? '<button class="xfoot" data-xinherit="'+key+'">'+text+'</button>'
+        : '<div class="xfoot xfoot-static">'+text+'</div>';
+    }
+    /* The smoothing carousel's markup, in ONE place. data-noswipe is the
+       shell's swipe refusal list (phone.html's CTRL selector does NOT match a
+       bare <button>, which is what these arrows are), so a copy that forgot it
+       would turn a preset drag into a stance swipe. Arrows disable at the
+       ends; they never wrap. */
+    function smcarHTML(attrs, preset, idx, n){
+      return '<div class="smcar" data-noswipe="1"'+(attrs||'')+'>'+
+        '<button class="arr" data-d="-1" aria-label="previous smoothing preset"'+(idx<=0?' disabled':'')+'>‹</button>'+
+        '<span class="smval" role="status">'+esc(preset)+'</span>'+
+        '<button class="arr" data-d="1" aria-label="next smoothing preset"'+(idx>=n-1?' disabled':'')+'>›</button>'+
+      '</div>';
+    }
+
+    /* One mouse stance page. data-key scopes the local cache, so the two
+       pages' identical labels cannot share a cached value. BOTH pages are
+       always in the DOM — the stance tabs only flip .aimoff — so every
+       control on both pages is wired on every render. data-stance="1" marks
+       the pager's panes for showStance(); the stick page is an .aimpage too
+       but not a stance of THIS pager. */
+    /* FINE AIM on BOTH stance pages, in the card itself (the owner,
+       2026-10-01: "fine aim should be in the aim tabs for hip and ads").
+       Hip writes fineAim; ADS writes adsFineAim (absent = same as hip, so it
+       shows hip's value until it is moved). */
+    function fineAimHTML(ads){
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      var hip = +mt.fineAim || 0;
+      var v = ads ? ((typeof mt.adsFineAim === 'number') ? mt.adsFineAim : hip) : hip;
+      return labHelp(stepper('Fine aim', Math.round(v * 100), 5, 0, 100, '%',
+        ads ? 'Makes small, slow mouse moves count for more while aiming down sights. 0 = off.'
+            : 'Makes small, slow mouse moves count for more. Flicks stay the same. 0 = off.',
+        B(ads ? 'mouseTranslation.adsFineAim' : 'mouseTranslation.fineAim', .01, {mn:0, mx:1})),
+        'aim-fine-'+(ads ? 'ads' : 'hip'), 'Fine aim', ads ? AIM_HELP.fineAds : AIM_HELP.fine);
+    }
+    /* D376 amended (owner, 2026-10-14: "remove cm/360 wording and just use
+       a speed on a 0-100 scale to not confuse users, but obviously it's
+       still cm/360 in the back end; maybe show the cm/360 values in tiny
+       writing"): SPEED is the card's one sensitivity control. The field is
+       unchanged, mouseTranslation.cm360 / adsCm360 in cm of mouse per full
+       turn, stored as 500 / Speed by the 'recip' bind (100 = 5 cm), so a
+       config shows the same turn it always had. Under it, small and muted,
+       the same number in cm/360 for XIM players: words only, never a second
+       control. 0 keeps its meaning: Standard on Hip, Same as hip on ADS. */
+    /* the words, from the two fields in cm (0 = unset). At 0 the stepper
+       already says Standard / Same as hip, so the small print does not
+       repeat it: it says there is no cm/360, or the one ADS borrows */
+    /* D392 (audit item 1): EVERY config runs cm/360, so 0 always has a
+       number. Hip at 0 is Standard, 34 cm/360 (ZSPROFILE.STANDARD_CM360);
+       a config from before D392 that still says 0 keeps the speed it
+       always turned (ZSPROFILE.legacyCm360) until its next save writes that
+       number down. ADS at 0 is hip's speed, exactly (no hidden x0.55). */
+    function hipCmNow(){
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      if(typeof mt.cm360 === 'number' && mt.cm360 > 0) return { cm: mt.cm360, why: '' };
+      var Z = window.ZSPROFILE;
+      var onCm = mt.adsSensitivityScale === 1;
+      if(!Z || onCm) return { cm: (Z && Z.STANDARD_CM360) || 34, why: 'Standard' };
+      return { cm: Z.legacyCm360(mt), why: 'your speed from before' };
+    }
+    function cmLineText(ads, cm, hipCm){
+      var r = function(v){ return Math.round(v * 10) / 10; };
+      if(cm > 0) return '≈ '+r(cm)+' cm/360°';
+      var h = hipCmNow();
+      if(!ads) return '≈ '+r(h.cm)+' cm/360° ('+h.why+')';
+      return '≈ '+r(hipCm > 0 ? hipCm : h.cm)+' cm/360° (from hip)';
+    }
+    function cmField(v){ return (typeof v === 'number' && v > 0) ? v : 0; }
+    function speedHTML(ads){
+      var mode = ads ? 'ads' : 'hip';
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      var st = stepper('Speed', 0, 1, 0, 100, '',
+          ads ? 'Higher is faster. 0 = same as hip.' : 'Higher is faster.',
+          B(ads?'mouseTranslation.adsCm360':'mouseTranslation.cm360', 500, {t:'recip', mn:5, mx:200}),
+          /* 0 is the switch; Speed 2.5 is 200 cm, so nothing between is a
+             speed (the gap snaps); the first + from 0 lands on 14.5 */
+          ' data-gapmin="2.5" data-suggest="14.5" data-speedcm="'+mode+'"'+
+          /* D377: 0 says its word, not a number (wireZeroWord) */
+          ' data-zeroword="'+(ads ? 'Same as hip' : 'Standard')+'"');
+      /* the small print sits inside the setting, under its stepper */
+      var end = st.lastIndexOf('</div>');
+      st = st.slice(0, end)+
+        '<div class="xcm" data-cmline="'+mode+'">'+
+          esc(cmLineText(ads, cmField(ads ? mt.adsCm360 : mt.cm360), cmField(mt.cm360)))+'</div>'+
+        st.slice(end);
+      return labHelp(st, 'aim-speed-'+mode, 'Speed', ads ? AIM_HELP.speedAds : AIM_HELP.speed);
+    }
+    /* D377: every stepper with a data-zeroword shows that word while it
+       holds 0 (CSS .svzero), repainted on each step and typed value */
+    function wireZeroWord(root){
+      if(!root || !root.querySelectorAll) return;
+      function paintAll(){
+        root.querySelectorAll('.sv[data-zeroword]').forEach(function(sv){
+          var zero = parseFloat(sv.textContent) === 0;
+          sv.classList.toggle('svzero', zero);
+          if(zero) sv.setAttribute('title', sv.getAttribute('data-zeroword'));
+          else sv.removeAttribute('title');
+        });
+      }
+      paintAll();
+      /* zsstep bubbles from every stepper to the root */
+      if(!root.__zsZeroWord){
+        root.__zsZeroWord = true;
+        root.addEventListener('zsstep', paintAll);
+      }
+    }
+    /* the small cm/360 print follows its Speed (a step, a hold-repeat, a
+       typed number all say 'zsstep'), and ADS's "Same as hip" line follows
+       Hip's Speed too */
+    function wireSpeedCm(root){
+      if(!root || !root.querySelectorAll) return;
+      /* after a step the stepper's Speed is the truth (cm = 500 / Speed);
+         the stored field is drawn by speedHTML, exact, until then */
+      function cm(m){
+        var sv = root.querySelector('.sv[data-speedcm="'+m+'"]');
+        var v = sv ? parseFloat(sv.textContent) : 0;
+        return isFinite(v) && v > 0 ? 500 / v : 0;
+      }
+      function paint(){
+        var hip = cm('hip');
+        root.querySelectorAll('[data-cmline]').forEach(function(l){
+          var ads = l.getAttribute('data-cmline') === 'ads';
+          l.textContent = cmLineText(ads, ads ? cm('ads') : hip, hip);
+        });
+      }
+      if(!root.__zsSpeedCm){
+        root.__zsSpeedCm = true;
+        root.addEventListener('zsstep', paint);
+      }
+    }
+    function aimPageHTML(mode){
+      var ads = mode==='ads';
+      var hidden = ads !== (pagerPage===1);   /* the stance the tabs are NOT on */
+      var opts = smOptionsOf(mode);
+      var preset = smPresetOf(mode);
+      var idx = opts.indexOf(preset);
+      if(idx<0){ idx = 0; preset = opts[0]; }   /* a stale stored name must not blank the carousel */
+      var body =
+        /* the same stepper semantics cm360 always had: 0 is a switch, not a
+           size (legacy speed on hip, inherit on ADS), and the first + lands
+           on the comfortable 34 */
+        /* SPEED (D164, the owner: no "cm/360" anywhere a player looks).
+           Higher is faster; the field underneath is still cm of mouse travel
+           per full turn, the portable number the translator needs, stored as
+           1000 / Speed by the 'recip' bind (phone.html bindCoerce). 0 keeps
+           its old meaning: the standard speed on hip, same as hip on ADS.
+           The first + from 0 lands on 29, which is the old suggested 34. */
+        /* SPEED 0-100, TWICE AS FAST as before (the owner, 2026-10-01: "keep
+           0-100 but make it faster, 100 should feel like 50"): cm360 = 500 /
+           Speed, so 100 = 5 cm of mouse per full turn (the old 100 was 10 cm
+           = 50 now). Tenths are allowed (type 4.1). The first + from 0 lands
+           on 14.5, the old suggested 34 cm. */
+        /* D376: XIM's face, then Smoothing. D376 amended (owner,
+           2026-10-14): the face is SPEED 0-100 with its cm/360 in small
+           print under it (speedHTML); Fine aim moved to the Advanced
+           section at the bottom of the page (advSectionHTML). */
+        speedHTML(ads)+
+        '<div class="smblk">'+
+          labHelp('<div class="smtitle">Smoothing</div>', 'aim-smooth-'+mode, 'Smoothing', smHelpText(ads))+
+          smcarHTML(' data-mode="'+mode+'"', preset, idx, opts.length)+
+          /* D376: XIM's one line under Disabled, said on the card because
+             it is a warning about the choice, not an explanation */
+          (preset==='Disabled' ? '<div class="xsub smdis">Mouse movement will be unprocessed and may result in aim jitter.</div>' : '')+
+          (preset==='Custom' ? smCustomHTML(mode) : '')+
+        '</div>';
+      var foot = '';
+      if(ads){
+        var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+        var cmIn = !(typeof mt.adsCm360==='number' && mt.adsCm360>0);
+        var smIn = smInherits(mt);
+        foot = footHTML(cmIn && smIn ? 'Speed and Smoothing are inherited from Hip.'
+                      : cmIn ? 'Speed is inherited from Hip.'
+                      : smIn ? 'Smoothing is inherited from Hip.'
+                      : 'No settings are inherited from Hip.');
+      }
+      return '<section class="aimpage'+(hidden?' aimoff':'')+'" data-stance="1" data-key="'+mode+'" aria-label="'+(ads?'ADS Aim':'Hip Aim')+'">'+
+        bannerHTML(ads)+
+        xcardHTML(mode, 'Mouse', mouseSVG(), body, mouseMechHTML(mode, preset))+
+        (ads ? activationHTML()+foot : '')+
+        /* D376 amended (owner: "when you click Advanced it should open
+           below everything, not like scramble the menus"): every Advanced
+           setting is one card at the very bottom of the stance page, so
+           turning Advanced on or off never moves a simple setting */
+        advSectionHTML(mode)+
+        '</section>';
+    }
+
+    /* A preset tap writes the whole trio. Custom writes nothing on hip (your
+       numbers stay and the dials open on them); on ADS it first copies hip's
+       values in, so the dials edit fields that exist. "Same as hip" hands
+       the three ADS fields back to inherit (null). Offline the pick is kept
+       locally, exactly like the curve preset. */
+    function smApply(mode, name, root){
+      smSel[mode] = name;
+      ZS.store.vals[baseNs+'|sm-'+mode] = name; ZS.persistStore();
+      {
+        smWrite(function(f){
+          if(!f.mouseTranslation) f.mouseTranslation={};
+          var mt = f.mouseTranslation, pr = null, cp = smClassicPreset(name), i;
+          for(i=0;i<SM_PRESETS.length;i++){ if(SM_PRESETS[i][0]===name) pr = SM_PRESETS[i]; }
+          if(mode==='hip'){
+            if(pr){
+              mt.smoothing=pr[1]; mt.oneEuroBeta=pr[2]; mt.smoothingEasing=pr[3];
+              /* D191: a Standard preset is Standard. A config that never
+                 named a style keeps not naming one (its bytes unchanged). */
+              if(mt.smoothingStyle!=null){ smPinAds(mt); mt.smoothingStyle='standard'; }
+            } else if(cp){
+              smPinAds(mt);
+              mt.smoothingStyle='classic';
+              mt.classicSmooth=cp[1]; mt.classicDecay=cp[2]; mt.classicSynch=cp[3];
+            } else if(mt.smoothingStyle!=='classic' && typeof mt.smoothingEasing!=='number'){
+              mt.smoothingEasing=0.35; /* Custom must edit a real field */
+            }
+          } else if(name==='Same as hip'){
+            SM_ADS_KEYS.forEach(function(k){ mt[k]=null; });
+          } else if(pr){
+            mt.adsSmoothing=pr[1]; mt.adsOneEuroBeta=pr[2]; mt.adsSmoothingEasing=pr[3];
+            /* named outright, so a later Classic hip cannot change ADS */
+            if(mt.smoothingStyle!=null || mt.adsSmoothingStyle!=null) mt.adsSmoothingStyle='standard';
+          } else if(cp){
+            mt.adsSmoothingStyle='classic';
+            mt.adsClassicSmooth=cp[1]; mt.adsClassicDecay=cp[2]; mt.adsClassicSynch=cp[3];
+          } else {
+            /* Custom on ADS: hip's effective values copied in, so the dials
+               edit fields that exist and start where ADS already was */
+            var e = smEffective(mt, 'ads');
+            if(mt.adsSmoothing==null)       mt.adsSmoothing       = typeof mt.smoothing==='number' ? mt.smoothing : 0;
+            if(mt.adsOneEuroBeta==null)     mt.adsOneEuroBeta     = typeof mt.oneEuroBeta==='number' ? mt.oneEuroBeta : 1.0;
+            if(mt.adsSmoothingEasing==null) mt.adsSmoothingEasing = typeof mt.smoothingEasing==='number' ? mt.smoothingEasing : 0.35;
+            if(e.style==='classic'){
+              mt.adsSmoothingStyle='classic';
+              if(mt.adsClassicSmooth==null) mt.adsClassicSmooth = typeof e.cs==='number' ? e.cs : MOUSE_CLASSIC_SEED[0];
+              if(mt.adsClassicDecay==null)  mt.adsClassicDecay  = typeof e.cd==='number' ? e.cd : MOUSE_CLASSIC_SEED[1];
+              if(mt.adsClassicSynch==null)  mt.adsClassicSynch  = typeof e.cy==='number' ? e.cy : MOUSE_CLASSIC_SEED[2];
+            } else if(mt.smoothingStyle!=null){
+              mt.adsSmoothingStyle='standard';
+            }
+          }
+        });
+      }
+      render(root);
+    }
+
+    /* ── THE STICK MODE: D184's three choices, ONE control (D186) ─────
+       Per stick, three choices, Native by default:
+         Native      the stick passes through untouched, the game's own feel:
+                     the rest cut and Sensitivity, nothing else
+         EXO Linear  the Core pre-compensates the game's MEASURED stick law
+                     (the config's game translator: its dead zone and curve,
+                     hip and aiming) so every bit of stick turns the camera
+                     the same amount
+         Custom      the player's own shaping. On a measured game: EXO
+                     Linear plus their curve, drawn on the grid editor
+                     (zs-curve-grid.js). Without one: the old Tuned stick
+                     (the Core's curve, deadzones and smoothing on top of
+                     the game), so it always works. Smoothing (steadying for
+                     a shaky hand) and the deadzones are Custom's either way.
+       Stored as stick.mode plus stick.right / stick.left = { mode, grid,
+       points, adsGrid, adsPoints }, always written together by
+       stickChoiceWrite (module scope, which says how each choice writes
+       both). `points` (15-16 samples) is what the Core reads (the STICKFEEL
+       section), `grid` the editor's handles (seven numbers, or the editor's
+       {v:2, h, s} once handles move across or a segment is straight; see
+       zs-curve-grid.js). EXO Linear needs a game
+       translator: without one its button says "Calibrate this game first".
+       The right stick lives in the hip page's ONE card (it is the look
+       stick, the main one); the left stick's mode is in the fold beside
+       Movement speed; aiming's own curve is on the ADS page's card (D77:
+       banner, one card, the ••• fold, nothing more). An EXO's agent has no
+       stick-mode stage, so there the control is Native | Custom over
+       stick.mode alone, on the aim stick, for both sticks. */
+    function feelFull(){ return ZS.live.online!==false ? ZS.live.full[p.id] : null; }
+    /* the D184 half: a Core feature (stickModesCore, module scope) */
+    function feelShown(){ return stickModesCore(); }
+    function feelSpec(side){
+      var f = feelFull(), st = f && f.stick && f.stick[side];
+      return (st && typeof st === 'object') ? st : {};
+    }
+    function feelOf(side){
+      if(!feelShown() && side==='left') side = 'right';    /* one switch, both sticks */
+      return stickChoiceOf(ZS.live.full[p.id] || boardFull, side);
+    }
+    function feelGrid(side, ads){
+      var st = feelSpec(side);
+      var g = window.ZSCURVE ? ZSCURVE.gridOf(ads ? st.adsGrid : st.grid) : null;
+      return g || (ads ? null : (window.ZSCURVE ? ZSCURVE.straight() : []));
+    }
+    /* a game translator is running: the Core has a model it can invert */
+    function feelReady(){
+      var mt = (feelFull() || {}).mouseTranslation || {};
+      var r = mt.resolvedAimModel;
+      return !!(r && typeof r === 'object' && r.generic !== true && r.hip && r.ads);
+    }
+    /* the drawn curve is what the Core runs: a measured game AND this stick
+       written as Custom by name. An old Tuned config reads as Custom but
+       names no mode, so the Core still runs its old curve (D186); one tap
+       on "Draw my curve" names it. */
+    function feelGridLive(side){
+      return feelShown() && feelReady() && feelOf(side)==='custom' && feelSpec(side).mode==='custom';
+    }
+    /* XIM's Curve Editor (zs-curve-grid.js): title "Curve Editor -
+       <stick> : <stance>", handles, straight segments, zoom, COPY / PASTE
+       (one clipboard for every curve in the app); a paste saves through
+       onCommit like any other change (feelCurveSave) */
+    function feelCurveHTML(id, ys, label, presets, title){
+      if(!window.ZSCURVE) return '';
+      return ZSCURVE.html({ id: id, ys: ys, label: label, presets: presets, title: title,
+        xName: 'Stick push', yName: 'Camera speed',
+        help: 'Across: how far you push the stick, 0–100%. Up: how fast the reticle turns, 0–100%. '+
+          'Drag a circle to move it; tap a dot to straighten that part. Applied after the Core takes out '+
+          'this game’s own stick curve, so the two are never stacked.' });
+    }
+    /* The writes. Each goes into the cached config too (adsSet's reasoning:
+       the redraw must show what the queued write is about to make true). */
+    function feelWrite(fn){
+      if(ZS.live.full[p.id]) ZS.editProfile(p.id, fn);     /* M8, as smWrite */
+      else ZS.putProfileDebounced(p.id, fn);
+    }
+    function feelSide(f, side){
+      if(!f.stick || typeof f.stick !== 'object') f.stick = {};
+      if(!f.stick[side] || typeof f.stick[side] !== 'object') f.stick[side] = {};
+      return f.stick[side];
+    }
+    function feelSet(side, mode, root){
+      if(ZS.live.online===false || !ZS.live.full[p.id]){
+        ZS.toast('Your board is offline \u2014 this switch has not reached it yet');
+        render(root);
+        return;
+      }
+      if(mode==='exoLinear' && !feelReady()){
+        ZS.toast('Calibrate this game first \u2014 EXO Linear needs its measured stick');
+        render(root);
+        return;
+      }
+      var res = null;
+      feelWrite(function(f){
+        var r = stickChoiceWrite(f, side, mode);
+        if(!res) res = r;
+      });
+      if(res && res.reset.length){
+        ZS.toast('Native \u2014 your controller, untouched. '+res.reset.join(' and ')+
+          (res.reset.length>1 ? ' are' : ' is')+' back to 100%.');
+      }
+      render(root);
+    }
+    function feelCurveSave(side, ads, ys){
+      feelWrite(function(f){
+        var st = feelSide(f, side);
+        if(ads){ st.adsGrid = ys; st.adsPoints = ZSCURVE.sample(ys); }
+        else { st.grid = ys; st.points = ZSCURVE.sample(ys); }
+      });
+    }
+    function feelWire(root){
+      root.querySelectorAll('[data-feelmode]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var side = b.getAttribute('data-feelside'), mode = b.getAttribute('data-feelmode');
+          /* the one already on: nothing to write */
+          if(mode===feelOf(side)) return;
+          feelSet(side, mode, root);
+        });
+      });
+      root.querySelectorAll('[data-feelmat]').forEach(function(b){
+        b.addEventListener('click', function(){ feelSet(b.getAttribute('data-feelmat'), 'custom', root); });
+      });
+      if(window.ZSCURVE){
+        [['right', false, 'feel-right'], ['left', false, 'feel-left'], ['right', true, 'feel-right-ads']]
+          .forEach(function(c){
+            var wrap = root.querySelector('[data-cgwrap="'+c[2]+'"]');
+            /* every change lands here: a drag, a key, Add / Remove /
+               Straighten, a preset, a PASTE. ys is the stored shape (seven
+               numbers, or {v:2,h,s}); the Core gets ZSCURVE.sample(ys) */
+            if(wrap) ZSCURVE.wire(wrap, { ys: feelGrid(c[0], c[1]),
+              onCommit: function(ys){ feelCurveSave(c[0], c[1], ys); } });
+          });
+      }
+      var draw = root.querySelector('[data-feeladsdraw]');
+      if(draw) draw.addEventListener('click', function(){
+        var g = feelGrid('right', false);
+        feelCurveSave('right', true, g);
+        render(root);
+      });
+      var clr = root.querySelector('[data-feeladsclear]');
+      if(clr) clr.addEventListener('click', function(){
+        feelWrite(function(f){
+          var st = feelSide(f, 'right');
+          delete st.adsGrid;
+          delete st.adsPoints;
+        });
+        render(root);
+      });
+      var use = root.querySelector('[data-feeluse]');
+      if(use) use.addEventListener('click', function(){
+        var found = trModelOf(p);
+        if(!found || ZS.live.online===false || !ZS.live.full[p.id]){
+          ZS.toast('Your board is offline \u2014 this has not reached it yet');
+          return;
+        }
+        use.disabled = true;
+        feelWrite(function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          var rm = ZSAIMMODEL.resolve(found.model, f.mouseTranslation, p.platform);
+          if(rm) f.mouseTranslation.resolvedAimModel = rm;
+        });
+        ZS.toast(found.pack.name+'\u2019s measured stick is on \u2014 EXO Linear is ready');
+        render(root);
+      });
+    }
+
+    /* ── the CONTROLLER page (D245) ─────────────────────────────────
+       Owner, 2026-10-09: "it should literally be just like the 8K pad, but
+       have the option in the aim curves to disable it and use the native game
+       aim curve ... literally take the app and make it fit into my mobile
+       area". The stick pages (the Hip/ADS pager, the Thumbstick card and its
+       ••• fold) are gone: the controller Aim screen IS the ZS8K
+       Configurator's Sticks and Triggers tabs (zk-pad.js) on this config's
+       fields. Each stick's curve row starts with Native, which turns the
+       curve off; a curve on a Native stick makes it Custom with that curve.
+       What the 8K app has no card for and the Core does - Sensitivity, the
+       ADS sensitivity, Smoothing, Movement speed - is one more card in the
+       same look (Speed), shown only while a stick is on a curve (D241:
+       Native has nothing to set). */
+    var ZKTAB = window.ZS_ZKTAB || (window.ZS_ZKTAB = {});
+    var ZKSEL = window.ZS_ZKSEL || (window.ZS_ZKSEL = {});   /* D249: the stick on screen */
+    function zkOpt(root){
+      var ready = feelShown() && feelReady();
+      var slot = {}, after = {}, mode = {}, drawn = {};
+      ['left','right'].forEach(function(sd){
+        mode[sd] = feelOf(sd);
+        drawn[sd] = ready;          /* a measured game: Native | EXO Linear | Custom */
+        if(mode[sd]!=='custom') return;
+        if(feelGridLive(sd)){
+          slot[sd] = feelCurveHTML('feel-'+sd, feelGrid(sd, false),
+            sd==='right' ? 'Aim stick curve' : 'Movement stick curve', true,
+            'Curve Editor - '+(sd==='right' ? 'Right' : 'Left')+' stick : Hip');
+
+        } else if(ready){
+          /* an old Tuned config names no mode: one tap names it, and the
+             drawn curve takes over from the Core's */
+          slot[sd] = '<button class="btn ghost" data-feelmat="'+sd+'" style="margin-top:8px">'+
+            'Draw my curve on this game\u2019s measured stick</button>';
+        }
+      });
+      /* not measured yet: EXO Linear waits for Calibrate, and a game whose
+         pack already carries its measured stick is one tap away */
+      var foot = '';
+      if(feelShown() && !feelReady()){
+        var found = trModelOf(p);
+        foot = '<div class="zkmuted"><b>Calibrate this game first</b> for EXO Linear.</div>'+
+          helpHTML('zk-linear', 'EXO Linear', 'It uses this '+
+          'game\u2019s measured stick, from Translation \u25b8 Calibrate.')+
+          ((found && found.model && found.model.needsCalibration === false)
+            ? '<button class="btn primary" data-feeluse="1" style="margin-top:8px">Use '+
+                esc(found.pack.name)+'\u2019s measured stick</button>' : '')+
+          '<button class="btn ghost" data-door="translation" data-doorlab="Translation" style="margin-top:8px">Open Translation</button>';
+      }
+      return {
+        mode: mode, exo: feelShown(), exoReady: feelReady(), drawn: drawn, curveFoot: foot,
+        anti: zkAntiFw(),           /* D261: the Anti slider, only on a Core that reads it */
+        slot: slot, after: after,
+        dzExtra: seg('Deadzone shape', ['Round','Per-axis'], 0, false,
+          B('deadZones.mode', 1, {t:'str', map:{'Round':'radial','Per-axis':'axial'}})),
+        sel: ZKSEL[p.id] || 'right',
+        onSel: function(s){ ZKSEL[p.id] = s; if(root) render(root); },
+        onTab: function(t){ ZKTAB[p.id] = t; },
+        /* D246: Copy L -> R / R -> L - the stick's mode, its curve and its
+           deadzones (D261: its anti-deadzone too); the other stick's own
+           speeds stay its own */
+        onCopy: function(from){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){
+            ZS.toast('Your board is offline \u2014 this has not reached it yet');
+            return;
+          }
+          var to = from==='left' ? 'right' : 'left';
+          feelWrite(function(f){
+            stickChoiceWrite(f, to, stickChoiceOf(f, from));
+            if(!f.curves) f.curves = {};
+            var src = f.curves[from+'Stick'] || {};
+            var dst = f.curves[to+'Stick'] || (f.curves[to+'Stick'] = {});
+            dst.type = src.type || 'linear';
+            dst.strength = (typeof src.strength==='number') ? src.strength : 1.0;
+            dst.points = Array.isArray(src.points) ? JSON.parse(JSON.stringify(src.points)) : [];
+            if(!f.deadZones) f.deadZones = {};
+            ['Inner','Outer','Anti'].forEach(function(k){
+              if(typeof f.deadZones[from+k]==='number') f.deadZones[to+k] = f.deadZones[from+k];
+              else if(k==='Anti') delete f.deadZones[to+k];   /* D261: none is none */
+            });
+          });
+          ZS.toast((from==='left' ? 'Left' : 'Right')+' stick copied to the '+to+' stick');
+          if(root) render(root);
+        },
+        onMode: function(side, m, fn){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){
+            ZS.toast('Your board is offline \u2014 this has not reached it yet');
+            return;
+          }
+          if(side==='ads'){                 /* D254: the aiming curve has no mode */
+            if(fn) feelWrite(fn);
+            if(root) render(root);
+            return;
+          }
+          if(m==='exoLinear' && !feelReady()){
+            ZS.toast('Calibrate this game first \u2014 EXO Linear needs its measured stick');
+            return;
+          }
+          var res = null;
+          feelWrite(function(f){
+            var r = stickChoiceWrite(f, side, m);
+            if(!res) res = r;
+            if(fn) fn(f);
+          });
+          if(res && res.reset.length){
+            ZS.toast('Native \u2014 your controller, untouched. '+res.reset.join(' and ')+
+              (res.reset.length>1 ? ' are' : ' is')+' back to 100%.');
+          }
+          if(root) render(root);
+        }
+      };
+    }
+    /* aiming's own drawn curve (D184), under the hip one on a measured game */
+    function zkAdsCurveHTML(){
+      var g = feelGrid('right', true);
+      return '<div class="fld col feelfld" data-feel="right-ads"><div class="flab">Aiming curve'+
+          '<em>'+(g ? 'Your own curve while you aim.' : 'While you aim, your hip curve is used, on this game\u2019s aiming numbers.')+'</em></div>'+
+        (g ? feelCurveHTML('feel-right-ads', g, 'Aiming curve', true, 'Curve Editor - Right stick : ADS')+
+             '<button class="btn ghost" data-feeladsclear="1" style="margin-top:8px">Use the hip curve while aiming</button>'
+           : '<button class="btn ghost" data-feeladsdraw="1" style="margin-top:8px">Draw an aiming curve</button>')+
+      '</div>';
+    }
+    /* the Speed card: the Core's own stick speeds, in the Configurator's look */
+    /* D248 (owner, 2026-10-09: "put sensitivity at the top, and for
+       controller do a 0-100 scale, 100 being the native pass-through turn
+       rate the console would expect"): curves.<side>Stick.gain as 0..100,
+       100 = gain 1.0 = the stick exactly as the console expects it. The
+       Core refuses a gain under 0.1, so the lowest step is 10. Shown on a
+       Native stick too - Native honours gain, and 100 is Native exactly. */
+    function zkSpeedHTML(){
+      var sel = ZKSEL[p.id] || 'right';
+      var rc = feelOf('right')==='custom';
+      var full = ZS.live.full[p.id] || boardFull || {};
+      function pct(side, k){
+        var c = (full.curves || {})[side+'Stick'] || {};
+        var g = (typeof c[k]==='number' && isFinite(c[k])) ? c[k] : 1;
+        return Math.max(10, Math.min(100, Math.round(g*100)));
+      }
+      if(sel==='left'){
+        return ZSZK.cardHTML('speed', '#3ddc84', 'Speed',
+          slider('Movement speed', 10, 100, pct('left', 'gain'), '',
+            B('curves.leftStick.gain', .01, {mn:0.1, mx:1}))+
+          helpHTML('zk-speed-l', 'Speed', '<b>Movement speed</b> is how fast the stick you walk with moves, '+
+            'on a 0\u2013100 scale: <b>100</b> is the stick exactly as the console expects it; lower is '+
+            'slower, down to 10.'), ' data-zkcard="speed"');
+      }
+      var body = slider('Sensitivity', 10, 100, pct('right', 'gain'), '',
+        B('curves.rightStick.gain', .01, {mn:0.1, mx:1}));
+
+      /* Smoothing only where it runs: a Native stick passes 0.0 literally */
+      if(rc){
+        var opts = smStickOptions(), preset = smStickPreset(), idx = opts.indexOf(preset);
+        if(idx<0){ idx = 0; preset = opts[0]; }
+        body += '<div class="smblk"><div class="smtitle">Smoothing</div>'+
+            smcarHTML(' data-smset="stick"', preset, idx, opts.length)+
+            '<div class="smcap">'+esc(smStickCaption(preset))+'</div>'+
+          '</div>'+(preset==='Custom' ? smStickCustomHTML() : '');
+      }
+      return ZSZK.cardHTML('speed', '#3ddc84', 'Speed', body+
+        helpHTML('zk-speed', 'Speed', '<b>Sensitivity</b> is how fast the aim stick turns, on a 0\u2013100 scale: '+
+          '<b>100</b> is the stick exactly as the console expects it (the native turn rate); lower is slower, '+
+          'down to 10. The <b>ADS</b> tab sets it while you aim down sights. <b>Smoothing</b> '+
+          'steadies a shaky hand for a few '+
+          'milliseconds of settling time (a stick on a curve only).'), ' data-zkcard="speed"');
+    }
+    /* D253 (owner, 2026-10-09: "you can just click a slider at the top to
+       inherit the settings between the two if you don't want them separate -
+       when enabled it copies it over, and when disabled doesn't delete but
+       stops copying"). The ADS tab: the Same as Hip switch first. ON =
+       curves.rightStick.adsGain null, so the Core uses the hip numbers -
+       copying for ever. OFF = adsGain seeded with the hip number (adsSet), so
+       the copy stays and is ADS's own from then on.
+       What the Core holds ONE copy of - deadzones, the curve, Smoothing,
+       the triggers - applies in both stances; the page says so rather than
+       draw a second set of sliders that would write the same fields. */
+    function zkAdsHTML(){
+      var g = adsGainOf(), same = g===null;
+      var full = ZS.live.full[p.id] || boardFull || {};
+      var rs = (full.curves || {}).rightStick || {};
+      var pctA = Math.max(10, Math.min(100, Math.round(((same ? rs.gain : g) || 1)*100)));
+      var h = '<div class="zkcard zkinherit" data-zkcard="inherit">'+
+        '<button type="button" class="zkswrow" data-xinherit="stick" role="switch" aria-checked="'+(same ? 'true' : 'false')+'">'+
+          '<span class="zkswtxt"><b>Same as Hip</b><em>'+(same
+            ? 'ADS uses your Hip settings, and keeps following them.'
+            : 'ADS has its own settings. Switch on to copy Hip again.')+'</em></span>'+
+          '<span class="zksw'+(same ? ' on' : '')+'" aria-hidden="true"><i></i></span></button></div>';
+      /* D254 (owner, 2026-10-09: "all the options inside the sticks tab
+         should be in the aiming one, except triggers and deadzones - the
+         curves should be there - and if someone disables the copy, it reveals
+         the curve stuff"): Same as Hip ON shows the switch and the aiming
+         door only; OFF reveals ADS's own Speed (Sensitivity, Smoothing) and
+         its own Response Curve. */
+      var rc = feelOf('right')==='custom';
+      var helpTxt = '<b>ADS</b> is while you aim down sights: pulling <b>L2</b>, or holding the button set '+
+        'under <b>Choose what counts as aiming</b>. <b>Same as Hip</b> on: ADS copies your Hip Sensitivity, '+
+        'Smoothing and curve, and keeps copying them. Off: the copy stays, and from then on ADS has its own. '+
+        'Deadzones and triggers are the same in both.';
+      var door = '<button class="btn ghost" data-door="roles" data-doorlab="Fire & Aim" style="margin-top:8px">'+
+        'Choose what counts as aiming</button>';
+      if(same){
+        h += ZSZK.cardHTML('speed', '#3ddc84', 'ADS', door+helpHTML('zk-ads', 'ADS', helpTxt), ' data-zkcard="adsspeed"');
+        return h;
+      }
+      var sm = (full.smoothing || {});
+      var smA = (typeof sm.rightStickAds==='number') ? sm.rightStickAds : (sm.rightStick || 0);
+      var body = slider('Sensitivity', 10, 100, pctA, '', B('curves.rightStick.adsGain', .01, {mn:0.1, mx:1}));
+      if(rc){
+        /* the same four steps as HIP's Smoothing ladder, on smoothing.rightStickAds */
+        body += '<div class="smblk"><div class="smtitle">Smoothing</div>'+
+          '<div class="zkseg" role="group" aria-label="ADS smoothing">'+
+          SM_STICK.map(function(r){
+            var on = Math.abs(smA - r[1]) < 0.005;
+            return '<button type="button" data-zkadssm="'+r[1]+'"'+(on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"')+
+              '>'+esc(r[0])+'</button>';
+          }).join('')+'</div></div>';
+      }
+      body += door;
+      h += ZSZK.cardHTML('speed', '#3ddc84', 'ADS Speed', body+helpHTML('zk-ads', 'ADS', helpTxt), ' data-zkcard="adsspeed"');
+      if(feelGridLive('right')){
+        h += ZSZK.cardHTML('curve', '#bb9af7', 'ADS Curve', zkAdsCurveHTML(), ' data-zkcard="adscurve"');
+      } else if(rc){
+        h += ZSZK.adsCurveHTML(full);
+      } else {
+        h += '<div class="zkmuted zkshared">Your right stick is <b>Native</b> on HIP: give it a curve there and '+
+          'ADS can have its own curve and Smoothing too.</div>';
+      }
+      if(!zkAdsFw()){
+        h += warnHTML('Your Core needs its next update for ADS\u2019s own curve and Smoothing. Until then '+
+          'ADS uses the Hip curve and Smoothing (ADS Sensitivity already works).', 'zk-adsfw');
+      }
+      return h;
+    }
+    /* D254: does the Core apply ADS's own curve and Smoothing yet? (a Core
+       built before D254 reads past the section and uses Hip's) */
+    function zkAdsFw(){
+      /* the Core's own list of the settings blocks it reads (/status
+         profileFormat.sections); STICKADS is 0x0033 = 51 */
+      var st = ZS.live && ZS.live.status;
+      var secs = st && st.profileFormat && st.profileFormat.sections;
+      return Array.isArray(secs) && secs.some(function(v){ return +v === 51 || String(v).toLowerCase() === '0x0033'; });
+    }
+    /* D261: does the Core apply each stick's anti-deadzone? STICKANTI is
+       0x0034 = 52 in /status profileFormat.sections (a Core built before
+       D261 skips the section, so the slider would write nothing) */
+    function zkAntiFw(){
+      var st = ZS.live && ZS.live.status;
+      var secs = st && st.profileFormat && st.profileFormat.sections;
+      return Array.isArray(secs) && secs.some(function(v){ return +v === 52 || String(v).toLowerCase() === '0x0034'; });
+    }
+    function zkPadPageHTML(){
+      if(!window.ZSZK) return '';
+      /* D246: no Controller Feel door - its limits are on the Deadzones and
+         Trigger Settings cards, its stick response is the curves + Smoothing */
+      return ZSZK.pageHTML(ZS.live.full[p.id] || boardFull, zkOpt(null), ZKTAB[p.id] || 'hip',
+        { speed: zkSpeedHTML(), ads: zkAdsHTML() });
+    }
+    /* curves.rightStick.adsGain as the ENGINE reads it: a finite positive
+       number, or null. Read from the live cache rather than boardFull —
+       boardFull is the object R.aim was handed, and putProfile replaces
+       ZS.live.full[p.id] with a new one on every landed write, so after one
+       switch flip the captured reference is a generation behind. The
+       stage's own _ads_cfg treats anything that is not a positive finite
+       number as off, and so does this. */
+    function adsGainOf(){
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      var rs = full && full.curves && full.curves.rightStick;
+      var g = rs ? rs.adsGain : null;
+      return (typeof g==='number' && isFinite(g) && g>0) ? g : null;
+    }
+    /* The switch's one write. ON seeds the hip gain (a number the schema has
+       already accepted, so the board cannot refuse it) or 1.0; OFF writes
+       null, which is the engine's off. The seed goes into the CACHED config
+       as well as the queued write, and not for optimism's sake: bindRead
+       prefers the board's copy and hands back undefined for null, so until
+       the debounced write lands the new stepper would open on whatever the
+       local cache last held for this label — the 60% from a session since
+       switched off, say — over a board about to hold the hip gain. Writing
+       the value the queued mutation is about to make true, where the one
+       reader that wins looks for it, is how the dial and the wire agree
+       from the first frame. putProfile clones from a fresh GET and replaces
+       the cache on success, so nothing here outlives the write. */
+    function adsSet(on, root){
+      if(ZS.live.online===false || !ZS.live.full[p.id]){
+        ZS.toast('Your board is offline — this switch has not reached it yet');
+        render(root);                 /* the switch goes back where the board has it */
+        return;
+      }
+      var full = ZS.live.full[p.id];
+      var hip = (full.curves && full.curves.rightStick) ? full.curves.rightStick.gain : null;
+      var seed = on ? ((typeof hip==='number' && hip>=0.1 && hip<=3) ? hip : 1.0) : null;
+      /* D254: ADS's own curve and Smoothing go the same way - OFF (own)
+         copies Hip's as they are now, ON (Same as Hip) clears them so the
+         Core follows Hip again. Nothing else is touched. */
+      var hrs = (full.curves && full.curves.rightStick) || {};
+      var curveSeed = on ? {
+        type: hrs.type || 'linear',
+        strength: (typeof hrs.strength==='number' && hrs.strength>=0.1) ? hrs.strength : 1.0,
+        points: Array.isArray(hrs.points) ? JSON.parse(JSON.stringify(hrs.points)) : []
+      } : null;
+      var hsm = (full.smoothing && typeof full.smoothing.rightStick==='number') ? full.smoothing.rightStick : 0;
+      var smSeed = on ? hsm : null;
+      function put(f){
+        if(!f.curves) f.curves = {};
+        if(!f.curves.rightStick) f.curves.rightStick = {};
+        f.curves.rightStick.adsGain = seed;
+        f.curves.rightStick.adsCurve = curveSeed ? JSON.parse(JSON.stringify(curveSeed)) : null;
+        if(!f.smoothing) f.smoothing = {};
+        f.smoothing.rightStickAds = smSeed;
+      }
+      ZS.editProfile(p.id, put);      /* M8: onto a clone, never in place */
+      render(root);   /* the stepper appears and disappears with the switch */
+      /* render() replaced the very switch that was tapped. Put the focus
+         back on its twin, or a keyboard or switch user pays a hunt per flip. */
+      var sw = root.querySelector('[data-xinherit="stick"]');
+      if(sw && sw.focus){ try{ sw.focus(); }catch(e){} }
+    }
+
+    /* Which preset the stick shows. The tap the user just made wins, then the
+       board's stored number, then what was last picked here — never a name the
+       value denies. A local 'Custom' beats an exact match, for the same reason
+       the mouse's does: a number that happens to equal a preset may still be
+       one the user dialled, and having the Custom dial vanish out from under a
+       thumb mid-tune is worse than a stale word on the carousel. */
+    function smStickStyle(sm){
+      return (sm && sm.rightStickStyle==='classic' && classicShown()) ? 'classic' : 'standard';
+    }
+    function smStickOptions(){
+      return SM_STICK.map(function(r){ return r[0]; })
+        .concat(classicShown() ? SM_CLASSIC_PRESETS.map(function(r){ return r[0]; }) : [])
+        .concat(['Custom']);
+    }
+    function smStickCustomHTML(){
+      var sm = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).smoothing || {};
+      var style = smStickStyle(sm);
+      var h = '<div class="smcustom" data-smcustom="stick">';
+      if(classicShown()) h += smStyleSeg(' data-smstylefor="stick"', style)+smStyleHelp('stick');
+      if(style==='classic'){
+        h += classicSteppers(['smoothing.rightStickClassicSmooth','smoothing.rightStickClassicDecay','smoothing.rightStickClassicSynch'],
+          [typeof sm.rightStickClassicSmooth==='number' ? sm.rightStickClassicSmooth : 0,
+           typeof sm.rightStickClassicDecay==='number' ? sm.rightStickClassicDecay : 9,
+           typeof sm.rightStickClassicSynch==='number' ? sm.rightStickClassicSynch : 0], 'stick');
+      } else {
+        h += labHelp(stepper('Steadiness', 35, 5, 0, 95, '%',
+              'how hard the stick is steadied',
+              B('smoothing.rightStick', .01, {mn:0, mx:0.95})), 'aim-steady-stick', 'Steadiness', AIM_HELP.steady);
+      }
+      return h+'</div>';
+    }
+    function smStickStyleSet(style, root){
+      smSel.stick = 'Custom';
+      {
+        smWrite(function(f){
+          if(!f.smoothing) f.smoothing = {};
+          var sm = f.smoothing;
+          sm.rightStickStyle = style;
+          if(style==='classic'){
+            ['Smooth','Decay','Synch'].forEach(function(n, i){
+              if(typeof sm['rightStickClassic'+n]!=='number') sm['rightStickClassic'+n] = CLASSIC_SEED[i];
+            });
+          }
+        });
+      }
+      render(root);
+    }
+    function smStickPreset(){
+      if(smSel.stick) return smSel.stick;
+      var local = ZS.store.vals[baseNs+'|sm-stick'];
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      if(!full) return local || 'Disabled';
+      if(local==='Custom') return 'Custom';
+      if(smStickStyle(full.smoothing)==='classic'){
+        var fs = full.smoothing;
+        return smClassicFromValues(fs.rightStickClassicSmooth, fs.rightStickClassicDecay,
+                                   fs.rightStickClassicSynch) || 'Custom';
+      }
+      var v = (full.smoothing||{}).rightStick;
+      var s = typeof v==='number' ? v : 0;          /* the engine's own default */
+      for(var i=0;i<SM_STICK.length;i++){
+        if(Math.abs(s-SM_STICK[i][1])<0.005) return SM_STICK[i][0];
+      }
+      return 'Custom';
+    }
+    /* One tap, one field. Custom writes NOTHING: the number already on the
+       board IS the custom value and the dial below opens on it — the same rule
+       the mouse's hip Custom follows, and unlike the mouse it needs no seed
+       because smoothing.rightStick always exists (schema default 0.0). Offline
+       the pick is kept locally, exactly like the curve preset. */
+    function smStickApply(name, root, d){
+      smSel.stick = name;
+      ZS.store.vals[baseNs+'|sm-stick'] = name; ZS.persistStore();
+      var pr = null, cp = smClassicPreset(name), i;
+      for(i=0;i<SM_STICK.length;i++){ if(SM_STICK[i][0]===name) pr = SM_STICK[i]; }
+      if(pr || cp){
+        smWrite(function(f){
+          if(!f.smoothing) f.smoothing = {};
+          if(pr){
+            f.smoothing.rightStick = pr[1];
+            /* D191: a Standard preset is Standard; never-named stays unnamed */
+            if(f.smoothing.rightStickStyle!=null) f.smoothing.rightStickStyle = 'standard';
+          } else {
+            f.smoothing.rightStickStyle = 'classic';
+            f.smoothing.rightStickClassicSmooth = cp[1];
+            f.smoothing.rightStickClassicDecay = cp[2];
+            f.smoothing.rightStickClassicSynch = cp[3];
+          }
+        });
+      }
+      render(root);   /* the Custom dial appears and disappears with the name */
+      /* render() replaced the very arrow that was pressed. Put the focus back
+         on its twin, or stepping Disabled -> Light -> Balanced costs a
+         keyboard or switch user three hunts for the same control. */
+      var a = root.querySelector('.smcar[data-smset="stick"] .arr[data-d="'+(d<0?'-1':'1')+'"]');
+      if(a && !a.disabled && a.focus){ try{ a.focus(); }catch(e){} }
+    }
+
+    /* D184/D275: the mouse's hip curve is the shared curve editor
+       (zs-curve-grid.js, ZSCURVE, XIM's Curve Editor): handles, straight
+       segments, zoom, the presets and COPY / PASTE, a smooth rising curve
+       sent to the Core as 15-16 samples in curvePoints, the handles kept in
+       curveGrid for the editor (seven numbers, or {v:2, h, s}). An old
+       three-dot curve or a power curve (the old Gentle / Aggressive) opens
+       as the curve it already is; nothing is written until a point moves.
+       Linear writes the plain linear curve (no points). */
+    function mouseCurveYs(mt){
+      if(!window.ZSCURVE) return [];
+      var g = mt.curve === 'piecewise' ? ZSCURVE.gridOf(mt.curveGrid) : null;
+      return g || ZSCURVE.fromCurve(mt.curve, mt.curveStrength, mt.curvePoints);
+    }
+    function mouseCurveHTML(ys){
+      if(!window.ZSCURVE) return '';
+      return ZSCURVE.html({ id: 'mk-curve', ys: ys, label: 'Hip curve', presets: true,
+        title: 'Curve Editor - Mouse : Hip', xName: 'Hand speed', yName: 'Turn speed',
+        help: 'Across: how fast your hand moves. Up: how fast the reticle turns. '+
+          'Drag a circle to move it; tap a dot to straighten that part. Applied after the Core takes out '+
+          'the game\u2019s own curve, so the two are never stacked.' });
+    }
+    function wireMouseCurve(root){
+      var wrap = root.querySelector('[data-cgwrap="mk-curve"]');
+      if(!wrap || !window.ZSCURVE) return;
+      var full = (ZS.live.full[p.id] || {});
+      /* every change (a drag, a key, Add / Remove / Straighten, a preset
+         other than Linear, a PASTE) saves the drawn curve */
+      function save(ys){
+        ZS.putProfileDebounced(p.id, function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          f.mouseTranslation.curve = 'piecewise';
+          f.mouseTranslation.curvePoints = ZSCURVE.sample(ys);
+          f.mouseTranslation.curveGrid = ys;
+        });
+        stM.curve = 'Custom'; saveSt();
+      }
+      /* Linear is the plain linear curve, nothing left behind */
+      function linear(){
+        ZS.putProfileDebounced(p.id, function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          f.mouseTranslation.curve = 'linear';
+          delete f.mouseTranslation.curvePoints;
+          delete f.mouseTranslation.curveGrid;
+        });
+        stM.curve = 'Even'; saveSt();
+      }
+      ZSCURVE.wire(wrap, {
+        ys: mouseCurveYs(full.mouseTranslation || {}),
+        onCommit: save,
+        onPreset: function(id, ys){ if(id==='linear') linear(); else save(ys); },
+        onStraight: linear
+      });
+    }
+
+    /* ── the mouse card's ••• fold ───────────────────────────────────
+       What the Mechanics sheet used to hold, drawn INSIDE the card under the
+       •••: the per-stance curve, the Custom smoothing dials, this stance's
+       calibration line; and on HIP only, the engine's single yxRatio /
+       noiseThreshold / invert pair / dpi / feel, Aim Speed Match and
+       Keyboard Movement. ADS's fold names those as shared instead of
+       drawing them a second time — the engine has ONE of each, and
+       test-aim-stance §1 counts controls per field across the screen. */
+    function mouseMechHTML(mode, preset){
+      var ads = mode==='ads';
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      var h = '<div class="xsec">Mechanics</div>';
+      if(ads){
+        /* Which preset is lit. ADS reads its own ads* fields. -1 means Custom
+           or something no preset names — light nothing rather than lie. */
+        var aci = 0, ac = mt.adsCurve;
+        if(ac==null) aci = 0;
+        else if(ac==='linear') aci = 1;
+        else if(ac==='power') aci = (+mt.adsCurveStrength>=1) ? 2 : 3;
+        else aci = -1;
+        h += '<div data-xcurve="ads">'+
+          labHelp(seg('ADS curve', ['Same as hip','Even','Gentle','Aggressive'], aci, true, null,
+              'the curve while you hold aim — Same as hip keeps one curve for both'),
+            'aim-adscurve', 'ADS curve', AIM_HELP.adsCurve)+'</div>';
+      } else {
+        /* D275: the hip curve is the grid Curve Editor (D184) that stood in
+           Translation's "More translation settings" as "Speed curve". It and
+           the three Even / Gentle / Aggressive buttons that stood here wrote
+           the SAME mouseTranslation.curve fields from two screens, so the
+           editor (its four presets cover the three buttons) is the one home:
+           an old three-button curve opens as the curve it already is. */
+        h += labHelp('<div class="fld col" data-xcurvegrid="hip"><div class="flab">Hip curve</div>'+
+          mouseCurveHTML(mouseCurveYs(mt))+'</div>', 'aim-hipcurve', 'Hip curve', AIM_HELP.hipCurve, true);
+      }
+      /* D191: Custom's dials moved OUT of this fold to right under the
+         Smoothing carousel, with XIM's Standard | Classic mode button
+         (smCustomHTML); one control per field, so they are not drawn here. */
+      /* D189: QUANTIZATION, XIM's "advanced" pair, per stance, off (0) by
+         default. Snaps the camera speed the Core asks the game for: Magnitude
+         to speed steps (the step grows the faster you aim), Angle to a set of
+         directions (whatever the speed). Some games' aim assist reads a
+         stepped input as a controller's and helps more. ADS left unset uses
+         hip's numbers. */
+      /* D376 (owner, 2026-10-14, with XIM's screenshots: "look how much
+         simpler their Aim and ADS tabs are ... just simple, like my
+         photos show"): the fold is XIM's, in XIM's order - Mechanics (the
+         curve), Y Scale, Quantization (a button that opens its two), Invert
+         - and every other setting of the fold sits behind the card's
+         Advanced button, in the Advanced section at the bottom of the page
+         (advSectionHTML, D376 amended), nothing deleted. Y Scale and Invert are one field for both stances (the
+         Core has no ADS copy of either), so ADS's fold says so. */
+      var quantOn = !(ZS.productHides && ZS.productHides('aimXim'));
+      if(ads){
+        if(quantOn) h += quantHTML(ads, mt);
+        h += '<div class="xsub xshared">Y Scale and Invert are shared with Hip aim — set them there. Mouse DPI is on Device.</div>';
+        return h;
+      }
+      h += labHelp(stepper('Y Scale', 100, 5, 30, 200, '%',
+          '100 = up-down exactly matches left-right',
+          B('mouseTranslation.yxRatio', .01, {mn:0.3, mx:2}),
+          ' data-detent="100" data-detentsnap="2.5"'), 'aim-yscale', 'Y Scale', AIM_HELP.yscale)+
+        (quantOn ? quantHTML(ads, mt) : '')+
+        labHelp('<div class="fld"><div class="flab">Invert'+
+          '<em>flip aim direction — Vertical is the classic push-away-to-look-down</em></div>'+
+          '<div class="smcar" id="mech-inv" data-noswipe="1" style="padding:0">'+
+            '<button class="arr" data-d="-1" aria-label="previous invert option">‹</button>'+
+            '<span class="smval" role="status" style="min-width:96px">'+esc(invNameOf(mt))+'</span>'+
+            '<button class="arr" data-d="1" aria-label="next invert option">›</button>'+
+          '</div></div>', 'aim-invert', 'Invert', AIM_HELP.invert);
+      return h;
+    }
+    /* D376 amended (owner, 2026-10-14: "when you click Advanced it should
+       open below everything, not like scramble the menus"): ADVANCED is
+       one card at the very bottom of each stance page, under the Mouse
+       card and its ••• fold (and under Activation on ADS), so the simple
+       settings never move when it opens or closes. It holds every setting
+       D376 kept off the simple face: Fine aim and the calibration line on
+       both stances; on Hip, the engine's one each of up/down balance,
+       Ignore tiny movement, the read-only Mouse DPI line (D375), Feel,
+       Start-up feel and Aim Speed Match. Drawn, bound and wired either
+       way, only `hidden` while Advanced is off. */
+    function advSectionHTML(mode){
+      var ads = mode==='ads';
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      var inner = fineAimHTML(ads) + calChipHTML(ads);
+      if(!ads) inner +=
+        vhBalanceHTML(p)+
+        /* D189: this was "Quantization", which is XIM's name for the snap
+           in the fold; the field is the noise gate, so it says what it does */
+        /* D392: in HAND SPEED, millimetres a second. The field is counts
+           per 250 Hz tick at 1000 DPI (zs_mouse noise_threshold), so one
+           unit is 250 counts/s = 0.25 in/s = 6.35 mm/s, on any mouse (the
+           counts are DPI-normalised before the gate) */
+        labHelp(stepper('Ignore tiny movement', 0, 1, 0, 300, ' mm/s',
+          'hand movement slower than this is ignored — 0 = off',
+          B('mouseTranslation.noiseThreshold', 1/6.35, {mn:0, mx:50, dp:0})), 'aim-noise', 'Ignore tiny movement', AIM_HELP.noise)+
+        /* D375: the DPI's one home is Device; Speed is measured against
+           it, so one read-only line says it and opens the card */
+        aimDpiLine(mt)+
+        /* Feel — the stop/micro-movement character (docs/MOUSE-FEEL.md). The
+           engine treats an absent key as snappy and degrades garbage to
+           snappy, so the default index mirrors that. */
+        labHelp(seg('Feel', ['Snappy','Balanced','Smooth'],
+            ({snappy:0, balanced:1, smooth:2})[String(mt.feel||'snappy')] || 0,
+            false,
+            B('mouseTranslation.feel', 1, {t:'str',
+              map:{'Snappy':'snappy','Balanced':'balanced','Smooth':'smooth'}}),
+            'Snappy stops the instant your hand does — recommended'), 'aim-feel', 'Feel', AIM_HELP.feel)+
+        /* D275: START-UP FEEL (D164 start from rest, restEaseMs), beside
+           Feel, its stop. The Core takes 0..200 ms (zs_mouse rest_ease_s). */
+        labHelp(stepper('Start-up feel', Math.round(+mt.restEaseMs || 0), 5, 0, 200, ' ms',
+          'how gently a movement starts after your hand was still — 0 = instant',
+          B('mouseTranslation.restEaseMs', 1, {mn:0, mx:200})), 'aim-startup', 'Start-up feel', AIM_HELP.startup)+
+        /* Aim Speed Match measures mouseTranslation.maxVelocity — the
+           fastest-swipe ceiling; a door (wireDoors). D375: the Keyboard
+           Movement door left for Translation (trKbHTML). */
+        door('velocity', 'Aim Speed Match', 'Aim Speed Match',
+             'measure your fastest swipe so the ceiling matches your hands');
+      return '<div class="grp-card xcard xadvsec advonly" data-xadvsec="'+mode+'"'+(aimAdvOn() ? '' : ' hidden')+'>'+
+        '<div class="xtitle">Advanced</div>'+
+        '<div class="xsub xadvlead">'+(ads ? 'More settings for aiming down sights.' : 'More settings for fine-tuning your aim.')+'</div>'+
+        inner+
+        '</div>';
+    }
+    /* D401's XIM-format curve row (Paste / Reset to straight line / Turn
+       off) was taken out of the app on 2026-10-16 (D402: no XIM wording in
+       the app). The Core still runs mouseTranslation.ximCurve / adsXimCurve
+       (zs_bezier.h, AIMCURVE 0x0029) and the encoder still writes them; only
+       the screen is gone. */
+    /* D375: the Mouse DPI, read-only, and the way to change it. One line
+       under Invert where the stepper stood: the number the translator
+       measures Speed and cm/360 against (unset = the engine's 1000), and a
+       tap opens Device scrolled to its Mouse DPI card (D340's deep link to
+       the Update Rate card, ovSetTab, with 'Dpi'). Never a control here, so
+       the two screens cannot disagree. */
+    function aimDpiLine(mt){
+      var v = window.ZS_DPI && ZS_DPI.validDpi ? ZS_DPI.validDpi(mt.dpi) : (+mt.dpi || 0);
+      var shown = v ? Number(v).toLocaleString('en-US') : '1,000 (not set)';
+      return '<div class="fld" id="aim-dpiline"><button type="button" data-aimdpi="1" '+
+        'aria-label="Mouse DPI '+esc(shown)+'. Change it on Device" '+
+        'style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;'+
+        'background:none;border:0;padding:2px 0;margin:0;font:inherit;text-align:left;cursor:pointer;'+
+        'color:var(--muted);font-size:13px;min-height:44px">'+
+        '<span>Mouse DPI: <b style="color:var(--text)">'+esc(shown)+'</b></span>'+
+        '<span style="color:var(--accent);font-weight:600;white-space:nowrap">Change in Device ›</span>'+
+        '</button></div>';
+    }
+    /* D376: ADVANCED. The owner: "add something that says 'Advanced' next
+       to the ••• that opens all my advanced options ... too confusing and
+       cluttered for a new user". A new install sees XIM's simple pages;
+       Advanced shows every other setting the page has (Fine aim, the
+       calibration line, up/down balance, Ignore tiny movement, Mouse DPI,
+       Feel, Start-up feel, Aim Speed Match; Speed is on the face since
+       D376 amended) in its own card at the bottom. Nothing is deleted: the
+       settings are drawn, bound and wired either way, only `hidden`. The
+       choice is per install (localStorage, which may be missing or throw:
+       then it is simply off). A hidden setting that is not at its default
+       puts "Advanced settings in use" beside the button. */
+    function advInUse(){
+      var mt = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).mouseTranslation || {};
+      return (+mt.fineAim > 0) || (typeof mt.adsFineAim === 'number') || (+mt.noiseThreshold > 0) ||
+        (mt.feel != null && mt.feel !== 'snappy') || (+mt.restEaseMs > 0);
+    }
+    function advBtnHTML(){
+      var on = aimAdvOn();
+      return '<button type="button" class="xadv" data-xadv="1" aria-pressed="'+(on?'true':'false')+'">Advanced</button>'+
+        '<span class="xadvhint"'+(!on && advInUse() ? '' : ' hidden')+'>Advanced settings in use</span>'+
+        /* D376 amended: the section opens at the bottom of the page, so
+           the button says where it went */
+        '<span class="xadvwhere"'+(on ? '' : ' hidden')+'>Advanced settings are at the bottom of this page.</span>';
+    }
+    /* D189: the two quantization steppers and XIM's starting tip. ADS shows
+       hip's number until it is given its own. */
+    function quantHTML(ads, mt){
+      var hm = typeof mt.quantMagnitude==='number' ? mt.quantMagnitude : 0;
+      var ha = typeof mt.quantAngle==='number' ? mt.quantAngle : 0;
+      var m = ads && typeof mt.adsQuantMagnitude==='number' ? mt.adsQuantMagnitude : hm;
+      var a = ads && typeof mt.adsQuantAngle==='number' ? mt.adsQuantAngle : ha;
+      var st = ads ? 'ads' : 'hip';
+      /* D285: XIM's starting tip is help, not a line on the card; since the
+         Aim screen's "?" pass (2026-10-14) it sits beside the Quantization
+         heading, word for word, and each of the two has its own "?" */
+      /* D376: XIM's "Quantization" is a BUTTON that opens its two; here it
+         opens them in place (aria-expanded), open by itself when either is
+         already set so a config's snap is never out of sight. The "?" sits
+         beside the button. */
+      var qOpen = !!XQUANT_OPEN[p.id+'|'+st] || m > 0 || a > 0;
+      var q = qhParts('mk-quant-'+st, 'Quantization',
+          'To start, set Magnitude to 25 and Angle to 25. Adjust one at a time.');
+      return '<div class="xsec xquanthd" data-quant="'+st+'">'+
+          '<button type="button" class="xquantbtn" data-xquant="'+st+'" aria-expanded="'+(qOpen?'true':'false')+'" '+
+            'aria-controls="xquant-'+st+'">Quantization</button>'+q.chip+'</div>'+q.fold+
+        '<div class="xquant" id="xquant-'+st+'"'+(qOpen?'':' hidden')+'>'+
+        labHelp(stepper('Magnitude', Math.round(m*100), 5, 0, 100, '%',
+          'snaps your aim speed to steps — the steps grow the faster you aim. 0 = off',
+          B(ads?'mouseTranslation.adsQuantMagnitude':'mouseTranslation.quantMagnitude', .01, {mn:0, mx:1})),
+          'aim-qmag-'+st, 'Magnitude', AIM_HELP.magnitude+(ads ? '<br>Until you change it here, ADS uses Hip\u2019s number.' : ''))+
+        labHelp(stepper('Angle', Math.round(a*100), 5, 0, 100, '%',
+          'snaps your aim direction to set angles, at any speed. 0 = off',
+          B(ads?'mouseTranslation.adsQuantAngle':'mouseTranslation.quantAngle', .01, {mn:0, mx:1})),
+          'aim-qang-'+st, 'Angle', AIM_HELP.angle+(ads ? '<br>Until you change it here, ADS uses Hip\u2019s number.' : ''))+
+        '</div>';
+    }
+    /* the fold's hand-wired controls — the curve segs (per stance), the
+       up/down fix button and the invert carousel; everything else in the
+       fold carries a data-bind and is ZS.wire's */
+    function wireMouseMech(root){
+      wireMouseCurve(root);
+      root.querySelectorAll('[data-xcurve]').forEach(function(box){
+        var ads = box.getAttribute('data-xcurve')==='ads';
+        box.querySelectorAll('.seg2 button').forEach(function(b){
+          b.addEventListener('click', function(){
+            if(ZS.live.online===false || !ZS.live.full[p.id]){ ZS.toast('Your board is offline'); return; }
+            var cv = b.textContent;
+            ZS.putProfileDebounced(p.id, function(f){
+              if(!f.mouseTranslation) f.mouseTranslation={};
+              var m = f.mouseTranslation;
+              if(ads){
+                if(cv==='Same as hip'){ m.adsCurve=null; m.adsCurveStrength=null; m.adsCurvePoints=null; }
+                else { var cm=CURVE_MAP[cv]; m.adsCurve=cm.curve; m.adsCurveStrength=cm.curveStrength; m.adsCurvePoints=[]; }
+              } else {
+                var cmh=CURVE_MAP[cv]; m.curve=cmh.curve; m.curveStrength=cmh.curveStrength; m.curvePoints=[];
+              }
+            });
+            if(!ads){ stM.curve = cv; saveSt(); }
+          });
+        });
+      });
+      /* D392: no "Match up/down" button any more (it was a second way to
+         set Y Scale to 100): Y Scale, with its detent at 100, is the one
+         control for mouseTranslation.yxRatio */
+      var inv = root.querySelector('#mech-inv');
+      if(inv){
+        var ivArrows = inv.querySelectorAll('button');
+        var ivVal = inv.querySelector('.smval');
+        function ivPaint(i){
+          for(var a=0;a<ivArrows.length;a++){
+            var dec = parseFloat(ivArrows[a].getAttribute('data-d')||'1')<0;
+            ivArrows[a].disabled = dec ? i<=0 : i>=INV_OPTS.length-1;
+          }
+        }
+        function ivIdx(){
+          var t = ivVal ? ivVal.textContent : 'Off';
+          for(var i=0;i<INV_OPTS.length;i++){ if(INV_OPTS[i][0]===t) return i; }
+          return 0;
+        }
+        ivPaint(ivIdx());
+        for(var ia=0; ia<ivArrows.length; ia++) (function(b){
+          b.addEventListener('click', function(){
+            if(ZS.live.online===false || !ZS.live.full[p.id]){ ZS.toast('Your board is offline'); return; }
+            var nx = ivIdx() + (parseFloat(b.getAttribute('data-d')||'1')<0 ? -1 : 1);
+            if(nx<0 || nx>=INV_OPTS.length) return;
+            var o = INV_OPTS[nx];
+            if(ivVal) ivVal.textContent = o[0];
+            ivPaint(nx);
+            ZS.putProfileDebounced(p.id, function(f){
+              if(!f.mouseTranslation) f.mouseTranslation={};
+              f.mouseTranslation.invertX = o[1];
+              f.mouseTranslation.invertY = o[2];
+            });
+          });
+        })(ivArrows[ia]);
+      }
+    }
+
+    /* The STICK's deadzones sheet (openStickMech) is gone (D242): each Custom
+       stick's inner and outer deadzone and its curve are the ZS8K
+       Configurator's cards on the page (zk-pad.js), and the deadzone shape
+       is in the hip card's fold. */
+
+    function render(root){
+      /* three namespaces, because three different sets of controls live here */
+      var ns = baseNs+'/'+(hasMouse ? (hasPad ? 'both' : 'mnk') : 'pad');
+      /* THE SKELETON (screen-map §3, reordered 2026-09-04 on the owner's
+         instruction — "Aim feel and everything should be at the top; the
+         live stick view and the warning and the game preset at the bottom"):
+         the Hip/ADS pager(s) → the mouse-shared card → the stick block,
+         THEN the live pad → the warnings block → ONE Match Your Game door.
+         The controls a player came to turn are the first thing under the
+         title; the instrument, the board's complaints and the preset that
+         would overwrite those controls sit under them. The input-type
+         switch is GONE from this screen entirely (Overview's Setup card is
+         its one home — rule 2, and the owner's named complaint); the
+         drift/suppression warnings merge into one block; the game door is
+         emitted ONCE, unconditionally, instead of the old three-site
+         both?'':door() dance. */
+      var h = '';
+      /* THE SKELETON (owner, 2026-09-05: "this is all I want on these aim
+         tabs, nothing more AT ALL"): per half, the stance strip and its two
+         pages — banner, one card, ••• fold; on ADS the Activation card and
+         the inheritance line — then the warning chips. The section headers,
+         the shared card, the doors on the page and the live aim pad are
+         gone from this screen; every control they held is in a fold.
+         The stance switch is the kit's .subtabs — the same strip Smart
+         Actions and Global Settings use — and the shell's swipe steps the
+         FIRST .subtabs on the open screen: pad-only → #stickTabs swipes;
+         Joystick + Mouse → #aimtabs keeps the swipe (first in document
+         order, test-aim-stance §4 pins it) and #stickTabs is tap-only. */
+      if(hasMouse){
+        h += '<div class="subtabs" id="aimtabs" aria-label="Aim stance">'+
+            '<button data-pg="0"'+(pagerPage===1?'':' class="on"')+'>Hip aim</button>'+
+            '<button data-pg="1"'+(pagerPage===1?' class="on"':'')+'>ADS aim</button>'+
+          '</div>'+
+          aimPageHTML('hip')+aimPageHTML('ads');
+      }
+      /* NOT `else`. A Joystick + Mouse config is BOTH, so it gets both halves,
+         one after the other. */
+      if(hasPad) h += zkPadPageHTML();     /* D245: the ZS8K Configurator */
+
+      var full = ZS.live.full[p.id];
+      var liveOn = ZS.live.online!==false && !!full;
+      /* the board runs ONE config at a time — the live picture is that config's
+         output, so it is only honest to show it while editing that config */
+      var isActive = p.id===ZS.activeId;
+      if(liveOn){
+        /* ONE WARNINGS BLOCK (screen-map §3.2): the drift warning + its fix
+           button, the board's suppression sentences, and the stick/mouse
+           warnings all merge here — BELOW the controls that answer them
+           since the owner's reorder (2026-09-04), and still never folded:
+           live feedback is rule 4's explicit exemption. */
+        var wr = '';
+        /* The reported "my aim drifts on its own" bug. The old Inner
+           deadzone slider ran 0..40 with no floor, so one drag to zero let
+           the pad's own resting offset through forever — and because the
+           slider's minimum is 3 now, a config already at 0 would otherwise
+           SHOW 3 while the board held 0. Say so, and offer the one tap. */
+        var dz0 = (full || {}).deadZones || {};
+        if(hasPad && feelOf('right')==='custom' &&
+           dz0.rightInner!=null && dz0.rightInner < 0.03){
+          /* "The slider below" was true when Inner deadzone sat on this
+             screen. It is in the sheet now, so the sentence gives the route
+             instead of pointing at nothing. The one-tap fix below still
+             writes deadZones.rightInner = 0.08 either way. */
+          /* D260: 0 is allowed again (the owner asked), so this is a
+             warning chip, not a floor */
+          wr += note('<b>Your aim may drift.</b> This config’s inner deadzone is '+
+                    Math.round(dz0.rightInner*100)+'%. Most sticks rest a little off centre, '+
+                    'so under about 3% a resting stick can reach the game as a slow push. '+
+                    'If your aim moves on its own, raise Inner on the <b>Deadzones</b> card.','warn')+
+               btn('Stop my aim drifting','primary','aim-fixdrift');
+        }
+        wr += suppressionNote();
+        /* THE SAME LIST OVERVIEW USES, filtered to what belongs on an aim
+           screen. This was a second, uncapped `st.warnings.forEach` that knew
+           nothing about warnNotes() — five byte-identical cards, 617px of a
+           685px viewport, before a single control. warnList() de-duplicates
+           and rewrites once for the whole app, and the cap of three keeps a
+           bad board from burying the aim settings it is complaining about. */
+        if(isActive){
+          var stW = warnList(ZS.live.status).filter(function(w){
+            return /stick|mouse|dead ?zone|drift|aim help/i.test(w);
+          });
+          stW.slice(0,3).forEach(function(w){ wr += note('⚠ '+esc(w), 'warn'); });
+          if(stW.length>3) wr += note('…and '+(stW.length-3)+' more — open Your board for the full list','warn');
+        }
+        /* The live aim pad is a PAD-mode instrument now: it draws two sticks,
+           so a config that HAS a pad gets it — Joystick + Mouse included — and
+           a mouse-only config does not, because there the two aim cards own
+           the whole screen and there are no sticks to draw. */
+        /* the live aim pad is OFF this screen (owner, 2026-09-05); the
+           warning chips stay — live feedback is rule 4's explicit exemption,
+           and a chip that is not needed draws nothing */
+        h += wr;
+      }
+      /* D410 (owner, 2026-10-19: "In Controller Aim, at the bottom, a button
+         you click - 'Calibration'"): the pad half's last thing, under both
+         stance tabs, after the warnings. It opens the Calibration screen
+         (pad-cal.js), which lends the pad on the Core to the calibration. */
+      if(hasPad && window.ZSPADCAL) h += ZSPADCAL.buttonHTML();
+      /* NO "Match Your Game" door here any more (owner, 2026-09-04: "remove
+         start from a preset from the Aim tab — that's the whole point of
+         when you make a profile, it asks you what game, and the presets are
+         there"). R.game itself stays: the new-config flow is its home. */
+       /* D238: the key back to the two halves */
+       if (aimBoth && aimView) {
+         /* D290: the Mouse & Keyboard half wears the owner's two pictures */
+         h = '<button type="button" class="aimswitch" id="aim-switch">'+
+           (aimView === 'pad' ? '' : '<i class="mkbhead" aria-hidden="true">'+'<img class="mkbpic" src="brand/devices/mouse-256.webp" alt="" aria-hidden="true">'+'<img class="mkbpic" src="brand/devices/keyboard-256.webp" alt="" aria-hidden="true">'+'</i>')+'Showing <b>'+
+           (aimView === 'pad' ? 'Controller' : 'Mouse &amp; Keyboard')+'</b><span>Switch ›</span></button>'+h;
+       }
+       root.innerHTML = h; ZS.wire(root, ns);
+       /* D243/D247: every Aim view wears the ZS8K Configurator's look - the
+          controller page, and the mouse & keyboard one too (owner: "the same
+          idea, colour theme and concept for the mouse and keyboard aim tabs
+          and Mappings") */
+       root.classList.add('zkaim');
+       var asw = root.querySelector('#aim-switch');
+       if (asw) asw.addEventListener('click', function(){ delete AIMV[p.id]; ZS.redrawOpenScreen(); });
+      /* the doors this screen's copy names — each target keeps its own ns */
+      wireDoors(root, p);
+      /* D375: the read-only Mouse DPI line opens Device on its card */
+      var dpiGo = root.querySelector('[data-aimdpi]');
+      if (dpiGo) dpiGo.addEventListener('click', function(){
+        if (ovSetTab) ovSetTab('Dpi');
+        ZS.openDetail({ id:'overview', lab:'Device' }, p);
+      });
+
+      /* ── the stance tabs ──
+         A tab tap flips which page is visible and nothing else: both pages
+         are already rendered and wired, so there is no re-render to pay for
+         and nothing the ~8s poll could ever replay. pagerPage survives the
+         re-renders a preset tap DOES cause, exactly as it survived them when
+         it was a scroll position. */
+      var atabs = root.querySelector('#aimtabs');
+      if(atabs){
+        var tabBtns = atabs.querySelectorAll('button');
+        var showStance = function(pg){
+          pagerPage = pg;
+          tabBtns.forEach(function(b){
+            var on = (b.getAttribute('data-pg')==='1' ? 1 : 0) === pg;
+            b.classList.toggle('on', on);
+            b.setAttribute('aria-pressed', on?'true':'false');
+          });
+          /* [data-stance] — the pager's two panes and nothing else. The stick
+             page is an .aimpage too, and the bare selector's
+             `data-key==='ads' ? 1 : 0` would read its key as 0 and hide the
+             whole stick card the moment a Joystick + Mouse player tapped ADS
+             aim. Tabs hide stances, not pages. */
+          root.querySelectorAll('.aimpage[data-stance]').forEach(function(sec){
+            sec.classList.toggle('aimoff',
+              (sec.getAttribute('data-key')==='ads' ? 1 : 0) !== pg);
+          });
+        };
+        tabBtns.forEach(function(b){
+          b.addEventListener('click', function(){
+            showStance(b.getAttribute('data-pg')==='1' ? 1 : 0);
+          });
+        });
+      }
+      /* the ADS sensitivity switch. wire() has already given the .sw its
+         flip (nosave, so no saveV); this listener is the write. It asks the
+         board's copy what the switch WAS rather than reading the class after
+         the flip, so it cannot depend on listener order. */
+      /* the stick ADS page's inheritance line (the old switch): one tap
+         flips adsGain between null and a seeded number through adsSet */
+      root.querySelectorAll('[data-zkadssm]').forEach(function(b){
+        b.addEventListener('click', function(){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){ ZS.toast('Your board is offline'); return; }
+          var v = parseFloat(b.getAttribute('data-zkadssm')) || 0;
+          feelWrite(function(f){ if(!f.smoothing) f.smoothing = {}; f.smoothing.rightStickAds = v; });
+          render(root);
+        });
+      });
+      var inh = root.querySelector('[data-xinherit="stick"]');
+      if(inh) inh.addEventListener('click', function(){
+        adsSet(adsGainOf()===null, root);
+      });
+      root.querySelectorAll('.smcar[data-mode]').forEach(function(car){
+        var mode = car.getAttribute('data-mode')==='ads' ? 'ads' : 'hip';
+        car.querySelectorAll('button').forEach(function(b){
+          b.addEventListener('click', function(){
+            var opts = smOptionsOf(mode);
+            var i = opts.indexOf(smPresetOf(mode)) +
+                    (parseFloat(b.getAttribute('data-d')||'1')<0 ? -1 : 1);
+            if(i<0 || i>=opts.length) return;
+            smApply(mode, opts[i], root);
+          });
+        });
+      });
+      /* D191: XIM's Custom mode button (Standard | Classic), mouse stances and
+         the aim stick alike, and Classic's "adds about N ms" line, which
+         follows the three steppers as they move. */
+      root.querySelectorAll('.smstyle[data-smstylefor]').forEach(function(seg){
+        var who = seg.getAttribute('data-smstylefor');
+        seg.querySelectorAll('button[data-smstyle]').forEach(function(b){
+          b.addEventListener('click', function(){
+            /* the style the page was drawn on, not the .on class (the kit's
+               seg2 wiring may already have moved it to this button) */
+            var style = b.getAttribute('data-smstyle');
+            if(style === seg.getAttribute('data-smcur')) return;
+            if(who==='stick') smStickStyleSet(style, root);
+            else smStyleSet(who==='ads' ? 'ads' : 'hip', style, root);
+          });
+        });
+      });
+      /* D392: "Use Sync to game": the stance's Synch (both stances', so
+         nothing is left stacked) moves to mouseTranslation.syncHz, the one
+         frame-sync control, unless that is already on */
+      root.querySelectorAll('[data-synchmove]').forEach(function(b){
+        b.addEventListener('click', function(){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){ ZS.toast('Your board is offline'); return; }
+          var ms = parseFloat(b.getAttribute('data-synchmove')) || 0;
+          smWrite(function(f){
+            if(!f.mouseTranslation) f.mouseTranslation={};
+            var mt = f.mouseTranslation;
+            if(!(+mt.syncHz > 0)) mt.syncHz = ms <= 12 ? 120 : 60;
+            if(typeof mt.classicSynch==='number') mt.classicSynch = 0;
+            if(typeof mt.adsClassicSynch==='number') mt.adsClassicSynch = 0;
+          });
+          ZS.toast('Sync to game is on (Translation page)');
+          render(root);
+        });
+      });
+      root.querySelectorAll('.smcustom').forEach(function(box){
+        var lag = box.querySelector('.smlag');
+        if(!lag) return;
+        box.addEventListener('zsstep', function(){
+          var v = [].map.call(box.querySelectorAll('.stp .sv'), function(sv){ return parseFloat(sv.textContent||'0'); });
+          /* D392: the mouse's Classic shows two steppers (no Synch); a Synch
+             still stored counts until it is moved to Sync to game */
+          var mv = box.querySelector('[data-synchmove]');
+          var sy = v.length >= 3 ? v[2] : (mv ? parseFloat(mv.getAttribute('data-synchmove')) || 0 : 0);
+          if(v.length >= 2) lag.textContent = 'Adds about '+(Math.round(classicLagMs(v[0], v[1], sy)*10)/10)+' ms of delay.';
+        });
+      });
+      /* A SEPARATE loop from the pager's .smcar[data-mode] one above, not a
+         branch inside it. That one hands `mode` to smOptionsOf / smPresetOf /
+         smApply — the mouse trio's three functions, one of which has a
+         "Same as hip" inherit branch a stick has no concept of. Keeping the
+         two paths apart means nothing here can regress the shipped pager. */
+      root.querySelectorAll('.smcar[data-smset="stick"]').forEach(function(car){
+        car.querySelectorAll('button').forEach(function(b){
+          b.addEventListener('click', function(){
+            var opts = smStickOptions();
+            var d = parseFloat(b.getAttribute('data-d')||'1')<0 ? -1 : 1;
+            var i = opts.indexOf(smStickPreset()) + d;
+            if(i<0 || i>=opts.length) return;
+            smStickApply(opts[i], root, d);
+          });
+        });
+      });
+      /* ── the ••• folds ──
+         A tap flips the fold's `hidden` and nothing else — the fold is
+         already rendered and wired — and remembers itself in XMECH_OPEN so
+         the re-render a preset tap causes opens it again. */
+      root.querySelectorAll('[data-xmore]').forEach(function(bt){
+        bt.addEventListener('click', function(){
+          var key = bt.getAttribute('data-xmore');
+          var fold = root.querySelector('.xmech[data-xmech="'+key+'"]');
+          if(!fold) return;
+          var open = fold.hasAttribute('hidden');
+          if(open) fold.removeAttribute('hidden'); else fold.setAttribute('hidden', '');
+          bt.setAttribute('aria-expanded', open ? 'true' : 'false');
+          XMECH_OPEN[p.id+'|'+key] = open;
+        });
+      });
+      /* D376: Advanced, for the whole screen at once (both stances' cards
+         carry the button); the quantization buttons open their two */
+      root.querySelectorAll('[data-xadv]').forEach(function(bt){
+        bt.addEventListener('click', function(){
+          var on = !aimAdvOn();
+          aimAdvSet(on);
+          /* the section is below everything, so nothing above it moves;
+             the scroller's position is put back anyway, so turning it off
+             at the bottom of a long page never jumps the view */
+          var sc = bt, top = null;
+          while(sc && sc.parentElement && !(sc.scrollHeight > sc.clientHeight + 4 &&
+                /auto|scroll/.test((window.getComputedStyle ? getComputedStyle(sc).overflowY : '') || ''))) sc = sc.parentElement;
+          var y0 = bt.getBoundingClientRect ? bt.getBoundingClientRect().top : 0;
+          if(sc && sc !== bt) top = sc.scrollTop;
+          root.querySelectorAll('.advonly').forEach(function(d){
+            if(on) d.removeAttribute('hidden'); else d.setAttribute('hidden', '');
+          });
+          root.querySelectorAll('.xadvwhere').forEach(function(w){
+            if(on) w.removeAttribute('hidden'); else w.setAttribute('hidden', '');
+          });
+          if(top !== null && bt.getBoundingClientRect){
+            var dy = bt.getBoundingClientRect().top - y0;
+            if(dy) sc.scrollTop = top + dy;
+          }
+          var inUse = advInUse();
+          root.querySelectorAll('[data-xadv]').forEach(function(b){ b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+          root.querySelectorAll('.xadvhint').forEach(function(t){
+            if(!on && inUse) t.removeAttribute('hidden'); else t.setAttribute('hidden', '');
+          });
+        });
+      });
+      root.querySelectorAll('[data-xquant]').forEach(function(bt){
+        bt.addEventListener('click', function(){
+          var st = bt.getAttribute('data-xquant');
+          var box = root.querySelector('#xquant-'+st);
+          if(!box) return;
+          var open = box.hasAttribute('hidden');
+          if(open) box.removeAttribute('hidden'); else box.setAttribute('hidden', '');
+          bt.setAttribute('aria-expanded', open ? 'true' : 'false');
+          XQUANT_OPEN[p.id+'|'+st] = open;
+        });
+      });
+      wireMouseMech(root);
+      wireSpeedCm(root);                 /* D376 amended: Speed's cm/360 small print */
+      wireActivation(root);              /* D376 amended: Activation opens and closes */
+      wireZeroWord(root);                /* D377: 0 says Standard / Same as hip */
+      feelWire(root);                    /* D184 / D186: the stick mode */
+      if(hasPad && window.ZSZK) ZSZK.wire(root, p, zkOpt(root));   /* D245 */
+      if(hasPad && window.ZSPADCAL) ZSPADCAL.wire(root, p);         /* D410 */
+
+      /* no live pad on this screen any more (owner, 2026-09-05: "nothing
+         more AT ALL"); liveResponsePad() and aimPadHTML() stay in the file
+         for a future home. */
+
+      var fixd = root.querySelector('#aim-fixdrift');
+      if(fixd) fixd.addEventListener('click', function(){
+        if(!liveOn){ ZS.toast('Your board is offline'); return; }
+        /* m13: staged like every setting (D257), and the toast and the
+           redraw follow the answer: a refused write used to say it was set */
+        ZS.editProfile(p.id, function(f){
+          if(!f.deadZones) f.deadZones={};
+          f.deadZones.rightInner = 0.08;
+        }).then(function(j){
+          if(j && j.ok === false){ ZS.toast('Not set: '+(j.error || 'the board would not take it')); return; }
+          ZS.toast('Inner deadzone set to 8% — take your hands off and check the dot sits centre');
+          /* the whole screen, not render(): boardFull was read when R.aim
+             was called, so only a full re-open sees the value just written */
+          ZS.redrawOpenScreen();
+        });
+      });
+
+      /* THE .seg2 SWEEP IS GONE, all four branches of it. Two of them wired
+         controls that moved into the stick's Mechanics sheet (the old
+         Native|Tuned switch, merged into Stick mode by D186, and the curve
+         preset) and are hand-wired there now, next to the
+         markup they belong to. The other two were already ghosts of exactly
+         the kind the comment that used to stand here forbade: the update-rate
+         seg lives in another renderer with its own wiring, the game seg is
+         not emitted by R.aim at all, and that branch's `gameSel = ...` was an
+         assignment to a name declared nowhere in the file. Nothing this
+         screen emits needs hand-wiring any more — the shared Feel seg and the
+         sheet's Deadzone shape both carry data-binds and are ZS.wire's. */
+
+    }
+
+    return { html:'', after:function(root){
+      /* D238: which half? */
+      if (aimBoth && !aimView) {
+        var padPic = (ZS.devicePicFor && ZS.userDevices)
+          ? (ZS.userDevices(ZS.devices).filter(function(d){ return d.kind === 'gamepad'; }).map(ZS.devicePicFor)[0] || '') : '';
+        root.classList.add('zkaim');     /* D247: the chooser too */
+        root.innerHTML = '<div class="aimchoose" role="group" aria-label="which aim settings to tune">'+
+          '<button type="button" class="aimch" data-aimview="pad">'+
+            (padPic ? '<img src="'+esc(padPic)+'" alt="" aria-hidden="true">' : '')+
+            '<b>Controller</b><span>stick aim</span></button>'+
+          /* D290: the owner's own mouse and keyboard, side by side, as
+             Mappings' chooser wears them */
+          '<button type="button" class="aimch" data-aimview="kbm">'+
+            '<span class="aimch2">'+
+              '<img class="mkbpic" src="brand/devices/mouse-256.webp" alt="" aria-hidden="true">'+
+              '<img class="mkbpic" src="brand/devices/keyboard-512.webp" alt="" aria-hidden="true">'+
+            '</span>'+
+            '<b>Mouse &amp; Keyboard</b><span>mouse aim</span></button></div>';
+        root.querySelectorAll('[data-aimview]').forEach(function(b){
+          b.addEventListener('click', function(){ AIMV[p.id] = b.dataset.aimview; ZS.redrawOpenScreen(); });
+        });
+        return;
+      }
+      render(root);
+    } };
+  };
+});
