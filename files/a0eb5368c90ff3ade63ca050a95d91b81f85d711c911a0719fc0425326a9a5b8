@@ -98,7 +98,14 @@
  *                /shot/builds (+ speeds[], types[] per build) and POST
  *                /shot/build {active} | {slot, name} | {slot, reset}.
  * Profile:       autoGreen.{enabled, nudgeMs, strategy, learnFromMeter,
- *                delayMs, meterStyle}
+ *                delayMs, meterStyle, shotFeedback}
+ * SHOT FEEDBACK (D486): under Meter, where 2K27 shows its word after a shot:
+ *                Auto (the default: both places until the Core reads one,
+ *                then only that one), Over the player (the badge) or Top of
+ *                screen (the TIMING / DISTANCE panel); autoGreen.shotFeedback
+ *                'auto' | 'player' | 'top' (zs-profile-encode.js: SHOT flags
+ *                bits 3-4). GET /shot v2kWhere / v2kSeen say the setting and
+ *                where Auto found it (#ag-fbseen); the "?" explains it.
  * YOUR BUILD (D478): under the switch card, a chooser like 2K's: three
  * builds, each "Learning 12/25" or its green rate, tap one to play it;
  * Rename and Start over; the meter speeds it greens best at. The builds live
@@ -167,22 +174,77 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     if (!doc || !isObj(doc.autoGreen) || doc.autoGreen.meterStyle === 'arrow') { return null; }
     return { seed: FACTORY_SEED };
   }
+  /* D492: a shot in progress (GET /shot state), in words; the last shot's
+     word is held back until the Core has finished watching this one */
+  var LIVE = { armed: 'Shot in progress: looking for the meter…', reading: 'Shot in progress: reading the meter…',
+    planned: 'Shot in progress: reading the meter…', released: 'Let go – waiting for 2K’s word…' };
   var KINDS = ['early', 'perfect', 'late'];
   var KIND_WORD = { early: 'Early', perfect: 'Perfect', late: 'Late' };
   var STRATEGY_MAP = { Auto: 'auto', Meter: 'meter', Press: 'press' };
+  /* D486: where 2K27 shows its word after a shot */
+  var FEEDBACK_LABELS = ['Auto', 'Over the player', 'Top of screen'];
+  var FEEDBACK_MAP = { 'Auto': 'auto', 'Over the player': 'player', 'Top of screen': 'top' };
+  /* D494 (the owner: "pro stick and square shooting should always both be
+     on at the same time unless a user disables one specifically"): two
+     switches, autoGreen.buttonShooting / autoGreen.stickShooting
+     (zs-profile-encode.js SHOT flags bits 6 / 5, both an OFF bit), BOTH ON
+     unless the config turns one off. D493's one choice (autoGreen.shootWith)
+     is read for one release: 'button' = stick off, 'proStick' = both on. */
+  var BUTTON_LABEL = 'Square / button shooting';
+  var STICK_LABEL = 'Pro stick shooting';
+  var BUTTON_SUB = 'Hold shoot, your Core lets go';
+  var STICK_SUB = 'Pull the right stick down and hold';
+  function shootingOf(ag) {
+    var a = isObj(ag) ? ag : {};
+    var stick = a.stickShooting, button = a.buttonShooting;
+    return {
+      stick: (stick === undefined || stick === null) ? a.shootWith !== 'button' : !!stick,
+      button: (button === undefined || button === null) ? true : !!button
+    };
+  }
+  /* GET /shot: is the pro stick on for the config playing (D494's
+     stickShooting; a D493 Core says only shootWith) */
+  function stickOnIn(st) {
+    if (!st) { return false; }
+    if (typeof st.stickShooting === 'boolean') { return st.stickShooting; }
+    return st.shootWith === 'proStick' || st.shootWith === 'both';
+  }
 
   /* the words, in one place (the tests read COPY) */
   var SUB = 'Lets go of shoot in the green';
   var OLD_FW = 'This Core’s firmware doesn’t have Auto green yet.';
+  /* D486 (behind Auto green's "?": the screen keeps five "?" at most) */
+  var FEEDBACK_HELP = '<b>Shot feedback: where 2K shows that word.</b> Depending on your Shot Feedback setting in ' +
+    'NBA 2K27, the word (Early, Late, Excellent) shows over your player, or in a TIMING / DISTANCE ' +
+    'panel at the top of the screen. Your Core learns your timing from that word. ' +
+    '<b>Auto (the usual):</b> your Core looks in both places until it reads the word once, then only ' +
+    'there. ' +
+    '<b>Over the player / Top of screen:</b> pick one if you know it; your Core then looks only there. ' +
+    'At the top, the colour tells how far off you were: white is slightly, yellow and red are more.';
+  /* D493: behind the Auto green "?" (no sixth "?" on the screen): the pro
+     stick in words, never a number the player sets */
+  var STICK_HELP = '<b>Square / button shooting and Pro stick shooting.</b> Both are on: shoot either way and ' +
+    'your Core times the shot. Turn one off only if you never want your Core on it (turned off, that way of ' +
+    'shooting is all yours); with both off Auto green does nothing. ' +
+    '<b>Pro stick shooting (rhythm shooting).</b> Pull the right stick straight down and ' +
+    'keep it there. Your Core holds it for you, pushes it up at the speed your jumper wants (the tempo) and at ' +
+    'the right moment, then gives the stick back once your thumb is home. In NBA 2K27 a push whose tempo ' +
+    'matches your jumper gets a WIDER green window; a rushed or dragged one gets a narrower one, so your Core ' +
+    'learns the tempo from 2K’s own Fast / Slow Tempo feedback and says where it stands under the switch. ' +
+    'Move the stick anywhere else, or press a button, and you have it back at once. A button shot still works. ' +
+    'In 2K’s Controller Settings keep Pro Stick Function on Default, Pro Stick Orientation on Absolute and ' +
+    'Shot Feedback on All Shots. ';
   var WHAT_HELP = '<b>Shoot as usual.</b> Hold shoot and your Core lets go for you when the shot meter ' +
     'reaches the green. ' +
     '<b>You stay in charge.</b> It only ever lets go of a button you are holding; it never presses one. ' +
-    'Let go yourself and your release wins, at once. ' +
+    'Let go yourself and your release wins, at once. ' + STICK_HELP +
     '<b>It needs the game’s picture.</b> Your Core watches the meter through its capture, so the console ' +
     'has to be connected through it. ' +
     /* D477: the Core learns from 2K's own word, which 2K27 shows only with Shot Feedback on */
     '<b>NBA 2K27: turn on Shot Feedback.</b> In the game’s settings set Shot Feedback to All Shots, with ' +
-    'Timing on. Your Core learns your timing from 2K’s own word after each shot (Early, Late, Excellent).';
+    'Timing on. Your Core learns your timing from 2K’s own word after each shot (Early, Late, Excellent). ' +
+    /* D486: the screen's five "?" are full, so Shot feedback's words live here */
+    FEEDBACK_HELP;
   var NUDGE_HELP = '<b>Fine-tune: your shots land a little early?</b> Slide toward Later. ' +
     '<b>A little late?</b> Slide toward Sooner. ' +
     'Each step is 2 ms. Your Core learns your timing from every shot by itself, so you rarely need ' +
@@ -225,6 +287,9 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     '<b>Shot types:</b> standing, moving, step-backs, side-steps and fades each get their own timing inside the build. ' +
     '<b>Your setup</b> (TV, capture, controller) is learned once and shared by every build. ' +
     '<b>Online:</b> each match’s lag is learned in its first few shots and set aside after, so it never spoils your builds.';
+  var FB_AUTO_WAIT = 'Auto: looking in both places until 2K’s first word';
+  var FB_AUTO_TOP = 'Auto: found 2K’s word at the top of the screen';
+  var FB_AUTO_PLAYER = 'Auto: found 2K’s word over your player';
   var MODE_HELP = '<b>Meter:</b> your Core watches the meter fill and lets go at the right spot. ' +
     '<b>Press:</b> it lets go a learned time after you press shoot, the same every time. ' +
     '<b>Auto (the usual):</b> it picks for each shot, the meter when it can see it and the press timing ' +
@@ -431,14 +496,28 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
   function styleOf(pid) { return blockOf(pid).meterStyle === 'arrow' ? 'arrow' : 'white'; }
   /* the first change made in this room also writes the meter the room shows,
      so the Core reads what the screen says. Never on a bare open. */
+  /* D494: the shooting switches written as themselves (absent = what the
+     encoder reads them as), and D493's shootWith dropped */
+  function shootingDone(a) {
+    return typeof a.stickShooting === 'boolean' && typeof a.buttonShooting === 'boolean' && a.shootWith === undefined;
+  }
   function ensureStyle(pid) {
     var f = fullOf(pid);
-    if (!f || !isObj(f.autoGreen) || f.autoGreen.meterStyle === 'white' || f.autoGreen.meterStyle === 'arrow') { return; }
+    if (!f || !isObj(f.autoGreen)) { return; }
+    var a = f.autoGreen;
+    if ((a.meterStyle === 'white' || a.meterStyle === 'arrow') && shootingDone(a)) { return; }
     var save = ZS.editProfile || ZS.putProfile;
     if (!save) { return; }
     save(pid, function (d) {
       if (!isObj(d.autoGreen)) { d.autoGreen = {}; }
-      if (d.autoGreen.meterStyle !== 'arrow') { d.autoGreen.meterStyle = 'white'; }
+      var g = d.autoGreen;
+      if (g.meterStyle !== 'arrow') { g.meterStyle = 'white'; }
+      if (!shootingDone(g)) {
+        var how = shootingOf(g);
+        g.stickShooting = how.stick;
+        g.buttonShooting = how.button;
+        delete g.shootWith;
+      }
     });
   }
   /* a tiny drawing of a meter, filled to `fill` (0..1). Pure shapes, no
@@ -542,12 +621,30 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     if (n > 1) { return READY + ': ' + Math.round(rate * n) + ' of your last ' + n + ' were green'; }
     return READY + ': ' + Math.round(rate * 100) + '% of your recent shots were green';
   }
+  /* D493: the pro stick's tempo state, in words (the Core's own) */
+  function stickWords(st) {
+    if (!stickOnIn(st) || typeof st.stickWords !== 'string' || !st.stickWords) { return ''; }
+    return st.stickWords;
+  }
+  function stickHTML() {
+    var st = S.status, w = online() && !S.noRoute ? stickWords(st) : '';
+    return w ? dot(st.stickLearned ? 'ok' : 'learn') + '<span id="ag-stickwords">' + esc(w) + '</span>' : '';
+  }
   function liveHTML() {
     if (!online()) { return dot('') + '<span>Your Core is offline</span>'; }
     if (S.noRoute) { return dot('') + '<span>' + esc(OLD_FW) + '</span>'; }
     var st = S.status;
     if (!st) { return dot('') + '<span>' + esc(S.err || 'Asking your Core…') + '</span>'; }
-    if (st.on === false) { return dot('') + '<span>' + esc(st.why || st.words || 'Off') + '</span>'; }
+    if (st.on === false) {
+      /* D494: both ways to shoot turned off: amber (the Core's own words) */
+      return dot(st.stickShooting === false && st.buttonShooting === false ? 'warn' : '') +
+        '<span>' + esc(st.why || st.words || 'Off') + '</span>';
+    }
+    /* D493: 2K made nothing of several stick pulls in a row (Pro Stick
+       Function is Dribble Moves Only?): the Core's own words, amber (D70) */
+    if (stickOnIn(st) && typeof st.stickHint === 'string' && st.stickHint) {
+      return dot('warn') + '<span class="ag-livew"><span id="ag-livewords">' + esc(st.stickHint) + '</span></span>';
+    }
     var ls = learnState(st);
     if (ls) {
       var lr = st.learn, c = countOf(lr), words, kind;
@@ -577,6 +674,17 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     if (p < need) { return 'Learning ' + p + '/' + need; }
     if (isNum(sl.greenRate)) { return Math.round(sl.greenRate * 100) + '% green'; }
     return 'Learned';
+  }
+  /* D488: the lag (the match / the mode) in words: where it stands, whether
+     it is settled or still following a change, and how many places it
+     remembers (the gym, the park ...). Never a number the player must set. */
+  function lagWords(b) {
+    if (!isObj(b) || !isNum(b.matchMs) || !isNum(b.lagSdMs)) { return ''; }
+    var m = Math.round(b.matchMs), sd = b.lagSdMs, lv = b.lagLevels instanceof Array ? b.lagLevels.length : 0;
+    var where = Math.abs(m) < 10 ? 'Lag: as your setup' : (m < 0 ? 'Lag: the game takes your shot ' + (-m) + ' ms sooner than your setup' :
+      'Lag: the game takes your shot ' + m + ' ms later than your setup');
+    var how = b.lagCalm === true ? 'settled' : (sd > 10 ? 'changed - following it' : 'settling');
+    return where + ' · ' + how + (lv > 1 ? ' · ' + lv + ' places remembered' : '');
   }
   /* which meter speeds the build greens best at, in words (never ms) */
   var SPEED_GROUPS = [['slow', 0, 2.05], ['medium', 2.05, 2.35], ['fast', 2.35, 9]];
@@ -636,6 +744,8 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
       h += '<div class="ag-bsum"><div class="ag-bw" id="ag-bspeed">' + esc(speedWords(sp)) + '</div>' +
         (tw ? '<div class="ag-btypes" id="ag-btypes">' + esc('Shots: ' + tw) + '</div>' : '') + '</div>';
     }
+    var lw = lagWords(b);
+    if (lw) { h += '<div class="ag-btypes" id="ag-blag">' + esc(lw) + '</div>'; }
     if (b.stored === false) {
       h += '<p class="ag-note" id="ag-bunsaved" style="padding-top:8px">Save this config once so your Core keeps this build’s learning.</p>';
     }
@@ -744,7 +854,14 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     var st = S.status;
     if (!online() || S.noRoute || !st || st.on === false) { return ''; }
     var L = st.last, icon, words, label = 'Last shot: ';
-    if (!isObj(L)) {
+    if (LIVE[st.state]) {
+      /* D492 (owner, 2026-10-31: "sometimes it says a shot is green when it
+         isn't"): 2K's word is read ~1.5-2 s after the release, so while a
+         shot is still being watched this card would show the PREVIOUS
+         shot's word under the new shot. Say what is happening instead. */
+      icon = 'none'; label = '';
+      words = LIVE[st.state];
+    } else if (!isObj(L)) {
       icon = 'none'; label = '';
       words = 'No shot yet. Hold ' + shootName(S.p) + ' and shoot as usual.';
     } else if (typeof L.verdict2k === 'string' && V2K[L.verdict2k]) {
@@ -899,6 +1016,13 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     return h;
   }
 
+  /* D486: where Auto found 2K's word (GET /shot v2kWhere / v2kSeen); a
+     fixed choice says nothing */
+  function fbSeenWords() {
+    var st = S.status;
+    if (!st || st.v2kWhere !== 'auto') { return ''; }
+    return st.v2kSeen === 'top' ? FB_AUTO_TOP : st.v2kSeen === 'player' ? FB_AUTO_PLAYER : FB_AUTO_WAIT;
+  }
   /* each slot is repainted only when what it holds changed, so a 400 ms poll
      costs nothing on a screen that is not moving (and a button under a
      finger is not replaced mid-tap) */
@@ -914,7 +1038,9 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     put('ag-live', liveHTML());
     put('ag-result', resultHTML());
     put('ag-bwrap', buildsHTML(), wireBuilds);
+    put('ag-stick', stickHTML());
     put('ag-seen', seenHTML());
+    put('ag-fbseen', esc(fbSeenWords()));
     put('ag-last', lastHTML(), wireLast);
     put('ag-delay', delayHTML(), wireDelay);
     if (ROOT.querySelector('#ag-bench')) { put('ag-bench', benchHTML(), wireBench); }
@@ -1233,6 +1359,8 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     var ag = blockOf(pid);
     var nudge = isNum(ag.nudgeMs) ? Math.max(NUDGE_MIN, Math.min(NUDGE_MAX, Math.round(ag.nudgeMs))) : 0;
     var strat = ['auto', 'meter', 'press'].indexOf(ag.strategy);
+    var fbi = ['auto', 'player', 'top'].indexOf(ag.shotFeedback);
+    var how = shootingOf(ag);                                          /* D494 */
     /* a "?" whose chip rides a row of this screen's own and whose fold
        opens under the card's rows (helpHTML is the chip row, then the fold) */
     function chipAndFold(id, label, words) {
@@ -1272,6 +1400,14 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
         '<div class="ag-result" id="ag-result" role="status" aria-live="polite"></div>') +
       /* D478: your build, like 2K's (painted from GET /shot's builds) */
       '<div class="grp-card ag-bwrap" id="ag-bwrap"></div>' +
+      /* D494: two switches, both on by default, controller-first (the pad
+         walks them like every switch), and the tempo the Core learned, in
+         words; the "?" above (Auto green) explains them */
+      card('<div id="ag-shooting" role="group" aria-label="How you shoot">' +
+          toggleFld(BUTTON_LABEL, how.button, BUTTON_SUB, false, B('autoGreen.buttonShooting', 1, { t: 'bool' })) +
+          toggleFld(STICK_LABEL, how.stick, STICK_SUB, false, B('autoGreen.stickShooting', 1, { t: 'bool' })) +
+        '</div>' +
+        '<div class="ag-live ag-stick" id="ag-stick" role="status" aria-live="polite"></div>') +
       '<button type="button" class="ag-advbtn" id="ag-advbtn" aria-controls="ag-adv" aria-expanded="' + (adv ? 'true' : 'false') +
         '"><span>Advanced<em>Meter, fine-tune, delay. Most players never need it.</em></span>' +
         '<span class="chev" aria-hidden="true">›</span></button>' +
@@ -1280,6 +1416,11 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
       card('<div class="ag-style">' + styleSeg + '</div>' +
         '<div class="ag-stylehelp">' + meterHelp[1] + '</div>' +
         '<div class="ag-seen" id="ag-seen" role="status" aria-live="polite"></div>') +
+      /* D486: where 2K27 shows its word */
+      sh('Shot feedback') +
+      card(seg('Where 2K shows its word', FEEDBACK_LABELS, fbi < 0 ? 0 : fbi, false,
+          B('autoGreen.shotFeedback', 1, { t: 'str', map: FEEDBACK_MAP })) +
+        '<p class="ag-note" id="ag-fbseen" role="status" aria-live="polite"></p>') +
       sh('Timing') +
       card(timing + '<p class="ag-note" id="ag-nudgenote">' + esc(NUDGE_NOTE) + '</p>' +
         '<div class="ag-folds">' + nud[1] + '</div>' +
@@ -1403,6 +1544,10 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     var c = countOf(lr), shots = c ? c.n + ' of ' + c.of + ' shots' : '';
     if (off) { return { state: 'offline', on: on, name: 'Unavailable', status: '' }; }
     if (oldFw) { return { state: 'off', on: on, name: 'Needs a firmware update', status: OLD_FW }; }
+    /* D494: auto green on, both ways to shoot turned off: it does nothing */
+    if (block && block.enabled && isObj(st) && st.stickShooting === false && st.buttonShooting === false) {
+      return { state: 'warn', on: true, name: 'Both shooting ways off', status: 'Turn on Square or Pro stick shooting' };
+    }
     if (!on || ls === 'off' || ls === 'passive') {
       return { state: 'off', on: false, name: 'Turned off',
         status: ls === 'passive' && shots ? 'Learning your timing while off: ' + shots : 'Tap to turn it on' };
@@ -1410,6 +1555,14 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     if (!isObj(st)) { return { state: 'looking', on: true, name: 'Checking…', status: 'Asking your Core' }; }
     if (st.picture === false) {
       return { state: 'warn', on: true, name: 'No game picture', status: 'Connect your console through your Core' };
+    }
+    if (stickOnIn(st) && typeof st.stickHint === 'string' && st.stickHint) {
+      return { state: 'warn', on: true, name: 'Pro stick not shooting', status: st.stickHint };
+    }
+    if (LIVE[st.state]) {
+      /* D492: a shot being watched: HOME says so instead of the last word */
+      return { state: ls === 'ready' ? 'ok' : 'looking', on: true, name: ls === 'ready' ? READY : LEARNING,
+        status: LIVE[st.state] };
     }
     if (ls === 'learning') {
       return { state: 'looking', on: true, name: LEARNING, status: (shots ? shots + ' · ' : '') + JUST_SHOOT };
@@ -1459,6 +1612,7 @@ ZS_SECTIONS.add('autogreen', function (SEC) {
     LOGO: LOGO, LOGO_BANNER: LOGO_BANNER, HUE: HUE,
     COPY: { sub: SUB, oldFw: OLD_FW, what: WHAT_HELP, nudge: NUDGE_HELP, learn: LEARN_HELP, mode: MODE_HELP,
       meter: METER_HELP, white: STYLE_WHITE, arrow: STYLE_ARROW, nudgeNote: NUDGE_NOTE, delayNote: DELAY_NOTE,
+      stick: STICK_HELP, buttonLabel: BUTTON_LABEL, stickLabel: STICK_LABEL,
       introTitle: INTRO_TITLE, introSteps: INTRO_STEPS, v2k: V2K, introKey: INTRO_KEY, advKey: ADV_KEY, build: BUILD_HELP }
   };
 });

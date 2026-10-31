@@ -1844,7 +1844,7 @@
   /* encode.py BEHAVIOR_FIELDS: the four amounts in WIRE ORDER (D162, D163). */
   var BEHAVIOR_FIELDS = [['mouseTranslation', 'fineAim', 1], ['behavior', 'moveAnalog', 1],
     ['behavior', 'lookAnalog', 1], ['behavior', 'humanize', 1],
-    ['mouseTranslation', 'syncHz', 240], ['mouseTranslation', 'restEaseMs', 200]];
+    ['mouseTranslation', 'syncHz', 360], ['mouseTranslation', 'restEaseMs', 200]];
 
   /* encode.py _stick_variance (D171): a number 0..10 points, or null when it
      is absent (or wrong, with a problem said). */
@@ -1868,7 +1868,9 @@
         ? holder[BEHAVIOR_FIELDS[i][1]] : undefined;
       if (v === undefined || v === null) { vals.push(0.0); continue; }
       said = true;
-      if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > BEHAVIOR_FIELDS[i][2]) {
+      /* D491: syncHz's -1 is "off" (0 is the default, 60): the one negative allowed */
+      if (typeof v !== 'number' || !isFinite(v) ||
+          ((v < 0 || v > BEHAVIOR_FIELDS[i][2]) && !(BEHAVIOR_FIELDS[i][1] === 'syncHz' && v === -1))) {
         problems.push(BEHAVIOR_FIELDS[i][0] + '.' + BEHAVIOR_FIELDS[i][1] + ': ' +
           (typeof v === 'number' ? String(v) : pyRepr(v)) + ' is not a number from 0 to ' +
           BEHAVIOR_FIELDS[i][2]);
@@ -1900,14 +1902,35 @@
        when the profile names one: encode.py _xim_tail, byte for byte. */
     var xim = ximTail(p, problems);
     if (xim !== null) { said = true; }
+    /* D489: the rest wobble after the D377 seven and ONLY when named (the
+       seven are then written, 0 = off): encode.py _rest_wobble, byte for byte. */
+    var rw = restWobbleOf(mtb, problems);
+    if (rw !== null) { said = true; }
     if (!said) { return null; }
     var w = new W();
     for (i = 0; i < vals.length; i++) { w.f32(vals[i]); }
     var hasAfa = afa !== undefined && afa !== null;
-    if (hasAfa || sv !== null || xim !== null) { w.f32(hasAfa ? afa + 1 : 0.0); }
-    if (sv !== null || xim !== null) { w.f32(sv !== null ? sv : 0.0); }
-    if (xim !== null) { for (i = 0; i < xim.length; i++) { w.f32(xim[i]); } }
+    if (hasAfa || sv !== null || xim !== null || rw !== null) { w.f32(hasAfa ? afa + 1 : 0.0); }
+    if (sv !== null || xim !== null || rw !== null) { w.f32(sv !== null ? sv : 0.0); }
+    if (xim !== null || rw !== null) {
+      var seven = xim !== null ? xim : [0, 0, 0, 0, 0, 0, 0];
+      for (i = 0; i < seven.length; i++) { w.f32(seven[i]); }
+    }
+    if (rw !== null) { w.f32(rw); }
     return w.bytes();
+  }
+
+  /* encode.py _rest_wobble (D489): mouseTranslation.restWobble 0..1, or
+     null when not named; a bad value is said and written as 0. */
+  function restWobbleOf(mt, problems) {
+    var v = (mt && typeof mt === 'object' && !isArray(mt)) ? mt.restWobble : undefined;
+    if (v === undefined || v === null) { return null; }
+    if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1) {
+      problems.push('mouseTranslation.restWobble: ' +
+        (typeof v === 'number' ? String(v) : pyRepr(v)) + ' is not a number from 0 to 1');
+      return 0.0;
+    }
+    return v;
   }
 
   /* encode.py XIM_FIELDS (D377): in WIRE ORDER after stickVariance, as
@@ -3484,6 +3507,10 @@
      2K27's bar); absent or anything else is 'arrow' (old configs keep their
      bytes). The target's default follows it: 0.95 arrow, 0.97 white. */
   var SHOT_METER_STYLES = ['arrow', 'white'];
+  /* D486: where 2K27's Shot Feedback shows its word (flags bits 3-4): auto
+     (both until seen), over the player (the badge), top (the TIMING panel).
+     Same as encode.py SHOT_FEEDBACK */
+  var SHOT_FEEDBACK = ['auto', 'player', 'top'];
   var SHOT_TARGET_DEFAULT = [950, 970];
   /* round(v * scale) clamped to lo..hi, or dflt when v is not a finite
      number: _shot_num. Clamped BEFORE rounding (the Python's order), and
@@ -3588,6 +3615,18 @@
     if (!said(learn)) { learn = styleIdx === 1; }
     if (pyTruthy(learn)) { flags |= 0x02; }
     if (pyTruthy(get(ag, 'blindPress'))) { flags |= 0x04; }
+    var fb = get(ag, 'shotFeedback');
+    if (typeof fb === 'string' && SHOT_FEEDBACK.indexOf(fb) >= 0) { flags |= SHOT_FEEDBACK.indexOf(fb) << 3; }
+    /* D494: both ways to shoot are ON unless the document turns one off:
+       bit 5 = stickShooting OFF, bit 6 = buttonShooting OFF (0, every config
+       ever saved, is on). With stickShooting not said, D493's shootWith
+       'button' reads as stick off ('proStick' or anything else: both on).
+       Same as encode.py */
+    var byStick = get(ag, 'stickShooting');
+    if (!said(byStick)) { byStick = get(ag, 'shootWith') !== 'button'; }
+    if (!pyTruthy(byStick)) { flags |= 0x20; }
+    var byButton = get(ag, 'buttonShooting');
+    if (said(byButton) && !pyTruthy(byButton)) { flags |= 0x40; }
 
     var button = get(ag, 'button');
     if (!said(button)) { button = 'west'; }
