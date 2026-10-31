@@ -1,0 +1,88 @@
+/* sections/19-pairing.js — Pair Controllers: the devices plugged into the adapter.
+ *
+ * R.pairing: the live /devices list (no Bluetooth pairing exists; see the
+ * comment). Uses devRoleIco from 05-game-identity.js.
+ *
+ * Screens (window.RENDERERS):  R.pairing
+ * Core / board routes:        /devices
+ * Tests:                      test-settings-icons.js, test-render.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('pairing', function (SEC) {
+  var helpHTML = SEC.helpHTML;   /* D285: every explanation behind a "?" (2026-10-31) */
+  /* from the files before this one */
+  var btn = SEC.btn, card = SEC.card, esc = SEC.esc, note = SEC.note, R = SEC.R,
+      sh = SEC.sh, ZS = SEC.ZS, devRoleIco = SEC.devRoleIco;
+
+  /* ── Pair Controllers ─────────────────────────────────────────── */
+  /* "🔍 Scan for controllers" and the note promising Bluetooth pairing were
+     removed: there is no Bluetooth code in the agent at all (grep it for bluez,
+     bluetoothctl or hci and you get nothing). The button re-fetched /devices
+     and toasted "Scanning…", which read as a pairing scan that had found
+     nothing. The live device list underneath is real, so that is what the
+     screen is now. docs/STATUS.md records what real pairing would take. */
+  R.pairing = function(p){
+    var html = sh('Connected controllers')+
+      '<div id="pair-list">'+card('<div class="stat"><span>Looking for devices…</span><b>—</b></div>')+'</div>'+
+      btn('↻ Refresh this list',null,'pair-scan')+
+      helpHTML('pair-what', 'Connected controllers', 'Controllers plugged into the adapter appear here automatically. <b>Bluetooth pairing is not built yet</b> — for now, connect a controller with a USB cable.');
+    return { html: html, after: function(root){
+      function load(){
+        if(ZS.live.online===false){
+          root.querySelector('#pair-list').innerHTML = card('<div class="stat"><span>Board offline</span><b style="color:var(--amber)">—</b></div>');
+          return;
+        }
+        ZS.api('/devices').then(function(j){
+          /* m12 (audit 2026-10-10): a failed read used to leave the list
+             as it was (a spinner, or yesterday's pads); it says so now */
+          if(!j || !j.ok || !Array.isArray(j.data)){
+            var pl = root.querySelector('#pair-list');
+            if(pl) pl.innerHTML = card('<div class="stat"><span>Your board did not answer'+
+              ((j && j.error) ? ': '+esc(String(j.error)) : '')+'. Refresh to try again.</span>'+
+              '<b style="color:var(--amber)">\u2014</b></div>');
+            return;
+          }
+          /* D217: an interface the Core did not open is not a connected
+             controller: left out of the list, named in a quiet line under it */
+          /* the devices a player plugged in (devbar.js userDevices: pads,
+             keyboards, mice, one row per device), never the board's own
+             input nodes (2026-10-31; the EXO listed sunxi-gpadc0 and
+             axp8191-pek as controllers) */
+          var opened = ZS.userDevices ? ZS.userDevices(j.data) : j.data.filter(function(d){
+            return d && d.connected !== false && d.opened !== false;
+          });
+          var skipped = ZS.notOpened ? ZS.notOpened(j.data) : [];
+          var rows = opened.map(function(d){
+            /* P6: a device drawn as what it is — icon by role, none for a
+               role we do not recognise (a wrong picture is worse than no
+               picture). effectiveRole first: the board's `role` is usually
+               the "auto" POLICY, and effectiveRole is what it resolved to —
+               the same source Overview's device card reads. Pure function
+               of the role string, so the refresh repaint byte-matches
+               identical state. */
+            return '<div class="stat"><span>'+devRoleIco(d.effectiveRole||d.role)+esc(d.name||d.ident||'device')+
+              ((d.role && d.role !== 'auto') ? '<em style="display:block;color:var(--muted);font-size:11px;font-style:normal">'+esc(d.role)+'</em>' : '')+'</span>'+
+              '<b class="ok">● '+esc(d.state||'present')+'</b></div>';
+          }).join('') || '<div class="stat"><span>No controllers found</span><b>—</b></div>';
+          if(skipped.length){
+            rows += '<div class="stat"><span style="color:var(--muted);font-size:12px">'+
+              esc(skipped.length+' not opened: '+skipped.map(function(d){
+                return ZS.notOpenedWords ? ZS.notOpenedWords(d) : String(d.suppressedReason||d.ident||'');
+              }).join('; '))+'</span><b style="color:var(--muted)">—</b></div>';
+          }
+          root.querySelector('#pair-list').innerHTML = card(rows);
+        });
+      }
+      var sc=root.querySelector('#pair-scan');
+      if(sc) sc.addEventListener('click', function(){
+        if(ZS.live.online===false){ ZS.toast('Board offline'); return; }
+        ZS.toast('Refreshed'); load();
+      });
+      load();
+    }};
+  };
+});

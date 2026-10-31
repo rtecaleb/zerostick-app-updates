@@ -1,0 +1,1042 @@
+/* recoil-spots.js: the Anti-Recoil Lab's TRAINED SPOTS (D404) and the
+ * Core's own fire-rate run ("Measure fire rate"), ZS_RECOIL_SPOTS.
+ *
+ * The owner, 2026-10-17: "For automatic, the Core is supposed to
+ * automatically do it all: find the fire rate for you, shoot it against the
+ * wall for you, trace it, etc. I'm going to have set spots on every game
+ * where it's trained, so users stand somewhere the Core was trained for".
+ *
+ * D408 (the owner, 2026-10-19, Call of Duty BO7 / Warzone): the Core firing the
+ * wall magazine itself marked 51 "holes" on the GUN model instead of the
+ * bullet trail on the wall. Automatic is now TWO steps, and this file has
+ * the first and the spots:
+ *
+ *   A. MEASURE FIRE RATE (the Fire rate page): the ONLY place the Core
+ *      presses anything. POST /recoil/auto {"op":"arm"} with no reference
+ *      (no view check; a trained spot's "ammoBox" says where the ammo
+ *      counter is), then {"op":"go"}: hands off, the Core holds aim and
+ *      fire, watches the HUD's ammo counter, lets go about a second after it
+ *      stops (empty) or when the reload brings the full magazine back, and
+ *      reports the rate from the counter and the magazine size ("30-round
+ *      mag · 600 RPM (measured)"). A counter it cannot read falls back to
+ *      the muzzle flashes, said as a guess. D416 (the owner, 2026-10-20):
+ *      it RELOADS first (the config's reload button, Square / X by default:
+ *      reloadOf) and waits for the full magazine before it fires; and the
+ *      player's controller, mouse and keyboard are paused for the whole run
+ *      (touching them no longer stops it): Stop, closing the Lab or the app
+ *      going quiet (its poll is the lease) gives them back at once.
+ *   B. THE WALL (recoil-wall.js): the player fires; the Core only watches.
+ *
+ *   THE SPOT (a game with one in its pack): its picture, where it is and one
+ *   line, the guide for where to stand. "I'm on the spot" opens the session
+ *   and goes on to Fire rate; the spot's own wall (box, brightness, the ammo
+ *   counter's place) and field of view go with the wall step.
+ *   D419 (owner, 2026-10-20): ONE Automatic. A game with NO trained spot is
+ *   not told so and offered a choice: the same flow says to go to any flat
+ *   wall with some detail (method 'auto', recoil-wall.js's anywhere) and the
+ *   Core reads the view there.
+ *
+ *   C. THE SENSITIVITY CHECK (anywhere only, on the Fire rate page, once per
+ *      game and config): POST /recoil/auto {"op":"arm","sens":true} then GO;
+ *      the player's controls are paused (as Measure fire rate), the Core aims
+ *      down sights and moves the aim by known counts through the Script's own
+ *      door, the view measured anywhere; the answer (counts per frame width
+ *      and height) is kept per config and per game (recoil-wall.js setSens)
+ *      and makes the Script's 100% the real size.
+ *
+ * TRAIN THIS SPOT (developer builds with developer mode on, never a
+ * customer's): the owner stands on the spot, the Core shows how much of the
+ * view it can recognise, "Capture this view" keeps the Core's own 48 x 27
+ * thumbnail (the reference) and a picture for players, then the owner fires
+ * a test magazine at the wall (the Core watches, as a player's would), checks
+ * the traced line, and saves the spot with the wall the Core found (its box
+ * grown a little, its brightness) and the field of view: kept on this device
+ * to try at once, and downloaded as a spot file and a picture, which
+ * dashboard/tools/add-recoil-spot.js writes into the game pack
+ * (docs/HOW-TO-TRAIN-A-SPOT.md). Real frames only.
+ *
+ * NOTHING HERE STORES A PICTURE ON THE CORE: the reference thumbnail lives
+ * for the session; the spot's picture is an app file (game-packs/spots/).
+ *
+ * ES5 ONLY (DESIGN.md). Loaded after recoil-wall.js; it borrows
+ * recoil-workshop.js's kit (ZS_RECOIL._kit) and recoil-wall.js's picture,
+ * line and maths (ZS_RECOIL_WALL).
+ */
+(function () {
+  'use strict';
+
+  var AUTO_POLL_MS = 250;
+  var SPOT_DIR = 'game-packs/spots/';
+  var DEV_KEY = 'zs-recoil-spots-dev';
+  var VIEW_BOX = [0.30, 0.14, 0.40, 0.45];      /* ZS_RSPOT_BOX_* */
+  var WALL_BOX = [0.36, 0.06, 0.28, 0.56];      /* ZS_RWALL_BOX_* */
+  var TEXTURE_MIN = 6;                           /* ZS_RSPOT_TEXTURE_MIN */
+  var BOX_GROW = 0.06;                           /* the found wall, grown each side for the spot */
+
+  function Z() { return window.ZS; }
+  function K() { return window.ZS_RECOIL._kit; }
+  function V() { return window.ZS_RECOIL_WALL; }
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function esc(s) { return K().esc(s); }
+  function r4(v) { return Math.round(num(v, 0) * 10000) / 10000; }
+
+  /* ══ who sees the training tool ═════════════════════════════════════ */
+
+  /* developer builds (zs-build.js) with developer mode on (the Debug box's
+     2200): never a customer's build, never a customer's phone */
+  function devTools() {
+    if (!window.ZS_BUILD || window.ZS_BUILD.dev !== true) return false;
+    var z = Z();
+    return !!(z && typeof z.devMode === 'function' && z.devMode());
+  }
+
+  /* ══ the spots ══════════════════════════════════════════════════════ */
+
+  function full(p) {
+    var L = Z() && Z().live;
+    return (L && L.full && p && L.full[p.id]) || {};
+  }
+  function packIdOf(p) {
+    var f = full(p), g = f.gamePack || (p && p.gamePack) || {};
+    return String((g && g.id) || '');
+  }
+  function packOf(p) {
+    var P = window.ZSPACKS, id = packIdOf(p);
+    return P && id ? P.get(id) : null;
+  }
+  function gameName(p) {
+    var pk = packOf(p), f = full(p);
+    return (pk && pk.name) || f.game || (p && p.game) || 'this game';
+  }
+  /* the owner's spots trained on this device and not in the pack yet
+     (developer builds only) */
+  function devStore() {
+    try { return JSON.parse(localStorage.getItem(DEV_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function devSpots(packId) {
+    if (!devTools()) return [];
+    var all = devStore();
+    return (all[packId] || []).map(function (s) { var c = JSON.parse(JSON.stringify(s)); c.local = true; return c; });
+  }
+  function keepDevSpot(packId, spot) {
+    try {
+      var all = devStore();
+      var list = (all[packId] || []).filter(function (s) { return s.id !== spot.id; });
+      list.unshift(spot);
+      all[packId] = list.slice(0, 6);
+      localStorage.setItem(DEV_KEY, JSON.stringify(all));
+      return true;
+    } catch (e) { return false; }
+  }
+  /* the pack's spots, then this device's (developer) */
+  function spotsFor(p) {
+    var pk = packOf(p), id = packIdOf(p);
+    var list = (pk && Array.isArray(pk.recoilSpots)) ? pk.recoilSpots.slice() : [];
+    return list.concat(devSpots(id));
+  }
+  function pictureOf(spot) {
+    if (!spot) return '';
+    if (spot.pictureUrl) return spot.pictureUrl;          /* a spot trained on this device */
+    return spot.picture ? SPOT_DIR + spot.picture : '';
+  }
+
+  /* ══ the gun the Script is for ══════════════════════════════════════ */
+
+  function fold(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ''); }
+  /* the gun the Core's reader sees out right now, from the game's catalog:
+     {pack, item, name} or null */
+  function gunOut(p) {
+    var z = Z(), w = z && z.liveInput && z.liveInput.weapon, A = window.ZSAUTO;
+    if (!w || w.noWeapon || !w.active || !A || typeof A.catalog !== 'function') return null;
+    var pack = packIdOf(p), c = A.catalog(pack), cat = c && c.state === 'ready' ? c.data : null;
+    if (!cat) return null;
+    var groups = (cat.groups || []).slice(), want = fold(w.active), hit = null;
+    (cat.kinds || []).forEach(function (k) { groups = groups.concat(k.groups || [], [{ items: k.items || [] }]); });
+    groups.forEach(function (g) {
+      (g.items || []).forEach(function (it) { if (!hit && it && it.id && fold(it.name) === want) hit = it; });
+    });
+    return hit ? { pack: pack, item: hit.id, name: hit.name } : null;
+  }
+  /* where the Script goes: the gun page it was opened from (D398), or the
+     gun that is out, or the config's Fire */
+  function target(W) {
+    var room = W.opts && W.opts.room;
+    if (room && room.title) return { words: 'Fire, on the ' + room.title + '’s page', gun: null };
+    var g = gunOut(W.p);
+    if (g) return { words: 'Fire, for the ' + g.name + ' (the gun you have out)', gun: g };
+    return { words: 'Fire, for this config', gun: null };
+  }
+
+  /* ══ words ══════════════════════════════════════════════════════════ */
+
+  /* the Core's fire-rate run, while it runs */
+  function runWords(a) {
+    var st = (a && a.state) || 'arming', am = (a && a.ammo) || {};
+    var n = am.read ? num(am.shots, 0) : num(a && a.flashes, 0);
+    var counted = n + (am.read ? (n === 1 ? ' shot' : ' shots') + ' counted'
+      : (n === 1 ? ' muzzle flash' : ' muzzle flashes'));
+    switch (st) {
+      case 'countdown': return '<b>Hands off.</b> Starting…';
+      case 'reloading': return '<b>Reloading…</b>';
+      case 'aiming': return '<b>Aiming…</b>';
+      case 'firing': return '<b>Firing…</b> · ' + counted;
+      case 'settling': return '<b>The gun stopped.</b> ' + counted;
+      case 'holding': return '<b>Done.</b> ' + counted;
+      case 'done': return '<b>Done.</b>';
+      case 'cancelled': return 'Stopped';
+      case 'failed': return 'It did not work';
+      default: return 'Getting ready…';
+    }
+  }
+  function running(a) { return !!a && /^(arming|countdown|reloading|aiming|firing|moving|settling|holding)$/.test(String(a.state)); }
+  /* what the run measured, as the player reads it (pure):
+     {ok, head, note} - head "30-round mag · 600 RPM (measured)" when the
+     ammo counter was read; a guess said as one when it was not */
+  function measuredWords(m) {
+    if (!m || !(num(m.rpm, 0) >= 60)) return { ok: false, head: '', note: '' };
+    var rpm = Math.round(num(m.rpm, 0)), mag = Math.round(num(m.mag, 0)), shots = Math.round(num(m.shots, 0));
+    if (m.read) {
+      if (mag >= 2) return { ok: true, head: mag + '-round mag · ' + rpm + ' RPM (measured)', note: '' };
+      return { ok: true, head: rpm + ' RPM (measured' + (shots >= 2 ? ' from ' + shots + ' shots' : '') + ')',
+        note: m.reloaded ? 'The gun reloaded before the magazine was empty, so the magazine size is not known.' : '' };
+    }
+    var from = m.src === 'holes' ? 'the bullet holes' : m.src === 'both' ? 'the muzzle flashes and bullet holes'
+      : 'the muzzle flashes';
+    return { ok: true, head: rpm + ' RPM (a guess)',
+      note: 'Your Core couldn’t read the ammo counter, so the rate is a guess from ' + from + '. Type the real rate ' +
+        'above if you know it.' };
+  }
+
+  /* ══ styles ═════════════════════════════════════════════════════════ */
+
+  var cssDone = false;
+  function css() {
+    if (cssDone || !document.head) return;
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'rs-css';
+    s.textContent =
+      '.rs-spot{border:1.5px solid var(--line,rgba(255,255,255,.12));border-radius:16px;overflow:hidden;margin:0 0 12px;' +
+        'background:var(--panel2,var(--panel))}' +
+      '.rs-spot img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}' +
+      '.rs-spot .rs-pad{padding:12px 14px}' +
+      '.rs-where{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;padding:3px 9px;' +
+        'border-radius:999px;color:var(--accent-ink);background:var(--accent);margin:0 0 6px}' +
+      '.rs-spot b.rs-name{display:block;font-size:17px;letter-spacing:var(--tr-title,-.016em);margin:0 0 4px}' +
+      '.rs-say{font-size:14.5px;line-height:1.45;margin:0}' +
+      '.rs-local{font-size:12px;color:var(--muted);margin:6px 0 0}' +
+      '.rs-pick{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}' +
+      '.rs-pick button{text-align:left;font:inherit;color:var(--text);padding:10px 12px;border-radius:14px;' +
+        'border:1.5px solid var(--line,rgba(255,255,255,.12));background:var(--panel2,var(--panel));cursor:pointer}' +
+      '.rs-pick button.on{border-color:var(--accent)}' +
+      '.rs-none{padding:14px;border-radius:16px;border:1.5px dashed var(--line,rgba(255,255,255,.2));margin:0 0 12px;' +
+        'font-size:14.5px;line-height:1.5}' +
+      '.rs-none b{display:block;font-size:17px;margin:0 0 4px}' +
+      '.rs-view{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;margin:0 0 10px;' +
+        'border:1.5px solid var(--line,rgba(255,255,255,.12));font-size:15px;line-height:1.4}' +
+      '.rs-view.ok{border-color:var(--green,var(--accent))}' +
+      '.rs-view i{flex:0 0 26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+        'font-style:normal;font-weight:800;font-size:14px;border:2px solid var(--muted);color:var(--muted)}' +
+      '.rs-view.ok i{background:var(--green,var(--accent));border-color:transparent;color:var(--accent-ink)}' +
+      '.rs-hands{text-align:center;padding:22px 14px;border-radius:18px;margin:0 0 12px;border:2px solid var(--accent);' +
+        'background:var(--tint-wash,transparent)}' +
+      '.rs-hands .rs-big{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}' +
+      '.rs-hands p{margin:0;font-size:14.5px;line-height:1.45}' +
+      '.rs-live{font-variant-numeric:tabular-nums;font-size:17px;margin:10px 0 0}' +
+      '.rs-holds{display:flex;justify-content:center;gap:8px;margin:10px 0 0}' +
+      '.rs-holds span{font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:999px;' +
+        'border:1px solid var(--line,rgba(255,255,255,.2));color:var(--muted)}' +
+      '.rs-holds span.on{border-color:var(--accent);color:var(--text)}' +
+      '.rs-meas{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:16px;margin:0 0 12px;' +
+        'border:1.5px solid var(--line,rgba(255,255,255,.12));background:var(--panel2,var(--panel))}' +
+      '.rs-meas .rs-mt{font-size:15px;font-weight:600;margin:0}' +
+      '.rs-meas .rs-ms{font-size:13.5px;line-height:1.45;color:var(--muted);margin:0}' +
+      '.rs-got{display:flex;gap:10px;align-items:center;font-variant-numeric:tabular-nums;font-size:16px;margin:0}' +
+      '.rs-got i{flex:0 0 22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+        'font-style:normal;font-weight:700;font-size:13px;background:var(--green,var(--accent));color:var(--accent-ink)}' +
+      '.rs-got.guess i{background:var(--amber,#e3b341);color:#1d1400}' +
+      '.rs-dev{border:1.5px dashed var(--amber,#e3b341);border-radius:14px;padding:10px 12px;margin:0 0 12px}' +
+      '.rs-dev .rs-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.04em;color:var(--amber,#e3b341);' +
+        'margin:0 0 6px}' +
+      '.rs-in{width:100%;box-sizing:border-box;min-height:44px;font:inherit;font-size:15px;padding:9px 12px;' +
+        'border-radius:12px;border:1px solid var(--line,rgba(255,255,255,.2));background:var(--panel2,var(--panel));' +
+        'color:var(--text);margin:4px 0 10px}' +
+      '.rs-lab{display:block;font-size:13px;color:var(--muted)}' +
+      '.rs-json{width:100%;box-sizing:border-box;min-height:120px;font:12px/1.4 ui-monospace,monospace;' +
+        'border-radius:12px;padding:8px;border:1px solid var(--line,rgba(255,255,255,.2));background:var(--panel2,var(--panel));' +
+        'color:var(--text)}';
+    document.head.appendChild(s);
+  }
+
+  function help(id, label, text) { return Z().helpHTML ? Z().helpHTML(id, label, text) : ''; }
+
+  /* ══ the pages ══════════════════════════════════════════════════════ */
+
+  var HELP_SPOT = 'A <b>trained spot</b> is a place in the game where your Core already knows the wall: where it ' +
+    'is on your screen, how bright it is, where the ammo counter is and the game’s field of view there. ' +
+    'Standing there makes tracing your magazine quick and sure. Next, your Core measures the fire rate (it aims ' +
+    'and fires one magazine by itself: <b>don’t touch the controller</b> while it does, touching anything stops ' +
+    'it). Then you aim at the wall and fire one magazine yourself while your Core watches and traces it.';
+
+  function spotCard(W, s) {
+    var pic = pictureOf(s);
+    return '<div class="rs-spot" id="rs-spot">' + (pic ? '<img src="' + esc(pic) + '" alt="' +
+      esc('the spot: ' + (s.where || s.name)) + '">' : '') +
+      '<div class="rs-pad"><span class="rs-where">' + esc(s.where || '') + '</span>' +
+      '<b class="rs-name">' + esc(s.name || 'The spot') + '</b>' +
+      '<p class="rs-say">' + esc(s.say || 'Stand on this spot, face the wall like the picture.') + '</p>' +
+      (s.local ? '<p class="rs-local">Trained on this device, not in the game pack yet (developer).</p>' : '') +
+      '</div></div>';
+  }
+
+  /* Automatic, step 1: the spot (or, for a game with none, the plain truth) */
+  function pageSpot(W) {
+    var k = K(), list = W.spots || [], h;
+    if (!list.length) {
+      /* D419: no trained spot: any flat wall (reached by Back from training) */
+      h = '<p class="rw-q">Automatic</p>' +
+        '<div class="rs-none" id="rs-nospot"><b>A white wall</b>Find a white wall where bullet holes show up clearly, with an edge, a sign or the floor also in view. Aim down sights and empty the magazine.</div>';
+      h += devHTML(W, false);
+      h += W.err ? k.note(esc(W.err), 'warn') : '';
+      return h + '<div class="rw-row">' + k.btn('Back', null, 'rw-tomode') + k.btn('Next', 'primary', 'rs-anywall') + '</div>';
+    }
+    var s = W.spot || list[0];
+    h = '<p class="rw-q">Go to the spot</p>';
+    if (list.length > 1) {
+      h += '<div class="rs-pick" role="radiogroup" aria-label="spots">' + list.map(function (x, i) {
+        return '<button type="button" role="radio" aria-checked="' + (x === s ? 'true' : 'false') + '" data-rsi="' + i +
+          '"' + (x === s ? ' class="on"' : '') + '>' + esc(x.name) + ' · ' + esc(x.where || '') + '</button>';
+      }).join('') + '</div>';
+    }
+    h += spotCard(W, s);
+    h += '<p class="rw-h">Stand here and face the wall like the picture. Next your Core measures the fire rate, ' +
+      'then you fire one magazine at the wall.</p>' + help('rs-spot-help', 'How Automatic works at a spot', HELP_SPOT);
+    h += k.card(k.fld('My game settings match this config', k.toggle(W.checked, 'rw-checked', 'my game settings match'),
+      'sensitivity and aiming settings as when you set up this config'));
+    h += W.err ? k.note(esc(W.err), 'warn') : '';
+    h += '<div class="rw-row">' + k.btn('Back', null, 'rw-tomode') +
+      k.btn(W.busy ? 'Getting ready…' : 'I’m on the spot', 'primary', 'rs-onspot', !W.checked || W.busy) + '</div>';
+    h += devHTML(W, true);
+    return h;
+  }
+
+  /* the developer's door to training, only for developers */
+  function devHTML(W, has) {
+    if (!devTools()) return '';
+    return '<div class="rs-dev" id="rs-devbox"><span class="rs-tag">DEVELOPER</span>' +
+      '<p class="rw-h" style="margin:0 0 8px">Train a spot for ' + esc(gameName(W.p)) + ': stand there, and your Core ' +
+      'learns the view and the wall from a test magazine you fire.</p>' +
+      K().btn(has ? 'Train a new spot' : 'Train this spot', null, 'rs-train') + '</div>';
+  }
+
+  /* ── step A: Measure fire rate, on the Fire rate page ── */
+
+  var HELP_MEASURE = 'Your Core reloads, waits until the ammo counter shows a full magazine, then aims down ' +
+    'sights and fires it <b>by itself</b>, the only time it presses anything in the Lab. It reads the ammo counter ' +
+    'on your screen while it fires, lets go about a second after the counter stops (the magazine is empty), and ' +
+    'works out the fire rate and the magazine size from the counter. Point anywhere safe: it does not need the ' +
+    'wall. <b>Your controller, mouse and keyboard are paused</b> while it runs, so nothing you touch gets in the ' +
+    'way. They come back the moment it ends, when you press Stop, if you close the Lab, or if the app loses ' +
+    'touch. If it cannot read the ammo counter, the rate is a guess from the muzzle flashes, and the page says so.';
+  /* the card on the Fire rate page (wall methods only) */
+  function measureHTML(W) {
+    var k = K(), m = W.measured, mw = measuredWords(m), h = '<div class="rs-meas" id="rs-meas">';
+    if (mw.ok) {
+      h += '<p class="rs-got' + (m.read ? '' : ' guess') + '" id="rs-measgot"><i>' + (m.read ? '✓' : '!') + '</i><span>' +
+        esc(mw.head) + '</span></p>';
+      if (mw.note) h += '<p class="rs-ms">' + esc(mw.note) + '</p>';
+    } else {
+      h += '<p class="rs-mt">Let your Core measure it</p>' +
+        '<p class="rs-ms">It aims and fires one full magazine by itself and reads your ammo counter. Hands off ' +
+        'while it fires.</p>';
+    }
+    h += help('rs-measure-help', 'How your Core measures it', HELP_MEASURE);
+    h += W.measErr ? k.note(esc(W.measErr), 'warn') : '';
+    h += k.btn(mw.ok ? 'Measure again' : 'Measure fire rate', mw.ok ? null : 'primary', 'rs-measure', W.busy) + '</div>';
+    return h;
+  }
+  /* the hands-off screen while the Core fires */
+  function measureRunHTML(W) {
+    var k = K(), a = W.meas || {}, st = a.state || 'arming', hold = a.hold || {};
+    var h = '<p class="rw-q">' + (st === 'holding' || st === 'settling' ? 'Almost done' : 'Hands off the controller') + '</p>' +
+      '<div class="rs-hands" id="rs-hands"><div class="rs-big">' + (st === 'countdown' || st === 'arming' ? 'Let go now' :
+        st === 'reloading' ? 'Your Core is reloading' :
+        st === 'holding' || st === 'settling' ? 'Keep still' : 'Your Core is firing') + '</div>' +
+      '<p>Your controller, mouse and keyboard are paused until it ends. Stop gives them back.</p>' +
+      '<p class="rs-live" id="rs-live" aria-live="polite">' + runWords(a) + '</p>' +
+      '<div class="rs-holds" aria-label="what your Core is holding"><span class="' + (hold.lt ? 'on' : '') + '">Aim ' +
+        (hold.lt ? 'held' : '—') + '</span><span class="' + (hold.rt ? 'on' : '') + '">Fire ' + (hold.rt ? 'held' : '—') +
+        '</span></div></div>';
+    return h + '<div class="rw-row">' + k.btn('Stop', 'danger', 'rs-stop') + '</div>';
+  }
+
+  /* ── D419: the sensitivity check, on the Fire rate page (anywhere) ── */
+
+  var HELP_SENS = 'Your Core finds out how far your aim moves for the movement a Script sends, in <b>this game, with ' +
+    'your settings</b>, so the Script pulls exactly as far as the recoil climbs (no field of view to look up). Face a ' +
+    'still wall with some detail on it and press Check: your Core aims down sights and moves your aim a little left, ' +
+    'right, up and down by itself (it never fires), about 15 seconds. <b>Your controller, mouse and keyboard are ' +
+    'paused</b> while it runs; they come back the moment it ends, when you press Stop, if you close the Lab, or if ' +
+    'the app loses touch. It is kept for this config and this game: check again if you change your in-game ' +
+    'sensitivity or this config’s aim settings.';
+  function sensHTML(W) {
+    var k = K(), sn = V().sensFor(W.p), h = '<div class="sh">Sensitivity</div><div class="rs-meas" id="rs-sensbox">';
+    if (sn) {
+      h += '<p class="rs-got" id="rs-sensgot"><i>✓</i><span>Sensitivity checked' + (sn.src === 'game' ? ' (for this game)' : '') +
+        '</span></p><p class="rs-ms">Your Script is made at the real size your Core measured.</p>';
+    } else {
+      h += '<p class="rs-mt">Let your Core check it, once</p>' +
+        '<p class="rs-ms">It moves your aim a little by itself while you face a wall, so 100% is the real size in ' +
+        'this game. Hands off while it runs.</p>';
+    }
+    h += help('rs-sens-help', 'How the sensitivity check works', HELP_SENS);
+    h += W.sensErr ? k.note(esc(W.sensErr), 'warn') : '';
+    h += k.btn(sn ? 'Check again' : 'Check sensitivity', sn ? null : 'primary', 'rs-sens', W.busy) + '</div>';
+    return h;
+  }
+  function sensWords(a) {
+    var st = (a && a.state) || 'arming';
+    switch (st) {
+      case 'countdown': return '<b>Hands off.</b> Starting…';
+      case 'aiming': return '<b>Aiming…</b>';
+      case 'moving': return '<b>Moving your aim…</b> keep facing the wall';
+      case 'settling': return '<b>Measuring…</b>';
+      case 'done': return '<b>Done.</b>';
+      default: return 'Getting ready…';
+    }
+  }
+  function sensRunHTML(W) {
+    var k = K(), a = W.sensRun || {}, st = a.state || 'arming';
+    var h = '<p class="rw-q">Hands off the controller</p>' +
+      '<div class="rs-hands" id="rs-hands"><div class="rs-big">' + (st === 'countdown' || st === 'arming' ? 'Let go now'
+        : 'Your Core is checking your sensitivity') + '</div>' +
+      '<p>Face the wall. Your controller, mouse and keyboard are paused until it ends. Stop gives them back.</p>' +
+      '<p class="rs-live" id="rs-live" aria-live="polite">' + sensWords(a) + '</p></div>';
+    return h + '<div class="rw-row">' + k.btn('Stop', 'danger', 'rs-sensstop') + '</div>';
+  }
+  function stopSensPoll(W) { if (W.sstimer) { clearInterval(W.sstimer); W.sstimer = null; } }
+  function sensFail(W, words) {
+    stopSensPoll(W);
+    W.sensRun = null;
+    W.busy = false;
+    W.sensErr = words;
+    W.paint();
+  }
+  function sensStart(W) {
+    W.err = '';
+    W.sensErr = '';
+    W.busy = true;
+    W.sensRun = { state: 'arming' };
+    W.paint();
+    api('/recoil/auto', 'POST', { op: 'arm', sens: true }).then(function (j) {
+      if (W.closed) return null;
+      if (!j.ok) {
+        var e = String(j.error || '');
+        sensFail(W, /404|no such|not found/i.test(e) || (j.data && j.data.auto && !j.data.auto.sens)
+          ? 'This Core’s firmware cannot check the sensitivity yet. Update the Core.' : (e || 'Your Core could not get ready.'));
+        return null;
+      }
+      if (!(j.data && j.data.auto && j.data.auto.sens)) {
+        api('/recoil/auto', 'POST', { op: 'stop' });
+        sensFail(W, 'This Core’s firmware cannot check the sensitivity yet. Update the Core.');
+        return null;
+      }
+      return api('/recoil/auto', 'POST', { op: 'go' }).then(function (g) {
+        if (W.closed) return;
+        if (!g.ok) {
+          api('/recoil/auto', 'POST', { op: 'stop' });
+          sensFail(W, String(g.error || 'Your Core could not start.'));
+          return;
+        }
+        W.sensRun = (g.data && g.data.auto) || { state: 'countdown' };
+        W.paint();
+        sensPoll(W);
+      });
+    });
+  }
+  function sensPoll(W) {
+    stopSensPoll(W);
+    W.sstimer = setInterval(function () {
+      if (W.closed) { stopSensPoll(W); return; }
+      api('/recoil/auto').then(function (j) {
+        if (W.closed || !W.sstimer || !j.ok || !j.data || !j.data.auto) return;
+        var was = W.sensRun || {}, a = j.data.auto, sn = a.sens || {};
+        W.sensRun = a;
+        if (a.state === 'done' && sn.plan && (sn.kx != null || sn.ok === false || sn.plan === 'failed')) {
+          sensDone(W);
+          return;
+        }
+        if (a.state === 'cancelled' || a.state === 'failed') {
+          sensFail(W, String(a.why || (a.state === 'failed' ? 'It did not work.' : 'Stopped.')));
+          return;
+        }
+        if (was.state !== a.state) W.paint();
+        else {
+          var el = document.getElementById('rs-live');
+          if (el) el.innerHTML = sensWords(a);
+        }
+      });
+    }, AUTO_POLL_MS);
+  }
+  function sensDone(W) {
+    stopSensPoll(W);
+    var a = W.sensRun || {}, sn = a.sens || {};
+    W.busy = false;
+    W.sensRun = null;
+    api('/recoil/auto', 'POST', { op: 'stop' });
+    if (!sn.ok || !num(sn.kx, 0) || !num(sn.ky, 0)) {
+      W.sensErr = String(sn.why || 'Your Core could not check it.') + ' Your Script still works: 100% is then a guess.';
+      W.paint();
+      return;
+    }
+    V().setSens(W.p, num(sn.kx, 0), num(sn.ky, 0));
+    W.paint();
+  }
+  function sensStop(W) {
+    stopSensPoll(W);
+    api('/recoil/auto', 'POST', { op: 'stop' });
+    W.sensRun = null;
+    W.busy = false;
+    W.sensErr = 'Stopped. Your Core let go of everything.';
+    W.paint();
+  }
+
+  /* ── training (developer) ── */
+
+  function trainDefaults(W) {
+    var f = V().fovFor(W.p, true), fh = V().fovFor(W.p, false);
+    return { name: '', where: '', say: 'Stand on this spot and face the wall like the picture.',
+      fovHip: Math.round(fh.deg * 10) / 10, fovAds: Math.round(f.deg * 10) / 10, dist: 20, wallLo: 0 };
+  }
+  function pageTspot(W) {
+    var k = K(), a = W.auto || {}, tr = W.tr || {}, tex = num(a.texture, 0);
+    var h = '<div class="rs-dev"><span class="rs-tag">DEVELOPER · TRAIN A SPOT</span>' +
+      '<p class="rw-h" style="margin:0">Stand exactly where players will stand, face the wall, <b>don’t aim</b> ' +
+      '(the hip view is what players line up with). Real frames only: everything is your Core’s own capture.</p></div>';
+    h += '<label class="rs-lab" for="rs-tname">Spot name</label><input class="rs-in" id="rs-tname" data-nosave="1" ' +
+      'value="' + esc(tr.name || '') + '" placeholder="The long wall">' +
+      '<label class="rs-lab" for="rs-twhere">Map / mode</label><input class="rs-in" id="rs-twhere" data-nosave="1" ' +
+      'value="' + esc(tr.where || '') + '" placeholder="Firing Range">' +
+      '<label class="rs-lab" for="rs-tsay">One line for players</label><input class="rs-in" id="rs-tsay" data-nosave="1" ' +
+      'value="' + esc(tr.say || '') + '">';
+    var ok = a.state === 'checking' && tex >= TEXTURE_MIN;
+    h += '<div class="rs-view' + (ok ? ' ok' : '') + '" id="rs-tview"><i>' + (ok ? '✓' : '!') + '</i><span>' +
+      (a.state !== 'checking' ? 'Waiting for your Core…' : !a.thumb ? 'Looking at your screen…' :
+        ok ? 'Your Core can recognise this view (detail ' + tex.toFixed(1) + ').'
+          : 'Too plain to recognise (detail ' + tex.toFixed(1) + '). Turn so the wall’s edges, a sign or the floor ' +
+            'are in the middle of the screen too.') + '</span></div>';
+    h += W.err ? k.note(esc(W.err), 'warn') : '';
+    return h + '<div class="rw-row">' + k.btn('Back', null, 'rs-tback') +
+      k.btn(W.shooting ? 'Capturing…' : 'Capture this view', 'primary', 'rs-tcap', !ok || W.shooting) + '</div>';
+  }
+  function pageTsave(W) {
+    var k = K(), tr = W.tr || {}, rep = W.wall || {}, trail = rep.trail || {}, found = rep.found;
+    var n = V().editor(W).dots.length;
+    var h = '<div class="rs-dev"><span class="rs-tag">DEVELOPER · TUNE AND SAVE</span>' +
+      '<p class="rw-h" style="margin:0">The line: ' + esc(trail.state || 'no trail') + ', ' + n + ' shots' +
+      (trail.cover ? ', ' + Math.round(num(trail.cover, 0) * 100) + '% of it seen' : '') + '. The wall: ' +
+      (found && found.box ? 'found, grey ' + Math.round(num(found.grey, rep.wallGrey)) : 'not found (the default box is kept)') +
+      (num(rep.zoom, 0) > 0 ? ', ' + num(rep.zoom, 0).toFixed(2) + 'x bigger aimed in' : '') + '. ' +
+      (trail.shots && trail.shots.length ? 'Timed shots: ' + trail.shots.length + ', ' + num(trail.shotsOwn, 0) + ' own holes. ' : '') +
+      (rep.rec && typeof rep.rec === 'object' ? 'Recording: ' + esc(Object.keys(rep.rec).map(function (key) {
+        var v = rep.rec[key];
+        return key + ' ' + (v && typeof v === 'object' ? JSON.stringify(v) : v);
+      }).join(', ')) + '. ' : '') +
+      esc(tr.hint || '') + '</p></div>';
+    h += k.card(
+      k.stepper('Wall floor', tr.wallLo, 1, 20, 250, '', 'grey: the line is darker than this; lower on a dark wall', 'twallLo') +
+      k.stepper('Field of view', tr.fovHip, 0.5, 20, 170, '°', 'hip, horizontal, at this spot', 'tfovHip') +
+      k.stepper('Field of view aiming', tr.fovAds, 0.5, 20, 170, '°', 'aiming down sights', 'tfovAds') +
+      k.stepper('Distance to the wall', tr.dist, 1, 3, 60, ' m', 'for players: 15-25 m is best', 'tdist'));
+    h += W.err ? k.note(esc(W.err), 'warn') : '';
+    h += '<div class="rw-row">' + k.btn('Fire again', null, 'rs-tagain') + k.btn('Save spot', 'primary', 'rs-tsave') + '</div>';
+    if (W.saved) {
+      h += k.note('Saved on this device: players on this device see it now. To ship it to everyone, download both ' +
+        'files and run <b>node dashboard/tools/add-recoil-spot.js</b> (docs/HOW-TO-TRAIN-A-SPOT.md).');
+      h += '<div class="rw-row">' + k.btn('Download spot file', null, 'rs-tjson') +
+        k.btn('Download picture', null, 'rs-tpic') + '</div>' +
+        '<textarea class="rs-json" id="rs-tjsonbox" readonly data-nosave="1" aria-label="the spot file">' +
+        esc(JSON.stringify(W.saved, null, 2)) + '</textarea>' +
+        '<div class="rw-row">' + k.btn('Try it as a player', 'primary', 'rs-ttry') + '</div>';
+    }
+    return h;
+  }
+
+  /* ══ talking to the Core ════════════════════════════════════════════ */
+
+  function api(path, method, body) { return K().api(path, method, body); }
+
+  /* the developer's training arm: the live thumbnail, no reference yet */
+  function armBody(W) {
+    var tr = W.tr || {};
+    var b = { op: 'arm', train: true, viewBox: VIEW_BOX };
+    if (tr.ref) b.ref = tr.ref;
+    return b;
+  }
+  /* step A's arm: no reference (no view check); the spot's ammo counter */
+  /* D416: the button the GAME reloads with, as the Core sends it: the
+     config's own binding for the reload role (Aim roles: a key or a
+     pad button bound to an output button), else the game pack's
+     "reloadButton", else Square / X ("west", Call of Duty's default on a
+     controller) */
+  var OUT_BUTTONS = /^(south|east|west|north|l1|r1|l3|r3|start|select|dpad_up|dpad_down|dpad_left|dpad_right|touchpad)$/;
+  var PAD_OUT = { BTN_SOUTH: 'south', BTN_EAST: 'east', BTN_WEST: 'west', BTN_NORTH: 'north', BTN_TL: 'l1',
+    BTN_TR: 'r1', BTN_THUMBL: 'l3', BTN_THUMBR: 'r3', BTN_START: 'start', BTN_SELECT: 'select',
+    BTN_DPAD_UP: 'dpad_up', BTN_DPAD_DOWN: 'dpad_down', BTN_DPAD_LEFT: 'dpad_left', BTN_DPAD_RIGHT: 'dpad_right' };
+  function reloadOf(p) {
+    var z = Z(), f = full(p), pk = packOf(p), src = '', i, b;
+    try {
+      var v = z && z.store && z.store.vals && p ? z.store.vals[p.id + '/roles|reload'] : null;
+      if (v && v.source) src = String(v.source);
+    } catch (e) { src = ''; }
+    var binds = Array.isArray(f.bindings) ? f.bindings : [];
+    if (!src) src = binds.some(function (x) { return x && x.source === 'KEY_R'; }) ? 'KEY_R' : '';
+    for (i = 0; src && i < binds.length; i++) {
+      b = binds[i];
+      if (b && b.source === src && OUT_BUTTONS.test(String(b.target))) return String(b.target);
+    }
+    if (src && PAD_OUT[src]) return PAD_OUT[src];
+    if (pk && OUT_BUTTONS.test(String(pk.reloadButton || ''))) return String(pk.reloadButton);
+    return 'west';
+  }
+  function measureBody(W) {
+    var b = { op: 'arm', ads: true, reload: reloadOf(W.p) }, s = W.spot;
+    if (s && Array.isArray(s.ammoBox) && s.ammoBox.length === 4) b.ammoBox = s.ammoBox.slice();
+    return b;
+  }
+
+  function stopPoll(W) { if (W.atimer) { clearInterval(W.atimer); W.atimer = null; } }
+  /* the training view's poll (it also renews the run's lease) */
+  function poll(W) {
+    stopPoll(W);
+    W.atimer = setInterval(function () {
+      if (W.closed) { stopPoll(W); return; }
+      api('/recoil/auto').then(function (j) {
+        if (W.closed || !W.atimer || !j.ok || !j.data || !j.data.auto) return;
+        var was = W.auto || {};
+        W.auto = j.data.auto;
+        liveTrain(W, was);
+      });
+    }, AUTO_POLL_MS);
+  }
+  /* what moved on the training page, without repainting the inputs */
+  function liveTrain(W, was) {
+    var a = W.auto;
+    if (W.page !== 'tspot') return;
+    if (was.state !== a.state || (!!was.thumb) !== (!!a.thumb) ||
+        Math.round(num(was.texture, 0)) !== Math.round(num(a.texture, 0))) {
+      var box = document.getElementById('rs-tview');
+      if (box && was.state === a.state) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = pageTspot(W);
+        var nb = tmp.querySelector('#rs-tview'), cap = tmp.querySelector('#rs-tcap'), old = document.getElementById('rs-tcap');
+        if (nb) box.outerHTML = nb.outerHTML;
+        if (cap && old) { old.disabled = cap.disabled; if (cap.disabled) old.setAttribute('aria-disabled', 'true'); else old.removeAttribute('aria-disabled'); }
+      } else W.paint();
+    }
+  }
+
+  /* training: arm the Core for the live thumbnail (the session is open) */
+  function arm(W) {
+    W.err = '';
+    W.auto = { state: 'arming' };
+    W.busy = true;
+    W.page = 'tspot';
+    W.paint();
+    return api('/recoil/auto', 'POST', armBody(W)).then(function (j) {
+      if (W.closed) return;
+      W.busy = false;
+      if (!j.ok) {
+        var e = String(j.error || '');
+        W.auto = null;
+        W.err = /404|no such|not found/i.test(e)
+          ? 'This Core’s firmware cannot train a spot yet. Update the Core.'
+          : (e || 'Your Core could not get ready.');
+        W.paint();
+        return;
+      }
+      W.auto = (j.data && j.data.auto) || W.auto;
+      W.paint();
+      poll(W);
+    });
+  }
+
+  /* ── step A ── */
+
+  function stopMeasPoll(W) { if (W.mstimer) { clearInterval(W.mstimer); W.mstimer = null; } }
+  function measFail(W, words) {
+    stopMeasPoll(W);
+    W.meas = null;
+    W.busy = false;
+    W.measErr = words;
+    W.paint();
+  }
+  function measureStart(W) {
+    W.err = '';
+    W.measErr = '';
+    W.busy = true;
+    W.meas = { state: 'arming' };
+    W.paint();
+    api('/recoil/auto', 'POST', measureBody(W)).then(function (j) {
+      if (W.closed) return null;
+      if (!j.ok) {
+        var e = String(j.error || '');
+        measFail(W, /404|no such|not found/i.test(e)
+          ? 'This Core’s firmware cannot measure the fire rate by itself yet. Update the Core, or type the rate.'
+          : (e || 'Your Core could not get ready.'));
+        return null;
+      }
+      return api('/recoil/auto', 'POST', { op: 'go' }).then(function (g) {
+        if (W.closed) return;
+        if (!g.ok) {
+          api('/recoil/auto', 'POST', { op: 'stop' });
+          measFail(W, String(g.error || 'Your Core could not start.'));
+          return;
+        }
+        W.meas = (g.data && g.data.auto) || { state: 'countdown' };
+        W.paint();
+        measPoll(W);
+      });
+    });
+  }
+  function measPoll(W) {
+    stopMeasPoll(W);
+    W.mstimer = setInterval(function () {
+      if (W.closed) { stopMeasPoll(W); return; }
+      api('/recoil/auto').then(function (j) {
+        if (W.closed || !W.mstimer || !j.ok || !j.data || !j.data.auto) return;
+        var was = W.meas || {}, a = j.data.auto;
+        W.meas = a;
+        if (a.state === 'holding' && !W.measFinishing) {
+          /* no picture is needed here: let go of aim at once */
+          W.measFinishing = true;
+          api('/recoil/auto', 'POST', { op: 'finish' }).then(function (k2) {
+            W.measFinishing = false;
+            if (W.closed) return;
+            if (k2 && k2.ok && k2.data && k2.data.auto) W.meas = mergeRun(a, k2.data.auto);
+            measDone(W);
+          });
+          return;
+        }
+        if (a.state === 'done') { measDone(W); return; }
+        if (a.state === 'cancelled' || a.state === 'failed') {
+          measFail(W, String(a.why || (a.state === 'failed' ? 'It did not work.' : 'Stopped.')));
+          return;
+        }
+        if (was.state !== a.state || (was.hold || {}).lt !== (a.hold || {}).lt || (was.hold || {}).rt !== (a.hold || {}).rt) {
+          W.paint();
+        } else {
+          var el = document.getElementById('rs-live');
+          if (el) el.innerHTML = runWords(a);
+        }
+      });
+    }, AUTO_POLL_MS);
+  }
+  /* the finish reply keeps what the hold already said, if it says less */
+  function mergeRun(a, b) {
+    var o = JSON.parse(JSON.stringify(b || {}));
+    ['rate', 'ammo', 'mag'].forEach(function (f) { if (o[f] == null && a && a[f] != null) o[f] = a[f]; });
+    return o;
+  }
+  /* the run is over: the rate and the magazine, and where they came from */
+  function measDone(W) {
+    stopMeasPoll(W);
+    var a = W.meas || {}, r = a.rate || {}, am = a.ammo || {}, rpm = num(r.rpm, 0);
+    W.busy = false;
+    W.meas = null;
+    if (!(rpm >= 60 && rpm <= 3000)) {
+      W.measErr = 'Your Core couldn’t time it' + (a.why ? ': ' + a.why : ': too few shots were seen.') +
+        ' Type the rate, or try again.';
+      W.paint();
+      return;
+    }
+    var read = !!am.read || r.src === 'ammo', mag = Math.round(num(a.mag, 0));
+    W.measured = { rpm: Math.round(rpm), mag: mag >= 2 ? mag : 0, read: read,
+      shots: Math.round(num(am.shots, num(r.shots, 0))), src: String(r.src || ''), reloaded: !!am.reloaded };
+    W.params.rpm = Math.round(rpm);
+    W.rateTyped = false;
+    W.rateSrc = read ? 'measured' : 'guess';
+    if (read && mag >= 2) { W.mag = mag; W.magKnown = true; W.magMeasured = true; }
+    W.paint();
+  }
+  function measureStop(W) {
+    stopMeasPoll(W);
+    api('/recoil/auto', 'POST', { op: 'stop' });
+    W.meas = null;
+    W.busy = false;
+    W.measErr = 'Stopped. Your Core let go of everything.';
+    W.paint();
+  }
+
+  /* ── the spot record ── */
+
+  /* the wall the Core found [x0, y0, x1, y1], grown BOX_GROW each side,
+     inside the picture, at least 0.1 each way: [x, y, w, h] (pure) */
+  function grownBox(b) {
+    if (!Array.isArray(b) || b.length !== 4 || !b.every(function (v) { return isFinite(Number(v)); })) return null;
+    var x0 = clamp(Math.min(+b[0], +b[2]) - BOX_GROW, 0, 1), y0 = clamp(Math.min(+b[1], +b[3]) - BOX_GROW, 0, 1);
+    var x1 = clamp(Math.max(+b[0], +b[2]) + BOX_GROW, 0, 1), y1 = clamp(Math.max(+b[1], +b[3]) + BOX_GROW, 0, 1);
+    function atLeast(a0, a1) {
+      if (a1 - a0 >= 0.1) return [a0, a1];
+      var c = (a0 + a1) / 2;
+      a0 = clamp(c - 0.05, 0, 0.9);
+      return [a0, a0 + 0.1];
+    }
+    var X = atLeast(x0, x1), Y = atLeast(y0, y1);
+    return [r4(X[0]), r4(Y[0]), r4(X[1] - X[0]), r4(Y[1] - Y[0])];
+  }
+  function wallLoFrom(rep) {
+    var lo = num(rep && rep.wallLo, 0);
+    return lo > 0 ? clamp(Math.round(lo - 15), 20, 250) : 0;
+  }
+
+  function devSave(W) {
+    var tr = W.tr, pack = packIdOf(W.p), rep = W.wall || {}, trail = rep.trail || {};
+    var id = String(tr.name || 'spot').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spot';
+    var n = V().editor(W).dots.length, box = grownBox(rep.found && rep.found.box);
+    var rec = {
+      id: id, name: tr.name || 'The spot', where: tr.where || gameName(W.p), say: tr.say,
+      picture: pack + '-' + id + '.jpg', ref: tr.ref, viewBox: VIEW_BOX.slice(), box: box || WALL_BOX.slice(),
+      minScore: 0.7, tol: 0.045,
+      fov: { hip: tr.fovHip, ads: tr.fovAds }, distanceM: tr.dist, ads: true,
+      texture: Math.round(num(tr.texture, 0) * 10) / 10,
+      trainedAt: new Date().toISOString().slice(0, 10),
+      source: 'Trained on a Core from the game’s own frames: a test magazine traced as a line (' +
+        (trail.state || 'no trail') + ', ' + n + ' shots' + (box ? ', the wall found' : '') + ').'
+    };
+    var lo = clamp(Math.round(num(tr.wallLo, 0)), 0, 250), grey = num(rep.wallGrey, num(rep.found && rep.found.grey, 0));
+    if (lo >= 20 || grey > 0) {
+      rec.wall = {};
+      if (lo >= 20) rec.wall.lo = lo;
+      if (grey > 0) rec.wall.grey = Math.round(clamp(grey, 0, 255));
+    }
+    if (Array.isArray(tr.ammoBox) && tr.ammoBox.length === 4) rec.ammoBox = tr.ammoBox.slice();
+    W.saved = rec;
+    /* kept on this device with its picture, so it can be tried at once */
+    var local = JSON.parse(JSON.stringify(rec));
+    var done = function (url) {
+      if (url) local.pictureUrl = url;
+      if (!keepDevSpot(pack, local)) W.err = 'This device could not keep the spot (storage full?). Download it.';
+      W.paint();
+    };
+    if (W.tr.pic && W.tr.pic.url && typeof fetch === 'function' && typeof FileReader !== 'undefined') {
+      fetch(W.tr.pic.url).then(function (r) { return r.blob(); }).then(function (b) {
+        var fr = new FileReader();
+        fr.onload = function () { done(String(fr.result || '')); };
+        fr.onerror = function () { done(''); };
+        fr.readAsDataURL(b);
+      })['catch'](function () { done(''); });
+    } else done('');
+  }
+  function download(name, blobOrText, type) {
+    try {
+      var b = typeof blobOrText === 'string' ? new Blob([blobOrText], { type: type || 'application/json' }) : blobOrText;
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    } catch (e) { /* the textarea still has it */ }
+  }
+
+  /* ══ the wiring ═════════════════════════════════════════════════════ */
+
+  function startTrain(W) {
+    W.method = 'train';
+    W.tr = trainDefaults(W);
+    W.ads = true;
+    W.checked = true;
+    W.kept = [];
+    W.page = 'tspot';
+    W.spot = null;
+    W.spotId = '';
+    W.spotFov = null;
+    if (!W.opened) { W.openSession(); return; }
+    arm(W);
+  }
+  function useSpot(W, s) {
+    W.spot = s;
+    W.spotId = s ? s.id : '';
+    W.spotFov = s && s.fov ? { hip: num(s.fov.hip, 103), ads: num(s.fov.ads, num(s.fov.hip, 70)) } : null;
+    /* a spot is made aiming down sights (its Script then runs only while
+       aiming); no spot leaves the player's own choice alone */
+    if (s) W.ads = s.ads !== false;
+    else if (W.adsBefore != null) W.ads = W.adsBefore;
+  }
+  function readTrainInputs(W, el) {
+    ['name', 'where', 'say'].forEach(function (f) {
+      var i = el.querySelector('#rs-t' + f);
+      if (i) W.tr[f] = String(i.value || '').slice(0, f === 'say' ? 160 : 64);
+    });
+  }
+
+  function wire(W, el) {
+    css();
+    function on(id, fn) {
+      var b = el.querySelector('#' + id);
+      if (b) b.addEventListener('click', function (e) { if (!b.disabled) fn(e, b); });
+    }
+    el.querySelectorAll('[data-rsi]').forEach(function (b) {
+      b.addEventListener('click', function () { useSpot(W, W.spots[+b.getAttribute('data-rsi')]); W.paint(); });
+    });
+    on('rs-anywall', function () {
+      W.fromMode = true;
+      W.err = '';
+      anyWall(W);
+    });
+    /* D419: the sensitivity check */
+    on('rs-sens', function () { sensStart(W); });
+    on('rs-sensstop', function () { sensStop(W); });
+    on('rs-train', function () { startTrain(W); });
+    on('rs-onspot', function () {
+      W.kept = [];
+      if (!W.opened) { W.openSession(); return; }
+      W.page = 'rate';
+      W.paint();
+    });
+    /* step A */
+    on('rs-measure', function () { measureStart(W); });
+    on('rs-stop', function () { measureStop(W); });
+    /* training */
+    on('rs-tback', function () {
+      stopPoll(W);
+      api('/recoil/auto', 'POST', { op: 'stop' });
+      begin(W);
+    });
+    on('rs-tcap', function () {
+      readTrainInputs(W, el);
+      var a = W.auto || {};
+      if (!a.thumb) return;
+      W.tr.ref = a.thumb;
+      W.tr.texture = num(a.texture, 0);
+      V().shoot(W, function () {
+        /* the picture for players: kept apart from the wall's picture */
+        W.tr.pic = W.shot;
+        W.shot = null;
+        stopPoll(W);
+        api('/recoil/auto', 'POST', { op: 'stop' });
+        W.auto = null;
+        W.wall = null;
+        W.ed = null;
+        W.page = 'watch';
+      });
+    });
+    on('rs-tnext', function () {
+      var tr = W.tr, rep = W.wall || {}, v = W.verdict || {};
+      if (!tr.wallLo) tr.wallLo = wallLoFrom(rep) || 0;
+      tr.hint = v.state === 'ok' ? 'The line was traced cleanly: the wall’s numbers are ready to save.'
+        : v.state === 'unsure' ? 'The line was not sure (' + (v.words || '') + '). Fire again, or check the wall floor.'
+        : '';
+      W.page = 'tsave';
+      W.paint();
+    });
+    on('rs-tagain', function () {
+      V().dropShot(W);
+      W.ed = null;
+      W.wall = null;
+      W.verdict = null;
+      W.page = 'watch';
+      W.paint();
+    });
+    on('rs-tsave', function () { devSave(W); });
+    on('rs-tjson', function () {
+      if (W.saved) download(packIdOf(W.p) + '-' + W.saved.id + '.spot.json', JSON.stringify(W.saved, null, 2) + '\n');
+    });
+    on('rs-tpic', function () {
+      var u = W.tr && W.tr.pic && W.tr.pic.url;
+      if (!u || !W.saved || typeof fetch !== 'function') return;
+      fetch(u).then(function (r) { return r.blob(); }).then(function (b) { download(W.saved.picture, b); });
+    });
+    on('rs-ttry', function () {
+      stopPoll(W);
+      W.method = 'spot';
+      W.spots = spotsFor(W.p);
+      useSpot(W, W.spots.filter(function (s) { return s.local && s.id === W.saved.id; })[0] || W.spots[0]);
+      W.kept = [];
+      W.page = 'spot';
+      W.paint();
+    });
+    if (W.page === 'tsave') {
+      el.addEventListener('zsstep', function (e) {
+        var t = e.target, f = t && t.getAttribute ? t.getAttribute('data-f') : '';
+        if (!f || f.charAt(0) !== 't' || !W.tr) return;
+        W.tr[f.slice(1)] = num(parseFloat(t.textContent), W.tr[f.slice(1)]);
+      });
+    }
+    if (W.page === 'tspot') {
+      ['name', 'where', 'say'].forEach(function (f) {
+        var i = el.querySelector('#rs-t' + f);
+        if (i) i.addEventListener('input', function () { readTrainInputs(W, el); });
+      });
+    }
+  }
+
+  /* recoil-workshop.js: the session is open; training arms the Core for
+     the view (true = handled here) */
+  function opened(W) {
+    if (W.method === 'train') { arm(W); return true; }
+    return false;
+  }
+  /* the mode page's Automatic: a game with spots goes to its spot */
+  function begin(W) {
+    /* the game's catalog, so the gun the reader sees out can be named */
+    if (window.ZSAUTO && typeof ZSAUTO.loadCatalog === 'function') ZSAUTO.loadCatalog(packIdOf(W.p));
+    W.spots = spotsFor(W.p);
+    if (W.adsBefore == null) W.adsBefore = !!W.ads;
+    W.fromMode = true;
+    W.err = '';
+    if (!W.spots.length) {
+      anyWall(W);
+      return;
+    }
+    W.method = 'spot';
+    useSpot(W, W.spots[0]);
+    W.page = 'spot';
+    W.paint();
+  }
+  /* D419: no trained spot: the same Automatic, at any flat wall, aimed in */
+  function anyWall(W) {
+    W.method = 'auto';
+    useSpot(W, null);
+    W.ads = true;
+    W.page = 'check';
+    W.paint();
+  }
+  /* a page entered by Back: the training view armed again */
+  function enter(W, page) {
+    stopPoll(W);
+    if (page === 'spot') { W.auto = null; return; }
+    if (page === 'tspot' && W.opened) {
+      V().dropShot(W);
+      W.ed = null;
+      arm(W);
+    }
+  }
+  function teardown(W) {
+    stopPoll(W);
+    stopMeasPoll(W);
+    stopSensPoll(W);
+    if ((W.auto && running(W.auto)) || (W.meas && running(W.meas)) || (W.sensRun && running(W.sensRun)) ||
+        (W.auto && W.auto.state === 'checking')) {
+      api('/recoil/auto', 'POST', { op: 'stop' });
+    }
+  }
+
+  window.ZS_RECOIL_SPOTS = {
+    pageSpot: pageSpot, pageTspot: pageTspot, pageTsave: pageTsave,
+    measureHTML: measureHTML, measureRunHTML: measureRunHTML, running: running,
+    sensHTML: sensHTML, sensRunHTML: sensRunHTML, devHTML: devHTML,
+    wire: wire, opened: opened, begin: begin, enter: enter, teardown: teardown,
+    spotsFor: spotsFor, devTools: devTools, target: target, css: css,
+    /* D425: a game whose pack says its recoil is random (no pattern to trace) */
+    randomRecoil: function (p) { var pk = packOf(p); return !!(pk && pk.recoilPattern === 'random'); },
+    gameName: gameName,
+    /* D426: the Lab's Automatic has been set up for this game */
+    autoReady: function (p) { var pk = packOf(p); return !!(pk && pk.recoilAuto === true); },
+    /* the tests pin these */
+    _gunOut: gunOut, _armBody: armBody, _measureBody: measureBody, _measuredWords: measuredWords, _reloadOf: reloadOf,
+    _grownBox: grownBox, _wallLoFrom: wallLoFrom, _DEV_KEY: DEV_KEY
+  };
+})();

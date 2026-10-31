@@ -1,0 +1,193 @@
+/* sections/17-roles.js — Aim roles.
+ *
+ * R.roles: which source fires and which aims (ROLE_DEFS), stored in the app and
+ * written to mouseTranslation.adsBinding for the aim role.
+ *
+ * Screens (window.RENDERERS):  R.roles
+ * Tests:                      test-render.js, emulate-app.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('roles', function (SEC) {
+  var helpHTML = SEC.helpHTML;   /* D285: every explanation behind a "?" (2026-10-31) */
+  /* from the files before this one */
+  var acc = SEC.acc, B = SEC.B, btn = SEC.btn, card = SEC.card, esc = SEC.esc,
+      glyFor = SEC.glyFor, note = SEC.note, PAD_CODE_NAME = SEC.PAD_CODE_NAME,
+      PAD_SRC_CODE = SEC.PAD_SRC_CODE, R = SEC.R, sh = SEC.sh, slider = SEC.slider,
+      srcGly = SEC.srcGly, srcNameOf = SEC.srcNameOf, srcPickKind = SEC.srcPickKind,
+      ZS = SEC.ZS;
+
+  /* ── Aim roles ─────────────────────────────────────────────
+     Every ✎ on this screen used to redraw the glyph, toast "Set" and throw the
+     choice away: no board write, no ZS.store write. All six roles reverted the
+     moment the screen was reopened, while the copy promised that aim modes,
+     calibration and Smart Actions all used them.
+
+     Roles now persist per config. One of them the BOARD really has a field for
+     — Aim / ADS is mouseTranslation.adsBinding, read by MouseTranslationStage
+     (stages.py) to decide when ADS sensitivity applies — so that one is written
+     to the board and marked ●. The rest are honestly labelled as remembered on
+     this device until the board grows fields for them. */
+  var ROLE_DEFS = [
+    {k:'fire',   lab:'Fire',            idx:7, mnk:{source:'BTN_LEFT',      g:'m-left'}},
+    {k:'ads',    lab:'Aim / ADS',       idx:6, mnk:{source:'BTN_RIGHT',     g:'m-right'}, board:true},
+    {k:'reload', lab:'Reload',          idx:2, mnk:{source:'KEY_R',         g:'key:R'}},
+    {k:'jump',   lab:'Jump',            idx:0, mnk:{source:'KEY_SPACE',     g:'wkey:Space'}},
+    {k:'crouch', lab:'Crouch / slide',  idx:1, mnk:{source:'KEY_LEFTCTRL',  g:'wkey:Ctrl'}},
+    {k:'sprint', lab:'Sprint',          idx:8, mnk:{source:'KEY_LEFTSHIFT', g:'wkey:Shift'}}
+  ];
+  var ROLE_BY_KEY = {};
+  ROLE_DEFS.forEach(function(d){ ROLE_BY_KEY[d.k]=d; });
+  function roleKey(p, d){ return p.id+'/roles|'+d.k; }
+  function roleDefault(p, d){
+    /* Asked as "does this config aim with a mouse?" — on Joystick + Mouse the
+       mouse is the aiming hand, so the right mouse button is still the right
+       default. A `p.input==='mnk'` test would have handed that config L2. */
+    if(ZS.inputShows(p.input,'mouse')) return {source:d.mnk.source, g:d.mnk.g};
+    /* the CODE alone — art is resolved at paint time from the connected pad's
+       family, so a default never bakes in the platform's glyph */
+    return {source: PAD_SRC_CODE[d.idx]};
+  }
+  function roleStored(p, d){
+    var v = ZS.store.vals[roleKey(p, d)];
+    return (v && v.source) ? {source:v.source, g:v.g} : null;
+  }
+  function roleSave(p, d, v){
+    /* pad buttons persist only the neutral code: a stored glyph key would
+       freeze whichever family happened to be on screen at save time */
+    var rec = {source: v.source};
+    if(PAD_CODE_NAME[v.source]==null) rec.g = v.g;
+    ZS.store.vals[roleKey(p, d)] = rec;
+    ZS.persistStore();
+  }
+
+  R.roles = function(p){
+    var full = ZS.live.full[p.id] || null;
+    var live = ZS.live.online!==false && !!full;
+    var mt   = (full && full.mouseTranslation) || {};
+    var dz   = (full && full.deadZones) || {};
+    var hairOn = (dz.hairTriggerLeft > 0) || (dz.hairTriggerRight > 0);
+
+    function cur(d){
+      /* the board wins for the one role it actually stores */
+      if(d.board && live && typeof mt.adsBinding==='string' && mt.adsBinding)
+        return { source: mt.adsBinding, g: null };
+      return roleStored(p, d) || roleDefault(p, d);
+    }
+    function roleArt(v){
+      /* pad codes re-render from the CODE so the art follows the pad in your
+         hands; mouse/keyboard art is family-less and keeps its stored key */
+      if(v.source && PAD_CODE_NAME[v.source]!=null)
+        return srcGly(srcNameOf(v.source, p), v.source);
+      return v.g ? glyFor(v.g) : srcGly(srcNameOf(v.source, p), v.source);
+    }
+    function role(d){
+      return '<div class="lrow" data-role="'+d.k+'"><span class="src">'+esc(d.lab)+
+        (d.board?' <span class="livedot" title="saves to your board">●</span>':'')+
+        '</span><span class="arrow">→</span>'+ roleArt(cur(d)) +
+        '<span class="rt"><button class="ib rebind" aria-label="change the '+esc(d.lab)+' button"></button></span></div>';
+    }
+    /* Five of the six rows here were removed: Fire, Reload, Jump, Crouch and
+       Sprint all saved to localStorage and were read by nothing — not by the
+       board, not by this app, not by Smart Actions. Only Aim / ADS maps to a
+       real field (mouseTranslation.adsBinding, read by MouseTranslationStage),
+       so it is the only one left. Which button FIRES is set where every other
+       button is set — on the Buttons screen — and the board takes firing from
+       the trigger itself. */
+    /* What this flag BUYS you differs by config, and saying the wrong one is
+       the same lie the Aim screen was once cleaned of. Until 2026-09-04 a pad
+       had no per-stance field at all, and this line said so ("a stick has one
+       feel either way, so this does not change your aim speed").
+       curves.rightStick.adsGain (D68) ended that: the aim stick has a second
+       gain, read while frame.ads_active — and THIS button is half of what
+       raises that flag (L2 is the other half, stages.py MouseTranslationStage).
+       So the pad line names the ADS sensitivity in the ADS page's own word,
+       and says whether it is ON for this config: a player who left it off on
+       Aim > ADS aim would otherwise be promised a speed switch that changes
+       nothing. Same rule as R.aim's adsGainOf() — a finite positive number is
+       on, anything else is off — read from the live cache for the same
+       reason. Offline, neither claim can be made, so neither is. What the
+       flag does for EVERY config is raise frame.ads_active, which gates aim
+       help (vision/assist.py always|hip|ads) and "only while aiming" Smart
+       Actions. */
+    var rsg = (full && full.curves && full.curves.rightStick) ? full.curves.rightStick.adsGain : null;
+    var stickAds = (typeof rsg==='number' && isFinite(rsg) && rsg>0) ? rsg : null;
+    var html =       sh('Aim')+
+      card(role(ROLE_BY_KEY.ads))+
+      helpHTML('roles-what', 'Which button aims', 'Tell ZeroStick which button <b>aims</b>. '+
+        (ZS.inputShows(p.input,'mouse')
+          ? 'This is how the board knows when to apply your <b>ADS aim speed</b> instead of '+
+            'your normal one — and when aim help and Scripts count you as aiming.'
+          : (stickAds!==null
+              ? 'This is how the board knows when to switch to your <b>ADS sensitivity</b> ('+
+                Math.round(stickAds*100)+'%) instead of hip — and when <b>aim help</b> and '+
+                '<b>Scripts</b> count you as aiming. '
+              : live
+                ? '<b>ADS sensitivity</b> is off for this config (Aim ▸ ADS), so right now this '+
+                  'only tells <b>aim help</b> and <b>Scripts</b> when you are aiming. '
+                : 'This is how the board knows when to switch to your <b>ADS sensitivity</b> '+
+                  '(if it is on under Aim ▸ ADS) instead of hip — and when <b>aim help</b> and '+
+                  '<b>Scripts</b> count you as aiming. ')+
+            '<b>L2</b> counts as aiming too, always.'))+
+      btn('Reset this to the standard button',null,'roles-reset')+
+      helpHTML('roles-rest', 'The other buttons', 'Everything else — what fires, reloads, jumps or crouches — is set on the <b>Mappings</b> screen, where each button shows what it sends.')+
+      acc('Expert','gear',
+        slider('Register at', 0, 50, 2, '%',
+          B('deadZones.triggerThreshold', .01, {mn:0, mx:0.5}))+
+        helpHTML('roles-reg', 'Register at', 'How far a trigger must be pulled before it counts. Leave at <b>2%</b> if unsure — '+
+             'the board caps this at 50%.')+
+        /* stages.py DeadzoneStage: a non-zero hairTrigger* takes precedence and
+           triggerThreshold is never applied. Say so where the slider is. */
+        '<div id="reg-warn"'+(hairOn?'':' style="display:none"')+'>'+
+        /* m8 (audit 2026-10-10): Controller Feel is gone; the hair triggers
+           are on Aim's Trigger Settings card (zk-pad.js) */
+        note('<b>Register at</b> is currently doing nothing: <b>Hair triggers</b> are on in '+
+             '<b>Aim › Trigger Settings</b>, and a hair trigger replaces this threshold entirely. '+
+             'Turn hair triggers off to use it.','warn')+'</div>', false);
+
+    return { html: html, after: function(root){
+      root.querySelectorAll('.lrow[data-role]').forEach(function(row){
+        var d = ROLE_BY_KEY[row.dataset.role];
+        var b = row.querySelector('.rebind');
+        if(!d || !b) return;
+        b.innerHTML = '✎';
+        b.addEventListener('click', function(){
+          ZS.pickButton({kind: srcPickKind(p), p: p,
+                         title: 'Which button is '+d.lab+'?'}).then(function(v){
+            if(!v || !v.source) return;
+            roleSave(p, d, v);
+            var cell = row.querySelector('.glyimg');
+            if(cell) cell.outerHTML = roleArt(v);
+            if(d.board){
+              if(!live){ ZS.toast('Saved here — your board is offline, so it has not got this yet'); return; }
+              ZS.putProfileDebounced(p.id, function(f){
+                if(!f.mouseTranslation) f.mouseTranslation={};
+                f.mouseTranslation.adsBinding = v.source;
+              });
+            }
+            ZS.toast(d.lab+' → '+srcNameOf(v.source, p));
+          });
+        });
+      });
+      var rst = root.querySelector('#roles-reset');
+      if(rst) rst.addEventListener('click', function(){
+        ROLE_DEFS.forEach(function(d){ delete ZS.store.vals[roleKey(p, d)]; });
+        ZS.persistStore();
+        if(live){
+          var ads = roleDefault(p, ROLE_BY_KEY.ads);
+          ZS.putProfileDebounced(p.id, function(f){
+            if(!f.mouseTranslation) f.mouseTranslation={};
+            f.mouseTranslation.adsBinding = ads.source;
+          });
+        }
+        /* ROLE_DEFS still lists the five removed roles, deliberately: this
+           sweep clears the localStorage they left behind on existing installs. */
+        ZS.toast('Aim button reset to the standard one');
+        ZS.redrawOpenScreen();
+      });
+    } };
+  };
+});

@@ -1,0 +1,200 @@
+/* home-oled.js: a running script's screen on HOME (D352), ZS_HOLED.
+ *
+ * A Cronus Zen script draws its mod menu on the Zen's 128 x 64 OLED. The EXO
+ * Core has no screen, so it keeps the script's screen in memory (the GPC VM
+ * draws it pixel for pixel, gpc/RUNTIME.md section 8) and this card shows it
+ * on HOME while a script that DRAWS is running: the player opens the
+ * script's menu on the controller (usually L2 + Options) and watches it here,
+ * no EXO Studio, no GPC device room.
+ *
+ * THE CONTRACT (firmware components/zs_gpc, docs/CORE-USB-LINK.md):
+ *   GET /status        "gpc": {..., "state", "slot", "drawn", "screenVersion"}
+ *                      drawn = the running script has drawn on its screen
+ *                      since it loaded. ABSENT on firmware before D352: then
+ *                      there is no card at all.
+ *   GET /gpc/screen?since=V
+ *                      {"version", "drawn", "w":128, "h":64, "fb": base64 of
+ *                      1024 bytes, 16 a row, bit 7 the leftmost pixel, 1 lit}
+ *                      or {"version", "unchanged":true, "drawn"} when V is
+ *                      current (about 77 bytes: cheap at 10 a second).
+ *
+ * COST (owner rule: nothing costs anything unless it is used). The card is
+ * drawn only while /status says a running script drew; it asks for the
+ * screen ten times a second only while it is ON SCREEN (HOME not covered by
+ * a room, the app not in the background), one request at a time, and with
+ * ?since so an unchanged screen is a few bytes. Hidden, it asks nothing (it
+ * looks at the page once a second, no request). A read also tells the Core
+ * someone is looking, which keeps the controller's own menu light and buzz
+ * (D352, Global Settings) quiet while the screen is in front of the player.
+ *
+ * DRAWN CRISP AND THEME-AWARE. The canvas is the screen's own 128 x 64, shown
+ * at twice that with image-rendering: pixelated, so every pixel is a square.
+ * Lit pixels are the card's text ink (--text) and unlit ones are clear, over
+ * the screen's ground (--bg): light on near-black in the dark theme, dark on
+ * light in the light one, read from CSS at every paint so a theme switch is
+ * followed on the next frame.
+ *
+ * ES5 only (DESIGN.md). Loaded after the shell; every call into it is made
+ * at run time, through window.ZS.
+ */
+(function () {
+  'use strict';
+
+  var POLL_MS = 100;          /* 10 a second while on screen */
+  var IDLE_MS = 1000;         /* hidden: look again, without a request */
+  var ERR_MS = 2000;          /* the Core said no (409, offline): back off */
+  var W = 128, H = 64;
+
+  var cssDone = false;
+  var fb = null;              /* the last frame, kept across HOME's redraws */
+  var ver = -1;
+  var timer = null;
+  var busy = false;
+
+  function Z() { return window.ZS; }
+
+  function css() {
+    if (cssDone || document.getElementById('zs-holed-css')) { cssDone = true; return; }
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'zs-holed-css';
+    /* HOME's scale (DESIGN.md D192): 11 px uppercase label in the label
+       grey, the card on the raised surface with the device card's edge */
+    s.textContent =
+      '.hs-oled{margin:0 0 10px;padding:8px 10px 10px;border:1px solid var(--line);' +
+      'border-radius:16px;background:var(--zs-raised,var(--panel));display:flex;' +
+      'flex-direction:column;align-items:center;gap:6px;flex:none}' +
+      '.hs-oled .ho-lab{align-self:stretch;font-size:11px;font-weight:700;' +
+      'letter-spacing:var(--tr-label,.085em);text-transform:uppercase;color:var(--muted);' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.hs-oled .ho-scr{padding:6px;border-radius:10px;background:var(--bg);' +
+      'border:1px solid var(--line);line-height:0;max-width:100%}' +
+      '.hs-oled canvas{width:256px;max-width:100%;height:auto;aspect-ratio:2/1;' +
+      'display:block;color:var(--text);image-rendering:pixelated;image-rendering:crisp-edges}';
+    document.head.appendChild(s);
+  }
+
+  /* the gpc block of /status, when its script draws; else null */
+  function drawing(st) {
+    var z = Z();
+    var live = z && z.live;
+    if (!live || live.online === false) return null;
+    st = st || live.status;
+    var g = st && st.gpc;
+    return (g && g.drawn === true && g.state === 'running') ? g : null;
+  }
+
+  function cardHTML(st) {
+    var g = drawing(st);
+    if (!g) return '';
+    css();
+    var slot = g.slot ? ' · slot ' + (g.slot | 0) : '';
+    return '<div class="hs-oled" id="hsoled">' +
+      '<div class="ho-lab" aria-hidden="true">Script screen' + slot + '</div>' +
+      '<div class="ho-scr"><canvas width="' + W + '" height="' + H + '" role="img" ' +
+      'aria-label="The running script’s screen' + slot + '"></canvas></div>' +
+      '</div>';
+  }
+
+  /* "rgb(r, g, b)" -> [r, g, b]; the text ink when it cannot be read */
+  function rgbOf(s) {
+    var m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(String(s || ''));
+    return m ? [m[1] | 0, m[2] | 0, m[3] | 0] : [230, 237, 243];
+  }
+
+  function paint() {
+    var card = document.getElementById('hsoled');
+    var cv = card && card.querySelector('canvas');
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    var img = ctx.createImageData(W, H);
+    var d = img.data;
+    var ink = rgbOf(window.getComputedStyle ? getComputedStyle(cv).color : '');
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var on = fb && ((fb[y * 16 + (x >> 3)] >> (7 - (x & 7))) & 1);
+        var i = (y * W + x) * 4;
+        d[i] = ink[0]; d[i + 1] = ink[1]; d[i + 2] = ink[2];
+        d[i + 3] = on ? 255 : 0;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function b64(s) {
+    try {
+      var bin = atob(String(s || ''));
+      var out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out.length === 1024 ? out : null;
+    } catch (e) { return null; }
+  }
+
+  /* on screen: the card exists, the app is in front, nothing covers HOME */
+  function shown() {
+    var card = document.getElementById('hsoled');
+    if (!card || document.hidden) return false;
+    var scr = document.querySelector('.screen');
+    if (scr && scr.classList.contains('zs-covered')) return false;
+    var home = document.getElementById('home');
+    return !(home && home.inert);
+  }
+
+  function stop() {
+    if (timer) { clearTimeout(timer); timer = null; }
+  }
+  function later(ms) {
+    stop();
+    timer = setTimeout(step, ms);
+  }
+
+  function hide() {
+    var card = document.getElementById('hsoled');
+    if (card && card.parentNode) card.parentNode.removeChild(card);
+    var live = Z() && Z().live;
+    if (live && live.status && live.status.gpc) live.status.gpc.drawn = false;
+    fb = null;
+    ver = -1;
+    stop();
+  }
+
+  function step() {
+    timer = null;
+    if (!document.getElementById('hsoled')) return;    /* HOME redraws call wire() */
+    if (!shown()) { later(IDLE_MS); return; }
+    var z = Z();
+    if (!z || !z.api || busy) { later(POLL_MS); return; }
+    busy = true;
+    z.api('/gpc/screen' + (ver >= 0 ? '?since=' + ver : ''), 'GET').then(function (j) {
+      busy = false;
+      if (!j || !j.ok || !j.data) { later(ERR_MS); return; }
+      var d = j.data;
+      if (d.drawn === false) { hide(); return; }       /* the script stopped or changed */
+      if (!d.unchanged && d.fb) {
+        var f = b64(d.fb);
+        if (f) { fb = f; paint(); }
+      }
+      if (typeof d.version === 'number') ver = d.version;
+      later(POLL_MS);
+    }, function () {
+      busy = false;
+      later(ERR_MS);
+    });
+  }
+
+  /* after every HOME draw: the card is brand-new, so paint the frame we
+     have at once (no blank flash) and make sure the poll is running */
+  function wire() {
+    if (!document.getElementById('hsoled')) { stop(); return; }
+    paint();
+    if (!timer && !busy) step();
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && document.getElementById('hsoled') && !timer && !busy) step();
+  });
+
+  window.ZS_HOLED = { cardHTML: cardHTML, wire: wire,
+    /* for the tests */ _state: function () { return { ver: ver, polling: !!timer || busy, fb: fb }; } };
+}());

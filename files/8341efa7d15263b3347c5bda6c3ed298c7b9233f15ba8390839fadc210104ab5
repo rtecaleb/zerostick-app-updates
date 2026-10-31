@@ -1,0 +1,439 @@
+/* sections/10-aim-tables.js — the Aim page's tables and small helpers.
+ *
+ * What the Aim page (10-aim.js) and its controller half (10-aim-controller.js)
+ * read without holding any screen state: the Advanced switch, the response
+ * curve maps, the smoothing preset ladders (mouse, Classic, stick) and their
+ * captions, the "?" beside every label (labHelp, D285) and its stylesheet.
+ * These were the top of 10-aim.js until 2026-10-31 (2,500 lines; three files
+ * now). Every name the other two use is shared at the foot.
+ *
+ * Screens (window.RENDERERS):  none (10-aim.js draws R.aim)
+ * Tests:                      test-aim-simple.js, test-aim-help.js, test-smoothing.js, test-stick-modes.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('aim-tables', function (SEC) {
+  /* from the files before this one */
+  var card = SEC.card, esc = SEC.esc, helpHTML = SEC.helpHTML, pic = SEC.pic,
+      R = SEC.R, seg = SEC.seg, stepper = SEC.stepper, slider = SEC.slider,
+      ZS = SEC.ZS;
+
+  /* ── Aim Settings ─────────────────────────────────────────────── */
+  /* D376: the Advanced switch (per install) and the open Quantization
+     buttons (per config and stance, for the session, like XMECH_OPEN) */
+  var AIM_ADV_KEY = 'zs.aimAdvanced';
+  function aimAdvOn(){
+    try { return window.localStorage.getItem(AIM_ADV_KEY) === '1'; } catch (e) { return false; }
+  }
+  function aimAdvSet(on){
+    try { window.localStorage.setItem(AIM_ADV_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+  /* D376 amended (owner, 2026-10-14: "collapse the Activation tab in
+     ADS"): ADS's Activation card opens and closes from its header,
+     remembered per install, CLOSED by default (missing or throwing
+     storage = closed; the header still works for the session) */
+  var AIM_ACT_KEY = 'zs.aimActOpen';
+  var aimActSession = null;
+  function aimActOpen(){
+    if(aimActSession !== null) return aimActSession;
+    try { return window.localStorage.getItem(AIM_ACT_KEY) === '1'; } catch (e) { return false; }
+  }
+  function aimActSet(on){
+    aimActSession = !!on;
+    try { window.localStorage.setItem(AIM_ACT_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+  var XQUANT_OPEN = {};
+  /* Curve preset <-> the two real curve field-sets. Module scope because both
+     the Aim screen (which WRITES a preset) and its read-back (which has to
+     agree with Controller Feel -> Stick response, a different screen writing
+     the SAME fields) need the same table. */
+  /* Feel words, not maths words. "Expo" and "Aggro" told a beginner nothing
+     about what the slider would do to their aim; these say it. The stored
+     values are unchanged, so a config written by the old names still reads
+     back correctly through the same table. */
+  var CURVE_MAP = { 'Even':{curve:'linear',curveStrength:1.0},
+                    'Gentle':{curve:'power',curveStrength:1.9},
+                    'Aggressive':{curve:'power',curveStrength:0.55} };
+  var CURVE_NAMES = ['Even','Gentle','Aggressive','Custom'];
+  /* Which preset name the board's stored curve corresponds to. Returns null
+     when the board holds something no preset can name (then keep what the
+     user last picked locally rather than lying about it). */
+  function curveFromBoard(full, mnk){
+    if(!full) return null;
+    var type, strength;
+    if(mnk){ var mt=full.mouseTranslation||{}; type=mt.curve; strength=mt.curveStrength; }
+    else { var rs=(full.curves||{}).rightStick||{}; type=rs.type; strength=rs.strength; }
+    if(!type) return null;
+    if(type==='piecewise') return 'Custom';
+    if(type==='linear') return 'Even';
+    if(type==='power') return (+strength >= 1) ? 'Gentle' : 'Aggressive';
+    return null;
+  }
+  /* The stored piecewise points back into the 3 draggable handles (25/50/75%). */
+  function customFromBoard(full, mnk){
+    var pts = mnk ? ((full.mouseTranslation||{}).curvePoints)
+                  : (((full.curves||{}).rightStick||{}).points);
+    if(!pts || pts.length < 5) return null;
+    var out=[];
+    for(var i=1;i<=3;i++){
+      var v = pts[i] && pts[i][1];
+      if(typeof v!=='number') return null;
+      out.push(Math.max(0, Math.min(100, Math.round(v*100))));
+    }
+    return out;
+  }
+
+  /* ── the smoothing preset ladder (the aim pager's carousel) ────────
+     A preset writes ALL THREE filter fields at once, so the name on the
+     carousel can never disagree with the filter underneath it — and the
+     read-back below names a preset only when the stored trio matches it
+     exactly. D191 (XIM MATRIX's Aim Settings): the smoothing has two STYLES,
+     XIM's Custom mode button. STANDARD is the speed-adaptive filter these
+     four presets always were (Precision / Response / Easing on Custom);
+     CLASSIC is XIM APEX's static weighted average (Smooth / Decay / Synch,
+     docs/SMOOTHING.md). "Synchronous" came back with D191: it is Classic
+     with only Synch on, an average over one game frame, which the Core now
+     really runs (it was left out before because nothing ran it).
+     [name, smoothing, oneEuroBeta, smoothingEasing, what-it-feels-like] */
+  var SM_PRESETS = [
+    ['Disabled', 0,    1.0, 0.35, 'Mouse movement is unprocessed and may show aim jitter.'],
+    ['Light',    0.15, 1.5, 0.35, 'A little steadying, barely any delay.'],
+    ['Balanced', 0.35, 1.0, 0.35, 'Steadier aim for a touch of delay.'],
+    ['Heavy',    0.55, 0.7, 0.5,  'Strongest steadying — the most delay.']
+  ];
+  /* D191: the Classic presets. [name, Smooth, Decay, Synch, feel] */
+  var SM_CLASSIC_PRESETS = [
+    ['Synchronous', 0, 9, 16, 'Evens your aim out over one game frame (60 fps) — about 8 ms of delay.']
+  ];
+  /* The first switch to Classic starts here: a light Smooth on XIM APEX's own
+     Decay 9.0 and its Default Synch 8 (XIM's guide gives both). */
+  var CLASSIC_SEED = [20, 9, 8];
+  /* D392: the MOUSE's Classic has no Synch of its own any more: frame sync is
+     ONE control, Sync to game on the Translation page (the two did the same
+     job, docs/MOUSE-AUDIT.md F7), so the mouse's Classic starts at Synch 0
+     and its carousel offers no "Synchronous". The aim STICK keeps both. */
+  var MOUSE_CLASSIC_SEED = [20, 9, 0];
+  var SM_CAPTIONS = {
+    'Custom':      'Tune the filter yourself with the three dials below.',
+    'Same as hip': 'Aiming down sights uses your Hip Aim smoothing.'
+  };
+  /* Which Classic preset the stored three are, or null. Missing numbers read
+     as the Core's defaults (Smooth 0, Decay 9, Synch 0). */
+  function smClassicFromValues(sm, dc, sy){
+    var a = typeof sm==='number' ? sm : 0;
+    var b = typeof dc==='number' ? dc : 9;
+    var c = typeof sy==='number' ? sy : 0;
+    for(var i=0;i<SM_CLASSIC_PRESETS.length;i++){
+      var pr = SM_CLASSIC_PRESETS[i];
+      if(Math.abs(a-pr[1])<0.05 && Math.abs(b-pr[2])<0.05 && Math.abs(c-pr[3])<0.05) return pr[0];
+    }
+    return null;
+  }
+  function smClassicPreset(name){
+    for(var i=0;i<SM_CLASSIC_PRESETS.length;i++){ if(SM_CLASSIC_PRESETS[i][0]===name) return SM_CLASSIC_PRESETS[i]; }
+    return null;
+  }
+  /* Classic's MEAN LAG in ms, the closed form docs/SMOOTHING.md gives and
+     zs_classic_mean_lag_s computes on the Core: a window T = 2 ms x Smooth
+     weighted exp(-Decay x age / T), plus half the Synch box. */
+  function classicLagMs(sm, dc, sy){
+    var t = 2 * Math.max(0, Math.min(100, +sm || 0));
+    var d = Math.max(0, Math.min(20, typeof dc==='number' ? dc : 9));
+    var y = Math.max(0, Math.min(64, +sy || 0));
+    var lag = d < 1e-3 ? t / 2 : t * (1 / d - Math.exp(-d) / (1 - Math.exp(-d)));
+    return lag + y / 2;
+  }
+  /* Classic is the Core's (zs_classic2d); the A7S agent has no such filter,
+     so an EXO is offered Standard only (no option that does nothing). */
+  function classicShown(){ return !(ZS.productHides && ZS.productHides('classicSmoothing')); }
+  /* Which preset the stored trio IS, or null for "none of them" (shown as
+     Custom). Missing fields read as the engine defaults (0 / 1.0 / 0.35) so
+     a board from before smoothingEasing still names its presets. */
+  function smPresetFromValues(sm, beta, eas){
+    var s = typeof sm==='number'   ? sm   : 0;
+    var b = typeof beta==='number' ? beta : 1.0;
+    var e = typeof eas==='number'  ? eas  : 0.35;
+    for(var i=0;i<SM_PRESETS.length;i++){
+      var pr = SM_PRESETS[i];
+      if(Math.abs(s-pr[1])<0.005 && Math.abs(b-pr[2])<0.005 && Math.abs(e-pr[3])<0.005) return pr[0];
+    }
+    return null;
+  }
+  /* ── the stick's smoothing ladder ─────────────────────────────────
+     ONE field, not the mouse's three. core/stages.SmoothingStage hands
+     smoothing.rightStick straight to Ema2D, whose alpha is derived from the
+     real dt — so a strength means the same delay at 125 Hz as at 1000 Hz, and
+     these captions may quote milliseconds instead of adjectives.
+
+     THE NUMBER IN EACH CAPTION IS A SETTLING TIME, AND THE VERB SAYS SO.
+     90% of a step lands after t90 = (1/250) * ln(0.1)/ln(strength):
+
+         0.15 -> 4.9 ms     0.35 -> 8.8 ms     0.55 -> 15.4 ms
+
+     The filter's own time constant is smaller still (tau = (1/250)/-ln s, so
+     2.1 / 3.8 / 6.7 ms), which is why "settles in ~9 ms" is honest where
+     "9 ms behind your thumb" would not have been — a number the product
+     asserts about someone's hand has to be the number the filter produces.
+     The ladder stops at 0.55 because the schema ceiling 0.95 settles in
+     180 ms and still lags by ~78 ms; it stays reachable through Custom, it is
+     just not a thing the carousel recommends.
+
+     THE NAMES ARE THE MOUSE LADDER'S NAMES ON PURPOSE: a Joystick + Mouse
+     config draws both carousels on one screen and one word may not mean two
+     different amounts of steadying. (Controller Feel's old "Stick response
+     -> Smooth" wrote 0.35 too; that screen is gone, D246.)
+
+     GAME_PRESETS lands on this ladder more often than not: ZS standard and
+     Fortnite write 0.0 (reads back as Disabled) and Destiny 2 writes 0.15
+     (Light). Only CoD's 0.20 and Apex's 0.10 are off-ladder, and those
+     configs read as Custom showing 20% / 10%, which is true rather than
+     rounded. Do NOT re-tune GAME_PRESETS to fit the ladder — that would
+     silently change what Apply writes.
+     [name, smoothing.rightStick, what it feels like] */
+  var SM_STICK = [
+    ['Disabled', 0,    'Your stick reaches the game unfiltered.'],
+    ['Light',    0.15, 'Takes the shake off with no delay you can feel (settles in ~5 ms).'],
+    ['Balanced', 0.35, 'Noticeably steadier — a step settles in about 9 ms.'],
+    ['Heavy',    0.55, 'The steadiest hand, and the most delay (settles in ~15 ms).']
+  ];
+  function smStickCaption(name){
+    for(var i=0;i<SM_STICK.length;i++){ if(SM_STICK[i][0]===name) return SM_STICK[i][2]; }
+    var cp = smClassicPreset(name);
+    if(cp) return cp[4];
+    return name==='Custom' ? 'Set the steadying yourself below: Standard or Classic.' : '';
+  }
+  /* invert, said as one choice over two booleans — [label, invertX, invertY] */
+  var INV_OPTS = [['Off',false,false],['Vertical',false,true],['Horizontal',true,false],['Both',true,true]];
+  function invNameOf(mt){
+    var x = !!(mt && mt.invertX), y = !!(mt && mt.invertY);
+    return y ? (x?'Both':'Vertical') : (x?'Horizontal':'Off');
+  }
+  /* the Mouse card's picture: the set's mouse (D91; our own drawing before) */
+  function mouseSVG(){ return pic('mouse', 68); }
+
+  /* which ••• folds are open, keyed p.id|stance. Module-level on purpose:
+     render() runs on every preset tap and redrawOpenScreen() re-enters
+     R.aim, and a fold that snapped shut on either would make the
+     mechanics untunable. */
+  var XMECH_OPEN = {};
+
+  /* ── a "?" beside every setting's own label (D285, the Aim screen) ──
+     The owner, 2026-10-14: "how is there no question marks in the Aim tab
+     at all, that's the most complicated one on mouse and keyboard." Every
+     setting on the stance pages (and in their ••• folds and the Custom
+     smoothing dials) gets ONE purple "?" right after its label, and its fold
+     opens right under that setting. The chip is the app's own helpHTML (one
+     open-state set, one delegated listener, bullets per D260, hidden with
+     Show help buttons off, D236), only placed inline: a span inside the
+     label, AFTER the label's own text node, so labFor()'s childNodes[0]
+     (the local-cache key) and every /^Label/ lookup read exactly as before.
+     It is a <button>, which every row/stepper/seg/slider wiring already
+     ignores; the fold sits outside the control, so tapping its words cannot
+     move anything either. */
+  var AIMQH_CSS = 'zs-aimqh-css';
+  function aimQhCss(){
+    if(document.getElementById(AIMQH_CSS)) return;
+    var s = document.createElement('style');
+    s.id = AIMQH_CSS;
+    s.appendChild(document.createTextNode(
+      '.qhrow.qhin{display:inline-flex;margin:0 0 0 8px;vertical-align:middle;justify-content:flex-start}'+
+      /* the label rows are 11-17 px type: a 24 px ring keeps the line calm,
+         and the hit box stays 44 px (24 + 2 x 10) */
+      '.qhin .qh{width:24px;height:24px;font-size:12.5px;letter-spacing:0;text-transform:none;'+
+        'font-weight:700;line-height:1}'+
+      '.qhin .qh::after{inset:-10px}'+
+      '.aimpage .qhfold,.smcustom .qhfold{text-align:left;margin:6px 0 8px}'+
+      /* D376: the ••• and Advanced side by side; the quantization button */
+      '.xcard .xmorerow{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:12px}'+
+      '.xcard .xmorerow .xmore{margin:0}'+
+      '.xcard .xadv{border:1px solid var(--line);border-radius:16px;background:transparent;color:var(--muted);'+
+        'font:inherit;font-size:13px;font-weight:600;padding:6px 14px;min-height:36px;cursor:pointer}'+
+      '.xcard .xadv[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}'+
+      '.xcard .xadvhint{flex-basis:100%;text-align:center;font-size:12px;color:var(--amber)}'+
+      '.xcard .xadvhint[hidden]{display:none}'+
+      '.xcard .xquanthd{display:flex;align-items:center;justify-content:center;margin-top:12px}'+
+      '.xcard .xquantbtn{border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg,var(--text));'+
+        'font:inherit;font-size:16px;font-weight:600;padding:8px 18px;min-height:44px;cursor:pointer}'+
+      '.xcard .xquantbtn[aria-expanded="true"]{border-color:var(--accent)}'+
+      '.xcard .smdis{text-align:center;margin:6px 0 2px}'+
+      /* D377: a stepper at its 0 switch says the word (Standard / Same as
+         hip) instead of "0 cm/360"; the number stays the value underneath */
+      '.stp .sv.svzero{font-size:0 !important}'+
+      '.stp .sv.svzero::after{content:attr(data-zeroword);font-size:16px !important;font-weight:600;color:inherit;margin-left:0}'+
+      '.xact .xdelay{margin-top:14px;text-align:left}'+
+      /* D376 amended: Activation's header is the card's open/close; the
+         one-line summary says what is set while it is closed */
+      '.xact .xacthdrow{display:flex;align-items:center;gap:6px}'+
+      '.xact .xacthd{flex:1;display:flex;align-items:center;gap:10px;min-height:44px;background:none;border:0;'+
+        'padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}'+
+      '.xact .xacthd .xtitle{margin:0}'+
+      '.xact .xactsum{flex:1;text-align:right;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;'+
+        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.xact .xacthd[aria-expanded="true"] .xactsum{visibility:hidden}'+
+      '.xact .xchev{flex:none;width:18px;text-align:center;font-size:20px;line-height:1;color:var(--muted);'+
+        'transform:rotate(90deg);transition:transform var(--t-quick,170ms) var(--ease-settle,ease-out)}'+
+      '.xact .xacthd[aria-expanded="true"] .xchev{transform:rotate(-90deg)}'+
+      '.xact .xactbody[hidden]{display:none}'+
+      '.xact .xactbody{margin-top:6px}'+
+      /* D376 amended: the Advanced section, its own card under everything */
+      '.xadvsec[hidden]{display:none}'+
+      '.xadvsec .xsub.xadvlead{margin-bottom:6px}'+
+      '.xcard .xadvwhere{flex-basis:100%;text-align:center;font-size:12px;color:var(--muted)}'+
+      '.xcard .xadvwhere[hidden]{display:none}'+
+      /* D376 amended: Speed is the face; cm/360 is its small print */
+      '.xcm{flex-basis:100%;width:100%;font-size:11.5px;color:var(--muted);text-align:center;margin:6px 0 0;'+
+        'font-variant-numeric:tabular-nums;letter-spacing:var(--tr-caption,.004em)}'+
+      '.xact .xdelay .xsec{font-size:15px;font-weight:600;text-align:center}'));
+    (document.head || document.documentElement).appendChild(s);
+  }
+  /* the chip (inline, a span) and its fold, from the app's one helpHTML */
+  function qhParts(id, label, text){
+    aimQhCss();
+    var h = helpHTML(id, label, text);
+    var b0 = h.indexOf('<button'), b1 = h.indexOf('</button>') + 9;
+    var r1 = h.indexOf('</div>', b1) + 6;
+    return { chip: '<span class="qhrow qhin">'+h.slice(b0, b1)+'</span>', fold: h.slice(r1) };
+  }
+  /* `html` is ONE setting (a kit fld, or a title div): the chip goes into
+     its first label element after the label text (and its live dot), the
+     fold after the whole thing, or with `near` straight after the label
+     element (a setting whose control is tall, like a curve editor) */
+  function labHelp(html, id, label, text, near){
+    var q = qhParts(id, label, text);
+    var m = /class="(?:flab|smtitle|xtitle|xsec|src)"[^>]*>/.exec(html);
+    if(!m) return html + q.chip + q.fold;
+    var at = m.index + m[0].length;
+    var lt = html.indexOf('<', at);
+    if(lt < 0) lt = html.length;
+    if(html.indexOf('<span class="livedot"', lt) === lt) lt = html.indexOf('</span>', lt) + 7;
+    var out = html.slice(0, lt) + q.chip + html.slice(lt);
+    if(near){
+      var close = out.indexOf('</div>', lt + q.chip.length) + 6;
+      return out.slice(0, close) + q.fold + out.slice(close);
+    }
+    return out + q.fold;
+  }
+  /* the words. Facts from the code and docs only: D162 (Fine aim), D164
+     (Speed = 500 / cm), D189 (quantization, XIM's tip), D191 (smoothing and
+     XIM's numbers), docs/MOUSE-FEEL.md (Feel). */
+  var AIM_HELP = {
+    speed: 'How far the camera turns when you move the mouse. Higher = faster turns for the same hand '+
+      'movement.<br>If you fly past targets, lower it. If you run out of mouse pad before you finish a '+
+      'turn, raise it.<br>0 = <b>Standard</b>: 34 cm/360 (Speed 14.7). A config made before this '+
+      'keeps the speed it always had at 0 until it is next saved, and then shows it as its own number. '+
+      'The first + from 0 starts you at <b>14.5</b>, a comfortable middle.<br>Tenths are allowed: tap the number to type one, like 14.5.<br>'+
+      '<b>Coming from another adapter?</b> The small number under Speed is the same setting in cm/360: the '+
+      'centimetres of mouse for one full turn of the camera (a lower cm/360 is faster). '+
+      'Speed = 500 ÷ cm/360, so 34.5 cm/360 is Speed 14.5, and Speed 100 is 5 cm.',
+    speedAds: 'How far the camera turns when you move the mouse <b>while aiming down sights</b>. Higher = '+
+      'faster.<br>Many players set it a little lower than Hip, for steadier aim on a target.<br>0 = '+
+      'exactly the same speed as Hip. Your own number here works whatever Hip says.<br><b>Coming from another adapter?</b> The small number under Speed is this setting in cm/360 '+
+      '(Speed = 500 ÷ cm/360), so an ADS of 50 cm/360 is Speed 10.',
+    fine: 'Makes small, slow mouse moves turn the camera a bit more, so tiny corrections register.<br>'+
+      'Fast flicks are not changed.<br>At 100% the very slowest moves count up to 3.4 times as much, '+
+      'easing back to normal by half your top turn speed.<br>Raise it if small moves feel like they do '+
+      'nothing. 0 = off.<br>Leave it off on a game with a measured translator: there every move already '+
+      'turns exactly as far as your hand, and Fine aim bends that.',
+    fineAds: 'Fine aim <b>while aiming down sights</b>: small, slow mouse moves turn the camera a bit '+
+      'more, so tiny corrections register. Flicks are not changed.<br>Until you change it here, it uses '+
+      'Hip’s number. 0 = off.',
+    style: '<b>Standard</b> changes with your speed: more steadying when you move slowly, less when you '+
+      'move fast. It uses Precision, Response and Easing.<br><b>Classic</b> is a steady weighted average: '+
+      'the same amount at every speed. It uses Smooth and Decay (the aim stick also has Synch; for the '+
+      'mouse, frame sync is <b>Sync to game</b> on the Translation page).<br>The first switch to Classic '+
+      'starts at Smooth 20, Decay 9.0.',
+    precision: 'Steadying at slow hand speeds. Higher = smoother, with a heavier reticle when you aim '+
+      'slowly.<br>It mostly steadies slow aim: how fast swipes feel is <b>Response</b>.<br>100 is as '+
+      'steady as it gets; whatever it holds back is still turned once your hand stops, so a swipe '+
+      'always turns its full distance.<br>0 = none. A good start is 67.5.',
+    response: 'How quickly the steadying lets go as your hand speeds up. Higher = a lighter reticle on '+
+      'fast moves.<br>A good start is 55.0.',
+    easing: 'How a movement starts from rest. Higher = a smoother start, but slower to react.<br>The '+
+      'presets use 35. A good start is 42.5.',
+    smooth: 'How much smoothing. Higher = smoother, and a little more delay.<br>0 = off. 20 is a good '+
+      'start.',
+    decay: 'How much older movement still counts. Higher = older movement counts less, so it reacts '+
+      'faster.<br>9.0 is the usual setting.',
+    synch: 'Evens your aim out over this many milliseconds, to match the game’s frames.<br>'+
+      '8 is Default, 16 Common, 32 Slow, 0 Off.<br>The line under the three numbers says how much delay '+
+      'they add together.',
+    steady: 'How hard the aim stick is steadied. Higher = steadier, and a little more delay.<br>0 = '+
+      'none. The presets use 15 (Light), 35 (Balanced) and 55 (Heavy).',
+    hipCurve: 'Changes how your hand speed becomes turn speed.<br><b>Linear</b> (a straight line): turn '+
+      'speed rises evenly with hand speed.<br>Bend the left of the line <b>down</b> for finer slow aim; '+
+      'bend it <b>up</b> so small moves react faster.<br>The “?” under the editor says how to '+
+      'drag it.',
+    adsCurve: 'The same idea as the Hip curve, for <b>while you aim down sights</b>.<br><b>Same as hip</b> '+
+      'keeps one curve for both.<br><b>Even</b>: turn speed rises evenly with hand speed. <b>Gentle</b>: '+
+      'slow moves turn less, for fine aim. <b>Aggressive</b>: slow moves turn more, for quick reactions.',
+    magnitude: 'Snaps the turn speed ZeroStick asks the game for to steps. The steps get bigger the '+
+      'faster you aim.<br>Some games’ aim assist treats stepped input like a controller’s, and '+
+      'helps more.<br>0 = off.',
+    angle: 'Snaps your aim direction to a set of angles, at any speed.<br>Like Magnitude, it can make '+
+      'some games’ aim assist help more.<br>0 = off.',
+    yscale: 'How fast up-and-down aim is compared with left-and-right.<br>100 = the same, for the same '+
+      'hand movement.<br>Raise it if looking up and down feels slow; lower it if it feels fast.',
+    noise: 'Hand movement slower than this, in millimetres a second, is ignored.<br>Use it only if your '+
+      'aim creeps while your hand rests on the mouse. Keep it as low as works: it also hides your '+
+      'smallest real moves (13 mm/s already hides a slow track).<br>0 = off.',
+    invert: 'Flips your aim direction.<br><b>Off</b> is normal. <b>Vertical</b>: push the mouse away to '+
+      'look down, the classic flight style. <b>Horizontal</b> flips left and right. <b>Both</b> flips both.',
+    /* D375: dpi and dpiFind moved, merged, to Device's Mouse DPI card's
+       "?" (09-overview.js ovDpiHTML) with the controls */
+    feel: 'How your aim stops when your hand stops.<br><b>Snappy</b> stops the instant your hand does. '+
+      'Recommended.<br><b>Balanced</b> adds a touch of glide, for unstable connections.<br><b>Smooth</b> '+
+      'is the original ZeroStick feel, with the longest glide.',
+    startup: 'How gently a movement starts after your hand was still. The first moment eases in '+
+      'instead of jumping.<br>0 = instant. Up to 200 ms.<br>Raise it a little if the reticle jumps when '+
+      'you start to move.',
+    activation: 'Your ADS settings apply only while this is on.<br>It turns on while you hold the '+
+      'aiming button (on a mouse that is usually the right button).<br>Tap ••• to choose '+
+      'which button counts as aiming.',
+    measured: '<b>Reticle velocity</b> is how fast your game really turns, measured once for this stance.'+
+      '<br>With it measured, your Speed means the same in every game.<br>Tap the row to measure it.'
+  };
+  /* the Smoothing carousel's "?": each preset in one line, from the same
+     tables the carousel reads (so the words can never disagree) */
+  function smHelpText(ads){
+    var pts = SM_PRESETS.map(function(pr){   /* D392: no Synchronous on the mouse */
+      return '<b>'+esc(pr[0])+'</b>: '+esc(pr[pr.length-1]);
+    });
+    pts.push('<b>Custom</b>: '+esc(SM_CAPTIONS.Custom));
+    if(ads) pts.unshift('<b>Same as hip</b>: '+esc(SM_CAPTIONS['Same as hip']));
+    pts.unshift('Steadies a shaky hand. Each step up adds a little delay.',
+      'Start at <b>Disabled</b> and go up only if your aim shakes.');
+    return '<ul class="qhlist">'+pts.map(function(x){ return '<li>'+x+'</li>'; }).join('')+'</ul>';
+  }
+  /* shared with 10-aim-controller.js and 10-aim.js */
+  SEC.aimAdvOn = aimAdvOn;
+  SEC.aimAdvSet = aimAdvSet;
+  SEC.aimActOpen = aimActOpen;
+  SEC.aimActSet = aimActSet;
+  SEC.curveFromBoard = curveFromBoard;
+  SEC.customFromBoard = customFromBoard;
+  SEC.smClassicFromValues = smClassicFromValues;
+  SEC.smClassicPreset = smClassicPreset;
+  SEC.classicLagMs = classicLagMs;
+  SEC.classicShown = classicShown;
+  SEC.smPresetFromValues = smPresetFromValues;
+  SEC.smStickCaption = smStickCaption;
+  SEC.invNameOf = invNameOf;
+  SEC.mouseSVG = mouseSVG;
+  SEC.qhParts = qhParts;
+  SEC.labHelp = labHelp;
+  SEC.smHelpText = smHelpText;
+  SEC.XQUANT_OPEN = XQUANT_OPEN;
+  SEC.CURVE_MAP = CURVE_MAP;
+  SEC.CURVE_NAMES = CURVE_NAMES;
+  SEC.SM_PRESETS = SM_PRESETS;
+  SEC.SM_CLASSIC_PRESETS = SM_CLASSIC_PRESETS;
+  SEC.CLASSIC_SEED = CLASSIC_SEED;
+  SEC.MOUSE_CLASSIC_SEED = MOUSE_CLASSIC_SEED;
+  SEC.SM_STICK = SM_STICK;
+  SEC.INV_OPTS = INV_OPTS;
+  SEC.XMECH_OPEN = XMECH_OPEN;
+  SEC.AIM_HELP = AIM_HELP;
+});

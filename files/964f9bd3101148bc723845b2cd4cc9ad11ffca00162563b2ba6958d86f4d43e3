@@ -1,0 +1,457 @@
+/* smart-actions/18-pills.js — the pills' sheets, the helpers, and the screen titles.
+ *
+ * Timing, runs, when and tags sheets, the wrench (the fire-rate builder), and
+ * nsOf / setTitles that every screen uses.
+ *
+ * Tests: test-smart-actions.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('pills', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var adsBindingName = SEC.adsBindingName, adsGateOK = SEC.adsGateOK, btn = SEC.btn,
+      btnI = SEC.btnI, card = SEC.card, clamp = SEC.clamp, COOL_MAX = SEC.COOL_MAX,
+      DUR_MAX = SEC.DUR_MAX, DUR_MIN = SEC.DUR_MIN, esc = SEC.esc, fld = SEC.fld,
+      intOf = SEC.intOf, note = SEC.note, helpNote = SEC.helpNote, num = SEC.num, REP_MAX = SEC.REP_MAX,
+      sh = SEC.sh, STEP_MS_CAP = SEC.STEP_MS_CAP, stepper = SEC.stepper,
+      stickVarOf = SEC.stickVarOf, SVAR_MAX = SEC.SVAR_MAX, tgtName = SEC.tgtName,
+      tgtSvg = SEC.tgtSvg, toggle = SEC.toggle, txtFld = SEC.txtFld, VAR_MAX = SEC.VAR_MAX,
+      ZS = SEC.ZS, capInfinite = SEC.capInfinite, sicon = SEC.sicon,
+      setWhenOpt = SEC.setWhenOpt, whenOptOf = SEC.whenOptOf, whenOpts = SEC.whenOpts,
+      openTargetPane = SEC.openTargetPane, sheetPaint = SEC.sheetPaint,
+      putBinding = SEC.putBinding, rowFor = SEC.rowFor, BEHAVE = SEC.BEHAVE,
+      behaveOf = SEC.behaveOf, sheetDone = SEC.sheetDone;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var draw;
+  ZS_SMART_PARTS.after(function () {
+    draw = SEC.draw;
+  });
+
+  /* ══ the pills' sheets ════════════════════════════════════════════ */
+
+  function openRunsSheet(root, p, S) {
+    var a = S.draft;
+    var opts = [
+      { v: 'always', n: 'Any time', s: 'no restriction at all' },
+      { v: 'hip', n: 'Only hip-fire', s: 'only while you are NOT looking down the sights' },
+      { v: 'ads', n: 'Only aiming', s: 'only while you ARE looking down the sights' },
+      { v: 'off', n: 'Off', s: 'keeps everything saved but stops it happening' }
+    ];
+    var cur = a.enabled === false ? 'off' : a.gate;
+    var h = helpNote('sa-gate', 'When it is allowed',
+                 'Hip-fire means you are NOT looking down the sights. Aiming means you are. ' +
+                 'Off keeps everything saved but stops it happening.');
+    if (adsGateOK(p) === false) {
+      h += note('Nothing plugged in can aim (L2 / LT on a controller and a mouse’s right ' +
+        'click always do) — so “Only aiming” would never run and “Only hip-fire” would ' +
+        'run all the time. Plug in your controller or mouse, or set your Aim button on the ' +
+        'Aim screen.', 'warn') +
+        /* the warning names Aim; this is the way there (wired below —
+           it must close this sheet before it opens the screen) */
+        btn('Open Aim', null, 'sa-fadoor');
+    }
+    h += '<div class="grp-card" role="radiogroup" aria-label="when is this allowed to run">' +
+      opts.map(function (o) {
+        var on = cur === o.v;
+        return '<div class="hmrow' + (on ? ' on' : '') + '" data-runs="' + o.v + '" role="radio" ' +
+          'tabindex="0" aria-checked="' + (on ? 'true' : 'false') + '"><span class="hmdot"></span>' +
+          '<span class="hmt">' + esc(o.n) + '<em>' + esc(o.s) + '</em></span></div>';
+      }).join('') + '</div>' +
+      /* EVERY SUB-SHEET NEEDS A WAY BACK, and this one had none: four radio
+         rows and no button. Picking a row is a DECISION, not an exit — so
+         the only way out for someone who opened it to look was the host's ✕,
+         and with the editor open that ✕ IS the editor's dismissal. Changing
+         your mind about the aim gate destroyed the whole draft.
+         The When, Tag, Timing, Name, Helpers and Sequences sheets were all
+         given this control already; this is the sixth wearing the same one,
+         in the same place, doing the same thing. */
+      btn('Done', null, 'sa-runsx');
+    var body = sheetPaint('When is this allowed to run?', h);
+    var out = body.querySelector('#sa-runsx');
+    if (out) out.addEventListener('click', sheetDone(root, p, S));
+    var fa = body.querySelector('#sa-fadoor');
+    if (fa) fa.addEventListener('click', function () {
+      ZS.sheetClose();
+      ZS.openDetail({ id: 'roles', lab: 'Aim' }, p);
+    });
+    body.querySelectorAll('[data-runs]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var v = el.dataset.runs;
+        if (v === 'off') a.enabled = false;
+        else { a.enabled = true; a.gate = v; }
+        a.edited = true; S.unsaved = true;
+        sheetDone(root, p, S)();
+      });
+    });
+  }
+
+  /* ADAPTED DOWN, hard, and deliberately. XIM's Binding Group pill can
+     enable, disable, cycle and revert groups from thirteen different smart
+     actions. Ours writes accessibilityActions[].group, which schema.py
+     validates as a plain string and _build_action never reads. So it is a
+     LABEL, full stop, and the sheet says so. Anything here that implied
+     switching would be a promise the engine cannot keep. */
+  function openTagSheet(root, p, S) {
+    var a = S.draft, inp = null;
+    function commit() {
+      if (inp) { a.group = inp.value; a.edited = true; S.unsaved = true; }
+    }
+    var h = helpNote('sa-tag', 'Tag',
+                 'A name you give it so you can find it later — “Sniper”, “Vehicles”. ' +
+                 'It is just a label; it does not switch anything on or off.') +
+      card(txtFld('Tag', a.group, 'sa-tagin', 'e.g. Sniper')) +
+      btnI('ok', 'Done', 'primary', 'sa-tagok');
+    /* with the editor open this is a swap, not a nest: the close callback
+       would fire on the EDITOR's dismissal, long after the tag was set */
+    var body = sheetPaint('Tag', h, S.sheetEditor ? undefined : function () { commit(); draw(root, p); });
+    inp = body.querySelector('.sa-tagin');
+    body.querySelector('#sa-tagok').addEventListener('click', function () {
+      commit();
+      sheetDone(root, p, S)();
+    });
+  }
+
+  /* ADOPT XIM's idea and its placement; REJECT their red-when-off icon. Red
+     means broken everywhere else in this app, and this is a preference, not a
+     fault. And say "±15 ms", never "20%": ours is an ABSOLUTE wobble applied
+     to every timed step (sequences.py _jitter), where theirs is a percentage
+     scoped to waits. Saying it their way would be a number that is not true
+     of our engine. */
+  /* The BOTTOM badge's sheet. It absorbed the whole "Timing and safety"
+     accordion that used to sit at the foot of the build screen — give up
+     after, never give up, cooldown, how many times, always finish — so one
+     badge in one fixed place owns every timing decision an action has. */
+  function openTimingSheet(root, p, S, first) {
+    var a = S.draft;
+    var h = '<div class="grp-card" role="radiogroup" aria-label="how exact should the timing be">' +
+      [['on', 'Human timing', 'each gap wobbles by a few milliseconds, so it does not look like a machine'],
+       ['off', 'Exact timing', 'every gap is exactly what you set']].map(function (r) {
+        var on = (r[0] === 'on') === (a.varianceMs > 0);
+        return '<div class="hmrow' + (on ? ' on' : '') + '" data-var="' + r[0] + '" role="radio" ' +
+          'tabindex="0" aria-checked="' + (on ? 'true' : 'false') + '"><span class="hmdot"></span>' +
+          '<span class="hmt">' + esc(r[1]) + '<em>' + esc(r[2]) + '</em></span></div>';
+      }).join('') + '</div>' +
+      '<div id="sa-varwrap">' +
+      (a.varianceMs > 0
+        ? card(stepper('Wobble by up to', a.varianceMs, 5, 0, VAR_MAX, 'ms', '0 turns it off', 'varianceMs'))
+        : '') +
+      /* D171, the owner (2026-10-01): stick variance lives ON the Smart
+         Action, ±1 by default on every action, changed here. An action that
+         never set one sends nothing and the Core uses its ±1 default. */
+      sh('Stick variance') +
+      card('<div class="fld col"><div class="flab">Stick variance <b id="sa-svar-v">±' +
+             (stickVarOf(a.stickVariance) !== null ? stickVarOf(a.stickVariance) : 1) + '%</b>' +
+             '<em>Each stick push varies by up to this much: at ±3 a 7% push lands between 4% and 10%. 0 is exact.</em></div>' +
+           '<input class="rng" id="sa-svar" type="range" min="0" max="' + SVAR_MAX + '" step="1" data-nosave="1" ' +
+             'aria-label="Stick variance" value="' +
+             (stickVarOf(a.stickVariance) !== null ? stickVarOf(a.stickVariance) : 1) + '"></div>') +
+      sh('Safety') +
+      card(
+        /* "Never give up" (maxDurationMs 0) exists only on the modes that
+           keep running, and only on a board that advertises it — the
+           accessibility case the 30 s cap was in the way of */
+        (a.maxDurationMs === 0 ? ''
+          : stepper('Give up after', a.maxDurationMs, 500, DUR_MIN, DUR_MAX, 'ms',
+                    'the board never lets one run go past 30 seconds', 'maxDurationMs')) +
+        (a.holdMode !== 'once' && capInfinite()
+          ? fld('Never give up', toggle(a.maxDurationMs === 0, 'sa-inf', 'never give up'),
+                'runs until you stop it, switch configs, or unplug')
+          : '') +
+        stepper('Wait before it can fire again', a.cooldownMs, 50, 0, COOL_MAX, 'ms',
+                '0 means it can fire again straight away', 'cooldownMs') +
+        /* ignored on the continuous modes, so not drawn there — a control
+           that changes nothing is worse than no control */
+        (a.holdMode === 'once'
+          ? stepper('How many times', a.maxRepeats, 1, 1, REP_MAX, '',
+                    'plays this many times each time you fire it', 'maxRepeats')
+          : '') +
+        fld('Always finish', toggle(a.uninterruptible, 'sa-unint', 'always finish'),
+            'finish the whole sequence even if you let go')) +
+      '</div>' +
+      btnI('ok', 'Done', 'primary', 'sa-varok');
+    /* the close callback belongs to the FIRST paint only — the sheet host
+       keeps a STACK of them and re-opening while open only swaps content.
+       Over the editor it is a swap, so it never takes one at all. */
+    var body = sheetPaint('Timing and safety', h,
+                          (S.sheetEditor || first === false) ? undefined : function () { draw(root, p); });
+    /* D283: every change here repaints the editor's timing banner's words */
+    function synced() { if (SEC.timingSync) SEC.timingSync(a); }
+    body.addEventListener('click', function () { setTimeout(synced, 0); });
+    body.addEventListener('zsstep', function () { setTimeout(synced, 0); });
+    synced();
+    body.querySelectorAll('[data-svar]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        a.stickVariance = el.dataset.svar === 'own'
+          ? (stickVarOf(a.stickVariance) !== null ? stickVarOf(a.stickVariance) : 3) : null;
+        a.edited = true; S.unsaved = true;
+        openTimingSheet(root, p, S, false);
+      });
+    });
+    var svr = body.querySelector('#sa-svar');
+    if (svr) svr.addEventListener('input', function () {
+      a.stickVariance = clamp(Math.round(num(svr.value, 1)), 0, SVAR_MAX);
+      var lab = body.querySelector('#sa-svar-v');
+      if (lab) lab.textContent = '±' + a.stickVariance + '%';
+      a.edited = true; S.unsaved = true;
+    });
+    body.querySelectorAll('[data-var]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        a.varianceMs = el.dataset['var'] === 'on' ? (a.varianceMs > 0 ? a.varianceMs : 15) : 0;
+        a.edited = true; S.unsaved = true;
+        openTimingSheet(root, p, S, false);
+      });
+    });
+    var wrap = body.querySelector('#sa-varwrap');
+    if (wrap) wrap.addEventListener('zsstep', function (e) {
+      var sv = e.target, f = sv && sv.dataset && sv.dataset.f;
+      if (!f) return;
+      var v = Math.round(num(sv.textContent, 0));
+      if (f === 'varianceMs') a.varianceMs = clamp(v, 0, VAR_MAX);
+      else if (f === 'stickVariance') a.stickVariance = clamp(v, 0, SVAR_MAX);
+      else if (f === 'maxDurationMs') a.maxDurationMs = clamp(v, DUR_MIN, DUR_MAX);
+      else if (f === 'cooldownMs') a.cooldownMs = clamp(v, 0, COOL_MAX);
+      else if (f === 'maxRepeats') a.maxRepeats = clamp(v, 1, REP_MAX);
+      else return;
+      a.edited = true; S.unsaved = true;
+    });
+    var un = body.querySelector('#sa-unint');
+    if (un) un.addEventListener('click', function () {
+      a.uninterruptible = un.classList.contains('on');
+      a.edited = true; S.unsaved = true;
+    });
+    /* writes the literal 0 the engine reads as "no cap"; a repaint, because
+       the Give-up stepper appears and disappears with it */
+    var inf = body.querySelector('#sa-inf');
+    if (inf) inf.addEventListener('click', function () {
+      a.maxDurationMs = inf.classList.contains('on') ? 0 : 10000;
+      a.edited = true; S.unsaved = true;
+      openTimingSheet(root, p, S, false);
+    });
+    body.querySelector('#sa-varok').addEventListener('click', sheetDone(root, p, S));
+  }
+
+  /* ── Helpers (the wrench) — the fire-rate builder ──────────────────
+     XIM's Workshop also has recoil MODELLING (trace the bullet holes) and
+     rumble triggers. Rumble is REJECTED outright: evdev_source.set_rumble
+     only writes TO the pad, and there is no console→board rumble read path
+     anywhere, so the feature cannot exist here at all. Tracing bullet holes
+     needs an accurate cm/360 we do not have — but we do have a capture card
+     on /dev/video0, so tracing by tapping holes on a captured frame is a real
+     project for later, and a better one than theirs.
+
+     What ships today is the part that is pure arithmetic over a step list. */
+  function openHelpersSheet(root, p, S) {
+    var a = S.draft;
+    var rpm = S.rpm || 600;
+    var first = true;
+    function paint() {
+      var gap = Math.max(1, Math.round(60000 / Math.max(1, rpm)));
+      var waits = 0, i;
+      for (i = 0; i < a.steps.length; i++) if (a.steps[i].k === 'wait') waits++;
+      var h = '<p class="lead">Small tools that build the steps for you. You can change anything afterwards.</p>' +
+        sh('Match a gun’s fire rate') +
+        helpNote('sa-rpm', 'Match a gun’s fire rate',
+                 'Tell me how fast the gun shoots and I will work out the gap between presses for you.') +
+        '<div id="sa-hlp">' +
+        card(stepper('Shots per minute', rpm, 10, 60, 1400, '',
+          'most guns are between 400 and 900 — it is usually on the gun’s stat screen', 'rpm')) +
+        '</div>';
+      if (!a.steps.length) {
+        h += note('Add some steps first, then come back and I will space them out for you.', 'warn');
+      } else if (!waits) {
+        h += note('This sequence has no Wait steps yet. Add one and I will set it for you.', 'warn');
+      } else {
+        h += note('That is one shot every <b>' + gap + ' ms</b>. I will set every Wait in this ' +
+                  'sequence (' + waits + ' of them) to ' + gap + ' ms.') +
+          btn('Use this timing', 'primary', 'sa-hlpgo');
+      }
+      /* EVERY SUB-SHEET NEEDS A WAY BACK. Without this the only exits were
+         "apply" and the host's ✕ — and with the editor open the ✕ IS the
+         editor's dismissal, so changing your mind here threw the whole draft
+         away. Same rule as the Tag, Name, When and Timing sheets. */
+      h += btn('Done', null, 'sa-hlpx');
+      var body = sheetPaint('Helpers', h, first ? function () {} : undefined);
+      first = false;
+      var wrap = body.querySelector('#sa-hlp');
+      if (wrap) wrap.addEventListener('zsstep', function (e) {
+        var sv = e.target;
+        if (!sv || !sv.dataset || sv.dataset.f !== 'rpm') return;
+        rpm = clamp(intOf(sv.textContent, 600), 60, 1400);
+        S.rpm = rpm;
+        paint();
+      });
+      var out = body.querySelector('#sa-hlpx');
+      if (out) out.addEventListener('click', sheetDone(root, p, S));
+      var go = body.querySelector('#sa-hlpgo');
+      if (go) go.addEventListener('click', function () {
+        for (var k = 0; k < a.steps.length; k++) {
+          if (a.steps[k].k === 'wait') a.steps[k].ms = clamp(gap, 0, STEP_MS_CAP);
+        }
+        a.edited = true; S.unsaved = true;
+        sheetDone(root, p, S)();
+        ZS.toast('Every Wait set to ' + gap + ' ms');
+      });
+    }
+    paint();
+  }
+
+  /* The TOP badge's sheet. It gained the per-option threshold stepper that
+     used to sit on the build screen: how long counts as "held" is a property
+     OF THE OPTION, not of the screen, so it belongs under the option you
+     just chose. The 100 ms dead band between "quick" (≤250) and "held"
+     (350) is deliberate — a press in the band does neither, which is what
+     stops a shaky press doing both. Do not "fix" it. */
+  function openWhenSheet(root, p, S, first) {
+    /* the list is the BOARD's list: an option /capabilities has not
+       advertised is not drawn, so nothing here can build an action the board
+       would reject. The current option is matched by its (gesture, holdMode)
+       pair — never by position, because the list shrinks with the board. */
+    var a = S.draft, cur = whenOptOf(a), opts = whenOpts();
+    var sub = '';
+    if (cur.g === 'hold_ms') {
+      sub = stepper('Counts as held after', a.trigger.holdMs, 50, 100, 2000, 'ms',
+                    '100–2000 ms — longer helps if your grip presses things by accident', 'holdMs');
+    } else if (cur.g === 'double_tap') {
+      sub = stepper('Taps must land within', a.trigger.windowMs, 25, 150, 1000, 'ms',
+                    '150–1000 ms — wider means slower taps still count', 'windowMs');
+    } else if (cur.g === 'tap') {
+      sub = stepper('Counts as quick under', a.trigger.tapMs, 10, 80, 600, 'ms',
+                    '80–600 ms — anything longer is ignored here, so a hold sequence can share this button', 'tapMs');
+    }
+    var h = helpNote('sa-when', 'When should this happen?',
+                 'Pick the one that matches how you want to use the button. The badge on the ' +
+                 'right says whether it plays once or keeps going.') +
+      '<div class="grp-card" role="radiogroup" aria-label="when should this happen">' +
+      opts.map(function (o, i) {
+        var on = cur === o;
+        return '<div class="hmrow' + (on ? ' on' : '') + '" data-when="' + i + '" role="radio" ' +
+          'tabindex="0" aria-checked="' + (on ? 'true' : 'false') + '"><span class="hmdot"></span>' +
+          '<span class="hmt">' + esc(o.n) + '<em>' + esc(o.s) + '</em></span>' +
+          '<span class="rt"><span class="tag">' + sicon(o.bi) + esc(o.b) + '</span></span></div>';
+      }).join('') + '</div>' +
+      '<div id="sa-whenwrap">' + (sub ? card(sub) : '') + '</div>' +
+      btnI('ok', 'Done', 'primary', 'sa-whenok');
+    var body = sheetPaint('When should this happen?', h);
+    body.querySelectorAll('[data-when]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        setWhenOpt(a, opts[+el.dataset.when]);
+        a.edited = true; S.unsaved = true;
+        /* stay put: the threshold stepper for the option you just picked
+           appears under it, which is the whole reason it moved here */
+        openWhenSheet(root, p, S, false);
+      });
+    });
+    var wrap = body.querySelector('#sa-whenwrap');
+    if (wrap) wrap.addEventListener('zsstep', function (e) {
+      var sv = e.target, f = sv && sv.dataset && sv.dataset.f;
+      if (f !== 'holdMs' && f !== 'windowMs' && f !== 'tapMs') return;
+      a.trigger[f] = Math.round(num(sv.textContent, 0));
+      a.edited = true; S.unsaved = true;
+    });
+    body.querySelector('#sa-whenok').addEventListener('click', sheetDone(root, p, S));
+  }
+
+  /* The simple-mode header pill. It writes bindings[].mode, which
+     mapping/bindings.py reads on every press — a real field, not decoration.
+     XIM's Binding Activation and Binding Group pills have NO equivalent on a
+     plain remap (a binding has no activation gate and no group), so drawing
+     them here would be two controls that change nothing. This is the control
+     that belongs in that spot: "press once for on, press again for off" is
+     the single most useful thing this screen can offer someone who finds
+     holding a button tiring. */
+  function openBehaveSheet(root, p, S, row) {
+    var cur = behaveOf(row);
+    var b = row.plainBind ? row.plainBind.b : {};
+    var h = helpNote('sa-behave', 'How the button behaves',
+                 'How the button itself behaves. This is about the button, not about timing ' +
+                 'a sequence.') +
+      '<div class="grp-card" role="radiogroup" aria-label="how this button behaves">' +
+      BEHAVE.map(function (o, i) {
+        var on = cur === i;
+        return '<div class="hmrow' + (on ? ' on' : '') + '" data-beh="' + o.k + '" role="radio" ' +
+          'tabindex="0" aria-checked="' + (on ? 'true' : 'false') + '"><span class="hmdot"></span>' +
+          '<span class="hmt">' + esc(o.n) + '<em>' + esc(o.s) + '</em></span></div>';
+      }).join('') + '</div>';
+    var mode = BEHAVE[cur].k;
+    if (mode === 'tap' || mode === 'long_press') {
+      h += '<div id="sa-behms">' + card(stepper(
+        mode === 'tap' ? 'A quick tap is under' : 'Hold it for',
+        clamp(intOf(b.tapTargetMs, 200), 1, 60000), 25, 1, 60000, 'ms',
+        mode === 'tap' ? 'longer than this counts as a hold' : 'nothing happens until then',
+        'tapTargetMs')) + '</div>';
+    }
+    if (mode === 'tap') {
+      h += card(fld('If you hold it instead',
+        '<button class="pbtn" id="sa-holdtgt" aria-label="what a long hold should send">' +
+        (b.holdTarget ? tgtSvg(b.holdTarget, p) : '') + '<span class="plab">' +
+        esc(b.holdTarget ? tgtName(b.holdTarget, p) : 'nothing') +
+        '</span><span class="pchev">▾</span></button>',
+        'without this, holding it does nothing at all')) ;
+    }
+    var body = sheetPaint('How should this button behave?', h);
+    body.querySelectorAll('[data-beh]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var k = el.dataset.beh;
+        putBinding(p, row, function (list, bi) { list[bi].mode = k; }, null, function () {
+          draw(root, p);
+          /* the row model is rebuilt from live state on every draw, so the
+             sheet has to re-open against the FRESH row, not the stale one */
+          openBehaveSheet(root, p, S, rowFor(p, S, row.source) || row);
+        });
+      });
+    });
+    var wrap = body.querySelector('#sa-behms');
+    if (wrap) wrap.addEventListener('zsstep', function (e) {
+      var sv = e.target;
+      if (!sv || !sv.dataset || sv.dataset.f !== 'tapTargetMs') return;
+      var v = clamp(intOf(sv.textContent, 200), 1, 60000);
+      putBinding(p, row, function (list, bi) { list[bi].tapTargetMs = v; }, null, function () {
+        draw(root, p);
+      });
+    });
+    var ht = body.querySelector('#sa-holdtgt');
+    if (ht) ht.addEventListener('click', function () {
+      openTargetPane(p, function (code) {
+        putBinding(p, row, function (list, bi) { list[bi].holdTarget = code; }, null, function () {
+          draw(root, p);
+        });
+      }, function () {
+        openBehaveSheet(root, p, S, rowFor(p, S, row.source) || row);
+      });
+    });
+  }
+
+  /* ══ render ═══════════════════════════════════════════════════════ */
+
+  /* repaintLive is GONE. Its job — refresh the preview, the errors, the
+     total and Save without a full render — belongs to the sheet now, and
+     liveEditor() is that function. Keeping two of them would guarantee they
+     drifted. */
+
+  function nsOf(root, p) {
+    return (root && root.dataset && root.dataset.ns) || (p.id + '/smart');
+  }
+  function setTitles(title, back) {
+    var dt = document.getElementById('dtitle'); if (dt) dt.textContent = title;
+    /* window.zsSetBack puts the label in a real element so the header's
+       text-overflow:ellipsis can act on it — .pback is a flex container and
+       ellipsis does not apply to a flex container's anonymous text. */
+    var db = document.getElementById('dtback');
+    if (db) { if (window.zsSetBack) window.zsSetBack(db, back); else db.textContent = back; }
+  }
+
+  /* what the other parts use from this one */
+  SEC.nsOf = nsOf;
+  SEC.openBehaveSheet = openBehaveSheet;
+  SEC.openHelpersSheet = openHelpersSheet;
+  SEC.openRunsSheet = openRunsSheet;
+  SEC.openTagSheet = openTagSheet;
+  SEC.openTimingSheet = openTimingSheet;
+  SEC.openWhenSheet = openWhenSheet;
+  SEC.setTitles = setTitles;
+});

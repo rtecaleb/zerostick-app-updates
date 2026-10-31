@@ -1,0 +1,1127 @@
+/* smart-actions/16-buttons.js — the Buttons list (Mappings): what you press, what the console gets.
+ *
+ * One row per input, the row's sequence (D82), the input screen of one button,
+ * and starting a sequence from a button.
+ *
+ * Tests: test-smart-actions.js, test-input-type.js, test-game-packs.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('buttons', function (SEC) {
+  'use strict';
+  var helpNote = SEC.helpNote;   /* D285: every explanation behind a "?" (2026-10-31) */
+  /* from the parts before this one */
+  var addbtn = SEC.addbtn, arr = SEC.arr, card = SEC.card, clone = SEC.clone,
+      esc = SEC.esc, haveClass = SEC.haveClass, isPadSource = SEC.isPadSource,
+      newAction = SEC.newAction, normAction = SEC.normAction, note = SEC.note, sh = SEC.sh,
+      tgtName = SEC.tgtName, tgtSvg = SEC.tgtSvg, ZS = SEC.ZS, oneLiner = SEC.oneLiner,
+      MARK_TARGET = SEC.MARK_TARGET, sicon = SEC.sicon, stripHTML = SEC.stripHTML,
+      tileHTML = SEC.tileHTML, totalSay = SEC.totalSay, totalChip = SEC.totalChip, boardWord = SEC.boardWord,
+      deadNote = SEC.deadNote, deadParts = SEC.deadParts, firedNote = SEC.firedNote,
+      notSaved = SEC.notSaved, syncBadge = SEC.syncBadge,
+      workshopOffered = SEC.workshopOffered, bindTileHTML = SEC.bindTileHTML,
+      repeatBadge = SEC.repeatBadge, bindsLive = SEC.bindsLive, bindsOf = SEC.bindsOf,
+      inputsFor = SEC.inputsFor, packLayout = SEC.packLayout,
+      padRowsWanted = SEC.padRowsWanted, rowArt = SEC.rowArt, rowCaption = SEC.rowCaption,
+      rowName = SEC.rowName, rowTarget = SEC.rowTarget, sameLayout = SEC.sameLayout,
+      srcShown = SEC.srcShown, gridHTML = SEC.gridHTML;
+  /* from parts after this one, bound once every part has run (never used
+     while this part is running) */
+  var draw, smartBodyHTML;
+  ZS_SMART_PARTS.after(function () {
+    draw = SEC.draw;
+    smartBodyHTML = SEC.smartBodyHTML;
+  });
+
+  /* ══ the Buttons list ═════════════════════════════════════════════ */
+
+  /* ── ONE SCRIPT ROW (D338) ──
+     Owner (2026-10-14, the Scripts fold on Mappings): "it just looks bad
+     and not formal or nice". The row it replaces drew the trigger cell, a
+     colour dot, "▸▸", the name and two marks on one line, the "?" alone on
+     a second, the 84x56 binding tile and the switch on a third (with the
+     left of that line empty) and the step strip on a fourth. Now it is a
+     list row like every other one in the app:
+       left    the Script's picture (its Ready-made's own icon, or the
+               editor's) on a square in the Script's colour
+       middle  the name with its "?" beside it; under it, in the muted ink,
+               the key that starts it (its own small picture), how it runs
+               and how long it takes, and its tags (the four badges the
+               binding tile carried, now as words); under that the steps,
+               small, in the same column
+       right   the on/off switch and the chevron, centred on the row
+     The "?" opens its points under the text column, not across the row. */
+  /* the key that starts a Script, as a small picture and its word, both
+     in THIS config's console's names (D239: LB on Xbox, L1 on PlayStation);
+     a picture that already is the word (the LB glyph) goes without it */
+  function trigKeyHTML(src, p) {
+    var art = SEC.srcArt(src), word = String(SEC.srcName(src)).replace(/ key$/, '');
+    if (p && SEC.srcClass(src) === 'controller' && window.ZSG && typeof ZSG.glyph === 'function') {
+      var fam = (p.platform === 'ps5' || p.platform === 'ps4') ? 'ps5' : 'xbox';
+      art = ZSG.glyph(src, fam);
+      word = ZSG.label(src, fam);
+    }
+    return '<span class="glyimg">' + art + '</span>' + (sameWord(art, word) ? '' : '<b>' + esc(word) + '</b>');
+  }
+  function scriptPicHTML(a) {
+    var id = SEC.tplIdOf ? SEC.tplIdOf(a) : '', t = null;
+    (SEC.TEMPLATES || []).forEach(function (x) { if (!t && x && x.id === id) t = x; });
+    var pic = (t && t.ico && SEC.ico) ? SEC.ico(t.ico, 26) : '';
+    if (!pic && ZS.icoSVG) pic = ZS.icoSVG('editor', 26);
+    return '<span class="saseqpic" aria-hidden="true" style="--sacol:' + esc(a.colour || 'var(--accent)') + '">' +
+      pic + '</span>';
+  }
+  /* ZS.helpHTML is a "?" row followed by its fold; the row wants the "?"
+     beside the name and the fold under the text, so the two are parted */
+  function splitQH(html) {
+    var s = String(html || ''), at = s.indexOf('<div class="note qhfold"');
+    if (at < 0) return { chip: s, fold: '' };
+    var chip = s.slice(0, at).replace(/^<span class="sadesc">/, '');
+    var fold = s.slice(at).replace(/<\/span>\s*$/, '');
+    return { chip: chip, fold: fold };
+  }
+  function seqLineHTML(pair, ri, p, S, row) {
+    var a = pair.a, line = oneLiner(a, p), dead = deadNote(a, p, S), rb = repeatBadge(a);
+    var nm = a.name || 'Untitled sequence';
+    var unbound = !!(a.trigger && a.trigger.unbound);
+    var src = unbound ? '' : (row && row.source) || (SEC.emitSource(p, a.trigger) || '');
+    var off = a.enabled === false;
+    var qh = splitQH(SEC.descQH(a, p));
+    /* the key that starts it: its own picture, small, and its name; with
+       none, the ✕ that opens the key picker (the cell it always was) */
+    var key = src
+      ? '<span class="saseqkey">' + trigKeyHTML(src, p) + '</span>'
+      : '<span class="saseqkey nokey"><span class="sacell nosrc" data-fix="1" role="button" tabindex="0" ' +
+        'aria-label="no button starts this yet — pick one">✕</span><b>No key yet</b></span>';
+    var bs = SEC.bindBadges ? SEC.bindBadges(a) : {};
+    var tags = ['top', 'left', 'right', 'bottom'].map(function (k) {
+      var b = bs[k];
+      return b ? '<span class="saseqtag" title="' + esc(b.s) + '">' + b.m + '<i>' + esc(b.w) + '</i></span>' : '';
+    }).join('');
+    /* a dead Script on no key says so with the ✕ above, not twice */
+    var deadLine = unbound ? '' : dead;
+    return '<div class="lrow saitem seqline saseq' + (dead ? ' sabroken' : '') + (off ? ' saoffrow' : '') +
+      '" data-row="' + ri + '" data-act="' + pair.i + '" role="button" tabindex="0" aria-label="' +
+      esc(nm + ' — ' + line + totalSay(a) + ' It ' + rb.say + '.' +
+          (off ? ' Switched off.' : '') + (dead ? ' Will not fire.' : '')) + '">' +
+      scriptPicHTML(a) +
+      '<span class="src saseqtx">' +
+        '<span class="saseqhd"><span class="saseqnm">' + esc(nm) + '</span>' +
+          (off ? '<span class="tag saoff">off</span>' : '') + syncBadge(a, p, S) +
+          (qh.chip ? '<span class="saseqq">' + qh.chip + '</span>' : '') + '</span>' +
+        '<span class="saseqsub" aria-hidden="true">' + key +
+          (a.steps.length ? totalChip(a) : '') + tags + firedNote(a, p, S) + '</span>' +
+        deadLine +
+        (a.steps.length ? '<span class="saseqsteps">' + rowStripHTML(a, p, 5) + '</span>' : '') +
+        qh.fold +
+      '</span>' +
+      '<span class="rt">' +
+      '<span class="sw' + (a.enabled ? ' on' : '') + '" data-en="' + pair.i +
+      '" data-nosave="1" role="switch" aria-checked="' + (a.enabled ? 'true' : 'false') +
+      '" tabindex="0" aria-label="' + esc(nm + ' — on or off') + '"></span>' +
+      '<span class="chev">›</span></span></div>';
+  }
+
+  /* A GLYPH THAT IS JUST THE LABEL IS NOT A GLYPH. ZSG draws the face buttons
+     as symbols (✕ ◯ □ △) but the shoulders, triggers and stick clicks as
+     their own letters, so a bumper row rendered "L1 → L1 L1 default": the
+     picture, the picture's caption, and the caption. Face rows never did this
+     ("✕ → ✕ Cross"), so the list was inconsistent as well as repetitive.
+     Compare the glyph's text to the label and drop the picture when it is
+     saying the same word — the label is the half a screen reader reads. */
+  function sameWord(svg, name) {
+    var g = String(svg || '').replace(/<[^>]*>/g, '').replace(/\s+/g, '').toUpperCase();
+    var n = String(name || '').replace(/\s+/g, '').toUpperCase();
+    return !!g && g === n;
+  }
+
+  /* ── one row: what you PRESS on the left, what the console GETS on the
+     right (D78). XIM's Bindings row on our model: a square SOURCE cell —
+     the player's own key, click or pad button, framed in its device
+     family's colour — and beside it the TARGET's picture and name. The
+     frame is decoration over art that already says what it is (a keycap
+     drawn as a keycap, a pad button as a pad button); nothing here is
+     colour-alone. The two columns keep their meanings even on an unchanged
+     pad row ("[✕] ✕ Cross · default"): left is always the input, right is
+     always the output, which is what lets the list be scanned rather than
+     read. (The 2026-08-28 review dropped the second picture on identity
+     rows when the row was "picture → picture"; with fixed columns the
+     repetition is the grammar, and the "default" tag still says why.) */
+  function srcCellHTML(row, p) {
+    if (!row || !row.source) {
+      /* XIM's big X: an output nothing drives yet. It is the door to
+         "press the control you want to bind" — the same picker the row
+         already reaches through its ▲ notice (data-fix → retrigger →
+         pickTrigger, whose "Press it and I'll find it" arms the board's
+         /capture). No new backend call. */
+      return '<span class="sacell nosrc" data-fix="1" role="button" tabindex="0" ' +
+        'aria-label="no button starts this yet — pick one">✕</span>';
+    }
+    var fam = (row.kind === 'controller' && window.ZSG && ZSG.family) ? String(ZSG.family() || '') : '';
+    /* D239 (owner, 2026-10-09: "show RB as RB, or R1 as R1, by default"): a
+       pad button is drawn the way THIS config's console names it - R1 on a
+       PS4/PS5 config, RB on Xbox and PC - so a default row reads R1 -> R1 */
+    var art = rowArt(row);
+    if (p && row.kind === 'controller' && window.ZSG && typeof ZSG.glyph === 'function') {
+      fam = (p.platform === 'ps5' || p.platform === 'ps4') ? 'ps5' : 'xbox';
+      art = ZSG.glyph(row.neutral || row.source, fam);
+    }
+    return '<span class="sacell k-' + esc(row.kind || 'unknown') + (fam ? ' fam-' + esc(fam) : '') +
+      '" aria-hidden="true"><span class="glyimg">' + art + '</span></span>';
+  }
+  /* ── THE ROW SHOWS THE SEQUENCE (D82) ──
+     Owner (2026-09-05): "when it is a smart action it should show the smart
+     action it is, by showing the sequence that it can, in the box of that
+     button that was made." XIM's list draws a smart button's row as a strip
+     of small step icons with their timings and a ••• at the end, where a
+     plain row shows the target picture. So a row with a sequence puts the
+     sequence's NAME where the target name sits and, under it, a ONE-LINE
+     strip of the same tiles the editor's box draws (the target's picture
+     through the art hubs, or the kind's icon; the number under it in the
+     box's own units: ms, %, ×), at 38×40. The strip is cut by COUNT, not by
+     clipping: ROW_FIT tiles fit beside the 44 px cell in the 393 px list
+     (measured), so past that the last slot is a ••• tile that says how
+     many more, and the row never wraps or scrolls sideways. A second
+     sequence on the button is a "+1 more" tag after the strip, which costs
+     the strip one tile of room; the panel's "1 of 2 ›" takes it from there.
+     The strip is aria-hidden — the row's own label says the sequence in
+     words — and the tap still opens the panel in editor mode (D81). */
+  var ROW_FIT = 5;
+  function rowStripHTML(a, p, fit) {
+    var steps = a.steps, n = steps.length, i, body = '';
+    if (!n) return '';
+    var show = n > fit ? fit - 1 : n, hidden = n - show;
+    for (i = 0; i < show; i++) body += tileHTML(steps[i], i, steps, p, {});
+    if (hidden > 0) {
+      body += '<span class="satile rowmore" title="' +
+        esc(hidden + ' more step' + (hidden > 1 ? 's' : '') + ' — open the button to see them all') + '">' +
+        '<span class="satart">' + sicon('more', '…') + '</span>' +
+        '<span class="satbadge">+' + hidden + '</span></span>';
+    }
+    return '<span class="sastrip rowstrip" aria-hidden="true">' + body + '</span>';
+  }
+  /* `o.state` (the Smart mappings rows, D85) adds what the old Yours cards
+     showed that matters: an "off" tag beside a switched-off sequence's
+     name (the editor's On/Off does the writing) and the D70 "!" chip —
+     never red prose — when the board says it will not fire, its fold
+     carrying the one-tap fix. The Mappings list's own rows stay as D82
+     drew them. */
+  /* D256: a Rapid fire Script (the Ready-made turbo: a pull of RT, then a
+     wait, the same length, repeated while held). Its speed is taps a
+     second; ms per half = 1000 / (2 * taps). */
+  function turboOf(a) {
+    if (!a || !Array.isArray(a.steps) || a.steps.length !== 2) return false;
+    var id = SEC.tplIdOf ? SEC.tplIdOf(a) : '';
+    return id === 'turbo' && a.steps[0].k === 'trig' && a.steps[1].k === 'wait';
+  }
+  function turboTaps(a) {
+    var ms = Math.max(1, +a.steps[0].ms || 40);
+    return Math.max(2, Math.min(33, Math.round(1000 / (2 * ms))));
+  }
+  function turboSliderHTML(a, ai) {
+    var v = turboTaps(a);
+    return '<span class="saturbo" data-noswipe="1"><span class="saturbol">Speed <b data-turbov="' + ai + '">' + v +
+      ' taps/s</b></span><input class="saturborng" type="range" min="2" max="33" step="1" value="' + v +
+      '" data-turbo="' + ai + '" data-nosave="1" aria-label="Rapid fire speed, taps a second"></span>';
+  }
+  SEC.turboOf = turboOf;
+  /* D270 (owner, 2026-10-10: "Aim assist booster gets a Strength slider so
+     people can turn it up and down; Anti-recoil gets a pull-down Strength
+     slider"): the D256 pattern for the two aim Ready-mades. The row IS its
+     strength, the stick % every one of its stick steps pushes:
+       aimboost  eight right-stick steps round a circle, each `dist`
+       recoil    one right-stick step straight down, its `dist`
+     Recognised by the template AND the shape, so a Script the player has
+     reshaped in the editor keeps its tiles. */
+  var STRENGTH = {
+    aimboost: { min: 2, max: 25, lab: 'Strength', say: 'Aim assist booster strength, percent' },
+    recoil: { min: 3, max: 60, lab: 'Pull down', say: 'Anti-recoil pull-down strength, percent' }
+  };
+  function strengthOf(a) {
+    if (!a || !Array.isArray(a.steps) || !a.steps.length) return null;
+    var id = SEC.tplIdOf ? SEC.tplIdOf(a) : '';
+    var sticks = a.steps.every(function (s) { return s && s.k === 'stick' && s.stick === 'right' && !(+s.dps > 0); });
+    if (!STRENGTH[id] || !sticks) return null;
+    if (id === 'aimboost' && a.steps.length !== 8) return null;
+    if (id === 'recoil' && !(a.steps.length === 1 && +a.steps[0].angle === 270)) return null;
+    return id;
+  }
+  function strengthPct(a) {
+    return Math.round(Math.max(0, Math.min(1, +a.steps[0].dist || 0)) * 100);
+  }
+  function strengthSliderHTML(a, ai) {
+    var id = strengthOf(a), k = STRENGTH[id], v = Math.max(k.min, Math.min(k.max, strengthPct(a)));
+    return '<span class="saturbo" data-noswipe="1"><span class="saturbol">' + k.lab + ' <b data-strengthv="' + ai +
+      '">' + v + '%</b></span><input class="saturborng" type="range" min="' + k.min + '" max="' + k.max +
+      '" step="1" value="' + v + '" data-strength="' + ai + '" data-nosave="1" aria-label="' + k.say + '"></span>';
+  }
+  SEC.strengthOf = strengthOf;
+  SEC.STRENGTH = STRENGTH;
+  function enSwitchHTML(pair) {
+    var a = pair.a, on = a.enabled !== false;
+    return '<span class="sw' + (on ? ' on' : '') + '" data-en="' + pair.i +
+      '" data-nosave="1" role="switch" aria-checked="' + (on ? 'true' : 'false') +
+      '" tabindex="0" aria-label="' + esc('Script ' + (a.name || 'Untitled Script') + ' — on or off') + '"></span>';
+  }
+  function inputRowHTML(row, ri, p, S, o) {
+    o = o || {};
+    /* `o.act` (Smart mappings, D127): this row is ONE action, not the
+       button's first, so a button carrying three draws three rows and the
+       one just made is never hidden behind "+2 more". data-sact is what
+       wireList opens, in the editor, on exactly that action. */
+    var one = o.act || null;
+    var tgt = rowTarget(row), nm = rowName(row);
+    /* D338: a button that sends nothing says "Not bound" at its row */
+    var unb = SEC.rowUnbound ? SEC.rowUnbound(row) : false;
+    var isDef = !row.plainBind && !unb;
+    var chord = row.chordBinds.length, acts = one ? 1 : row.acts.length;
+    /* D244 (owner, 2026-10-09: "in Mappings there shouldn't be any macros or
+       scripts - B can only be B, one button at a time ... a script can be
+       used to disable a mapping because the function is replaced, so add an
+       indicator ... and show the scripts in the Scripts tab below"). On the
+       Mappings list (o.plain) a button with a Script is drawn as its plain
+       mapping, marked as taken over; the Script is a row in the Scripts card. */
+    /* A Script switched OFF does not take the button over (owner, D255
+       confirmed 2026-10-10: "if the script gets disabled, the mapping is no
+       longer replaced by the script, so remove that message"): the Core
+       never runs it (it packs only enabled actions), so the row is the plain
+       mapping, with no "Replaced" line and no View script key, and both come
+       back the moment the Script is switched on. */
+    var onActs = (o.plain && !one && acts)
+      ? row.acts.filter(function (pair) { return pair.a.enabled !== false; }) : [];
+    var takenBy = onActs.length
+      ? onActs.map(function (pair) { return pair.a.name || 'Untitled Script'; }) : null;
+    var takenAct = takenBy ? onActs[0].i : -1;
+    if (o.plain && !one && acts) acts = 0;
+    var what = tgt ? tgtName(tgt, p) : 'nothing on its own';
+    var chordEm = chord ? '<em>+' + chord + ' shift-layer job' + (chord > 1 ? 's' : '') + '</em>' : '';
+    /* the Scripts card's own on/off (owner, 2026-10-10: "each script have an
+       enable and disable switch on it"): the kit's .sw, on a row that is ONE
+       action. Off = the action's `enabled` false, which the Core keeps in the
+       config and never runs (zs_act_config.c packs only enabled actions). */
+    var swAct = (o.state && one) ? one : null;
+    var swOff = !!swAct && swAct.a.enabled === false;
+    var head = '<div class="lrow inrow' + (acts ? ' hasseq' : '') + (swOff ? ' saoffrow' : '') + '" data-row="' + ri +
+      '" data-act="-1"' + (one ? ' data-sact="' + one.i + '"' : '') +
+      ' data-src="' + esc(row.source || '') + '" role="button" tabindex="0" ';
+    if (acts) {
+      var a = one ? one.a : row.acts[0].a, more = acts - 1, seqName = a.name || 'Untitled Script';
+      var off = !!o.state && a.enabled === false;
+      var dead = o.state ? deadParts(a, p, S) : null;
+      var gone = one ? notSaved(a, p, S) : '';
+      /* D134: a scoped room's chips for this action ("Linked: 12 guns",
+         its rarity), with their words for a screen reader */
+      var tags = (one && S.scope && S.scope.rowTags) ? S.scope.rowTags(a.id) : null;
+      return head + 'aria-label="' + esc(nm + ' runs ' + seqName + ' — ' + oneLiner(a, p) +
+          (off ? ' Switched off.' : '') + (dead ? ' Will not fire.' : '') +
+          (gone ? ' Not saved on your ' + boardWord() + '.' : '') +
+          (tags && tags.say ? ' ' + tags.say : '') +
+          (more ? ' Plus ' + more + ' more Script' + (more > 1 ? 's' : '') + '.' : '') +
+          ' Tap to change it.') + '">' +
+        srcCellHTML(row, p) +
+        '<span class="src satgt"><span class="intn">' + esc(seqName) +
+        (off ? ' <span class="tag saoff">off</span>' : '') +
+        (gone ? ' <span class="tag saoff sanotsaved">not saved</span>' : '') + '</span>' +
+        (tags && tags.html ? '<span class="sarowtags" aria-hidden="true">' + tags.html + '</span>' : '') +
+        /* D256 (owner: "instead of showing me the keybind RT and the timer,
+           just have a slider where I can slide the speed"): a Rapid fire row
+           is its speed - taps a second, both of its step times at once */
+        /* the owner, 2026-10-20: a Lab Script's row says what tapping does,
+           not its moves (tapping opens the Lab on its model) */
+        (a.fromTemplate === 'recoil-workshop' && a.recoil && typeof a.recoil === 'object'
+          ? '<span class="sarowseq"><em class="sarowlab">Adjust recoil control</em>' :
+         turboOf(a) ? turboSliderHTML(a, one ? one.i : row.acts[0].i) :
+         strengthOf(a) ? strengthSliderHTML(a, one ? one.i : row.acts[0].i) :
+        '<span class="sarowseq">' + rowStripHTML(a, p, more ? ROW_FIT - 1 : ROW_FIT)) +
+        (more ? '<em class="sarowmore">+' + more + ' more</em>' : '') + '</span>' + chordEm +
+        (dead ? '<span class="sarowwarn">' +
+          (ZS.warnHTML ? ZS.warnHTML('Will not fire — ' + esc(dead.msg) + dead.fix, 'sa-dead-' + a.id)
+                       : note('Will not fire — ' + esc(dead.msg) + dead.fix, 'warn')) + '</span>' : '') +
+        (gone ? '<span class="sarowwarn">' +
+          (ZS.warnHTML ? ZS.warnHTML('Not saved on your ' + boardWord() + ': ' + esc(gone), 'sa-gone-' + a.id)
+                       : note('Not saved on your ' + boardWord() + ': ' + esc(gone), 'warn')) + '</span>' : '') +
+        '</span><span class="rt">' + (swAct ? enSwitchHTML(swAct) : '') + '<span class="chev">›</span></span></div>';
+    }
+    var notBound = unb && !takenBy;
+    return head.replace('class="lrow inrow', 'class="lrow inrow' + (takenBy ? ' satakenrow' : '') +
+        (notBound ? ' sanotboundrow' : '')) +
+      'aria-label="' + esc(notBound
+        ? nm + ' is not bound: pressing it sends nothing' +
+          (chord ? ' on its own (it has ' + chord + ' shift-layer job' + (chord > 1 ? 's' : '') + ')' : '') +
+          '. Tap to bind it.'
+        : nm + ' does ' + what +
+        (isDef ? ' — this is the normal behaviour' : '') +
+        (takenBy ? '. Not active: the Script ' + takenBy.join(', ') + ' takes this button over' : '') +
+        '. Tap to change it.') + '">' +
+      srcCellHTML(row, p) +
+      '<span class="src satgt">' +
+      (tgt ? '<span class="glyimg tgtcell">' + tgtSvg(tgt, p) + '</span>' +
+             '<span class="intn">' + esc(tgtName(tgt, p)) + '</span>'
+           : notBound ? '<span class="sanotbound">Not bound</span>'
+           : '<span class="intn" style="color:var(--muted)">nothing on its own</span>') +
+      (takenBy ? '<em class="sataken" aria-hidden="true">Replaced by Script: ' + esc(takenBy.join(', ')) + '</em>' : '') +
+      chordEm +
+      /* D255 (owner, 2026-10-09: "change the off button to a View script
+         button that teleports you to that script, exactly where it is") */
+      '</span><span class="rt">' + (takenBy
+        ? '<button type="button" class="saviewscript" data-viewscript="' + takenAct + '" aria-label="' +
+            esc('View the Script ' + takenBy[0]) + '">View script</button>'
+        : (isDef ? '<span class="tag">default</span>' : '')) +
+      '<span class="chev">›</span></span></div>';
+  }
+
+  /* the app's word for this config's input type, never the wire value */
+  function inputWord(p) {
+    return (ZS.INP && ZS.INP[p.input]) || String(p.input || '');
+  }
+  /* D287: what each key and mouse button on the keyboard drawing does, from
+     the same model the rows are drawn from. A Script that is switched on
+     marks its key as a Script (it takes the key over, D244); otherwise the
+     key's plain binding, with the target's own picture. */
+  function kbdKeys(p, S, model) {
+    var out = {};
+    model.rows.concat(model.orphans).forEach(function (r) {
+      if (!r || !r.source || (r.kind !== 'keyboard' && r.kind !== 'mouse')) return;
+      var on = r.acts.filter(function (pair) {
+        return pair.a.enabled !== false && !(pair.a.trigger && pair.a.trigger.unbound);
+      });
+      if (on.length) {
+        out[r.source] = { kind: 'script', what: on.map(function (pair) { return pair.a.name || 'a Script'; }).join(', ') };
+        return;
+      }
+      var t = r.plainBind ? (r.plainBind.b.target || '') : '';
+      if (t === 'none') t = '';   /* D344: unbound */
+      if (t) { out[r.source] = { kind: 'bound', what: tgtName(t, p), glyph: tgtSvg(t, p) }; return; }
+      if (r.chordBinds.length) out[r.source] = { kind: 'bound', what: 'a shift-layer job' };
+    });
+    return out;
+  }
+  /* D288: the config's Turn assist, when Mappings shows it: a keyboard or a
+     mouse is plugged in (or, with the device list unknown, the config is
+     played with keys). `row` is its key's own row when that row does
+     nothing else, which the Turn assist row stands in for. */
+  function turnAssistOf(p, S, dc, view, model) {
+    if (view === 'pad') return null;
+    var kbm = dc ? !!(dc.keyboard || dc.mouse) : ZS.inputShows(p.input, 'keyboard');
+    if (!kbm) return null;
+    var i, at = -1;
+    for (i = 0; i < S.actions.length; i++) {
+      if (SEC.tplIdOf && SEC.tplIdOf(S.actions[i]) === 'turnassist') { at = i; break; }
+    }
+    if (at < 0) return null;
+    var a = S.actions[at];
+    var unbound = !!(a.trigger && a.trigger.unbound);
+    var src = unbound ? '' : (SEC.emitSource(p, a.trigger) || '');
+    var all = model.rows.concat(model.orphans), row = null;
+    for (i = 0; i < all.length && src; i++) {
+      var r = all[i];
+      if (r.source !== src) continue;
+      if (!r.plainBind && !r.chordBinds.length && r.acts.length === 1 && r.acts[0].i === at) row = r;
+      break;
+    }
+    return { i: at, a: a, src: src, row: row, unbound: unbound };
+  }
+  function taRowHTML(ta, p) {
+    var a = ta.a, nm = a.name || 'Turn assist';
+    var key = ta.src ? String(SEC.srcName(ta.src)).replace(/ key$/, '') : 'Not bound';
+    var off = !ta.unbound && a.enabled === false;
+    return '<div class="lrow inrow sataturn' + (off ? ' saoffrow' : '') + '" data-tarow="' + ta.i +
+      '" data-src="' + esc(ta.src) + '" role="button" tabindex="0" aria-label="' +
+      esc(key + ': ' + nm + (off ? '. Switched off' : '') + '. Tap to choose its key.') + '">' +
+      (ta.src ? srcCellHTML({ source: ta.src, kind: SEC.srcClass(ta.src), neutral: '' }, p)
+              : '<span class="sacell nosrc" aria-hidden="true">✕</span>') +
+      '<span class="src satgt"><span class="intn">' + esc(nm) +
+      (off ? ' <span class="tag saoff">off</span>' : '') + '</span>' +
+      '<em class="sataem">' + (ta.src ? 'Hold ' + esc(key) + ' and swipe the mouse to keep turning'
+                                      : 'Not bound. Tap to pick its key') + '</em></span>' +
+      '<span class="rt"><span class="tag">Script</span><span class="chev">›</span></span></div>';
+  }
+
+  /* ══ D291: what moved off X for Turn assist ═════════════════════════
+     The owner (2026-10-13): "map Turn assist to the X key on the keyboard
+     automatically for ALL users". The seed (21-rooms-exports.js clearKey)
+     moves X's old job off X and deletes nothing: a binding goes to the
+     config's `unattachedBindings` (listed here, under "Not attached to a
+     button yet", one tap from a new key), another Script waits on no key,
+     and a shift layer using X is left alone. `turnAssistMoved` says what
+     moved, and is said ONCE per config on this phone (the "!" chip, D70):
+     the first time Mappings or Scripts is drawn for it, and for the rest
+     of that session, so a repaint does not snatch it away mid-read. */
+  function looseBindsOf(p) {
+    var full = ZS.live && ZS.live.full && ZS.live.full[p.id];
+    return arr(full && full.unattachedBindings);
+  }
+  function looseBindsHTML(p) {
+    return looseBindsOf(p).map(function (b, k) {
+      if (!b) return '';
+      var nm = tgtName(b.target, p);
+      var was = b.source ? String(SEC.srcName(b.source)).replace(/ key$/, '') : '';
+      return '<div class="lrow inrow saloose" data-loosebind="' + k + '" role="button" tabindex="0" aria-label="' +
+        esc(nm + ': not on a key. ' + (was ? 'It was on ' + was + '. ' : '') + 'Tap to give it a key.') + '">' +
+        '<span class="sacell nosrc" aria-hidden="true">✕</span>' +
+        /* the pad button it sends, drawn as THAT button for this config's
+           platform (Xbox X, PlayStation square...), the way every other
+           Mappings row draws its target (owner, 2026-10-14: "not just an X
+           that looks like a keyboard button") */
+        '<span class="src satgt">' + (b.target ? '<span class="glyimg tgtcell">' + tgtSvg(b.target, p) + '</span>' : '') +
+        '<span class="intn">' + esc(nm) + '</span>' +
+        '<em class="sataem">' + (was ? 'Was on the ' + esc(was) + ' key. ' : '') + 'Tap to give it a key</em></span>' +
+        '<span class="rt"><span class="chev">›</span></span></div>';
+    }).join('');
+  }
+  var TA_SEEN_KEY = 'zs.turnAssistMovedSeen', taSeenNow = {};
+  function taMovedNoteHTML(p) {
+    var full = ZS.live && ZS.live.full && ZS.live.full[p.id];
+    var m = full && full.turnAssistMoved;
+    if (!m || typeof m !== 'object') return '';
+    var seen = {};
+    try { seen = JSON.parse(window.localStorage.getItem(TA_SEEN_KEY) || '{}') || {}; } catch (x) { seen = {}; }
+    if (seen[p.id] && !taSeenNow[p.id]) return '';
+    taSeenNow[p.id] = true;
+    if (!seen[p.id]) {
+      seen[p.id] = 1;
+      try { window.localStorage.setItem(TA_SEEN_KEY, JSON.stringify(seen)); } catch (x) {}
+    }
+    var key = String(SEC.srcName(m.key || 'KEY_X')).replace(/ key$/, '');
+    var parts = [];
+    arr(m.binds).forEach(function (t) {
+      parts.push('Its old job, ' + esc(tgtName(t, p)) + ', moved to <b>Not attached</b>: tap it to give it a key.');
+    });
+    arr(m.scripts).forEach(function (n) {
+      parts.push('\'' + esc(n) + '\' is switched off and waits for a key: tap it under <b>Not attached</b>.');
+    });
+    if (m.chords) parts.push((m.chords > 1 ? m.chords + ' shift layers still use' : 'A shift layer still uses') +
+                             ' the ' + esc(key) + ' key (see Shift layers).');
+    if (!parts.length) return '';
+    return note('The ' + esc(key) + ' key is now <b>Turn assist</b>. ' + parts.join(' '), 'warn');
+  }
+  SEC.taMovedNoteHTML = taMovedNoteHTML;
+  SEC.looseBindsOf = looseBindsOf;
+
+  /* `o.fold` is the copy inside Smart mappings' Mappings fold (D85): the
+     rows, the shift-layer door, the hidden-binds line and Add a button —
+     no banner (the fold's title is the banner), no Smart Actions door (you
+     are on it), no orphans (listed above the fold already) */
+  function inputsHTML(p, S, o) {
+    o = o || {};
+    var model = inputsFor(p, S);
+    var live = bindsLive(p);
+    var pad = [], other = [], i;
+    /* D238 (owner, 2026-10-09). WHAT IS PLUGGED IN decides the rows: no
+       keyboard rows without a keyboard, no mouse rows without a mouse
+       (ZS.deviceClasses; unknown -> no filtering). With a pad AND a mouse or
+       keyboard, the screen first asks which half to look at - two big
+       halves, Controller | Mouse & Keyboard (S.mapView) - and then shows
+       only that half, with a key to switch. */
+    var dc = (typeof ZS.deviceClasses === 'function') ? ZS.deviceClasses() : null;
+    /* only a config that uses BOTH halves asks (Joystick + Mouse), as Aim */
+    var both = !!(dc && dc.controller && (dc.mouse || dc.keyboard) &&
+      ZS.inputShows(p.input, 'controller') && (ZS.inputShows(p.input, 'mouse') || ZS.inputShows(p.input, 'keyboard')));
+    var view = both ? S.mapView : null;
+    if (!both) S.mapView = null;
+    function rowShown(r) {
+      var k = r.kind;
+      if (dc && k === 'keyboard' && !dc.keyboard) return false;
+      if (dc && k === 'mouse' && !dc.mouse) return false;
+      if (view === 'pad' && (k === 'keyboard' || k === 'mouse')) return false;
+      if (view === 'kbm' && k === 'controller') return false;
+      return true;
+    }
+    for (i = 0; i < model.rows.length; i++) {
+      /* a row only a hidden-type Smart Action made is Smart mappings' (3b in
+         inputsFor): this list is the one the input type gates */
+      if (model.rows[i].typeHidden) continue;
+      if (!o.fold && !rowShown(model.rows[i])) continue;
+      (model.rows[i].seeded ? pad : other).push(model.rows[i]);
+    }
+    /* the index into the flat list is what a click carries, so build it once */
+    var flat = model.rows.concat(model.orphans);
+    function idxOf(row) { var k; for (k = 0; k < flat.length; k++) if (flat[k] === row) return k; return -1; }
+    var orphansShown = model.orphans.filter(function (r) { return !r.typeHidden; });
+
+    /* NO LEAD, NO STATUS LINE, NO CONTROLLER PICTURE (owner, 2026-09-04:
+       "'live from your board, changes save as you make them', 'tap any
+       button' — whatever text is useless, get rid of it … way too much
+       focus on the controller, matter of fact just remove it"). The list IS
+       the instruction — every row's own name says "tap to change it" — and
+       saving as you go is how every screen in this app works, so announcing
+       it here was noise. The picture was a second way to reach the same
+       rows, above them, and the rows are the complete list (a picture of a
+       pad cannot show a key or a mouse button). The one sentence kept is
+       the OFFLINE warning, as the "!" chip, because that one changes what a
+       tap does. #sa-running stays: it shows only while a sequence runs. */
+    /* THE BANNER AND THE ONE CARD (D78). XIM's Mappings screen opens with
+       a full-width banner and ONE "Bindings" card holding every row; the
+       owner asked for that shape with our buttons and art. The banner is
+       the only prose above the list (the lead and status lines died in
+       D72); its blue is a banner, not a family colour, and it is mixed
+       from the tokens rather than minted. The pad rows and the key/mouse
+       rows share the card, split by one divider when a config has both. */
+    /* audit M17: what an offline tap really does - it changes the config's
+       last-known copy, which waits for Save; with no copy there is nothing */
+    var h = o.fold ? '' : (live ? '' : SEC.bindsKnown(p)
+        ? note('Your board is offline. This is the layout it last had; a change waits for Save, which works once it is back.', 'warn')
+        : note('Your board is offline, and this config has not been read from it yet. Connect it to see and change its buttons.', 'warn')) +
+      '<div id="sa-running" class="note" style="display:none;color:var(--green)"></div>' +
+      /* D233: the device picture is on the MAIN MENU's Mappings door only
+         (owner: "remove it from inside the tab") */
+      '<div class="sabanner"><b>Mappings</b><span>Change what your buttons, keys and clicks do.</span></div>';
+    /* D291: what moved off X for Turn assist, said once */
+    if (!o.fold) h += taMovedNoteHTML(p);
+    if (!o.fold && both && !view) {
+      /* D238: which half? Two big halves, the device pictures on them */
+      var padPic = (window.ZS && ZS.devicePicFor && ZS.userDevices)
+        ? (ZS.userDevices(ZS.devices).filter(function (d) { return d.kind === 'gamepad'; }).map(ZS.devicePicFor)[0] || '') : '';
+      return h + '<div class="samapchoose" role="group" aria-label="which settings to see">' +
+        '<button type="button" class="samapch" data-mapview="pad">' +
+          (padPic ? '<img src="' + esc(padPic) + '" alt="" aria-hidden="true">' : '') +
+          '<b>Controller</b><span>your pad’s buttons</span></button>' +
+        '<button type="button" class="samapch" data-mapview="kbm">' +
+          '<span class="samapch2">' +
+            /* D290: the owner's own mouse and keyboard pictures */
+            (dc.mouse ? '<img class="mkbpic" src="brand/devices/mouse-256.webp" alt="" aria-hidden="true">' : '') +
+            (dc.keyboard ? '<img class="mkbpic" src="brand/devices/keyboard-512.webp" alt="" aria-hidden="true">' : '') +
+          '</span><b>Mouse &amp; Keyboard</b><span>your keys and mouse buttons</span></button>' +
+        '</div>';
+    }
+    if (!o.fold && both && view) {
+      /* D290: the Mouse & Keyboard half wears the owner's two pictures */
+      h += '<button type="button" class="samapswitch" data-mapview="">' +
+        (view === 'pad' ? '' : '<i class="mkbhead" aria-hidden="true">' + '<img class="mkbpic" src="brand/devices/mouse-256.webp" alt="" aria-hidden="true">' + '<img class="mkbpic" src="brand/devices/keyboard-256.webp" alt="" aria-hidden="true">' + '</i>') + 'Showing <b>' +
+        (view === 'pad' ? 'Controller' : 'Mouse &amp; Keyboard') + '</b><span>Switch ›</span></button>';
+    }
+    /* D238: a pad is plugged in -> its LIVE picture (the DualSense drawing
+       for every pad, as the owner asked), lit as you press */
+    if (!o.fold && dc && dc.controller && view !== 'kbm' && window.ZSDSLIVE) {
+      /* D239: the dualshock-tools DualSense (ds-live.js), mounted by wireList */
+      h += '<div class="samaplive" id="sa-live"></div>';
+    }
+    /* D287 (owner, 2026-10-13: "put [a keyboard] at the top of Mappings,
+       just how there is a controller for controller configs"): a config
+       played with keys and a mouse wears its keyboard (and mouse) here, lit
+       as you press, each key a door to its own mapping (kbd-map.js) */
+    var kbShow = !o.fold && view !== 'pad' && !!window.ZSKBD && ZS.inputShows(p.input, 'keyboard') &&
+      !(dc && !dc.keyboard && !dc.mouse);
+    if (kbShow) {
+      h += ZSKBD.html({ keys: kbdKeys(p, S, model), keyboard: !(dc && !dc.keyboard),
+                        mouse: ZS.inputShows(p.input, 'mouse') && !(dc && !dc.mouse) });
+    }
+    /* D288 (owner, 2026-10-13: "put Turn assist in Mappings if a keyboard
+       and/or mouse is detected"): Turn assist is its own row at the top of
+       Bindings, "X -> Turn assist" (or "Not bound"), and its key's own row
+       (X, doing nothing but run it) is that row */
+    var ta = o.fold ? null : turnAssistOf(p, S, dc, view, model);
+    var rowsHTML = ta ? taRowHTML(ta, p) : '';
+    if (ta && ta.row) {
+      pad = pad.filter(function (r) { return r !== ta.row; });
+      other = other.filter(function (r) { return r !== ta.row; });
+    }
+    /* D244: one button at a time. window.ZS_MAPPINGS_SCRIPTS is the TEST
+       harness's way back to the old Mappings (scripts on the rows, the
+       Scripts Editor door), which the older editor tests drive */
+    var rowOpt = (o.fold || window.ZS_MAPPINGS_SCRIPTS) ? null : { plain: true };
+    if (pad.length) rowsHTML += pad.map(function (r) { return inputRowHTML(r, idxOf(r), p, S, rowOpt); }).join('');
+    if (other.length) {
+      if (pad.length) {
+        /* the divider names what is under it: a pad's extra controls (the
+           PS button, the touchpad) are pad buttons, not keys */
+        var kinds = {};
+        other.forEach(function (r) { kinds[r.kind || 'unknown'] = true; });
+        var padOnly = kinds.controller && !kinds.keyboard && !kinds.mouse && !kinds.screen;
+        var noPad = !kinds.controller;
+        rowsHTML += '<div class="samapsub" role="separator">' +
+          (padOnly ? 'More pad buttons' : noPad ? 'Keys and mouse buttons' : 'More buttons and keys') + '</div>';
+      }
+      rowsHTML += other.map(function (r) { return inputRowHTML(r, idxOf(r), p, S, rowOpt); }).join('');
+    }
+    if (!pad.length && !other.length && !ta) {
+      rowsHTML ='<div class="lrow" style="color:var(--muted)">No buttons set up yet — add your first below.</div>';
+    }
+    /* D240 (owner, 2026-10-09): Bindings opens and closes in place - its
+       own title row is the toggle (S.bindClosed), nothing leaves the page */
+    var bClosed = !o.fold && !!S.bindClosed;
+    h += '<div class="grp-card samap' + (o.fold ? '' : ' safold') + (bClosed ? ' sacoll' : '') + '">' +
+      '<div class="samaphd"' + (o.fold ? '' : ' id="sa-bindhd" role="button" tabindex="0" aria-expanded="' +
+        (bClosed ? 'false' : 'true') + '"') + '><b>Bindings</b>' +
+      '<span>What each button, key and click sends.</span>' +
+      (o.fold ? '' : '<i class="safoldchev" aria-hidden="true">›</i>') + '</div>' +
+      '<div class="safoldbody">' + rowsHTML + '</div></div>';
+    /* THE GAME'S OWN LAYOUT (owner, 2026-10-01: "the BO2 config wasn't
+       mapping good"). A game pack's binding list only lands on a config made
+       FROM the pack, so a config made before the pack carried one kept the
+       generic layout (Shift on R3, which is melee in Black Ops II, and R on
+       RB, the lethal grenade). This row offers the game's layout to those
+       configs and is gone the moment the bindings already are it. */
+    var gl = o.fold ? null : packLayout(p);
+    if (gl && !sameLayout(bindsOf(p).filter(function (b) {
+      return b && !arr(b.chord).length && srcShown(p, b.source);
+    }), gl.list)) {
+      h += card('<div class="lrow tapper" id="sa-packlayout" role="button" tabindex="0" ' +
+        'aria-label="Use ' + esc(gl.game) + '’s own button layout. Replaces the bindings above.">' +
+        '<span class="src">Use ' + esc(gl.game) + '’s layout' +
+        '<em style="display:block;font-weight:400;font-style:normal;color:var(--muted);' +
+        'font-size:11.5px;white-space:normal;line-height:1.4">The game’s own buttons. ' +
+        'Replaces the bindings above.</em></span>' +
+        '<span class="rt"><span class="arrow">›</span></span></div>');
+    }
+    if (pad.some(function (r) { return r.chordBinds.length > 0; })) {
+      /* the note names the Shift Layers screen; the row under it is the way
+         in. R.modifiers kept its renderer when it left the five-row menu,
+         and ZS.openDetail keeps its namespace, so nothing about the layers
+         themselves moves — wired in wireList. */
+      h += helpNote('sa-shift-what', 'Shift layers', 'A <b>shift layer</b> is a second job a button does while you hold another one. Those live on the Shift Layers screen.') +
+        card('<div class="lrow tapper" id="sa-shiftdoor" role="button" tabindex="0" ' +
+          'aria-label="Shift layers — see and edit them"><span class="src">Shift layers</span>' +
+          '<span class="rt"><span class="arrow">›</span></span></div>');
+    }
+    /* "Add a button" is emitted LAST — after the Smart Actions door, the
+       hidden-binds line and the orphans — see the end of this function. It
+       used to sit here and zs-fixes.css hoisted it to the top; the owner
+       asked for it at the bottom (2026-09-04). */
+
+    /* The bottom "every sequence again" listing DIED (screen-map §4 /
+       FLAG-a #7): the Smart Actions screen's Everything-you-have list is the
+       ONE full listing, the per-row "+N Smart Action" badges above keep
+       discoverability, and this row is the door. Its legend rode along —
+       the states are read on the list the door opens, not here. */
+    var seqCount = 0;
+    flat.forEach(function (r) { seqCount += r.acts.length; });
+    if (seqCount && !o.fold) {
+      /* D240 (owner: "the scripting menu isn't a sub menu but just a
+         collapsible one that opens and closes and doesn't remove you from
+         the page"): the Scripts on this config, listed here in a fold that
+         opens in place (S.scriptsOpen, closed by default). Each row opens
+         its editor exactly as a Bindings row does. */
+      var sOpen = !!S.scriptsOpen;
+      var sRows = '';
+      flat.forEach(function (r) {
+        sRows += r.acts.map(function (pair) { return seqLineHTML(pair, idxOf(r), p, S, r); }).join('');
+      });
+      h += '<div class="grp-card sascripts safold' + (sOpen ? '' : ' sacoll') + '">' +
+        '<div class="samaphd" id="sa-scripthd" role="button" tabindex="0" aria-expanded="' + (sOpen ? 'true' : 'false') + '">' +
+        '<b>Scripts</b><span>' + seqCount + ' on this config</span><i class="safoldchev" aria-hidden="true">›</i></div>' +
+        '<div class="safoldbody">' + sRows + '</div></div>';
+    }
+
+    /* HIDDEN IS NOT DELETED, and this screen is the only place that can say
+       so. "My binds are gone" and "my binds were deleted" look identical from
+       here, and the second one is discovered in a match. */
+    var hid = model.hidden || { binds: 0, acts: 0 };
+    if (hid.binds || hid.acts) {
+      var what = [];
+      if (hid.binds) what.push('<b>' + hid.binds + '</b> bind' + (hid.binds > 1 ? 's' : ''));
+      if (hid.acts) what.push('<b>' + hid.acts + '</b> sequence' + (hid.acts > 1 ? 's' : ''));
+      /* one visible line carries the count + the promise's headline; the
+         full hiding-is-not-deleting essay rides the "?" (screen-map §4).
+         ZS.helpHTML is phone-sections' P1 chip — module state, so the fold
+         survives this screen's re-renders; the || arm keeps the old note
+         whole if a cached phone-sections.js predates the chip. */
+      var essay = 'You play this config with <b>' + esc(inputWord(p)) + '</b>, so ' + what.join(' and ') +
+                ' ' + (hid.binds + hid.acts > 1 ? 'are' : 'is') + ' not shown here. ' +
+                'Nothing was deleted — everything is still saved on your board, and it all comes back ' +
+                'the moment you choose <b>Joystick + Mouse</b> under <b>What you play with</b> on ' +
+                '<b>Overview</b>.' +
+                (hid.acts ? ' Your board still runs the hidden sequences; they come back with the input type.' : '');
+      h += note(what.join(' and ') + ' ' + (hid.binds + hid.acts > 1 ? 'are' : 'is') +
+                ' hidden by <b>' + esc(inputWord(p)) + '</b> — <b>still saved</b>, nothing deleted.') +
+           (typeof ZS.helpHTML === 'function'
+             ? ZS.helpHTML('sa-hidden', 'Hidden binds', essay)
+             : note(essay));
+    }
+    /* The pad that is plugged in and deliberately not listed. This used to be
+       answered by silently seeding the pad rows anyway, which made the input
+       type a setting that did not do what it said. Live state, so it stays a
+       visible warn — trimmed to the sentence that matters. */
+    if (!padRowsWanted(p) && haveClass('controller') === true) {
+      h += note('A <b>controller is plugged in</b> but not listed — this config is played with <b>' +
+                esc(inputWord(p)) + '</b>. Its buttons still work as themselves.', 'warn');
+    }
+
+    /* D288: a Turn assist on no key is the row at the top of Bindings */
+    if (ta) {
+      orphansShown = orphansShown.filter(function (r) {
+        return r.acts.some(function (pair) { return pair.i !== ta.i; });
+      });
+    }
+    /* D291: a binding moved off a key (X, for Turn assist) waits here with
+       its job kept, one tap from a new key */
+    var looseB = o.fold ? '' : looseBindsHTML(p);
+    if ((orphansShown.length || looseB) && !o.fold) {
+      h += sh('Not attached to a button yet') +
+        card(looseB + orphansShown.map(function (r) {
+          return r.acts.filter(function (pair) { return !ta || pair.i !== ta.i; })
+            .map(function (pair) { return seqLineHTML(pair, idxOf(r), p, S, r); }).join('');
+        }).join('')) +
+        (orphansShown.length
+          ? note('These sequences are saved, but nothing on your board can start them. Open one and pick a button.', 'warn')
+          : note('Ready to use: tap one and press the key you want it on.'));
+    }
+    /* the last thing on the screen: the way to add a row to it */
+    /* D242 (owner, 2026-10-09: "make it look like that app"): with a pad on
+       screen, Mappings wears the ZS8K Configurator's colours (.zkmap); the
+       add key stays the last thing on the screen, outside it */
+    /* D247: the Mouse & Keyboard half wears it too */
+    if (!o.fold) h = '<div class="zkmap">' + h + '</div>';
+    h += addbtn('Add a button', 'sa-addinput');
+    return h;
+  }
+
+  /* ══ the input screen — the button's own screen ═══════════════════
+     ONE screen per input: what this button does, and the sequences on it.
+     Authoring a sequence is NOT here — it is the editor sheet below, over
+     this screen. (The comment this replaces argued the editor could not be
+     a sheet because its sub-pickers need the sheet host. That was right
+     about the mechanism and wrong about the conclusion: phone.html's host
+     SWAPS content and keeps a stack of close callbacks, so a sub-chooser
+     replaces the editor and comes back — see openEditorSheet.) */
+
+  function pillHTML(id, label, value, aria) {
+    return '<button type="button" class="sapill" id="' + id + '" aria-label="' +
+      esc(aria || (label + ': ' + value)) + '"><i>' + esc(label) + '</i>' +
+      '<b>' + esc(value) + '</b><span class="pchev">▾</span></button>';
+  }
+
+  var BEHAVE = [
+    { k: 'hold', n: 'While I hold it', s: 'the normal way — it is down while your finger is down' },
+    { k: 'toggle', n: 'On, then off', s: 'press once for on, press again for off. Nothing to keep held.' },
+    { k: 'tap', n: 'Only a quick tap', s: 'a quick tap sends it; holding it can do something else' },
+    { k: 'long_press', n: 'Only a long hold', s: 'nothing happens until you have held it for a moment' }
+  ];
+  /* D283: the short words the Activation row's picker wears beside the
+     trigger ("while held ▾"); the sheet keeps the full ones */
+  var BEHAVE_SHORT = { hold: 'while held', toggle: 'on, then off', tap: 'quick tap', long_press: 'long hold' };
+  function behaveOf(row) {
+    var m = row.plainBind ? row.plainBind.b.mode : 'hold';
+    for (var i = 0; i < BEHAVE.length; i++) if (BEHAVE[i].k === m) return i;
+    return 0;
+  }
+
+  /* The four word-pills that used to sit here in sequence mode — Runs, Tag,
+     Timing, Helpers — are GONE. Position now carries their meaning: they are
+     the four badges round the input's picture on the binding tile, in the
+     editor sheet. A pill had to spell out its own label because a wrapping
+     row says nothing about what a pill IS; that row is what read as clutter. */
+  function inputHeadHTML(p, S, row) {
+    var pills = pillHTML('sa-behave', 'Behaves', BEHAVE[behaveOf(row)].n,
+                         'how this button behaves: ' + BEHAVE[behaveOf(row)].n);
+    /* With a real binding, the key IMAGE is the "move this to a different
+       key" control — tap the key to change the key. A seeded pad default
+       has no binding to move, so it stays a plain picture. */
+    /* D128: RT in a Mouse + Keyboard config is "whatever you have bound to
+       RT", named and drawn as the output it is, never "R2 pulled on your
+       pad" (sa-mnk.js rowWords; null for every other row) */
+    var hw = window.ZS_SA_MNK ? ZS_SA_MNK.rowWords(p, row) : null;
+    var art;
+    if (row.plainBind && !(SEC.rowUnbound && SEC.rowUnbound(row))) {
+      art = '<button type="button" class="sahart saswap" id="sa-move" aria-label="' +
+        esc(rowName(row) + ' — tap to move this job to a different ' +
+            (isPadSource(row.source) ? 'button' : 'key')) + '">' +
+        rowArt(row) + '<span class="saswapchip" aria-hidden="true">⇄</span></button>';
+    } else {
+      art = '<div class="sahart">' + (hw && hw.art ? hw.art : rowArt(row)) + '</div>';
+    }
+    /* a ROW, not a column (2026-09-04): 48px art beside the caption and
+       the Behaves pill. The stacked head was 172px of a 600px window on a
+       screen the owner asked to fit without scrolling. */
+    /* XIM's top strip (D78): the input's picture, its NAME and what it is
+       ("a key on your keyboard"), and the one control the engine has for
+       how the input behaves — bindings[].mode (hold / toggle / tap /
+       long_press), the Behaves pill. XIM draws an activation slider here;
+       a binding has no such field (profiles/schema.py bindings[]), so
+       nothing is drawn for it — never a control that writes nothing. */
+    /* THE PANEL'S × (D81): the sub-menu is a pop-up panel over the list
+       and XIM draws its close key at the panel's top-left — so it is the
+       first thing in the head row, before the picture. #sap-title is
+       where focus lands when the panel opens (the dialog's own name, as
+       the kit's sheet focuses its heading): the first thing spoken is the
+       input, not "Close". */
+    /* THE ACTIVATION, AT THE TOP (owner, 2026-10-07: "then you put the LT
+       button logo at the top as activation"). While a script is being
+       built (S.mode 'smart') the picture in the head is the button that
+       STARTS it, so it says so: a quiet "Activation" over the name and a
+       thin accent ring round the real art (DESIGN.md: a ring marks, it
+       never recolours the drawing). The plain mapping head is unchanged. */
+    var act = S.mode === 'smart';
+    /* D280 (owner, 2026-10-13: Turn assist "available for users to
+       rebind"): while a Script is open, its Activation picture IS the
+       control that changes the key that starts it (the same picker as the
+       ✕ of an unattached Script, press-to-bind and all). Moving a plain
+       binding to another key stays on Mappings, where the job is the
+       binding's. */
+    if (act && S.draft) {
+      art = '<button type="button" class="sahart saswap" id="sa-retrig" aria-label="' +
+        esc((S.draft.trigger && S.draft.trigger.unbound ? 'not on a key yet' : rowName(row)) +
+            ' — tap to choose the key or button that starts this Script') + '">' +
+        (hw && hw.art ? hw.art : rowArt(row)) + '<span class="saswapchip" aria-hidden="true">⇄</span></button>';
+    }
+    if (act) art = art.replace('class="sahart', 'class="sahart sahact');
+    /* D232 (owner, 2026-10-07: "the name should be at the top middle and the
+       LT button should be smaller when it's the activation button"). A
+       script's head is two rows: ✕, the NAME centred, a spacer the ✕'s
+       width; then the activation, small, with its words and Behaves. The
+       name button is the one the editor already wires (#sx-name). */
+    if (act && S.draft) {
+      var nm = (S.draft.name || '').trim();
+      /* D283 (owner, 2026-10-13): ONE Activation row. The trigger is drawn
+         once (the rebind picture, D280); "Activation · LT · LT on your pad"
+         stays for a screen reader in #sap-title, which is where focus lands
+         when the panel opens, and is hidden from the eye. Beside the
+         trigger, the compact behaviour picker (the same #sa-behave, the
+         same choices); the On and Tag chips at the row's right end. */
+      var bi = BEHAVE[behaveOf(row)];
+      var picker = '<button type="button" class="sapill sxbeh" id="sa-behave" aria-label="' +
+        esc('how this button behaves: ' + bi.n) + '"><b>' + esc(BEHAVE_SHORT[bi.k] || bi.n) +
+        '</b><span class="pchev" aria-hidden="true">▾</span></button>';
+      var chips = SEC.sxChipsHTML ? SEC.sxChipsHTML(S.draft) : '';
+      return '<div class="sahead sahrow sxtop">' +
+        '<button type="button" class="sapx" id="sap-close" aria-label="' +
+          esc('close — back to ' + (S.home === 'inputs' ? 'Mappings' : 'Advanced Script Maker')) + '">✕</button>' +
+        '<div class="sxtopname"><button type="button" class="sabname' + (nm ? '' : ' ph') + '" id="sx-name" aria-label="' +
+          esc((nm ? 'named ' + nm : 'not named yet') + ' — name, notes and colour') + '">' +
+          esc(nm || 'Name it') + '</button></div><span class="sxtopsp" aria-hidden="true"></span></div>' +
+        /* D480: one plain sentence saying what the Script does, then the
+           When card: the Activation row and how it plays (#sx-when) */
+        (SEC.seqSwitchHTML ? SEC.seqSwitchHTML(S, row) : '') +
+        (SEC.sxSummaryHTML ? SEC.sxSummaryHTML(p, S, row) : '') +
+        '<section class="sxcard sxwhen" aria-label="When"><h3 class="sxch"><span>When</span><em>what starts it, and how it plays</em></h3>' +
+        '<div class="sahead sahrow saactivation sxact">' +
+        '<div class="sahname visually-hidden" id="sap-title" tabindex="-1">' +
+          '<i class="saheye">Activation</i><b>' + esc(hw ? hw.name : rowName(row)) + '</b>' +
+          '<span class="sahcap">' + esc(hw ? hw.cap : rowCaption(row)) + '</span></div>' +
+        art + picker + '<span class="sxsp"></span>' + chips + '</div>' +
+        (SEC.sxWhenHTML ? SEC.sxWhenHTML(S.draft) : '') + '</section>';
+    }
+    return '<div class="sahead sahrow' + (act ? ' saactivation' : '') + '">' +
+      '<button type="button" class="sapx" id="sap-close" aria-label="' +
+        esc('close — back to ' + (S.home === 'inputs' ? 'Mappings' : 'Advanced Script Maker')) + '">✕</button>' + art +
+      '<div class="sahtext"><div class="sahname" id="sap-title" tabindex="-1">' +
+        (act ? '<i class="saheye">Activation</i>' : '') + '<b>' +
+        esc(hw ? hw.name : rowName(row)) + '</b>' +
+      '<span class="sahcap">' + esc(hw ? hw.cap : rowCaption(row)) + '</span></div>' +
+      '<div class="sapills">' + pills + '</div></div></div>';
+  }
+
+  /* whenCardHTML and seqChipsHTML lived here and are GONE.
+
+     WHEN was a narrow prose column beside a wide dropdown — a four-words-per-
+     line ribbon on the authoring surface. It is now the tile's TOP badge
+     (glyph + one word) opening openWhenSheet, which is where the sentence
+     between named options actually earns its place. The per-option threshold
+     stepper moved into that sheet with it: how long counts as "held" is a
+     property OF THE OPTION, not of the screen.
+
+     THE "PRESET CHIPS" were never presets. seqChipsHTML drew one chip per
+     sequence ALREADY SAVED on this input, labelled with the action's name —
+     and buildTemplate copies a CONSTANT name per template ("Rapid fire",
+     "Jump shot"), so a document switcher wore the clothes of a template
+     gallery, in the same .safil class as the Ready-made family filter. The
+     owner read it exactly right: "we dont need jump shot rapid fire etc on
+     there, we are creating our own, those are in the presets."
+     The capability it carried is seqSwitchHTML — "‹ 2 of 4 › Rapid fire" in
+     the editor sheet, and only when there IS more than one. "＋ Another" is
+     now a foot button beside Save, where a creation action belongs. */
+
+  /* ONE SCREEN, NO SCROLL (2026-09-04). Owner: "this sub button tab when
+     you click shouldn't be so big, it shouldn't have a scroll up and down —
+     scale it all way smaller to fit without scrolling." Measured before:
+     1388px of content in a 600px window — head 172, lead 40, header 14,
+     card 72, deck 640, note 44, three 52px buttons. What went, and why each
+     could: the lead sentence ("Right now Cross does Cross…") — the "Send
+     this instead" pill already says what the button does and the head says
+     which button; the "What it does" header — one card needs no heading;
+     the "want it to do more than one thing…" note — the button under it
+     says the same in three words. What shrank: the head is a row, the
+     deck's tiles are 40px with 20px art (the .sasimple rules), and the foot
+     is the primary button over a PAIR — Paste and Back-to-normal side by
+     side, still 44px tall (the DESIGN.md target); their full sentences
+     survive as accessible names. Sequences already on the button still
+     list under the deck; that is the one case that may scroll. */
+  function simpleBodyHTML(p, S, row) {
+    var tgt = rowTarget(row), nm = rowName(row);
+    var unb = SEC.rowUnbound ? SEC.rowUnbound(row) : false;
+    /* XIM's sub-menu, top to bottom (D78): the instruction; the CURRENT
+       output big — it is the pill that opens the full target list (stick
+       directions, the full pulls, the two Extras); the six-page target
+       deck; the sequences already on this button; then "✕ Delete Binding"
+       and the Smart Actions Editor placeholder. XIM's output-strength
+       slider is NOT drawn: a target is "rt+", the full pull, and nothing
+       in the schema scales it. Built to fit 393×852 in app mode without
+       scrolling — measured, see D78; the sequence list is the one part
+       that may push it over. */
+    var h = '<p class="saxlead" id="sa-lead">Choose what it should send.</p>' +
+      '<button type="button" class="saxcur" id="sa-tgt" aria-label="' +
+        esc('sends ' + (tgt ? tgtName(tgt, p) : 'nothing') + (unb ? ' (not bound)' : '') +
+            ' — every other choice, as a list') + '">' +
+        '<span class="glyimg">' + (tgt ? tgtSvg(tgt, p) : '') + '</span>' +
+        /* D338: a button that sends nothing reads "Not bound" here as on its row */
+        '<span class="saxcurt"><i>Sends</i><b>' + esc(tgt ? tgtName(tgt, p) : unb ? 'Not bound' : 'nothing yet') + '</b></span>' +
+        '<span class="pchev">▾</span></button>' +
+      gridHTML(p, S);
+    /* The "move to a different key" control is the key image in the header
+       (#sa-move, inputHeadHTML) — the owner asked for it ON the key. */
+
+    /* NO SEQUENCE LIST HERE ANY MORE (D81). XIM's rule: once a button has
+       a Smart Action its sub-menu IS the editor — draw() opens a button
+       that carries one straight into smart mode, so this plain body is
+       only ever drawn for a button with none (and, dimmed and inert,
+       behind the Smart Actions screen's own sequence sheet). The list
+       that used to sit under the deck was D78's one scrolling exception;
+       it had nothing left to list. */
+    /* No "Build a sequence", no Paste, no Copy here (owner, 2026-09-04:
+       "build a sequence shouldn't exist here — that is what Smart Actions
+       are for"). "✕ Delete Binding" is XIM's word for the way back to
+       normal — the same dropBinding — and it only shows when there is a
+       binding to drop. */
+    /* D344 (owner: "I unbound B from everything and it still sent B"):
+       two ways out, side by side, and a "?" that says which is which.
+       Delete Binding drops the binding, so the button is back to its
+       default (a pad button sends itself). Unbind writes the button's
+       binding as target "none": the Core then sends nothing for it. Offered
+       for a control that has a default to stop (a pad button), and not
+       while it is already unbound. */
+    var canUnbind = !!row.defTarget && !unb;
+    if (row.plainBind || canUnbind) {
+      h += '<div class="safoot saunbindfoot">' +
+        (row.plainBind
+          ? '<button class="btn danger" id="sa-reset" aria-label="' +
+            esc('delete this binding — ' + nm + ' goes back to its default' +
+                (row.defTarget ? ', ' + tgtName(row.defTarget, p) : '')) + '">' + sicon('delete') +
+            '<span>Delete Binding</span></button>' : '') +
+        (canUnbind
+          ? '<button class="btn" id="sa-unbind" aria-label="' +
+            esc('unbind ' + nm + ' — it sends nothing') + '">' + sicon('block') +
+            '<span>Unbind (send nothing)</span></button>' : '') +
+        '</div>' +
+        (typeof ZS.helpHTML === 'function'
+          ? '<div class="saunbindq">' + ZS.helpHTML('sa-unbind-help', 'Delete Binding and Unbind',
+              '<b>Delete Binding</b> puts ' + esc(nm) + ' back to its default' +
+              (row.defTarget ? ': it sends ' + esc(tgtName(row.defTarget, p)) + ' again' : '') + '. ' +
+              (row.defTarget ? '<b>Unbind</b> makes ' + esc(nm) + ' send nothing at all; its row says Not bound. ' : '') +
+              'To bind it again, pick what it should send above.') + '</div>'
+          : '');
+    }
+    /* THE DOOR (D79). It was the placeholder D78 asked for ("we will expand
+       on that later"); the owner came back the same day with XIM's editor
+       screenshots: "when you click that smart actions button it takes the
+       sub menu and keeps it in place but transforms it with these added
+       options". So it transforms THIS screen in place (S.mode = 'smart',
+       smartBodyHTML) — no navigation, no sheet. Plain mode stays
+       authoring-free and no-scroll (D72/D78); the editor mode is where
+       authoring lives on this screen. */
+    /* D244: Mappings is one button -> one button; Scripts are made in the
+       Scripts room, so neither door is on a Mappings button */
+    var onMappings = S.home === 'inputs' && !S.scope && !window.ZS_MAPPINGS_SCRIPTS;
+    if (!onMappings) h += '<div class="saxbar"><button type="button" class="btn" id="sa-smarted" ' +
+      'aria-label="Scripts Editor — build what this button does, step by step">' + MARK_TARGET +
+      '<span>Scripts Editor</span></button></div>';
+    /* D170: on the button that FIRES, the Recoil Workshop is the other way
+       to give it a Smart Action */
+    if (!onMappings && tgt === 'rt+' && workshopOffered(p)) {
+      h += '<div class="saxbar"><button type="button" class="btn" id="sa-recoilws" ' +
+        'aria-label="Anti-Recoil Lab — trace this gun’s recoil and pull against it">' + sicon('helpers') +
+        '<span>Anti-Recoil Lab</span></button></div>';
+    }
+    return h;
+  }
+
+  /* ONE panel, two bodies. Plain mode is XIM's mapping sub-menu (D78) and
+     does not scroll. The Smart Actions Editor (D79) is the SAME panel —
+     the same head — with the body under the head transformed in place
+     (S.mode === 'smart'); that one scrolls inside the panel. Since D81 the
+     whole thing is a pop-up over the list (panelDraw), and a button that
+     already has a Smart Action is only ever drawn in editor mode. The
+     editor SHEET (S.mode === 'sequence') still exists for the Smart
+     Actions screen's own rows; draw() opens it above the panel. */
+  function inputScreenHTML(p, S, row) {
+    /* .sasimple scopes the no-scroll budget (CSS) to this screen alone —
+       the editor sheet's palette keeps its 46px tiles, it scrolls anyway.
+       .saxed is the editor in place: the same tile sizes, and it may scroll. */
+    if (S.mode === 'smart' && S.draft) {
+      /* D480: the Scripts room's rose tint (zs-kit section 17) */
+      return '<div class="sasimple saxed" data-tint="smart">' + inputHeadHTML(p, S, row) + smartBodyHTML(p, S, row) + '</div>';
+    }
+    return '<div class="sasimple">' + inputHeadHTML(p, S, row) + simpleBodyHTML(p, S, row) + '</div>';
+  }
+
+  /* ── starting a sequence from a button (§the transformation) ───── */
+  function beginSequence(p, S, row) {
+    var target = rowTarget(row) || 'south';
+    var a = newAction();
+    a.trigger.src = row.actSrc;      /* the literal control this row IS */
+    a.trigger.follow = null;
+    /* NO NAME. "R2 sequence" is a name nobody chose, and it is why the list
+       read like machine output. Blank is safe by design: problems() WARNS on
+       an empty name and never errors (1310–1313 — "a beginner who has just
+       built a sequence from a button should not be stopped at the door by a
+       naming rule"), and toBoard falls back to the id. The tile shows a
+       "Name it" placeholder, which is an invitation rather than a default. */
+    a.name = '';
+    /* Step 1 is seeded from what this button already sends — XIM seeds the
+       same first tile, and it means the sequence starts out doing what the
+       button did, so nothing is lost by pressing the button.
+
+       THE BINDING IS NOT DELETED, and that is the one place reading the
+       engine pays off. sequences.py's set_takeover consumes the physical
+       control for the length of a run, but ONLY when the action's own steps
+       drive the same target. So R1→Square plus a sequence that taps Square
+       cannot double up; R1→Square plus a sequence that pushes a stick keeps
+       the binding working during the run, which is exactly what anti-recoil
+       on the fire button needs. Deleting it would break the second case and
+       gain nothing in the first. */
+    /* The trailing Wait is load-bearing twice over: in turbo it is the gap
+       that makes the loop a SERIES of presses instead of one gapless hold
+       (the editor already warns about wait-less loops), and in the once
+       modes it is harmless. Without it the seeded action's entire output
+       was a single 80 ms tap of the very control the player was already
+       pressing — set_takeover swallowed it and the action looked dead in
+       four of the five When modes (2026-08-04 audit). */
+    a.steps = (target === 'lt+' || target === 'rt+')
+      ? [{ k: 'trig', t: [target], ms: 120, keep: false }, { k: 'wait', ms: 80 }]
+      : [{ k: 'tap', t: [target], ms: 80 }, { k: 'wait', ms: 80 }];
+    S.draft = normAction(a);
+    S.editIdx = -1;
+    S.mode = 'sequence';
+    S.unsaved = true;
+    S.sel = null;                /* the last real step, chosen by selIndex */
+    S.page = 0;                  /* the palette opens on Pad */
+  }
+
+  /* Open a button's screen. With an action index it also opens the EDITOR
+     SHEET over it — draw() is the one place that happens, so every route in
+     (a list row, the pad picture, a paste, a template's Add) lands the same
+     way and none of them has to know about the sheet. */
+  function openInput(root, p, S, row, actIdx) {
+    S.inputSrc = row.source;
+    S.screen = 'input';
+    S.step = null;
+    S.unsaved = false;
+    S.sel = null;                 /* the selection belongs to a draft */
+    S.page = 0;                   /* and so does the palette page */
+    if (actIdx != null && actIdx >= 0 && S.actions[actIdx]) {
+      S.editIdx = actIdx;
+      S.draft = clone(S.actions[actIdx]);
+      S.mode = 'sequence';
+    } else {
+      S.editIdx = -1;
+      S.draft = null;
+      S.mode = 'simple';
+    }
+    draw(root, p);
+  }
+
+  /* what the other parts use from this one */
+  SEC.BEHAVE = BEHAVE;
+  SEC.beginSequence = beginSequence;
+  SEC.behaveOf = behaveOf;
+  SEC.inputRowHTML = inputRowHTML;
+  SEC.inputScreenHTML = inputScreenHTML;
+  SEC.inputWord = inputWord;
+  SEC.inputsHTML = inputsHTML;
+  SEC.openInput = openInput;
+  SEC.sameWord = sameWord;
+  SEC.seqLineHTML = seqLineHTML;
+  SEC.srcCellHTML = srcCellHTML;
+});

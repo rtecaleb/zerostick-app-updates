@@ -1,0 +1,306 @@
+/* core-modes.js - the Core's two exclusive switches (D215): EXO Studio and
+ * the GPC script device, and the three modes they make. window.ZSMODES.
+ *
+ * The owner, 2026-10-02: "EXO Studio and the GPC Scripts tab can't be on at
+ * the same time. If one turns on, the other turns off." Both are OFF by
+ * default (nothing costs the Core memory or processing unless it is in use).
+ * The firmware contract (being built in another copy):
+ *
+ *   GET/POST /studio      {"enabled": bool}  -> {"ok":true,"data":{"enabled":bool,"gpcDevice":bool}}
+ *   GET/POST /gpc/device  {"enabled": bool}  -> {"ok":true,"data":{"enabled":bool[, "studio":bool]}}
+ *   /status               "mode": "off" | "gpc" | "studio" (and "studio":{"enabled":bool})
+ *   D224: a POST that parks or unparks the capture answers AT ONCE with
+ *   "switching": true and the shape of the mode it switches TO; /status
+ *   says "modeSwitching": true until it has landed (~1.5 s), and
+ *   "modeError" when it did not (no memory for EXO Studio). The switch stays
+ *   busy until /status says it landed, and paints from /status then.
+ *   both POSTs behind the D87 write gate; with the GPC device off its slot
+ *   and Live routes answer 409 "The GPC script device is off. Turn it on in
+ *   the app: Legacy Devices."
+ *
+ * THREE MODES, as the owner defined them (D218): off = normal mode
+ * (everything EXO: the aim engine, Smart Actions, AI Scripts with the
+ * capture on the Core); the GPC script device on = GPC mode (the EXO works
+ * like a Cronus Zen: our aim engine stays, Zen scripts run on top, and AI
+ * Scripts are OFF, the Core's capture parked to save memory); EXO Studio on
+ * = studio mode (a Titan Two: the aim engine stays, the GPC device off, AI
+ * Scripts off, the picture the PC's). /status says `mode` and
+ * `capture.owner` ("core" | "parked" | "pc"); in both parked modes
+ * /vision/* and Auto Actions answer 409 in the mode's words, and every
+ * calibration start answers 409 CAL_PARKED. parked() / gpcMode() /
+ * studioMode() read that from the Core's last /status, so HOME (the Active
+ * Weapon card), the AI Scripts room and the calibration screens paint from
+ * the Core's answer, never from a tap. Turning EITHER switch on therefore
+ * ALWAYS asks first on a Core with the modes (AI Scripts stop either way);
+ * the GPC device's question also says EXO Studio goes off while it is on.
+ *
+ * One state for both rooms (studio-room.js draws the EXO Studio switch,
+ * legacy-room.js the GPC script device's, gpc-tab.js asks gpcOff()), so the
+ * two can never disagree about which one is on.
+ *
+ * THE RULES, every one of them D195's: a switch paints ONLY from the Core's
+ * answer (a tap marks it busy; the reply, the refusal sentence under it, or
+ * the next /status is what shows). Turning either one on (on a Core with
+ * both switches) first asks, inline, in the owner's words (ASK: what the
+ * mode is, that the aim settings stay on, that AI Scripts turn off, and for
+ * the GPC device, that EXO Studio goes off while it is on), and only "Turn
+ * on" sends anything. Which is on is read fresh from /status (`mode`) at the
+ * tap. Turning either off never asks. A Core that does not know a switch's
+ * route gets no switch: the room says its firmware does not have it.
+ *
+ * ES5 ONLY; everything into innerHTML through esc(). Tests:
+ * tools/test-studio-room.js, tools/test-legacy-room.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var GPC_OFF = 'The GPC script device is off. Turn it on in the app: Legacy Devices.';
+  var AI_OFF = 'AI Scripts is off while EXO Studio is on: the picture goes to the PC.';
+  /* D218: the Core's words in GPC mode, and for a calibration in either */
+  var AI_OFF_GPC = 'AI Scripts is off in GPC mode: switch to normal mode to use AI Scripts.';
+  var CAL_PARKED = 'Switch to normal mode to calibrate';
+  var ASK = {
+    studio: 'Turning on EXO Studio hands the capture picture to your PC. Your aim settings stay on. ' +
+      'The GPC script device and AI Scripts turn off on your Core (nothing is deleted). ' +
+      'Your PC runs the vision from now on.',
+    gpc: 'Turning on the GPC script device makes your EXO work like a Cronus Zen. Your aim settings stay on; ' +
+      'scripts run on top. AI Scripts turn off on your Core while it\u2019s on (nothing is deleted).',
+    /* added while EXO Studio is on */
+    gpcStudio: 'It also turns off EXO Studio (its scripts stop).'
+  };
+  var K = {
+    studio: { route: '/studio', lab: 'EXO Studio', name: 'EXO Studio', other: 'gpc', otherKey: 'gpcDevice',
+      /* D285: `hint` is the row's line; `sub` is its "?" */
+      hint: 'For the EXO Studio PC app. Off by default.',
+      sub: 'Lets the EXO Studio PC app send computer-vision results and PC controller input to this Core. ' +
+        'Off by default: when it’s off, it uses no memory or processing on your Core.' },
+    gpc: { route: '/gpc/device', lab: 'GPC script device', name: 'the GPC script device', other: 'studio', otherKey: 'studio',
+      hint: 'GPC scripts on your Core. Off by default.',
+      sub: 'Runs this config’s GPC scripts on your Core, and Live on Core. Off by default: when it’s off, ' +
+        'it uses no memory or processing. Preview on the phone always works.' }
+  };
+  /* known: true the Core has the route, false it does not, null not asked */
+  var ST = {
+    studio: { known: null, enabled: null },
+    gpc: { known: null, enabled: null },
+    busy: '', err: { studio: '', gpc: '' }, confirm: ''
+  };
+  var listeners = [];
+
+  function status() { return (ZS.live && ZS.live.status) || null; }
+  function online() { return !(ZS.live && ZS.live.online === false); }
+  function changed() {
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i](); } catch (e) { /* a room that is gone */ }
+    }
+  }
+  function confirmText(which) {
+    if (which === 'gpc' && ST.studio.known === true && ST.studio.enabled === true) {
+      return ASK.gpc + ' ' + ASK.gpcStudio;
+    }
+    return ASK[which];
+  }
+  /* the Core's last /status: EXO Studio has the capture picture */
+  function studioMode() {
+    var st = status();
+    return !!st && (st.mode === 'studio' || !!(st.capture && st.capture.owner === 'pc'));
+  }
+  /* D218: the Core's last /status: GPC mode (the capture parked, AI
+     Scripts off) */
+  function gpcMode() {
+    var st = status();
+    return !!st && !studioMode() && (st.mode === 'gpc' || !!(st.capture && st.capture.owner === 'parked'));
+  }
+  /* D218: whichever mode has the Core's capture parked: 'gpc', 'studio' or
+     '' (normal mode, or a Core without the modes) */
+  function parked() { return studioMode() ? 'studio' : gpcMode() ? 'gpc' : ''; }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  /* the Core's own words about both: a reply to a GET or a POST */
+  function take(which, j) {
+    var d = j && j.ok && j.data;
+    if (!d || typeof d.enabled !== 'boolean') { return false; }
+    ST[which] = { known: true, enabled: d.enabled };
+    var o = K[which].other, ov = d[K[which].otherKey];
+    if (typeof ov === 'boolean') { ST[o] = { known: true, enabled: ov }; }
+    return true;
+  }
+  /* /status: `mode` names both; a Core with /studio but no `mode` has no
+     GPC switch; one with neither has no switch at all */
+  function fromStatus() {
+    var st = status();
+    if (!st) { return; }
+    if (typeof st.mode === 'string') {
+      if (ST.busy !== 'studio') { ST.studio = { known: true, enabled: st.mode === 'studio' }; }
+      if (ST.busy !== 'gpc') { ST.gpc = { known: true, enabled: st.mode === 'gpc' }; }
+      return;
+    }
+    if (st.studio && typeof st.studio.enabled === 'boolean') {
+      if (ST.busy !== 'studio') { ST.studio = { known: true, enabled: st.studio.enabled }; }
+    } else if (ST.studio.known === null) {
+      ST.studio = { known: false, enabled: null };
+    }
+    if (ST.gpc.known === null) { ST.gpc = { known: false, enabled: null }; }
+  }
+  function api(path, method, body) {
+    return ZS.api(path, method, body).then(function (j) { return j || { ok: false }; },
+      function () { return { ok: false, error: 'The Core did not answer.' }; });
+  }
+  function read(which) {
+    return api(K[which].route).then(function (j) {
+      if (take(which, j)) { return; }
+      /* no answer: /status decides whether the Core has this switch */
+      ST[which] = { known: null, enabled: null };
+      fromStatus();
+    }).then(changed);
+  }
+  function refresh() {
+    return (typeof ZS.refreshStatus === 'function' ? Promise.resolve(ZS.refreshStatus()) : Promise.resolve())
+      .then(fromStatus, fromStatus).then(changed);
+  }
+  function both() { return ST.studio.known === true && ST.gpc.known === true; }
+
+  function later(ms) {
+    return new Promise(function (res) { setTimeout(res, ms); });
+  }
+  /* D224: the Core took the switch and is doing it now (the capture's park
+     or return): ask /status every half second until it has landed, up to
+     ~12 s, then paint from what /status says, with its sentence when the
+     switch did not happen. Busy until then: a second tap would be a 409. */
+  function landed(which, n) {
+    return (typeof ZS.refreshStatus === 'function' ? Promise.resolve(ZS.refreshStatus()) : Promise.resolve())
+      .then(function () { return status(); }, function () { return status(); })
+      .then(function (st) {
+        if (st && st.modeSwitching === true && n < 24) {
+          return later(500).then(function () { return landed(which, n + 1); });
+        }
+        ST.busy = '';
+        if (st && st.modeSwitching !== true && typeof st.modeError === 'string' && st.modeError) {
+          ST.err[which] = st.modeError;
+        }
+        fromStatus();
+        changed();
+      });
+  }
+  function send(which, on) {
+    ST.busy = which;
+    ST.err[which] = '';
+    ST.confirm = '';
+    changed();
+    return api(K[which].route, 'POST', { enabled: on }).then(function (j) {
+      var accepted = !!(j && j.ok && j.switching === true);
+      if (!take(which, j)) {
+        ST.busy = '';
+        ST.err[which] = (j && j.error) ? String(j.error) : 'The Core did not change ' + K[which].name + '.';
+      } else if (accepted) {
+        changed();
+        return landed(which, 0);
+      }
+      ST.busy = '';
+      changed();
+      /* the other one's word, from the Core */
+      return refresh();
+    });
+  }
+  /* a tap on a switch */
+  function tap(which) {
+    var s = ST[which];
+    if (ST.busy || s.known !== true || typeof s.enabled !== 'boolean' || !online()) { return Promise.resolve(); }
+    if (s.enabled) { return send(which, false); }
+    if (!both()) { return send(which, true); }
+    /* which is on is asked of the Core now, not remembered (the GPC
+       device's question says EXO Studio goes off only while it is on) */
+    ST.busy = which;
+    changed();
+    return refresh().then(function () {
+      ST.busy = '';
+      /* D218: either one takes AI Scripts off the Core, so both ask */
+      ST.confirm = which;
+      changed();
+    });
+  }
+
+  /* ════════════════════════════════════════════════ the drawing ══ */
+  function css() {
+    if (document.getElementById('zs-modes-css')) { return; }
+    var s = document.createElement('style');
+    s.id = 'zs-modes-css';
+    s.appendChild(document.createTextNode([
+      '.zm-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card,14px);padding:12px 14px;margin:0 0 14px}',
+      '.zm-row{display:flex;align-items:flex-start;gap:12px;cursor:pointer}',
+      '.zm-row .t{flex:1;min-width:0}',
+      '.zm-row .lab{font-size:16px;font-weight:650;color:var(--text)}',
+      '.zm-row em{display:block;font-style:normal;color:var(--muted);font-size:12.5px;line-height:1.45;margin-top:3px}',
+      '.zm-row .sw{flex:0 0 auto;margin-top:2px}',
+      '.zm-row .sw[aria-busy="true"]{opacity:.55}',
+      '.zm-err{color:var(--st-warn,var(--amber));font-size:13px;line-height:1.45;margin:8px 0 0}',
+      '.zm-ask{margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--line)}',
+      '.zm-ask p{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--text)}',
+      '.zm-ask .zm-keys{display:flex;gap:10px}',
+      '.zm-ask .zm-keys .btn{flex:1;min-height:44px;margin:0!important;width:auto}',
+      '.zm-say{color:var(--muted);font-size:13px;line-height:1.5;margin:0 2px 12px}'
+    ].join('')));
+    (document.head || document.body).appendChild(s);
+  }
+  /* the switch's card, or '' when this Core has no such switch */
+  function html(which) {
+    css();
+    var s = ST[which], k = K[which];
+    if (s.known !== true || typeof s.enabled !== 'boolean') { return ''; }
+    var on = s.enabled, id = 'zm-' + which;
+    var h = '<div class="zm-card" id="' + id + '-card"><div class="zm-row" id="' + id + '-row">' +
+      '<div class="t"><div class="lab" id="' + id + '-lab">' + esc(k.lab) + '</div><em id="' + id + '-sub">' + esc(k.hint || k.sub) + '</em></div>' +
+      '<span class="sw' + (on ? ' on' : '') + '" id="' + id + '" role="switch" tabindex="0" aria-labelledby="' + id + '-lab"' +
+      ' aria-describedby="' + id + '-sub" aria-checked="' + (on ? 'true' : 'false') + '"' +
+      (ST.busy === which ? ' aria-busy="true"' : '') + '></span></div>' +
+      (k.hint && window.ZS && ZS.helpHTML ? ZS.helpHTML(id + '-help', k.lab, esc(k.sub)) : '');
+    if (ST.err[which]) { h += '<p class="zm-err" id="' + id + '-err" role="alert">' + esc(ST.err[which]) + '</p>'; }
+    if (ST.confirm === which) {
+      h += '<div class="zm-ask" id="' + id + '-ask" role="alertdialog" aria-labelledby="' + id + '-asktext">' +
+        '<p id="' + id + '-asktext">' + esc(confirmText(which)) + '</p><div class="zm-keys">' +
+        '<button type="button" class="btn primary" id="' + id + '-yes">Turn on</button>' +
+        '<button type="button" class="btn" id="' + id + '-no">Cancel</button></div></div>';
+    }
+    return h + '</div>';
+  }
+  function wire(root, which) {
+    var id = 'zm-' + which, sw = root.querySelector('#' + id), row = root.querySelector('#' + id + '-row');
+    if (sw) {
+      sw.addEventListener('click', function (e) { if (e && e.stopPropagation) { e.stopPropagation(); } tap(which); });
+      sw.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(which); }
+      });
+    }
+    if (row) { row.addEventListener('click', function () { tap(which); }); }
+    var yes = root.querySelector('#' + id + '-yes'), no = root.querySelector('#' + id + '-no');
+    if (yes) { yes.addEventListener('click', function () { if (ST.confirm === which) { send(which, true); } }); }
+    if (no) { no.addEventListener('click', function () { ST.confirm = ''; changed(); }); }
+  }
+
+  window.ZSMODES = {
+    K: K,
+    GPC_OFF: GPC_OFF,
+    AI_OFF: AI_OFF,
+    AI_OFF_GPC: AI_OFF_GPC,
+    CAL_PARKED: CAL_PARKED,
+    studioMode: studioMode,
+    gpcMode: gpcMode,
+    parked: parked,
+    state: function () { return ST; },
+    read: read,
+    refresh: refresh,
+    fromStatus: fromStatus,
+    tap: tap,
+    html: html,
+    wire: wire,
+    confirmText: confirmText,
+    onChange: function (fn) { if (typeof fn === 'function' && listeners.indexOf(fn) < 0) { listeners.push(fn); } },
+    /* the GPC script device is off on a Core that has the switch (gpc-tab.js:
+       Live, Send to config and P1 / Reset on the Core say so) */
+    gpcOff: function () { return ST.gpc.known === true && ST.gpc.enabled === false; },
+    /* EXO Studio is on (studio-room.js's rows) */
+    studioOn: function () { return ST.studio.known === true && ST.studio.enabled === true; }
+  };
+}());

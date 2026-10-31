@@ -1,0 +1,178 @@
+/* sections/20-aim-speed-match.js — Aim Speed Match: the EXO board's velocity calibration.
+ *
+ * R.velocity: /calibration/start|stop on the A7S board and writing
+ * mouseTranslation.maxVelocity from what it measured.
+ *
+ * Screens (window.RENDERERS):  R.velocity
+ * Core / board routes:        /calibration/start, /calibration/stop
+ * Tests:                      test-input-type.js, test-render.js, test-aim-help.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('aim-speed-match', function (SEC) {
+  /* from the files before this one */
+  var acc = SEC.acc, btn = SEC.btn, btnInner = SEC.btnInner, btnP = SEC.btnP,
+      card = SEC.card, esc = SEC.esc, helpHTML = SEC.helpHTML, note = SEC.note,
+      pic = SEC.pic, R = SEC.R, sh = SEC.sh, ZS = SEC.ZS, calStatusB = SEC.calStatusB,
+      cpPicker = SEC.cpPicker, openCal = SEC.openCal, door = SEC.door,
+      wireDoors = SEC.wireDoors;
+
+  /* ── Velocity Calibration — tap, spin, done ───────────────────── */
+  /* ── Aim Speed Match — the board's real calibration, wired up ─────
+     The board half has existed all along: POST /calibration/start records the
+     fastest mouse sweep it sees, /calibration/stop returns
+     suggested.maxVelocity. Nothing ever wrote that back, and this screen
+     instead showed two hard-coded numbers ("212 °/s", "30.3 cm/360") that were
+     the same for everyone. It now runs the real thing and writes the real
+     field — which is the single setting most likely to be why fast flicks go
+     nowhere (mouseTranslation.maxVelocity, read by translate/mouse_stick.py). */
+  /* the Fastest swipe "?" (D285, the Aim screen's pass, 2026-10-14). The
+     translator reads maxVelocity only on the legacy path, cm360 0 (zs_mouse.c:
+     w = hand speed / max_velocity, at the 1000-DPI ruler); a Speed set on
+     the Aim page replaces it. */
+  var FASTEST_HELP = 'The hand speed that turns at your game’s top speed: a swipe this fast (or '+
+    'faster) gives a full turn.<br>Every config now aims by <b>Speed</b> (cm/360) on the Aim page, so this '+
+    'number no longer sets how fast you turn: it only told an older config what its Speed 0 meant, and '+
+    'that speed is written down as its own Speed the next time the config is saved.<br>The default is 4000.';
+  R.velocity = function(p){
+    var full = ZS.live.full[p.id] || null;
+    var live = ZS.live.online!==false && !!full;
+    /* This screen measures a mouse swipe, so the question is "is there a
+       mouse?", not "is this the mouse type?" — a Joystick + Mouse config has
+       one and must be able to measure it. */
+    var hasMouse = ZS.inputShows(p.input, 'mouse');
+    var cur  = (full && full.mouseTranslation && full.mouseTranslation.maxVelocity) || 4000;
+
+    if(!hasMouse){
+      /* trimmed to two lines + a "?" (screen-map §8); a stick has a fixed
+         maximum, so there is nothing to measure */
+      return note('This config is set to <b>Controller</b> — a stick has a fixed maximum, so '+
+                  'there is nothing to measure.')+
+        helpHTML('vc-gate', 'Why is this empty?',
+          'These measurements are for mouse aim. Change <b>What you play with</b> on '+
+          '<b>Device</b> to <b>Mouse + Keyboard</b> or <b>Joystick + Mouse</b> if you meant '+
+          'to play with a mouse.');
+    }
+
+    /* THE SINGLE CALIBRATION HOME (screen-map §8): this screen absorbed the
+       Reticle-velocity fold that lived on Overview ▸ Advanced — the status
+       row, the sweep button and the pack picker — so every one-time aim
+       measurement is behind one door. Same ids (#ov-calstat / #ov-cal /
+       #ov-pack), same openCal sheet, same cpPicker fill; only the screen
+       they render on changed. */
+    /* M10 (audit 2026-10-10): every measurement on this screen is the A7S
+       agent's (/calibration/start for a mouse sweep or without a dead zone,
+       /calibration/packs), and a Core refused each one. A Core measures how
+       fast the game turns with Calibrate on Translation (D178; the owner
+       retired the hand-driven sweep, D181), so that is where this points. */
+    if(ZS.productHides && ZS.productHides('exoVelocityCal')){
+      return { html:
+        sh('Reticle velocity')+
+        note('On your Core, <b>Calibrate</b> on the Translation screen measures how fast your game '+
+             'turns.')+
+        door('translation', 'Translation', 'Calibrate on Translation',
+             'measures your game’s turn speed', 'target')+
+        sh('Fastest swipe')+
+        card('<div class="stat"><span>Fastest swipe setting</span><b id="vc-cur">'+esc(String(Math.round(cur)))+'</b></div>')+
+        helpHTML('vc-fastest', 'Fastest swipe', FASTEST_HELP),
+        after: function(root){ wireDoors(root, p); } };
+    }
+    var html =
+      sh('Reticle velocity')+
+      card('<div class="stat" id="ov-calstat"><span>Reticle velocity</span>'+calStatusB(p)+'</div>')+
+      btn('◎ Reticle Velocity Calibration', null, 'ov-cal')+
+      helpHTML('vc-reticle', 'Reticle velocity',
+        'Measures how fast your game really turns — one sweep per axis — so your Speed means the '+
+        'same thing in every game. Recalibrate whenever your in-game sensitivity or field of '+
+        'view changes. A <b>calibration pack</b> below is one game’s sweeps, measured once and '+
+        'reused by every config that plays it; measuring one switches on <b>measure mode</b>, '+
+        'which passes your controller through untouched while you sweep.')+
+      '<div id="ov-pack"></div>'+
+      sh('Fastest swipe')+
+      note('Measures your <b>fastest swipe</b>, so a hard flick turns you as much as you meant.')+
+      card('<div class="stat"><span>Fastest swipe setting</span><b id="vc-cur">'+esc(String(Math.round(cur)))+'</b></div>')+
+      helpHTML('vc-fastest', 'Fastest swipe', FASTEST_HELP)+
+      sh('Measure it')+
+      card('<div id="vc-step" class="stat"><span>Ready</span><b>tap Start, then swipe</b></div>')+
+      btnP('record','Start measuring','primary','vc-go')+
+      '<div id="vc-res"></div>'+
+      acc('How to do this','target',
+        card('<div class="stat"><span>1 · Tap Start</span><b>›</b></div>'+
+          '<div class="stat"><span>2 · Swipe the mouse fast, 4 or 5 times</span><b>as fast as you ever would</b></div>'+
+          '<div class="stat"><span>3 · Tap Stop</span><b>we take your fastest</b></div>')+
+        helpHTML('vc-how', 'How to do this',
+             'Do it on the desk you actually play on, with <b>Mouse DPI</b> on Device set to '+
+             'what your mouse really is. Change mouse or DPI later and you only update Mouse DPI.'), false)+
+      (live? '' : note('Your board is offline, so there is nothing to measure with.','warn'));
+
+    return { html: html, after: function(root){
+      /* the absorbed reticle-velocity block (see the html comment above):
+         the sweep sheet and the pack picker, wired exactly as Overview
+         wired them before the move */
+      var calBtn = root.querySelector('#ov-cal');
+      if(calBtn) calBtn.addEventListener('click', function(){ openCal(p); });
+      cpPicker(root, p, root.dataset.ns);
+      var go   = root.querySelector('#vc-go');
+      var step = root.querySelector('#vc-step');
+      var res  = root.querySelector('#vc-res');
+      var running = false, suggested = 0;
+      function setStep(a, b){ if(step) step.innerHTML = '<span>'+esc(a)+'</span><b>'+esc(b)+'</b>'; }
+
+      if(go) go.addEventListener('click', function(){
+        if(!(ZS.live.online!==false && ZS.live.full[p.id])){
+          ZS.toast('Your board is offline'); return;
+        }
+        if(!running){
+          ZS.api('/calibration/start','POST',{kind:'mouse'}).then(function(j){
+            if(!j || j.ok===false){ ZS.toast('Could not start: '+((j&&j.error)||'no answer from the board')); return; }
+            running = true;
+            go.innerHTML = (pic('stop', 18, 'sicon si-stop')||'■ ')+'<span>Stop and use it</span>';
+            setStep('Measuring', 'swipe fast, 4 or 5 times');
+            if(res) res.innerHTML = '';
+          });
+          return;
+        }
+        ZS.api('/calibration/stop','POST',{}).then(function(j){
+          running = false;
+          go.innerHTML = btnInner('record', 'Start measuring');
+          var d = (j && j.data) || {};
+          if(!d.ok){
+            setStep('Nothing recorded', 'try again');
+            if(res) res.innerHTML = note('No mouse movement reached the board. Check the mouse is '+
+              'plugged into the adapter and that this config is the one running, then try again.','warn',true);
+            return;
+          }
+          suggested = Math.round(d.suggested && d.suggested.maxVelocity || 0);
+          setStep('Measured', String(Math.round(d.peakCountsPerS||0))+' at your fastest');
+          if(res) res.innerHTML =
+            sh('Result')+
+            card('<div class="stat"><span>Your fastest swipe</span><b>'+esc(String(Math.round(d.peakCountsPerS||0)))+'</b></div>'+
+              '<div class="stat"><span>Suggested setting</span><b>'+esc(String(suggested))+'</b></div>'+
+              '<div class="stat"><span>Measured over</span><b>'+esc(String(d.durationS||0))+' s</b></div>')+
+            note('The suggestion is a little above your fastest swipe, so your hardest flick still has '+
+                 'somewhere to go. Applying it changes <b>Fastest swipe</b> above.')+
+            btn('Use '+suggested,'primary','vc-use');
+          var use = root.querySelector('#vc-use');
+          if(use) use.addEventListener('click', function(){
+            if(!suggested){ ZS.toast('Nothing to apply'); return; }
+            /* a setting, so it waits for Save like every other (D257), and
+               it says so only once the change is really taken (m3/m4, audit
+               2026-10-10: it saved at once and toasted before the answer) */
+            var v = suggested;
+            ZS.stageProfile(p.id, function(f){
+              if(!f.mouseTranslation) f.mouseTranslation={};
+              f.mouseTranslation.maxVelocity = v;
+            }).then(function(j){
+              if(!(j && j.ok)) return;      /* putProfile has said why */
+              var cel = root.querySelector('#vc-cur'); if(cel) cel.textContent = String(v);
+              ZS.toast('Fastest swipe set to '+v+(j.staged ? ' — press Save to keep it' : ''));
+            });
+          });
+        });
+      });
+    }};
+  };
+});

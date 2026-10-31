@@ -1,0 +1,116 @@
+/* phone-sections.js — the loader for the app's screens (public/sections/).
+ *
+ * WHAT THIS IS. Every screen behind a door of the phone app (Overview, Aim,
+ * Translation, Screen Assist, Global Settings, the new-config wizard, the
+ * Configs list...) is a RENDERER: a function in window.RENDERERS that returns
+ * HTML, or {html, after(root, p)}, built from the kit in sections/01-kit.js.
+ * phone.html's openDetail() calls them; ZS.wire() makes their controls save.
+ *
+ * Until 2026-10-02 they were all one 19,280-line file, this one, a single
+ * function whose locals every screen shared. It is now one file per screen,
+ * in sections/, and THIS file is only the loader that lets them still share
+ * those names. Nothing in any screen changed but where it lives (two lines
+ * became calls, named in their files: OV_TAB and WZ are each written only by
+ * their own file now).
+ *
+ * THE RULES, which are the whole design:
+ *   1. phone.html loads this file, then every sections/*.js in the order
+ *      below. Each screen file is ZS_SECTIONS.add(name, function (SEC) {...}):
+ *      its code, exactly as it was, inside a function.
+ *   2. Nothing runs while the files load. The last file (99-finish.js) calls
+ *      ZS_SECTIONS.run(), which runs every file's function in order, in one
+ *      go, exactly where the one big file used to run.
+ *   3. A file shares a name by putting it on SEC at its foot
+ *      ("SEC.esc = esc;") and uses another file's name through the list at
+ *      its head ("var esc = SEC.esc, ..."). A name from a file that runs
+ *      LATER is bound by ZS_SECTIONS.after() once every file has run, so it
+ *      may be CALLED from anything that runs later (a screen, a click), but
+ *      not used while the file itself is running.
+ *   4. A shared name is never reassigned after it is shared (a copy would go
+ *      stale). A module variable another file must change gets a setter in
+ *      its own file (09-overview.js ovSetTab, 24-wizard.js wzReset).
+ *
+ * CHANGING A SCREEN: open its file below; everything it uses from elsewhere
+ * is in the list at its head. ADDING A NAME ANOTHER FILE NEEDS: share it at
+ * the foot of its file and add it to the other file's list.
+ * dashboard/tools/app-sources.js reads the file list from phone.html, so the
+ * tests that read the screens' source (test-icons3d.js, test-theme.js...)
+ * see every file; tools/check-js.js parses them all.
+ *
+ * THE FILES, in load (and run) order:
+ *   sections/00-glyph-svg.js        button / keycap / logo drawings (globals)
+ *   sections/01-kit.js              the builders, pickers, names, R
+ *   sections/02-play-setup.js       input type + "What you play on"
+ *   sections/03-stick-modes.js      Native / EXO Linear / Custom (D184/D186)
+ *   sections/04-update-rate.js      output.rateHz, the game translator table
+ *   sections/05-game-identity.js    a config's game pack, the game picker
+ *   sections/06-velocity-cal.js     the EXO's velocity calibration + packs
+ *   sections/07-remote-play.js      PlayStation accounts (R.psnlink)
+ *   sections/07a-remote-play-setup.js  Remote Play setup on a Core (R.rpsetup, D286)
+ *   sections/08-game-presets.js     Match Your Game (R.game)
+ *   sections/09-overview.js         Overview (R.overview)
+ *   sections/10-aim-tables.js       the Aim page's tables, presets, labHelp (2026-10-31)
+ *   sections/10-aim-controller.js   the Aim page's controller half, a factory (2026-10-31)
+ *   sections/10-aim.js              the Aim page (R.aim): the mouse pages and the draw
+ *   sections/11-kbmove-behavior.js  Keyboard Movement, Behavior
+ *   sections/12-translation.js      the Translation tab (R.translation)
+ *   sections/13-calibrate.js        Calibrate on the Core (D172)
+ *   sections/13b-measure.js         Measure this game on the Core (D397)
+ *   sections/14-manual-cal.js       manual velocity calibration (D181)
+ *   sections/15-modifiers.js        Shift Layers (R.modifiers)
+ *   sections/16-lighting-output.js  R.lighting, R.pcout
+ *   sections/17-roles.js            Aim roles (R.roles)
+ *   sections/19-pairing.js          the devices list (R.pairing)
+ *   sections/20-aim-speed-match.js  the EXO's Aim Speed Match (R.velocity)
+ *   sections/21-smart.js            hand-over to smart-actions.js
+ *   sections/22-global.js           Global Settings (R.global)
+ *   sections/23-vision-kit.js       Screen Assist's helpers and stylesheets (2026-10-31)
+ *   sections/23-vision.js           Screen Assist (R.vision, wireCv)
+ *   sections/23b-autogreen.js       NBA 2K Auto green on a Core (R.autogreen, D406)
+ *   sections/24-wizard.js           the New Config wizard (R['new'])
+ *   sections/25-profiles.js         the Configs list (R.profiles)
+ *   sections/99-finish.js           tints, window.RENDERERS, then run()
+ *
+ * Every file's own header says what it owns, which routes and config fields
+ * it touches and which tests cover it. docs/CODE-GUIDE.md has the whole app.
+ */
+(function () {
+  var queue = [];
+  var later = [];
+  var ran = false;
+  /* the shared names (rule 3) */
+  var SEC = {};
+
+  window.ZS_SECTIONS = {
+    /* rule 1: a screen file's code, kept until run() */
+    add: function (name, body) {
+      queue.push({ name: name, body: body });
+    },
+    /* rule 3: binds a file's names from files that run after it */
+    after: function (fn) {
+      later.push(fn);
+    },
+    /* rule 2: every file, in order, then the late names. Once. A file that
+       throws stops the rest, exactly as an error anywhere in the one big file
+       did, and the error names the file it came from. */
+    run: function () {
+      var i;
+
+      if (ran) {
+        return;
+      }
+      ran = true;
+      for (i = 0; i < queue.length; i++) {
+        queue[i].body.call(window, SEC);
+      }
+      for (i = 0; i < later.length; i++) {
+        later[i]();
+      }
+    },
+    /* which files ran, for a test or the console */
+    files: function () {
+      return queue.map(function (q) { return q.name; });
+    },
+    names: SEC
+  };
+})();

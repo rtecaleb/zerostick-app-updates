@@ -1,0 +1,214 @@
+/* smart-actions/05-list.js — the list of actions (the Scripts screen's rows).
+ *
+ * One row per action, its room note, the board's diagnostics.
+ *
+ * Tests: test-smart-list.js
+ *
+ * ONE PART OF THE SCRIPTS EDITOR (2026-10-02: smart-actions.js, split into
+ * parts). smart-actions.js is the loader and explains the rules: the parts
+ * run in order inside ZS_SMART_PARTS.run(), strict mode as before, and share
+ * names only through the lists at the top and the bottom of each part.
+ */
+ZS_SMART_PARTS.add('list', function (SEC) {
+  'use strict';
+  /* from the parts before this one */
+  var adsBindingName = SEC.adsBindingName, adsGateOK = SEC.adsGateOK, arr = SEC.arr,
+      boardDiag = SEC.boardDiag, emitSource = SEC.emitSource, esc = SEC.esc,
+      haveClass = SEC.haveClass, note = SEC.note, srcClass = SEC.srcClass,
+      srcName = SEC.srcName, ZS = SEC.ZS, hasErrors = SEC.hasErrors, CSS = SEC.CSS;
+
+  function injectCSS() {
+    if (document.getElementById('zs-smart-css')) return;
+    var st = document.createElement('style');
+    st.id = 'zs-smart-css';
+    st.textContent = CSS;
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  /* ══ list view ════════════════════════════════════════════════════ */
+
+  /* THE SWATCHES ARE DATA, so they are literal hex — they are written into
+     the action and out to the board as categoryColor, where a var() would be
+     a string nothing can paint. They still have to BE the palette: three of
+     these were the pre-2026-08-18 values and had drifted off it, so the app
+     offered you colours no other screen used any more.
+       #d29922 → #e3b341  --amber   (9.13:1 on a card)
+       #f85149 → #e5484d  --red     (4.54:1)
+       #39c5cf → #2fd9ce  --accent  (10.10:1)
+     The other three were already --blue / --green / --purple exactly.
+     coloursHTML() carries an action's OWN colour alongside these when it is
+     no longer offered, so nobody's list is silently repainted. */
+  var COLOURS = ['#58a6ff', '#3fb950', '#e3b341', '#a371f7', '#e5484d', '#2fd9ce'];
+
+  /* The Smart Actions screen is now the SECOND door. The first is Buttons —
+     "I know which button I want to change" — and this one is "I want bunny
+     hop, show me the options". Both lead to the same room: one input's own
+     screen. Neither of them asks you to create a standalone "action" and then
+     go hunting for a trigger, which is the thing that kept failing. */
+  /* THE PILLS WERE TALLER THAN THEY WERE USEFUL. "Build your own" and
+     "Everything you have" both wrapped to two lines in a 103px pill, so the
+     tab strip stood 61px tall and only one of the three labels sat straight.
+     One word each, and the sentence each one used to be moves to the
+     accessible name where it costs no pixels. */
+  function tabsHTML(S) {
+    function t(id, word, say, on) {
+      return '<button data-tab="' + id + '"' + (on ? ' class="on"' : '') +
+             ' aria-label="' + esc(say) + '">' + esc(word) + '</button>';
+    }
+    /* TWO TABS (D85, 2026-09-05). The owner: "smart mappings, then mappings
+       in a collapsed menu, then a separate tab for ready-made smart actions,
+       and remove the build tab since that is like in the smart mappings sub
+       menus we already made." Build's job — choose a button, then author —
+       is every Mappings row's own Smart Actions Editor door now (D79/D81),
+       and "Yours" IS the Smart mappings page. */
+    return '<div class="subtabs">' +
+      t('index',     'Scripts',        'Scripts — each one, and the button that starts it', S.screen === 'index') +
+      t('templates', 'Ready-made',     'Ready-made Scripts',                             S.screen === 'templates') +
+      '</div>';
+  }
+
+
+  function syncBadge(a, p, S) {
+    if (ZS.live.online === false || !ZS.live.full[p.id]) return '';
+    if (hasErrors(a, p, S)) return '<span class="sasync bad" aria-label="not on your board — there is a problem to fix">▲</span>';
+    if (a.enabled === false) return '<span class="sasync off" aria-label="switched off">○</span>';
+    /* The board being back does NOT mean it has this action: an edit made
+       while it was away is only delivered on the next successful write. Until
+       then the green dot would be a straight lie. */
+    if (S && S.dirty) return '<span class="sasync off" aria-label="saved on this phone, still being sent to your board">◌</span>';
+    return '<span class="sasync live" aria-label="runs on your board">●</span>';
+  }
+
+  /* A SAVE THE ADAPTER REFUSED IS SAID ON THE ROW (D127). The refusal was a
+     toast for nine seconds and then nothing: the list went on drawing the
+     action as if it were on the Core, which it was not (a 33rd action past
+     the Core's 32, say). phone.html keeps the last refusal per config
+     (ZS.live.saveError, cleared by the next save that lands), and the
+     config's copy as the adapter holds it (ZS.live.full), so this answers
+     from those two facts alone: the reason, when the last save of this
+     config was refused AND this action is not in the adapter's copy. The
+     action itself stays in the list, where it can be fixed or deleted. */
+  function notSaved(a, p, S) {
+    var errs = ZS.live && ZS.live.saveError;
+    var err = errs && errs[p.id];
+    if (!err || ZS.live.online === false || (S && S.dirty)) return '';
+    var full = ZS.live.full && ZS.live.full[p.id];
+    if (!full) return '';
+    var there = arr(full.accessibilityActions).some(function (b) { return !!b && b.id === a.id; });
+    return there ? '' : String(err);
+  }
+  function boardWord() {
+    return (typeof ZS.productId === 'function' && ZS.productId() === 'core') ? 'Core' : 'board';
+  }
+  /* STORAGE, NOT A COUNT (D133). A Core's Smart Actions page says what the
+     config takes on the Core, measured as a save to THIS Core would store
+     it (core-room.js), and warns in words when the config is close to one
+     of the Core's own limits, before a save is refused. A refused save
+     already says why above, so the warning steps aside for it. An EXO keeps
+     configs as JSON and has no such limits to speak of. */
+  function roomNoteHTML(p, refused) {
+    var full = ZS.live && ZS.live.full && ZS.live.full[p.id];
+    if (boardWord() !== 'Core' || !window.ZSROOM || !full || ZS.live.online === false) return '';
+    var R = ZSROOM.room(full);
+    var size = R.stored > 0 ? R.stored : R.bytes;
+    var near = refused ? [] : ZSROOM.near(R);
+    return (size > 0 ? '<div class="note" id="sa-room" style="font-variant-numeric:tabular-nums">' +
+        'This config: <b>' + esc(ZSROOM.words(size)) + '</b> on your Core</div>' : '') +
+      (near.length ? note(near.map(function (s) { return esc(s); }).join(' ') +
+        ' Delete a Script you no longer use to make room.', 'warn') : '');
+  }
+
+  /* The one line that makes a dead action impossible to miss. An action that
+     cannot fire used to look identical to one that works — same row, same
+     green dot — and neither the app nor the board said a word. */
+  /* Proof of life. The board counts every run (actionDiagnostics.firedCount)
+     but the app never showed it, so an action whose output was invisible —
+     the seeded same-button tap under takeover — was indistinguishable from
+     one that never fired. Active config only: boardDiag answers null for the
+     others, and a count that might be stale would be worse than none. */
+  function firedNote(a, p, S) {
+    if (a.enabled === false) return '';
+    var d = boardDiag(p, a.id, emitSource(p, a.trigger));
+    if (!d || !d.firedCount) return '';
+    return '<span class="safired" style="color:var(--green);font-size:11.5px"> · fired ' +
+      (+d.firedCount) + '×</span>';
+  }
+
+  /* The message a dead sequence carries, with no markup around it. Split out
+     so the editor sheet's error summary can recognise the sentence its own
+     tile is already showing — problems() and deadNote() both quote the
+     board's diagnostic verbatim, so the sheet printed "Nothing you have
+     plugged in sends R2 (RT)" at the top AND at the foot. */
+  function deadMsg(a, p, S) {
+    var m = /▲ Will not fire — ([^<]*)/.exec(deadNote(a, p, S) || '');
+    return m ? m[1].trim() : '';
+  }
+
+  /* the reason a sequence cannot fire, and its one-tap fix, as parts: the
+     Mappings-style rows on Smart mappings put them behind the D70 "!" chip,
+     the orphan lines still draw deadNote's red line */
+  function deadParts(a, p, S) {
+    /* D280: on no key yet: the ✕ is its door, said once */
+    if (a.trigger && a.trigger.unbound) {
+      return { msg: 'Not on a key yet.', fix: ' <b data-fix="1" role="button" tabindex="0">Pick a key</b>' };
+    }
+    if (a.enabled === false) return null;
+    var src = emitSource(p, a.trigger);
+    var msg = '', gateFault = false;
+    var d = boardDiag(p, a.id, src);
+    if (d && !d.canFire) msg = d.message || 'Your board says this will not fire.';
+    /* a watched screen area is not a control — the device questions below
+       cannot be asked of it, and the board's verdict above already covers it */
+    else if (src && srcClass(src) === 'screen') msg = '';
+    else if (src && srcClass(src) === 'unknown')
+      msg = 'Nothing on your board sends “' + src + '”.';
+    else if (src && haveClass(srcClass(src)) === false)
+      msg = 'Starts on ' + srcName(src) + ', and no ' +
+            (srcClass(src) === 'keyboard' ? 'keyboard' : srcClass(src) === 'mouse' ? 'mouse' : 'controller') +
+            ' is connected.';
+    /* A trigger that can fire is only half of it. An action gated "only while
+       aiming" is just as dead when your board decides aiming from a mouse
+       button and there is no mouse — and the row showed the ▲ badge with no
+       word of explanation, which is the same silence in a smaller box. */
+    else if (a.gate === 'ads' && adsGateOK(p) === false) {
+      gateFault = true;
+      msg = 'Set to run only while aiming, but nothing plugged in can aim (L2 / LT or a right click).';
+    }
+    if (!msg) return null;
+    /* The one-tap fix goes where the fault actually is. Sending someone to the
+       trigger picker to fix an aim-mode gate would be a dead end wearing the
+       clothes of a solution. */
+    /* The one-tap fix has to match the fault. A watched screen area is not
+       something the button picker can mend, so it gets the board's sentence
+       and no advice at all rather than advice that leads nowhere. */
+    /* The two shortcuts are real stops in the tab order, not click-only text.
+       role="button" + tabindex="0" makes them focusable; activation needs no
+       listener of their own because keydown BUBBLES to the row, whose kbRow
+       handler calls the same open function the click path uses — and that
+       function checks e.target.closest('[data-fadoor]') / ('[data-fix]')
+       before anything else, so Enter/Space on the shortcut goes where the
+       words point instead of taking the row's own branch. */
+    var fix = gateFault ? ' <b>Open it and set “Aim mode” to “Any time”</b> — or ' +
+              '<b data-fadoor="1" role="button" tabindex="0">set your Aim button on the Aim screen</b>'
+            : srcClass(src) === 'screen' ? ''
+            : ' <b data-fix="1" role="button" tabindex="0">Pick a button on your controller</b>';
+    return { msg: msg, fix: fix };
+  }
+  function deadNote(a, p, S) {
+    var d = deadParts(a, p, S);
+    return d ? '<span class="sadead">▲ Will not fire — ' + esc(d.msg) + d.fix + '</span>' : '';
+  }
+
+  /* what the other parts use from this one */
+  SEC.COLOURS = COLOURS;
+  SEC.boardWord = boardWord;
+  SEC.deadMsg = deadMsg;
+  SEC.deadNote = deadNote;
+  SEC.deadParts = deadParts;
+  SEC.firedNote = firedNote;
+  SEC.injectCSS = injectCSS;
+  SEC.notSaved = notSaved;
+  SEC.roomNoteHTML = roomNoteHTML;
+  SEC.syncBadge = syncBadge;
+  SEC.tabsHTML = tabsHTML;
+});

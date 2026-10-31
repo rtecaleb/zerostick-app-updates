@@ -1,0 +1,887 @@
+/* devbar — the always-on strip pinned to the bottom of every screen.
+ *
+ * Two rows:
+ *   1. what's plugged in       (GET /devices, slow poll)
+ *   2. what you're doing NOW   (GET /output/live + /input/live, fast poll)
+ *
+ * Everything here is REAL board data. When the board is offline the bar says
+ * so rather than inventing activity — a fake "connected" chip on a dead link
+ * is worse than no chip at all.
+ *
+ * Row 2 shows raw input events (so a keyboard 'W' reads as W, not as the stick
+ * it maps to) plus the final stick/trigger state, so you can see both what you
+ * pressed and what the console is being told.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) return;
+
+  var DEVICE_POLL_MS = 2500;   // plug/unplug is rare
+  var LIVE_POLL_MS   = 120;    // ~8 Hz: responsive without hammering the agent
+  var NAV_POLL_MS    = 400;    // Passthrough Mode: must feel instant, but it is
+                               // a mode change, not a per-frame value
+  var KEY_HOLD_MS    = 700;    // how long a tap stays visible after release
+  var MAX_CHIPS      = 10;
+
+  var el = {};
+  var devices = [];
+  var famSubs = [];        /* every screen that wants to know the pad changed */
+  var devSubs = [];        /* ...and every screen that cares WHAT is plugged in */
+  /* Subscribe rather than assigning ZS.onPadFamilyChange, which only holds one. */
+  ZS.onFamilyChange = function (cb) {
+    if (typeof cb === 'function') famSubs.push(cb);
+  };
+  /* The device list itself, not just the pad family. Smart Actions needs it to
+     answer "can this trigger ever fire?" — an action bound to a keyboard key
+     on a rig with no keyboard is dead, and the app has to say so rather than
+     let the board discover it silently. null until the first poll answers, so
+     callers can tell "no keyboard" from "we have not asked yet". */
+  ZS.devices = null;
+  /* PRETEND A MOUSE AND KEYBOARD ARE PLUGGED IN (owner, 2026-10-13: "act
+     like a mouse and keyboard are plugged into my Core on the PC so I can see
+     the tabs and make changes to them"). A developer switch (Settings >
+     Developer); off unless set. Only what the APP is shown changes: the
+     Core's own list is untouched, and nothing is sent to the Core because of
+     it, so settings edited here save to the real config as usual. */
+  var SIM_MNK_KEY = 'zs-sim-mnk';
+  function simMnkOn() {
+    /* on by default in the owner's own builds (he asked for it), off in a
+       customer build; the switch stores '1' or '0' */
+    var v = null;
+    try { v = localStorage.getItem(SIM_MNK_KEY); } catch (e) { v = null; }
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return !!(window.ZS_BUILD && window.ZS_BUILD.dev === true);
+  }
+  function pretendMnk(list) {
+    if (!simMnkOn() || !Array.isArray(list)) return list;
+    var out = list.slice();
+    function has(kind) {
+      return out.some(function (d) { return d && d.kind === kind && d.connected !== false; });
+    }
+    function add(kind, name) {
+      out.push({ ident: 'sim:' + kind, name: name, path: '', vendorId: '0000', productId: '0000',
+                 serial: '', phys: '', kind: kind, role: 'auto', connected: true, opened: true,
+                 family: 'generic', quirk: '', emits: [], effectiveRole: kind, source: 'sim',
+                 suppressed: false, suppressedReason: '', suppressedEvents: 0, pretend: true });
+    }
+    if (!has('keyboard')) add('keyboard', 'Keyboard (pretend)');
+    if (!has('mouse')) add('mouse', 'Mouse (pretend)');
+    return out;
+  }
+  ZS.simMnk = { key: SIM_MNK_KEY, on: simMnkOn };
+  ZS.onDevicesChange = function (cb) {
+    if (typeof cb === 'function') devSubs.push(cb);
+  };
+  /* WHAT THE CONSOLE IS BEING TOLD, PUBLISHED - because HOME draws the pad
+     you are holding with the buttons lit, and it must not open a second poll
+     loop to do it. This file already asks the agent every LIVE_POLL_MS; a
+     second asker would double the traffic to produce the same answer, and
+     the two would disagree for one interval every time. One poller, many
+     readers, exactly as devSubs does for the device list. */
+  ZS.liveInput = { buttons: [], sticks: { lx:0, ly:0, rx:0, ry:0, lt:0, rt:0 }, at: 0 };
+  var liveSubs = [];
+  ZS.onLiveInput = function (cb) {
+    if (typeof cb === 'function') liveSubs.push(cb);
+  };
+  /* evdev number -> name, built once from zs-profile-encode.js's CODES.
+     Aliases share a number (BTN_MOUSE and BTN_LEFT are both 0x110), so a
+     name with a keycap picture wins, then the first in the kernel's order. */
+  var codeNames = null;
+  function codeName(n) {
+    if (!codeNames) {
+      codeNames = {};
+      var C = (window.ZSPROFILE && ZSPROFILE.CODES) || {};
+      Object.keys(C).forEach(function (k) {
+        if (!/^(KEY|BTN)_/.test(k) || k === 'KEY_MIN_INTERESTING') return;
+        var v = C[k], cur = codeNames[v];
+        var pic = window.ZSKEYS && ZSKEYS.has(k);
+        if (!cur || (pic && !(window.ZSKEYS && ZSKEYS.has(cur)))) codeNames[v] = k;
+      });
+    }
+    return codeNames[n] || null;
+  }
+  function heldNames(list) {
+    var out = [];
+    if (!Array.isArray(list)) return out;
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (!s || +s.kind !== 0) continue;     /* 0 = an evdev code; triggers/regions are not keys */
+      var nm = codeName(+s.code);
+      if (nm && out.indexOf(nm) < 0) out.push(nm);
+    }
+    return out;
+  }
+  ZS.liveHeld = { codes: [], sig: '', at: 0 };
+  function fireLive() {
+    for (var i = 0; i < liveSubs.length; i++) {
+      /* one bad subscriber must not stop the rest, and must never take the
+         poll loop down with it - the device bar is the thing that says the
+         board is alive. */
+      try { liveSubs[i](ZS.liveInput); } catch (e) {}
+    }
+  }
+  /* The family of the last pad ever seen, surviving reloads. With the board
+     offline or the pad unplugged there is no plastic to follow; the pad the
+     user OWNS is a better guess than a blanket default. glyphs.js consumes
+     this as the step before its final Xbox fallback. */
+  ZS.lastPadFamily = null;
+  try { ZS.lastPadFamily = localStorage.getItem('zs-last-padfam') || null; }
+  catch (e) { /* storage can be walled off in a webview; run without memory */ }
+  /* Which classes of device are attached right now, or null while unknown.
+     NOT-A-SINGLE-ONE counts as unknown, deliberately: an empty list means
+     "still enumerating" as often as it means "nothing plugged in", and it is
+     also what simulation looks like (the sim source reports kind "other"
+     while delivering key events perfectly well). Painting every action red on
+     a board that is still booting is a lie the user cannot act on. The board
+     applies the identical rule in actions/sequences.set_attached_devices. */
+  /* OPENED, NOT JUST CONNECTED (D217). The Core lists an interface it chose
+     not to open (a keyboard's NKRO path, its built-in mouse beside a real
+     one, one there was no USB channel left for) as a row of its own with
+     "connected":true (the DEVICE is plugged in) and "opened":false. Such a
+     row is not a thing anybody plugged in and it sends nothing, so it is
+     never counted, drawn as a chip or a pill, or used to guess a pad's
+     family; it is shown only as a quiet "not opened" note (notOpened). An
+     older Core and the A7S leave the field out, which reads as opened. */
+  function isOpened(d) {
+    return !!d && d.connected !== false && d.opened !== false;
+  }
+  ZS.isOpened = isOpened;
+  function notOpened(list) {
+    var out = [];
+    (list || []).forEach(function (d) {
+      if (d && d.connected !== false && d.opened === false) out.push(d);
+    });
+    return out;
+  }
+  ZS.notOpened = notOpened;
+  /* "0416:0123 interface 1 (mouse): not opened: a mouse is plugged in" ->
+     "0416:0123 interface 1 (mouse): a mouse is plugged in", the Core's own
+     words with the part the heading already says taken out */
+  function notOpenedWords(d) {
+    var s = String((d && (d.suppressedReason || d.ident || d.name)) || 'an interface');
+    return s.replace(/:\s*not opened:\s*/, ': ');
+  }
+  ZS.notOpenedWords = notOpenedWords;
+
+  ZS.deviceClasses = function () {
+    if (!ZS.devices) return null;
+    var out = {}, any = false;
+    for (var i = 0; i < ZS.devices.length; i++) {
+      var d = ZS.devices[i];
+      if (!isOpened(d)) continue;
+      var k = String(d.kind || '');
+      if (k === 'gamepad') { out.controller = true; any = true; }
+      else if (k === 'mouse' || k === 'keyboard') { out[k] = true; any = true; }
+    }
+    return any ? out : null;
+  };
+  /* Every source code the attached devices can actually emit, or null when the
+     board did not enumerate them (an older agent). The board reports this per
+     device as `emits`; see inputs/evdev_source.emitted_sources. */
+  ZS.deviceEmits = function () {
+    if (!ZS.devices) return null;
+    var out = {}, any = false;
+    for (var i = 0; i < ZS.devices.length; i++) {
+      var d = ZS.devices[i];
+      if (!isOpened(d) || !d.emits || !d.emits.length) continue;
+      any = true;
+      for (var j = 0; j < d.emits.length; j++) out[String(d.emits[j])] = true;
+    }
+    return any ? out : null;
+  };
+  var recent = [];             // [{label, kind, t}] newest last
+  var sticks = { lx:0, ly:0, rx:0, ry:0, lt:0, rt:0 };
+  var buttons = [];
+  var timers = { dev:null, live:null };
+  var started = false;
+
+  function esc(s){ return ZS.esc ? ZS.esc(s) : String(s); }
+
+  /* ── device chips ─────────────────────────────────────────────── */
+
+  /* Map a device to the art we already ship. Prefer vendor id — a DualSense
+     Edge and a standard DualSense have different product ids but both are
+     Sony, and both should read as "PlayStation pad". */
+  /* Third-party pads are the norm, not the exception, and almost none of them
+     use Microsoft's or Sony's vendor id. A PowerA or PDP pad is an Xbox pad as
+     far as your thumbs are concerned, so it has to show Xbox buttons. xpad
+     names most of them "... X-Box 360 pad" / "Generic X-Box pad", which is a
+     more reliable signal than the vendor id. */
+  var XB_VIDS = { '045e':1,   /* Microsoft            */
+                  '0e6f':1,   /* PDP                  */
+                  '24c6':1,   /* PowerA / BDA         */
+                  '0f0d':1,   /* Hori                 */
+                  '1532':1,   /* Razer                */
+                  '0079':1,   /* DragonRise            */
+                  '2dc8':1,   /* 8BitDo (xinput mode) */
+                  '1bad':1 }; /* Harmonix / Mad Catz  */
+  var PS_VIDS = { '054c':1,   /* Sony                 */
+                  '0f0d0':0 };
+  var NIN_VIDS = { '057e':1 };  /* Nintendo            */
+
+  function famOf(d) {
+    /* The board already classified this device at driver/quirk-selection time
+       (inputs/evdev_source.pad_family: vendor + xpad-name + driver evidence,
+       which catches the PowerA/PDP/Hori pads the tables below miss). Its
+       answer wins; the heuristics only cover an older agent or "generic". */
+    var bf = String(d.family || '').toLowerCase();
+    if (bf === 'playstation') return 'ps';
+    if (bf === 'xbox') return 'xb';
+    if (bf === 'nintendo') return 'nin';
+    var vid = String(d.vendorId || '').toLowerCase();
+    var name = String(d.name || '').toLowerCase();
+    if (PS_VIDS[vid] || /dualsense|dualshock|playstation|wireless controller/.test(name))
+      return 'ps';
+    if (NIN_VIDS[vid] || /nintendo|switch pro|joy-con/.test(name)) return 'nin';
+    if (XB_VIDS[vid] || /x-box|xbox|xinput/.test(name)) return 'xb';
+    return null;
+  }
+
+  function deviceLook(d) {
+    var vid = String(d.vendorId || '').toLowerCase();
+    var kind = String(d.kind || '').toLowerCase();
+    var name = String(d.name || '').toLowerCase();
+    if (kind === 'keyboard') return { art:'mnk', tag:'KB',  cls:'kb' };
+    if (kind === 'mouse')    return { art:'mnk', tag:'M',   cls:'ms' };
+    if (vid === '2b81' || /p5general|activtor/.test(name))
+      return { art:'ps5',  tag:'AUTH', cls:'auth' };
+    var fam = famOf(d);
+    if (fam === 'ps')  return { art:'ps5',  tag:'PS',  cls:'ps' };
+    if (fam === 'xb')  return { art:'xbox', tag:'XB',  cls:'xb' };
+    if (fam === 'nin') return { art:'controller', tag:'NIN', cls:'nin' };
+    if (kind === 'gamepad')  return { art:'controller', tag:'PAD', cls:'pad' };
+    return { art:'controller', tag:'?', cls:'other' };
+  }
+
+  /* D233: the device pictures (brand/devices/, from the owner's pictures) */
+  var DEV_PIC = 'brand/devices/';
+  function devicePic(d, look, fam) {
+    if (look.cls === 'auth') return '';
+    var kind = String(d.kind || '').toLowerCase();
+    /* D290: the owner's own mouse and keyboard (the small file: every
+       slot that asks here is under 128 CSS px) */
+    if (kind === 'keyboard') return DEV_PIC + 'keyboard-256.webp';
+    if (kind === 'mouse') return DEV_PIC + 'mouse-256.webp';
+    if (fam === 'ps') return DEV_PIC + 'dev-ps5.png';
+    /* owner, 2026-10-07: "an Xbox controller if it is anything that isn't
+       Sony" - every other pad wears the Xbox picture */
+    if (fam || kind === 'gamepad') return DEV_PIC + 'dev-xbox.png';
+    return DEV_PIC + 'dev-unknown.png';
+  }
+  /* the picture for one device, for HOME's pills too (one rule, one place) */
+  ZS.devicePicFor = function (d) { return d ? devicePic(d, deviceLook(d), famOf(d)) : ''; };
+  /* D233: which picture heads Mappings, from what is plugged in. ONE pad and
+     nothing else: its own (DualSense / Xbox One). A keyboard and/or mouse
+     and no pad: the keyboard. Anything else - nothing known, a pad nobody
+     can name, two of anything, a pad AND a keyboard - the Xbox 360 one, the
+     owner's default. The auth donor and the test-only simulated input
+     (kind "other") are not things you play with, so they do not count. */
+  ZS.mappingsArt = function () {
+    var list = (ZS.devices || []).filter(function (d) {
+      return isUserDevice(d) && isOpened(d) && deviceLook(d).cls !== 'auth';
+    });
+    var pads = [], kbm = false, other = false;
+    list.forEach(function (d) {
+      var k = String(d.kind || '').toLowerCase();
+      if (k === 'gamepad') pads.push(famOf(d));
+      else if (k === 'keyboard' || k === 'mouse') kbm = true;
+      else if (k && k !== 'other') other = true;
+    });
+    /* one physical pad can arrive as several nodes (touchpad, motion): the
+       same family counted once per family */
+    var fams = {}; pads.forEach(function (f) { fams[f || '?'] = true; });
+    var famList = Object.keys(fams);
+    /* 2026-10-23 (owner): "use that universal one if you detect a mouse and
+       keyboard; if you don't, and you detect a PS5 controller, use the PS5
+       one; a controller that isn't PS5, the Xbox 360 image". Nothing
+       plugged in wears the universal one too (a key and a button swapping,
+       brand/zs-mappings-door.jpg, in Mappings' green). */
+    var UNI = 'brand/zs-mappings-door.jpg';
+    if (kbm || !famList.length) return { key: 'universal', src: UNI };
+    var allPs = famList.every(function (f) { return f === 'ps'; });
+    var art = allPs ? 'ps5' : 'x360';
+    return { key: art, src: DEV_PIC + 'map-' + art + '.jpg' };
+  };
+
+  function shortName(d) {
+    var n = String(d.name || 'Device');
+    /* kernel names are long and repetitive: "Sony Interactive Entertainment
+       DualSense Wireless Controller" → "DualSense Wireless Controller" */
+    n = n.replace(/^(Sony Interactive Entertainment|Microsoft|Activtor)\s+/i, '');
+    /* …and the tail is boilerplate too. "DualSense Wireless Controller" is 29
+       characters, so the 22-char clip printed "DualSense Wireless Co…" — the
+       one word that identifies the pad survived, and then three words that
+       identify nothing pushed it into an ellipsis. In a strip of chips that
+       are ALREADY drawings of controllers, "Wireless Controller" is the part
+       the picture is saying. Only dropped when a name is left standing. */
+    var trimmed = n.replace(/\s+(Wireless\s+)?(Controller|Gamepad|Pad)$/i, '').trim();
+    if (trimmed.length >= 3) n = trimmed;
+    return n.length > 22 ? n.slice(0, 21) + '…' : n;
+  }
+
+  /* Which button family is physically plugged in, so the rest of the app can
+     draw the glyphs of the pad you are ACTUALLY holding rather than the ones
+     implied by the config's platform. null = nothing conclusive. */
+  function detectFamily(list) {
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i];
+      if (String(d.kind || '') !== 'gamepad') continue;
+      var fam = famOf(d);
+      if (fam) return fam;
+    }
+    return null;
+  }
+
+  /* ── WHAT A PERSON PLUGGED IN, NOT WHAT LINUX ENUMERATED ────────────────
+     /devices returns every evdev node the kernel offers, and on a Cubie A7S
+     most of them are the BOARD ITSELF: sunxi-gpadc0/channel0..3 are the
+     A733's own general-purpose ADC lines and axp8191-pek is the AXP PMIC's
+     power button. The bar was showing six chips of which five were those, so
+     a first-time user read "six things are plugged into my adapter" and the
+     strip needed 1009px of horizontal scroll in a 317px row to say it.
+     None of them can ever send a game input, so none of them is a device in
+     the sense this bar means. Matched on the kernel path/name, which is what
+     the board reports them as — a real pad never looks like this. */
+  var SOC_NODE = /(^|[^a-z0-9])(sunxi-|axp\d*-pek|axp\d*-supply|sun\d+i-|rtc|thermal|vibrator|gpio-keys|hdmi|sndcodec|allwinner)/i;
+  function isUserDevice(d) {
+    if (!d) return false;
+    /* the ident names the USB HOST a device hangs off ('258a:0036:usb-
+       sunxi-ehci-1.2.4.2/input0' on an A7S), and 'sunxi-' in there is not a
+       SoC node: until 2026-10-31 every USB device on that host was filtered
+       out (the fixture's mouse never reached HOME's pills), so the host's
+       name is dropped from the ident before the test */
+    var ident = String(d.ident || '').replace(/^([0-9a-f]{4}:[0-9a-f]{4}:)usb-.*?-(\d[\d.]*\/)/i, '$1usb-$2');
+    var s = String(d.path || '') + ' ' + ident + ' ' + String(d.name || '');
+    return !SOC_NODE.test(s);
+  }
+  ZS.isUserDevice = isUserDevice;
+
+  /* ── ONE CHIP PER THING YOU PLUGGED IN ─────────────────────────────────
+     Reviewer, 2026-08-28. Filtering the SoC's own nodes out was right and
+     stopped there, which left the opposite half of the same bug: the kernel
+     splits ONE physical pad across several evdev nodes, so a single DualSense
+     arrives as three devices —
+
+       054c:0ce6:e8:47:…            "…DualSense Wireless Controller"
+       054c:0ce6:e8:47:…#dbd6       "…DualSense Wireless Controller Motion Sensors"
+       054c:0ce6:e8:47:…#db56       "…DualSense Wireless Controller Touchpad"
+
+     and shortName() clips all three to the same 22 characters, so the bar
+     read "DualSense Wireless Co…" THREE TIMES IDENTICALLY and the board sheet
+     said "4 —" and then listed the same controller three times. A person with
+     one pad plugged in was being told they had three.
+
+     The board already says which nodes belong together: everything before the
+     "#" in `ident` is vendor:product:serial, the physical unit. Group on that
+     and keep the node that can actually send a game input — the gamepad node,
+     else the one with the most inputs — because that is the one whose family,
+     role and art the chip is drawing. The motion and touchpad nodes are the
+     same object in your hands; there is nothing for a second chip to say.
+     Falls back to the whole ident (then the name) when there is no "#", so a
+     board that reports one node per device is unchanged. */
+  function physicalKey(d) {
+    var id = String(d.ident || '');
+    if (id) return id.split('#')[0];
+    return String(d.name || d.path || '');
+  }
+  function nodeRank(d) {
+    if (String(d.kind || '') === 'gamepad') return 3;
+    if (d.effectiveRole && d.effectiveRole !== 'aux') return 2;
+    return (d.emits && d.emits.length) ? 1 : 0;
+  }
+  /* filter + collapse, in one place, so the bar and the sheet cannot drift */
+  function userDevices(list) {
+    var seen = {}, out = [], firstKind = {};
+    (list || []).forEach(function (d) {
+      if (!isOpened(d) || !isUserDevice(d)) return;
+      /* D233 (owner, 2026-10-07: "it's detecting a keyboard when one isn't
+         even in"): a gaming mouse's macro-key interface is a keyboard on the
+         wire, opened when the bus has room. The Core lists a device's
+         interfaces in claim order, so a keyboard row whose vendor:product
+         FIRST appeared as a mouse is that mouse, not a keyboard. A combo
+         receiver opens its keyboard first and keeps both. */
+      var vp = String(d.vendorId || '') + ':' + String(d.productId || '');
+      var kd = String(d.kind || '');
+      if (vp !== ':' && vp !== '0000:0000') {
+        if (!(vp in firstKind)) firstKind[vp] = kd;
+        else if (firstKind[vp] === 'mouse' && kd === 'keyboard') return;
+      }
+      var k = physicalKey(d);
+      if (!(k in seen)) { seen[k] = out.length; out.push(d); return; }
+      var i = seen[k];
+      if (nodeRank(d) > nodeRank(out[i])) out[i] = d;   /* keep the real one */
+    });
+    return out;
+  }
+  ZS.userDevices = userDevices;
+
+  /* D448's rule (2026-10-31): the chips are rebuilt only when their markup
+     changed, not on every 2.5 s poll */
+  function setDevs(html) {
+    if (el.devs._zsHtml === html && el.devs.firstChild === el.devs._zsFirst) return;
+    el.devs.innerHTML = html;
+    el.devs._zsHtml = html; el.devs._zsFirst = el.devs.firstChild;
+  }
+  function renderDevices() {
+    if (!el.devs) return;
+    if (ZS.live && ZS.live.online === false) {
+      setDevs('<span class="dvb-empty">no device info while offline</span>');
+      return;
+    }
+    var list = userDevices(devices);
+    /* D217: what the Core did not open, said quietly after the chips and
+       never drawn as one */
+    var skipped = notOpened(devices);
+    var skipNote = skipped.length
+      ? '<span class="dvb-idle" title="' + esc(skipped.map(notOpenedWords).join('; ')) + '">' +
+        skipped.length + ' not opened</span>'
+      : '';
+    if (!list.length) {
+      setDevs('<span class="dvb-empty dvb-none">no device plugged into the adapter</span>' + skipNote);
+      return;
+    }
+    setDevs(list.slice(0, MAX_CHIPS).map(function (d) {
+      var look = deviceLook(d);
+      /* A real drawing of the pad in your hand beats a generic outline: you can
+         tell at a glance which of two controllers a chip is talking about.
+         Falls back to the old flat art if controller-art.js is not loaded. */
+      var fam = famOf(d);
+      /* D233 (owner, 2026-10-07): the chip is a PICTURE of the thing - the
+         DualSense, the Xbox pad, the keyboard, the mouse - and a question
+         mark for anything it cannot name. The auth donor keeps its badge. */
+      var pic = devicePic(d, look, fam);
+      var art = pic
+        ? '<img class="dvb-pic" src="' + pic + '" alt="" aria-hidden="true">'
+        : (window.ZSMARK ? ZSMARK.badge(look.art, { size: 26, decorative: true }) : '');
+      var role = d.role && d.role !== 'auto' ? d.role : look.cls === 'auth' ? 'auth donor' : '';
+      return '<span class="dvb-chip ' + look.cls + '" title="' + esc(d.name || '') +
+             (d.path ? ' — ' + esc(d.path) : '') + '">' +
+             '<span class="dvb-art">' + art + '</span>' +
+             '<span class="dvb-meta"><b>' + esc(shortName(d)) + '</b>' +
+             (role ? '<i>' + esc(role) + '</i>' : '') + '</span></span>';
+    }).join('') + skipNote);
+  }
+
+  /* ── live activity ────────────────────────────────────────────── */
+
+  /* Raw evdev codes → something a person recognises. Anything unmapped falls
+     through as its own text, which is what makes arbitrary keyboard keys work. */
+  function prettyCode(code) {
+    var c = String(code || '');
+    var m = /^KEY_(.+)$/.exec(c);
+    if (m) {
+      var k = m[1];
+      var NICE = { SPACE:'Space', LEFTSHIFT:'Shift', RIGHTSHIFT:'Shift', LEFTCTRL:'Ctrl',
+        RIGHTCTRL:'Ctrl', LEFTALT:'Alt', RIGHTALT:'Alt', ENTER:'Enter', ESC:'Esc',
+        TAB:'Tab', BACKSPACE:'Bksp', CAPSLOCK:'Caps', UP:'↑', DOWN:'↓', LEFT:'←', RIGHT:'→' };
+      return NICE[k] || (k.length === 1 ? k : k.charAt(0) + k.slice(1).toLowerCase());
+    }
+    m = /^BTN_(.+)$/.exec(c);
+    if (m) {
+      /* pad buttons wear the connected pad's family, same as every picker;
+         ZSG hands mouse buttons back as M1-M3 and unknowns as themselves */
+      if (window.ZSG) {
+        var s = window.ZSG.short(c);
+        if (s !== c) return s;
+      }
+      var B = { SOUTH:'✕', EAST:'○', NORTH:'△', WEST:'□', A:'A', B:'B', X:'X', Y:'Y',
+        TL:'L1', TR:'R1', TL2:'L2', TR2:'R2', THUMBL:'L3', THUMBR:'R3',
+        SELECT:'Select', START:'Start', MODE:'Home',
+        LEFT:'M1', RIGHT:'M2', MIDDLE:'M3' };
+      return B[m[1]] || m[1];
+    }
+    return c.replace(/^ABS_|^REL_/, '');
+  }
+
+  /* Neutral-state button names (what the ENGINE decided) → glyph keys. */
+  var BTN_GLYPH = { south:'ps-cross', east:'ps-circle', west:'ps-square', north:'ps-triangle',
+    l1:'l1', r1:'r1', l3:'l3', r3:'r3', start:'ps-options', select:'ps-share',
+    guide:'ps-home', dpad_up:'dp-up', dpad_down:'dp-down', dpad_left:'dp-left',
+    dpad_right:'dp-right', touchpad:'touchpad' };
+
+  /* The agent returns a ROLLING TAIL of recent events, so consecutive polls
+     overlap heavily. Deduping on "same as the previous entry" is not enough —
+     an event still in the tail would be re-added every poll. Instead, if this
+     label is already on screen, just refresh its timer. That also gives held
+     keys the behaviour you want: W stays lit while you hold it. */
+  function pushRecent(label, kind) {
+    if (!label) return;
+    var now = Date.now();
+    for (var i = 0; i < recent.length; i++) {
+      if (recent[i].label === label) { recent[i].t = now; return; }
+    }
+    recent.push({ label: label, kind: kind || 'key', t: now });
+    if (recent.length > 8) recent.shift();
+  }
+
+  function bar(v, cls) {
+    var pct = Math.max(0, Math.min(100, Math.round(Math.abs(v) * 100)));
+    return '<span class="dvb-bar ' + cls + '"><i style="width:' + pct + '%"></i></span>';
+  }
+
+  /* Passthrough Mode, straight off the status poll phone.html already runs. The
+     mode can be entered by a shortcut pressed on the DESK, with the app on any
+     screen — so the only honest place to announce it is the one strip that is
+     on every screen. Without this it was invisible: the engine logged the
+     toggle and the player saw nothing change. */
+  /* Its own poll, NOT phone.html's /status one. That runs every 8 seconds,
+     which is fine for a version string and useless here: the shortcut is
+     pressed on the desk and the strip has to answer immediately, or the player
+     concludes nothing happened and presses it again (which toggles it back —
+     exactly the confusion this banner exists to end). 400 ms against a tiny
+     endpoint, and it stops with the other timers when the window is hidden. */
+  var navCache = null;
+  /* WHEN the cache was last the device's answer (D195). A cache that is
+     never re-checked is how "Navigate is still on" got stuck on screen: a
+     /navigate that stopped answering (the link busy, the Pico re-plugging
+     itself for Native) left the last "active" in place forever, and the
+     banner, the device bar and the HOME card all believed it. Past
+     NAV_STALE_MS the cache is not used; the shared /status answer is. */
+  var navAt = 0;
+  var NAV_STALE_MS = 3000;
+  function navFresh() { return !!navCache && (Date.now() - navAt) < NAV_STALE_MS; }
+
+  /* ONE place takes a new Navigate state: the 400 ms poll AND the device's
+     own answer to a POST (ZS.navSet), so a screen that just switched it is
+     painted from what the Core says it now is, never from what was asked. */
+  function takeNav(data) {
+    var was = navFresh() && navCache.active;
+    navCache = data;
+    navAt = Date.now();
+    /* the 8 s /status copy follows, so a screen reading it (Global
+       Settings' Navigate card) cannot disagree with this one */
+    var st = ZS.live && ZS.live.status;
+    if (st && data) st.navigateMode = data;
+    /* HOME CARRIES THE SAME BANNER and this poll is the only thing that
+       knows the mode flipped. Waking the live subscribers on the EDGE
+       (not every poll) keeps the repaint honest: the screen changes when
+       the mode changes, and not four times a second when it has not. */
+    if (!!was !== !!(data && data.active)) {
+      /* the Pico's mode (picoLink) changes with it, and that lives on
+         /status: ask now rather than up to 8 s later */
+      if (ZS.refreshStatus) { try { ZS.refreshStatus(); } catch (e) {} }
+      fireLive();
+      renderActivity();
+    }
+  }
+  ZS.navSet = function (data) {
+    if (data && typeof data === 'object' && typeof data.active === 'boolean') takeNav(data);
+  };
+
+  function pollNav() {
+    if (!ZS.api) return;
+    return ZS.api('/navigate').then(function (j) {
+      if (j && j.ok && j.data) takeNav(j.data);
+      /* no /navigate on this device (an older agent): drop the cache so the
+         /status copy is the one read, rather than a stale answer */
+      else if (j && /unknown route|not found|501/i.test(String(j.error || ''))) navCache = null;
+    })['catch'](function () { /* offline is handled by renderActivity */ });
+  }
+  /* PASSTHROUGH MODE, PUBLISHED. It is board state, not device-bar state: HOME
+     shows the same banner, and two pollers asking /navigate would disagree
+     for one interval every time the mode flipped. */
+  ZS.navState = function () { return navState(); };
+  /* The whole Navigate object (active or not), or null when nothing is
+     known: the fresh poll first, then /status. HOME's device card needs to
+     tell "known to be off" from "unknown", which navState() cannot. */
+  ZS.navLive = function () { return navRaw(); };
+  /* ...AND THE VOCABULARY THAT NAMES ITS COMBO. The board reports the combo
+     as raw evdev codes (BTN_THUMBL), and prettyCode is where this app already
+     decides those read as "L3" - including the family-aware pass through ZSG.
+     HOME prints the same combo, and a second table would have drifted the
+     first time either was corrected. */
+  ZS.prettyCode = prettyCode;
+
+  function navRaw() {
+    /* Prefer the fast poll while it is FRESH; fall back to the shared status
+       blob so the banner still works against an older agent with no
+       /navigate route, and so a poll that stopped answering can never pin
+       the mode on (D195). */
+    if (navFresh()) return navCache;
+    var st = ZS.live && ZS.live.status;
+    return (st && st.navigateMode) || null;
+  }
+  function navState() {
+    if (ZS.live && ZS.live.online === false) return null;
+    var nm = navRaw();
+    return (nm && nm.active) ? nm : null;
+  }
+
+  function navBanner(nm) {
+    var via = (nm.via && nm.via.length)
+      ? nm.via.map(prettyCode).join(' + ')
+      : null;
+    /* D159: the word NATIVE while the real keyboard and mouse are going
+       straight to the console (status.navigateMode.native.state). */
+    var native = nm.native && (nm.native.state === 'on' || nm.native.state === 'pad');
+    return '<span class="dvb-navmode">' +
+      '<b class="dvb-navttl">PASSTHROUGH MODE' + (native ? ' · NATIVE' : '') + '</b>' +
+      '<i class="dvb-navsub">' +
+        (via ? 'press ' + esc(via) + ' again to exit'
+             : 'turn it off in Global Settings') +
+      '</i></span>';
+  }
+
+  function renderActivity() {
+    if (!el.act) return;
+    if (ZS.live && ZS.live.online === false) {
+      el.act.innerHTML = '<span class="dvb-empty">no live input while the board is offline</span>';
+      return;
+    }
+    var now = Date.now();
+    recent = recent.filter(function (r) { return now - r.t < KEY_HOLD_MS; });
+
+    /* What you physically pressed. */
+    var chips = recent.map(function (r) {
+      return '<span class="dvb-key ' + r.kind + '">' + esc(r.label) + '</span>';
+    }).join('');
+
+    /* What the console is being told. Both are shown side by side on purpose:
+       pressing Space when Space is bound to ✕ should read "Space → ✕", so you
+       can see the key WAS detected AND what it turned into. Showing only one
+       of the two made a bound key look like it had been swallowed. */
+    var glyphs = buttons.map(function (b) {
+      var g = BTN_GLYPH[b];
+      return g && window.glyphSVG
+        ? '<span class="dvb-gly">' + glyphSVG(g) + '</span>'
+        : '<span class="dvb-key btn">' + esc(b) + '</span>';
+    }).join('');
+
+    var moved = Math.abs(sticks.lx) > 0.06 || Math.abs(sticks.ly) > 0.06 ||
+                Math.abs(sticks.rx) > 0.06 || Math.abs(sticks.ry) > 0.06 ||
+                sticks.lt > 0.04 || sticks.rt > 0.04;
+
+    var stickHtml = '';
+    if (moved) {
+      stickHtml =
+        '<span class="dvb-stick" title="left stick">L' +
+          bar(Math.max(Math.abs(sticks.lx), Math.abs(sticks.ly)), 'ls') + '</span>' +
+        '<span class="dvb-stick" title="right stick">R' +
+          bar(Math.max(Math.abs(sticks.rx), Math.abs(sticks.ry)), 'rs') + '</span>' +
+        (sticks.lt > 0.04 ? '<span class="dvb-stick" title="left trigger">L2' + bar(sticks.lt, 'tg') + '</span>' : '') +
+        (sticks.rt > 0.04 ? '<span class="dvb-stick" title="right trigger">R2' + bar(sticks.rt, 'tg') + '</span>' : '');
+    }
+
+    var out = glyphs + stickHtml;
+    /* The arrow only appears when there is something on BOTH sides, so an
+       unbound key does not get a dangling "→ nothing". */
+    var body = chips + ((chips && out) ? '<span class="dvb-arrow">→</span>' : '') + out;
+
+    var nm = navState();
+    /* keep dvb-row — it carries the flex layout the whole strip depends on */
+    var cls = 'dvb-row dvb-act' + (nm ? ' navmode' : '');
+    var html = (nm ? navBanner(nm) : '') +
+      (body || (nm ? '' : '<span class="dvb-idle">press something — it shows up here</span>'));
+    /* D448: this runs every 120 ms on every screen; the same strip is not
+       parsed, restyled and repainted again when nothing in it changed */
+    if (el.act.className !== cls) el.act.className = cls;
+    if (el.act._zsHtml === html && el.act.firstChild === el.act._zsFirst) return;
+    el.act.innerHTML = html;
+    el.act._zsHtml = html; el.act._zsFirst = el.act.firstChild;
+  }
+
+  /* ── polling ──────────────────────────────────────────────────── */
+
+  /* Cheap identity of the device list, so subscribers are only woken when
+     something actually plugs in or out — this polls every 2.5 seconds. */
+  function devSignature(list) {
+    if (!list) return '';
+    var parts = [];
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i] || {};
+      if (d.connected === false) continue;
+      /* a "not opened" row (D217) is part of the picture too, marked so a
+         row that becomes opened is a change */
+      parts.push((d.opened === false ? '~' : '') +
+                 String(d.ident || d.name) + ':' + String(d.kind || '') +
+                 ':' + String(d.family || ''));
+    }
+    return parts.sort().join('|');
+  }
+
+  function pollDevices() {
+    if (!ZS.api) return;
+    return ZS.api('/devices').then(function (j) {
+      if (j && j.ok && Array.isArray(j.data)) {
+        var sig = devSignature(devices), prev = ZS.devices;
+        devices = pretendMnk(j.data);
+        ZS.devices = devices;
+        if (prev === null || sig !== devSignature(devices)) {
+          for (var d = 0; d < devSubs.length; d++) {
+            try { devSubs[d](devices); }
+            catch (e) { /* one bad screen must not stop the rest */ }
+          }
+        }
+        var fam = detectFamily(devices.filter(isOpened));
+        if (fam) {
+          ZS.lastPadFamily = fam;
+          try { localStorage.setItem('zs-last-padfam', fam); } catch (e) {}
+        }
+        if (fam !== ZS.padFamily) {
+          ZS.padFamily = fam;
+          /* Swap an Xbox pad for a DualSense and every button on screen has to
+             change with it — that is the whole point. One callback slot was not
+             enough: whichever screen registered last silently replaced the
+             others, so half the app kept drawing the old family's buttons. */
+          if (typeof ZS.onPadFamilyChange === 'function') ZS.onPadFamilyChange(fam);
+          for (var s = 0; s < famSubs.length; s++) {
+            try { famSubs[s](fam); } catch (e) { /* one bad screen must not stop the rest */ }
+          }
+          if (typeof ZS.redrawOpenScreen === 'function') ZS.redrawOpenScreen();
+        }
+      }
+      renderDevices();
+    })['catch'](function () { renderDevices(); });
+  }
+
+  /* ── the shared /output/live cache ──────────────────────────────
+     This bar polls /output/live on EVERY screen. The Overview/Buttons pad
+     picture and the Aim screen's response dot each used to open their OWN
+     fetch of the same endpoint at the same 120-150 ms cadence, so two or three
+     concurrent requests were in flight for one document.
+
+     That is not free. The agent serves these from the process running the
+     250 Hz output loop, so it is GIL contention with the thing the product
+     exists to do: measured on the real board, having the app open cost the
+     controller 6% of its output rate on any screen, 9.8% on Aim and 12.9% on
+     Overview and Screen Assist, with the worst single second dropping to
+     124 Hz. One poll, many readers, fixes the largest part of that. */
+  var lastLive = { at: 0, data: null };
+  ZS.outputLive = function () {
+    /* Null when the cache is stale enough that a caller should not trust it —
+       so a screen whose devbar never started still degrades to its own fetch
+       rather than freezing on an old frame. */
+    if (!lastLive.data || (Date.now() - lastLive.at) > 600) return null;
+    return lastLive.data;
+  };
+
+  function pollLive() {
+    if (!ZS.api) return;
+    /* final state: what the console is actually being told */
+    var out = ZS.api('/output/live').then(function (j) {
+      if (j && j.ok && j.data) { lastLive.data = j.data; lastLive.at = Date.now(); }
+      var st = j && j.ok && j.data && j.data.state;
+      if (st) {
+        /* The agent nests the analog controls under state.axes and leaves only
+           the button list flat, so reading them off `st` gave undefined on
+           every axis and floored it to 0. That failure is invisible by
+           construction - a centred stick and a released trigger read 0 too -
+           so it went unnoticed until the owner reported that pulling L2/R2
+           lit nothing on HOME. Take whichever shape the board sends rather
+           than pinning one, because the cost of guessing wrong here is not an
+           error anyone can see, it is a control that quietly stops existing. */
+        var ax = st.axes || st;
+        sticks = { lx:+ax.lx||0, ly:+ax.ly||0, rx:+ax.rx||0, ry:+ax.ry||0,
+                   lt:+ax.lt||0, rt:+ax.rt||0 };
+        buttons = Array.isArray(st.buttons) ? st.buttons.slice(0, 6) : [];
+        /* The bar's own chips stay capped at 6 - that is a layout limit for a
+           one-line strip. The PUBLISHED list is not capped: the pad drawing
+           has a place for every button at once and clipping it would leave a
+           held button dark for no reason a user could see. */
+        ZS.liveInput = {
+          buttons: Array.isArray(st.buttons) ? st.buttons.slice() : [],
+          sticks: sticks, at: Date.now(),
+          /* THE GUN THAT IS OUT, from the same reply (a Core with a name
+             reader: its "weapon" block; null anywhere else). HOME shows it
+             beside the presses (owner, 2026-09-25). */
+          weapon: (j.data.weapon && typeof j.data.weapon === 'object') ? j.data.weapon : null
+        };
+        fireLive();
+      }
+    })['catch'](function () {});
+
+    /* raw events: what YOU physically pressed, keyboard included */
+    var inp = ZS.api('/input/live').then(function (j) {
+      /* WHAT IS HELD RIGHT NOW, BY NAME (owner, 2026-10-02: in Passthrough mode
+         HOME should show "Space bar" and "Right click", not the pad button
+         a profile maps them to). The Core's heldSources are kind + evdev
+         number; kind 0 is a plain evdev code, which the encoder's own
+         generated table names. HOME reads ZS.liveHeld only while Navigate
+         is on; a change fires the same subscribers the output poll does. */
+      var hs = j && j.ok && j.data && j.data.heldSources;
+      var names = heldNames(hs);
+      var hsig = names.join(',');
+      if (!ZS.liveHeld || ZS.liveHeld.sig !== hsig) {
+        ZS.liveHeld = { codes: names, sig: hsig, at: Date.now() };
+        fireLive();
+      }
+      var evs = j && j.ok && j.data && j.data.recentEvents;
+      if (Array.isArray(evs) && evs.length) {
+        evs.slice(-8).forEach(function (e) {
+          /* value > 0 is a press; releases are ignored so the chip lingers
+             for KEY_HOLD_MS instead of vanishing the instant you let go */
+          if (e.type === 'button' && +e.value > 0) pushRecent(prettyCode(e.code), 'key');
+        });
+      }
+      renderActivity();
+    })['catch'](function () { renderActivity(); });
+    return Promise.all([out, inp]);
+  }
+
+  /* ONE POLL OF EACH KIND IN FLIGHT (2026-10-10 overhaul, audit m63). The
+     live poll ticks every 120 ms; on a board that answers slowly (or a link
+     that is about to time out after 8-15 s) every tick used to add two more
+     requests behind the ones still waiting, so a few seconds of a slow link
+     built a backlog of hundreds of queued asks, and that backlog is what
+     wrapped the link's message ids (M24). A tick that finds the last one
+     still waiting is skipped: the next answer is fresher anyway. */
+  function singleFlight(fn) {
+    var busy = false;
+    return function () {
+      if (busy) return;
+      var p;
+      try { p = fn(); } catch (e) { p = null; }
+      if (!p || typeof p.then !== 'function') return;
+      busy = true;
+      p.then(function () { busy = false; }, function () { busy = false; });
+    };
+  }
+  var tickDevices = singleFlight(pollDevices);
+  var tickLive = singleFlight(pollLive);
+  var tickNav = singleFlight(pollNav);
+
+  /* ── lifecycle ────────────────────────────────────────────────── */
+
+  function start() {
+    if (started) return;
+    el.bar  = document.getElementById('devbar');
+    /* D272: the plugged-in devices draw into #dvb-list; the board chip
+       (#dvb-board) sits before it in #dvb-devices and is painted by
+       paintBoardChips(), never by this redraw. An older page without the
+       list falls back to the row itself. */
+    el.devs = document.getElementById('dvb-list') || document.getElementById('dvb-devices');
+    el.act  = document.getElementById('dvb-activity');
+    if (!el.bar) return;
+    started = true;
+    renderDevices();
+    renderActivity();
+    tickDevices();
+    tickLive();
+    tickNav();
+    timers.dev  = setInterval(tickDevices, DEVICE_POLL_MS);
+    timers.live = setInterval(tickLive, LIVE_POLL_MS);
+    timers.nav  = setInterval(tickNav, NAV_POLL_MS);
+    /* stop hammering the agent when the window isn't visible */
+    document.addEventListener('visibilitychange', function () {
+      var hidden = document.hidden;
+      if (hidden) {
+        clearInterval(timers.live); timers.live = null;
+        clearInterval(timers.nav);  timers.nav  = null;
+        /* and the 2.5 s device poll, which kept going over Bluetooth with
+           the phone in a pocket (2026-10-31) */
+        clearInterval(timers.dev);  timers.dev  = null;
+      } else {
+        if (!timers.live) timers.live = setInterval(tickLive, LIVE_POLL_MS);
+        if (!timers.nav)  { tickNav(); timers.nav = setInterval(tickNav, NAV_POLL_MS); }
+        if (!timers.dev)  { tickDevices(); timers.dev = setInterval(tickDevices, DEVICE_POLL_MS); }
+      }
+    });
+  }
+
+  ZS.devbar = { start: start, refreshDevices: pollDevices };
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();

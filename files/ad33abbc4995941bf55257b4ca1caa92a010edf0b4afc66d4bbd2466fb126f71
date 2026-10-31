@@ -1,0 +1,319 @@
+/* sections/16-lighting-output.js — the config's light bar colour and what the PC sees (EXO).
+ *
+ * R.lighting: lighting.* (colour, rainbow, brightness) per config. R.pcout:
+ * the output identity the board presents to a PC (rebuilds the USB gadget).
+ *
+ * Screens (window.RENDERERS):  R.lighting, R.pcout
+ * Core / board routes:        /lightbar, /output/identity
+ * Tests:                      test-overview-xim.js, test-settings-icons.js, test-render.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('lighting-output', function (SEC) {
+  var helpHTML = SEC.helpHTML;   /* D285: every explanation behind a "?" (2026-10-31) */
+  /* from the files before this one */
+  var card = SEC.card, esc = SEC.esc, ico = SEC.ico, lbName = SEC.lbName, note = SEC.note,
+      R = SEC.R, seg = SEC.seg, sh = SEC.sh, wireDoors = SEC.wireDoors, ZS = SEC.ZS;
+
+  /* ── Game Roles — the two buttons that matter ─────────────────── */
+  /* PC Output — what Windows sees when this config is active.
+     Windows has no native "PlayStation pad" concept: virtually every PC game
+     speaks XInput, which IS the Xbox 360 pad. So that's the default, and the
+     alternatives are there for the games that don't. */
+  /* Lighting lives per CONFIG, not globally: the colour should change when
+     you switch config, so you can tell at a glance which one is live. */
+  R.lighting = function(p){
+    /* The board is the source of truth. profile.lighting is a real validated
+       field now, so the colour genuinely follows the config: the engine
+       applies it whenever a config is activated, down the same USB interface
+       it already holds. Local storage is only the offline fallback.
+
+       THE COLOUR IS NOT SET HERE (D84 follow-up, 2026-09-05). lighting.color
+       has ONE control in the app: Overview's ‹ swatch › carousel, whose
+       swatch is also the wheel. This screen READS the colour into one row
+       that is a door back to Overview, and owns the rest of the block — the
+       mode (one colour / rainbow / off), brightness, rainbow speed. Its
+       push() sends the colour it was handed, unchanged, and never touches
+       the list mark (p.color): screen map §12, one writer per field. The
+       swatch strip and the wheel that stood here wrote the same field by the
+       same route as Overview's carousel — two controls, one field. */
+    var full = ZS.live.full[p.id] || {};
+    var lg   = full.lighting || {};
+    var mode   = lg.mode   || ZS.store.vals['lightbarMode|'+p.id] || 'solid';
+    var col    = (lg.color || ZS.store.vals['lightbar|'+p.id] || '0080ff').replace('#','');
+    var bright = lg.brightness;
+    if(bright===undefined || bright===null) bright = ZS.store.vals['lightbarBright|'+p.id];
+    if(bright===undefined || bright===null) bright = 100;
+    var speed  = lg.speed;
+    if(speed===undefined || speed===null) speed = ZS.store.vals['lightbarSpeed|'+p.id];
+    if(speed===undefined || speed===null) speed = 20;
+    if(mode!=='rainbow' && mode!=='off') mode = 'solid';
+
+    /* the three values lighting.mode can hold, in the seg's order */
+    var MODES  = ['One colour', 'Rainbow', 'Off'];
+    var MODE_V = ['solid', 'rainbow', 'off'];
+    function colName(){ var n = lbName(col); return n.charAt(0)==='#' ? 'Your colour' : n; }
+
+    /* the colour, read-only: one row naming it in words, a door to the
+       control that sets it. The dot is state, never a write. */
+    function colRowHTML(){
+      var nm = colName();
+      return '<div class="grp-card"><div class="lrow tapper" role="button" tabindex="0" id="lb-colrow" '+
+        'data-door="overview" data-doorlab="Device" '+
+        'aria-label="'+esc('Colour: '+nm+' — set on Device, under the config’s name')+'">'+
+        '<span aria-hidden="true" style="flex:none;width:22px;height:22px;border-radius:50%;'+
+          'background:#'+esc(col)+';margin-right:10px;border:1px solid var(--line)"></span>'+
+        '<span class="src">Colour · '+esc(nm)+
+          '<em style="display:block;font-weight:400;font-style:normal;color:var(--muted);'+
+          'font-size:11.5px;white-space:normal;line-height:1.4">set on Device, under the config’s name</em></span>'+
+        '<span class="rt"><span class="arrow">›</span></span></div></div>';
+    }
+    /* ONE control over lighting.mode. It replaced an on/off switch plus a
+       Rainbow swatch, which were two controls writing the one field. */
+    function modeSegHTML(){
+      var idx = MODE_V.indexOf(mode);
+      return '<div id="lb-mode">'+
+        seg('Light bar', MODES, idx<0 ? 0 : idx, true, null,
+            'Rainbow cycles while you play · Off saves a little pad battery')+'</div>';
+    }
+    function noteHTML(){
+      return note(mode==='rainbow'
+        ? 'Cycling the spectrum. Runs <b>while you play</b> — it never interrupts your input.'
+        : mode==='off'
+          ? 'Light bar off.'
+          : 'Now <b>'+esc(colName())+'</b>. Only applies while a DualSense is plugged in.');
+    }
+
+    var html =
+      /* the intro paragraph died (screen-map §10) — the header and the live
+         note at the foot carry the story */
+      sh('DualSense light bar')+
+      colRowHTML()+
+      card(modeSegHTML()+
+           '<div class="fld col"><div class="flab">Brightness<span class="rv"></span></div>'+
+             '<input class="rng lbbright" type="range" min="0" max="100" value="'+bright+'" data-unit="%" data-nosave="1"></div>'+
+           '<div class="fld col lb-speed"'+(mode==='rainbow'?'':' style="display:none"')+'>'+
+             '<div class="flab">Rainbow speed<span class="rv"></span></div>'+
+             '<input class="rng lbspd" type="range" min="1" max="100" value="'+speed+'" data-unit="%" data-nosave="1"></div>')+
+      '<div id="lb-note">'+noteHTML()+'</div>';
+      /* An "Adapter light" swatch row stood here, honestly labelled as reaching
+         nothing ("the board has no LED wired up yet"). An honest label does not
+         make it a control — it was still eight tappable colours over hardware
+         that does not exist. It is gone until an LED is actually wired. */
+
+    return { html: html, after: function(root){
+      /* One place that sends. Everything below just changes state and calls
+         it, so the POST and the saved profile can never drift apart. */
+      function push(next, label){
+        if(next.mode!==undefined) mode = next.mode;
+        if(next.brightness!==undefined) bright = next.brightness;
+        if(next.speed!==undefined) speed = next.speed;
+
+        ZS.store.vals['lightbarMode|'+p.id]   = mode;
+        ZS.store.vals['lightbarBright|'+p.id] = bright;
+        ZS.store.vals['lightbarSpeed|'+p.id]  = speed;
+        ZS.persistStore();
+
+        /* remembered with the config — the colour rides along UNCHANGED:
+           the document's own when it has one, else what this screen was
+           handed. This screen never picks one; Overview's carousel does. */
+        if(ZS.live.online!==false && ZS.live.full[p.id]){
+          ZS.putProfileDebounced(p.id, function(f){
+            var have = f.lighting || {};
+            var keep = (typeof have.color==='string' && /^[0-9a-fA-F]{6}$/.test(have.color)) ? have.color : col;
+            f.lighting = { mode:mode, color:keep,
+                           brightness:Math.round(bright), speed:Math.round(speed) };
+          });
+        }
+        /* ...and applied right now, so you see it as you choose it, where
+           the adapter has that live preview (a Core since D262: the
+           controller's light bar, until Save or "exit without saving").
+           On a Core only for the config that is RUNNING: a preview of
+           another config would light the pad in a colour the game is not
+           using, and only the running one's Save or discard ends it. */
+        if((ZS.productHides && ZS.productHides('lightbarPreview')) ||
+           (ZS.productId && ZS.productId() === 'core' && p.id !== ZS.activeId)){
+          if(label) ZS.toast(label);
+        } else ZS.api('/lightbar','POST',{ mode:mode, color: mode==='solid'? col : null,
+                                    brightness:Math.round(bright),
+                                    speed:Math.round(speed),
+                                    enabled: mode!=='off' })
+          .then(function(j){
+            if(label) ZS.toast(j && j.ok ? label : ((j && j.error) || 'Board did not take it'));
+          })['catch'](function(){ if(label) ZS.toast('Saved on this device'); });
+
+        var sp = root.querySelector('.lb-speed');
+        if(sp) sp.style.display = (mode==='rainbow') ? '' : 'none';
+        var nt = root.querySelector('#lb-note');
+        if(nt) nt.innerHTML = noteHTML();
+      }
+
+      /* the mode seg — wire() lights the tapped button; this sends it */
+      var ms = root.querySelector('#lb-mode');
+      if(ms) ms.querySelectorAll('.seg2 button').forEach(function(b, i){
+        b.addEventListener('click', function(){
+          var v = MODE_V[i] || 'solid';
+          push({mode:v}, v==='rainbow' ? 'Light bar → rainbow'
+                        : v==='off' ? 'Light bar off' : 'Light bar → '+colName());
+        });
+      });
+
+      var br = root.querySelector('.lbbright');
+      if(br){
+        br.addEventListener('input',  function(){ push({brightness:+br.value}); });
+        br.addEventListener('change', function(){ push({brightness:+br.value}, 'Brightness → '+br.value+'%'); });
+      }
+
+      var spd = root.querySelector('.lbspd');
+      if(spd){
+        spd.addEventListener('input',  function(){ push({speed:+spd.value}); });
+        spd.addEventListener('change', function(){ push({speed:+spd.value}, 'Rainbow speed → '+spd.value+'%'); });
+      }
+
+      /* the colour row is a door back to Overview */
+      wireDoors(root, p);
+    }};
+  };
+
+  /* What the PC or console thinks is plugged in — a REAL choice now, not a
+     stored preference. Picking one rebuilds the USB gadget on the board, so
+     Windows genuinely re-enumerates it as that device. The board is asked what
+     it can actually be, so this list never offers something we cannot deliver. */
+  R.pcout = function(p){
+    var WHY = {
+      dualsense: 'The game sees a <b>PlayStation controller</b>. In-game prompts show '+
+                 '✕ ○ □ △, and games that expect a PlayStation pad are happy. This is '+
+                 'what your board is set to right now by default.<br><br>'+
+                 'It is also the <b>only setting that gives you rumble</b>: the game\'s '+
+                 'force feedback comes back down the cable and shakes the controller '+
+                 'in your hands.',
+      ds4:       'The game sees a <b>PlayStation 4 controller</b> — a DualShock 4, the pad '+
+                 'before the DualSense. Prompts still show ✕ ○ □ △.<br><br>'+
+                 '<b>Why you would pick this over the PlayStation controller above:</b> a '+
+                 'lot of PC games were built when the DS4 was the current pad, and they '+
+                 'check exactly which controller you have before switching on their '+
+                 'controller aim assist or drawing the right button icons. Those games '+
+                 'recognise a DS4 and do not always recognise a DualSense. If a game '+
+                 'ignores your pad, or shows keyboard keys instead of buttons, try this '+
+                 'one.<br><br>'+
+                 'Two honest notes: it is for <b>PC only</b> — a real PlayStation 4 asks '+
+                 'the controller to prove it is genuine, ZeroStick cannot answer that, '+
+                 'and the console would drop it after a few minutes. And <b>rumble does '+
+                 'not come back to your hands</b> on this setting; for rumble use the '+
+                 'PlayStation controller above.',
+      generic:   'A plain USB gamepad — Windows calls this <b>DirectInput</b>. Very widely '+
+                 'supported, but a few modern games only look for an Xbox pad and will '+
+                 'ignore it.<br><br><b>No rumble on this one</b>, and not just "not yet": '+
+                 'this pretend controller does not describe any way for a game to send '+
+                 'motor levels to it. For rumble use the PlayStation controller above.',
+      xinput:    'The game sees an <b>Xbox 360 controller</b> — the format almost every PC '+
+                 'game expects. In-game prompts show <b>A B X Y</b>, and the games that only '+
+                 'look for an Xbox pad will finally find one. Windows loads its own Xbox '+
+                 'driver for it.<br><br>Two honest notes: this reports Microsoft\'s controller '+
+                 'ids (no Microsoft code is used, and nothing is unlocked that you have not '+
+                 'paid for), and <b>rumble from the game does not reach your controller yet</b> '+
+                 'on this setting — for rumble use the PlayStation controller above.'
+    };
+
+    var html =
+      sh('The PC currently sees')+
+      '<div id="pcout-now">'+card('<div class="stat"><span>Asking the board…</span><b>—</b></div>')+'</div>'+
+      helpHTML('pco-what', 'What your PC sees',
+           'Pick what your PC sees. This does <b>not</b> change the controller in your hands — '+
+           'only the device ZeroStick pretends to be.')+
+      sh('Change it to')+
+      '<div id="pcout-opts"></div>'+
+      '<div id="pcout-why"></div>'+
+      note('<b>Switching takes a second or two</b> and looks to Windows like unplugging one '+
+           'controller and plugging in another. <b>Close the game first.</b>', 'warn', true)+
+      sh('Your input')+
+      card(
+        '<div class="stat"><span>Playing with</span><b>'+esc(ZS.INP[p.input]||p.input)+'</b></div>'+
+        /* OVERVIEW, and no longer Aim. The selector is on Overview under
+           Setup — part of what a config IS — and Aim only echoes it for the
+           configs that have a pad; a mouse config's Aim screen is the Hip/ADS
+           pager and carries no switch at all, so "change it in Aim" was a
+           dead end for exactly the configs most likely to read this line. */
+        '<div class="stat"><span>Change it in</span><b>Device</b></div>')+
+      helpHTML('pco-input', 'Your input', ZS.inputShows(p.input,'mouse') && ZS.inputShows(p.input,'controller')
+        ? 'You are playing with a <b>joystick and a mouse</b>. Both reach the console as the one '+
+          'output above: stick and mouse both aim, and every bind on either is live.'
+        : ZS.inputShows(p.input,'mouse')
+          ? 'You are playing with <b>mouse and keyboard</b>. With a pad output selected, your WASD '+
+            'becomes the left stick and your mouse the right stick.'
+          : 'You are playing with a <b>controller</b>. ZeroStick passes it through as the output '+
+            'above, applying your bindings, aim tuning and Scripts.');
+
+    return { html: html, after: function(root){
+      var busy = false;
+
+      /* P3: the identity's family mark. PS blue for the two PlayStation
+         identities, Xbox green for XInput/X360 — and a NEUTRAL muted pad for
+         a generic DirectInput device, because a generic HID is not a family
+         and a family colour there would be a lie (DESIGN.md: decoration
+         never overwrites a signal). Pure function of the option id, so a
+         poll repainting identical state emits identical bytes. */
+      function pcFamArt(oid){
+        var fam = (oid === 'dualsense' || oid === 'ds4') ? 'ps'
+                : (oid === 'xinput' || oid === 'x360') ? 'xb' : '';
+        if(fam && window.ZSMARK){
+          return '<span class="gly-deco" aria-hidden="true" style="margin-right:8px">'+
+            ZSMARK.badge(fam, {size:20, decorative:true})+'</span>';
+        }
+        return '<span class="gly-deco" aria-hidden="true" style="width:20px;height:20px;'+
+          'color:var(--muted);margin-right:8px">'+ico('pad', 20)+'</span>';
+      }
+
+      function paint(data){
+        var now = root.querySelector('#pcout-now');
+        var opts = root.querySelector('#pcout-opts');
+        var why = root.querySelector('#pcout-why');
+        if(!now || !opts) return;
+
+        var id = (data && data.identity) || 'unknown';
+        var label = (data && data.label) || 'not set up yet';
+        now.innerHTML = card('<div class="stat"><span>Windows sees</span><b>'+
+          (data ? pcFamArt(id) : '')+esc(label)+'</b></div>');
+
+        var list = (data && data.options) || [];
+        if(!list.length){
+          opts.innerHTML = card('<div class="stat"><span>Board offline</span><b style="color:var(--amber)">—</b></div>');
+          return;
+        }
+        opts.innerHTML = card(list.map(function(o){
+          return '<div class="lrow pcopt'+(o.id===id?' on':'')+'" data-id="'+esc(o.id)+'">'+
+                 '<span class="src">'+pcFamArt(o.id)+esc(o.label)+'</span>'+
+                 '<span class="rt">'+(o.id===id?'<b style="color:var(--green)">● in use</b>':'<button class="ib">use</button>')+'</span>'+
+                 '</div>';
+        }).join(''));
+        if(why) why.innerHTML = WHY[id] ? helpHTML('pco-why', 'About this output', WHY[id]) : '';
+
+        [].slice.call(opts.querySelectorAll('.pcopt')).forEach(function(row){
+          row.addEventListener('click', function(){
+            var want = row.dataset.id;
+            if(busy || want === id) return;
+            busy = true;
+            ZS.toast('Switching… Windows will see it disconnect and come back');
+            var wantLabel = (list.filter(function(o){ return o.id===want; })[0] || {}).label || want;
+            ZS.api('/output/identity','POST',{identity:want}).then(function(j){
+              busy = false;
+              if(j && j.ok){ ZS.toast('Now showing as '+wantLabel); load(); }
+              else { ZS.toast((j && j.error) || 'The board could not switch'); }
+            })['catch'](function(){ busy=false; ZS.toast('Could not reach the board'); });
+          });
+        });
+      }
+
+      function load(){
+        if(ZS.live.online===false){ paint(null); return; }
+        ZS.api('/output/identity').then(function(j){
+          paint(j && j.ok ? j.data : null);
+        })['catch'](function(){ paint(null); });
+      }
+      load();
+    }};
+  };
+});

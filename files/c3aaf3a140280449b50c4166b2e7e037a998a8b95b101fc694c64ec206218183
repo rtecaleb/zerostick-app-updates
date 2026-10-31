@@ -1,0 +1,1273 @@
+/* sections/23-vision-kit.js — Screen Assist's helpers: the vision block's
+ * one writer (visionWrite), the pack and region helpers, the stage, box and
+ * ladder drawings, the release-timing ruler and its words, the stylesheets.
+ *
+ * Pure of the screen: nothing here holds the open screen's state (that is
+ * wireCv, in 23-vision.js, which this file is the first half of since
+ * 2026-10-31: the file was 7,200 lines, and these 1194 lines never
+ * touched a closure variable of wireCv). Every name wireCv or R.vision
+ * uses is shared at the foot.
+ *
+ * Screens (window.RENDERERS):  none (23-vision.js draws R.vision)
+ * Tests:                      test-cv-tab.js, test-cv-actions.js, test-core-screenshot.js, test-shot-assist-card.js, test-cod-pack.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('vision-kit', function (SEC) {
+  /* from the files before this one */
+  var esc = SEC.esc, helpHTML = SEC.helpHTML, ico = SEC.ico, ZS = SEC.ZS;
+
+  /* ── Screen Assist (computer vision) ──────────────────────────────
+     Infrastructure for per-game CV packs. A pack is shared as a LINK; we
+     fetch its manifest (plain JSON — read, never run), show the user exactly
+     what it declares, and only install on an explicit tap. The installed pack
+     lives in the profile's `vision` block, which the board already stores and
+     round-trips; the engine grows a consumer for it later.
+
+     Pack manifest contract (v1):
+       { zerostickCv:1, name, publisher, game, version, description,
+         capabilities:["colorTracking"|"objectDetection"|"screenRegions"],
+         capture:{width,height,fps},
+         tracking:{ mode:"color"|"object", colorTargets:[{name,hsv,tol}],
+                    model:{name,url,sha256,bytes} },
+         regions:[{id,name,rect:[x,y,w,h] 0..1, purpose:"ammo"|"health"|
+                   "reticle"|"minimap"|"custom"}],
+         assist:{strength 0..1, activation:"always"|"hip"|"ads"|"fire",
+                 maxCorrection},
+         payload:{url,sha256,bytes,kind} }                                */
+  /* How far the assist reaches from the crosshair, as named steps.
+     `window` is the distance a target may be and still count; `deadZone` is
+     "close enough already, leave it alone". A big reach with a tiny dead zone
+     fights you at point-blank range, so they move together.
+
+     The far corner of a 16:9 screen is 0.58 from the centre in these units,
+     so Everywhere at 0.75 genuinely covers the whole picture. The board
+     accepts window up to 1.5 (vision/assist.py ASSIST_BOUNDS). */
+  /* WHERE TO AIM, relative to the thing it found.
+     A nametag floats ABOVE a player, so aiming at what you detected aims at
+     empty air over their head. offsetY is measured in multiples of the
+     MARKER'S OWN HEIGHT, which is what makes one number right at every
+     distance: a nametag 40 px tall up close and 8 px tall across the map both
+     put the head the same number of nametag-heights below.
+
+     The numbers are the geometry of a CoD nameplate: it sits a little under
+     one of its own heights above the head, and a body is roughly another one
+     and a half below that. They are a starting point to nudge, not a
+     measurement. */
+  var AIM_POINTS = [
+    { name: 'The mark itself', offsetY: 0.0 },
+    { name: 'Head',            offsetY: 1.4 },
+    { name: 'Chest',           offsetY: 2.6 }
+  ];
+  var AIM_POINT_NAMES = AIM_POINTS.map(function(a){ return a.name; });
+
+  var REACH_PRESETS = [
+    { name:'Nearby',     window:0.12, deadZone:0.012 },
+    { name:'Wide',       window:0.30, deadZone:0.030 },
+    { name:'Everywhere', window:0.75, deadZone:0.060 }
+  ];
+  var REACH_NAMES = REACH_PRESETS.map(function(r){ return r.name; });
+
+  var CAP_LABEL = {
+    colorTracking:  ['Colour tracking', 'spots enemy outlines by their colour'],
+    objectDetection:['Object detection', 'recognises players and items on screen'],
+    screenRegions:  ['Screen readouts', 'reads corners of the screen, like your ammo count'],
+    recoilTrace:    ['Recoil tracing', 'learns how each gun kicks and counters it'],
+    inputCorrection:['Input correction', 'nudges your aim toward the target']
+  };
+  var PURPOSE_LABEL = { ammo:'Ammo counter', health:'Health bar', reticle:'Crosshair',
+    minimap:'Mini-map', score:'Scoreboard', prompt:'On-screen prompt', custom:'Custom area' };
+  var ACT_LABEL = { always:'All the time', hip:'Only firing from the hip',
+    ads:'Only while aiming', fire:'Only while shooting' };
+
+  /* The board's copy, and only that. There used to be a second, phone-only
+     copy under ZS.store 'vision|<id>' that offline edits went into, toasted
+     "kept on this phone until your board is back" - but nothing ever sent it,
+     and this function preferred the board's copy whenever there was one, so
+     the edit vanished on the next render (M21, audit 2026-10-10). Offline
+     edits now go through the app's own Save queue (visionWrite below). */
+  function visionOf(p){
+    var full = ZS.live.full[p.id];
+    if(full && full.vision && typeof full.vision==='object') return full.vision;
+    return null;
+  }
+  /* ── ONE WAY FOR A VISION EDIT TO REACH THE BOARD (M21) ─────────────
+     Three cases, each told truthfully by the caller:
+       - the board is here: the write goes now, as it always has (whether
+         these settings should wait for Save instead is the owner's D257
+         call, audit m3, and is NOT changed here);
+       - the board is away (or an earlier edit of this config is still
+         waiting for Save) but the app has its copy of this config: the edit
+         joins the D257 Save queue (ZS.stageProfile). The screens show it at
+         once, the Save key lights, the queue survives a reconnect
+         (adoptBoard), and Save sends it. Answer {ok:true, staged:true};
+       - no copy at all: nothing is kept, and the answer says so
+         ({ok:false, away:true}). Promising a replay nobody performs is the
+         bug this replaces.
+     Resolves, never rejects. */
+  var VISION_KEPT = ' — kept. Tap Save once your adapter is back';
+  var VISION_QUEUED = ' — tap Save to send it with your other changes';
+  var VISION_AWAY = 'Not saved — your adapter is away. Make that change again once it is back';
+  function visionWrite(p, mutate){
+    var pid = p.id;
+    /* ORDER WITH THE QUEUE. While an earlier edit of this config still waits
+       for Save, a write that went straight to the board was undone at once:
+       putProfile's adoptBoard puts the queued (older, whole-list) edit back
+       on top, so the new edit vanished from the screen and Save then sent
+       the stale list over it on the board too (review of M21). So once
+       anything is queued, this edit queues behind it, online or not. */
+    var queued = !!(ZS.hasUnsaved && ZS.hasUnsaved(pid));
+    if(ZS.live.online !== false && ZS.live.full[pid] && !queued){
+      return ZS.putProfile(pid, mutate).then(function(j){ return j || {ok:false}; },
+        function(){ return {ok:false, error:'Couldn’t reach your adapter'}; });
+    }
+    if(ZS.live.full[pid] && ZS.stageProfile){
+      return Promise.resolve(ZS.stageProfile(pid, mutate)).then(function(j){
+        j = j || {ok:false};
+        /* staged:true is the queue; a stageProfile that wrote at once (the
+           harness's autosave mode) answers with the write itself */
+        return j;
+      }, function(){ return {ok:false, away:true, error:VISION_AWAY}; });
+    }
+    return Promise.resolve({ok:false, away:true, error:VISION_AWAY});
+  }
+  /* The toast for an answer from visionWrite. `said` is what a write that
+     landed says ('' says nothing); a refusal says the board's own words. */
+  function visionSaid(j, said){
+    if(j && j.ok && j.staged){
+      /* queued behind an earlier unsaved edit while the board IS here: the
+         Save key sends it now, so "once your adapter is back" would be wrong */
+      ZS.toast((said || 'Changed')+(ZS.live.online === false ? VISION_KEPT : VISION_QUEUED),
+               {ms:6000});
+      return;
+    }
+    if(j && j.ok){ if(said) ZS.toast(said); return; }
+    ZS.toast((j && j.error) || 'Your board didn’t take that', {ms:6000});
+  }
+  /* MERGE, never replace. The `vision` block is not the app's to own: the board
+     keeps its own keys in there (what counts as a target, the tracker's
+     settings, the assist tuning) and it validates the whole block on the way
+     in. Assigning a pack's handful of fields over the top both threw those away
+     and got the write rejected — the board kept its old values while the app
+     showed the new ones, which is the worst of both. */
+  /* `after(f)`, when given, runs on the whole document once the block is
+     merged in: a write that changed the boxes reties Auto Actions there. */
+  function saveVision(p, v, done, after){
+    visionWrite(p, function(f){
+      var cur = (f.vision && typeof f.vision==='object') ? f.vision : {};
+      var out = {}, k;
+      for(k in cur) if(Object.prototype.hasOwnProperty.call(cur,k)) out[k] = cur[k];
+      for(k in v)   if(Object.prototype.hasOwnProperty.call(v,k))   out[k] = v[k];
+      f.vision = out;
+      if(after) after(f);
+    }).then(function(j){
+      if(done) done(!!j.ok, j);
+    });
+  }
+  function clearVision(p, done){
+    visionWrite(p, function(f){ delete f.vision; })
+      .then(function(j){ if(done) done(!!j.ok, j); });
+  }
+  /* ── which tools does this config's vision block actually use? ──────
+     THE DISCRIMINATOR for the whole game-profile UI. Profile-side ONLY —
+     it never reads /vision/status or anything a poll invents — so the
+     status poll can only change its answer when the board's own vision
+     block really changed. The colour test is pkBuild's own derivation of
+     "does this config carry a colour", verbatim: a preset, a typed hex, or
+     the raw chroma pair a tapped colour is stored as. An explicitly empty
+     preset ('') is falsy on purpose — that is the shape Blank writes,
+     because it is the one "no colour" spelling that survives the board's
+     schema.migrate() deep-fill (see applyBlank).
+       BLANK  = neither tool        (the built-in "no game selected")
+       PACK   = a tool + an identity (packId/packName from a System-A apply,
+                                      or `name` from a link-installed pack)
+       CUSTOM = a tool, no identity  (a colour taught by hand)            */
+  /* Are these two colour specs THE SAME COLOUR? Chroma only, because that is
+     what the board matches on: a tapped colour is stored as a u/v pair plus a
+     radius and a luma gate, and the pair is the identity. Used by cvToolsOf
+     below and by the target writers in wireCv, which is why it lives out here
+     rather than inside either of them. */
+  function sameChroma(a, b){
+    return !!(a && b && typeof a === 'object' && typeof b === 'object' &&
+              typeof a.u === 'number' && typeof b.u === 'number' &&
+              a.u === b.u && a.v === b.v);
+  }
+  /* ── THE FOURTH ANSWER: a colour tool that is INSTALLED BUT UNTAUGHT ──
+     A colour pack installed from a link arrives with the entire colour
+     detector configured — its shape rules, its search box, how close the
+     colour has to be — and DELIBERATELY without a colour. That is not an
+     oversight: what lands on a capture card is the game's colour mixed
+     with whatever is behind it, so the only honest colour is the one the
+     owner taps on his own picture.
+     Read through `colour` alone, such a config is byte-identical to Blank,
+     and the app said so: a pack installed seconds ago reported "No pack in
+     use", the Tune tab hid the teaching card that was the ONE thing left
+     to do, and the colour hunt's own controls hid with it.
+     THE TARGET CANNOT BE THE DISTINGUISHER. {preset:""} is exactly what
+     Blank writes, on purpose — it is the one "no colour" spelling that
+     survives the board's schema.migrate() deep-fill. The distinguisher is
+     the PACK: an installed identity that DECLARES colour tracking, with no
+     Blank standing over it. `colour` itself stays false, because nothing
+     is taught and every writer that asks "is there a colour here" must
+     keep getting no for an answer. */
+  function cvPackIdentity(vis){
+    if(!vis || typeof vis !== 'object') return false;
+    return !!((vis.source && vis.source.url) || vis.packId || vis.packName);
+  }
+  function cvDeclaresColour(vis){
+    var caps = vis && vis.capabilities, i;
+    if(caps && typeof caps.length === 'number'){
+      for(i = 0; i < caps.length; i++){
+        if(caps[i] === 'colorTracking') return true;
+      }
+    }
+    /* fusion:"colour" is the same declaration in the engine's own words —
+       it is what tells detect.py which detector runs at all. */
+    return String((vis && vis.fusion) || '') === 'colour';
+  }
+  /* Is Blank applied RIGHT NOW? applyBlank writes blankStash (what it
+     replaced) and applyUnblank empties it, so a non-empty stash is the one
+     durable "Blank is standing over this config" fact the app already had.
+     installPending empties it too — installing a pack IS un-blanking, and
+     saveVision merges by top-level key, so a stash left behind would have
+     kept the next pack reading as blanked. */
+  function cvBlankStanding(vis){
+    var bs = vis && vis.blankStash, k;
+    if(!bs || typeof bs !== 'object' || typeof bs.length === 'number') return false;
+    for(k in bs) if(Object.prototype.hasOwnProperty.call(bs, k)) return true;
+    return false;
+  }
+  /* ── two "do not look here" lists, joined ──────────────────────────
+     `filters.exclude` is the only entry in a filters block that is not a
+     pack author's number: it is where the areas the OWNER told his adapter
+     to skip end up. A pack's own list is about the game's HUD, his is about
+     his capture, and both are conservative by nature — so the answer is the
+     UNION, deduped on the rectangle itself (a `reason` is a caption, not an
+     identity). Board's own ceiling is 16 zones, so PACK FIRST: if anything
+     has to fall off the end, it is not the thing being installed.
+     ES5 only, like the rest of these files. */
+  function cvExcludeKey(z){
+    function n(v){ return String(Math.round((Number(v) || 0) * 10000)); }
+    return n(z.x)+'|'+n(z.y)+'|'+n(z.w)+'|'+n(z.h);
+  }
+  function cvMergeExclude(packList, ownList){
+    var out = [], seen = {}, i, z, key;
+    function take(list){
+      if(!list || typeof list.length !== 'number') return;
+      for(i = 0; i < list.length; i++){
+        z = list[i];
+        if(!z || typeof z !== 'object' || typeof z.length === 'number') continue;
+        key = cvExcludeKey(z);
+        if(seen[key]) continue;
+        seen[key] = 1;
+        if(out.length < 16) out.push(JSON.parse(JSON.stringify(z)));
+      }
+    }
+    take(packList);
+    take(ownList);
+    return out;
+  }
+  /* ── a pack's boxes, joined with the owner's (M20, audit 2026-10-10) ──
+     Installing a pack used to REPLACE vision.regions with the manifest's
+     list, so every box the owner drew went with it: taught gun pictures,
+     their Smart Action ties, his ignore areas - with no warning and no undo.
+     Now it is a join keyed by id, like cvMergeExclude: the pack's boxes come
+     in, and every box of the owner's whose id the pack does not use stays.
+     When both have a box with the same id, the pack's wins - UNLESS the
+     owner's has taught pictures: those are his own captures and cannot be
+     re-made by installing anything, while a pack box can be re-installed.
+     The board takes CV_MAX_REGIONS; if both lists do not fit, the owner's
+     boxes are kept first and the pack's fill what is left.
+     WHOSE BOX IS IT (review of M20): every box a pack installs carries
+     `pack` (the pack's name). On the next install the untaught boxes that
+     came from a pack - the previous game's HUD boxes - go, so they cannot
+     crowd the new pack out under the cap or demote its search area; the
+     owner's own boxes (no tag) and every taught box stay. `out`, when given,
+     is told how many of the new pack's boxes did not fit (`dropped`) and how
+     many old pack boxes were taken off (`replaced`), so the install can say
+     so. The tag is an unknown key to both boards (the EXO schema tolerates
+     it, the Core's encoder reads only what it knows), and costs nothing. ES5. */
+  function cvTaughtBox(r){
+    if(!r || typeof r !== 'object') return false;
+    var lists = [r.templates,
+                 r.match && r.match.templates, r.digits && r.digits.templates];
+    for(var i = 0; i < lists.length; i++){
+      if(Array.isArray(lists[i]) && lists[i].length) return true;
+    }
+    return false;
+  }
+  function cvMergeRegions(packList, ownList, tag, out){
+    var pack = [], own = [], packIds = {}, ownTaught = {}, i, r, id, asked = 0, replaced = 0;
+    out = out || {};
+    function ok(x){ return x && typeof x === 'object' && typeof x.length !== 'number'; }
+    if(ownList && typeof ownList.length === 'number'){
+      for(i = 0; i < ownList.length; i++){
+        if(ok(ownList[i]) && cvTaughtBox(ownList[i])) ownTaught[String(ownList[i].id)] = 1;
+      }
+    }
+    if(packList && typeof packList.length === 'number'){
+      for(i = 0; i < packList.length; i++){
+        r = packList[i];
+        if(!ok(r)) continue;
+        id = String(r.id);
+        if(packIds[id] || ownTaught[id]) continue;
+        packIds[id] = 1;
+        r = JSON.parse(JSON.stringify(r));
+        if(tag) r.pack = String(tag);
+        pack.push(r);
+      }
+    }
+    asked = pack.length;
+    if(ownList && typeof ownList.length === 'number'){
+      for(i = 0; i < ownList.length; i++){
+        r = ownList[i];
+        if(!ok(r) || packIds[String(r.id)]) continue;
+        /* an earlier pack's box nobody taught: the new pack replaces it */
+        if(r.pack && !cvTaughtBox(r)){ replaced++; continue; }
+        own.push(JSON.parse(JSON.stringify(r)));
+      }
+    }
+    own = own.slice(0, CV_MAX_REGIONS);
+    pack = pack.slice(0, Math.max(0, CV_MAX_REGIONS - own.length));
+    out.dropped = asked - pack.length;
+    out.replaced = replaced;
+    /* There is only ever ONE search area (the scan is one rectangle; the box
+       sheet demotes any other the same way): a pack that brings its own
+       turns the owner's old one into a plain box rather than leaving two. */
+    function hunt(x){ return String(x.purpose || '').toLowerCase() === 'hunt'; }
+    var packHunts = false;
+    for(i = 0; i < pack.length; i++) if(hunt(pack[i])) packHunts = true;
+    if(packHunts){
+      for(i = 0; i < own.length; i++) if(hunt(own[i])) own[i].purpose = 'custom';
+    }
+    return pack.concat(own);
+  }
+  function cvToolsOf(vis){
+    var t = vis && vis.target, m = vis && vis.model;
+    /* SHOT ASSIST is the third tool, and mere PRESENCE of the block cannot
+       be its test: schema v8 deep-fills a default `vision.shotAssist` into
+       every profile the board hands back, so presence is true everywhere on
+       an updated board. The deep-filled default is exactly
+       `enabled:false, feedbackRegion:"", meter.zone:{}` — three spellings of
+       "nothing ever set this up" — so the discriminator is "any of the three
+       says otherwise": a pack install always names its feedback region (and
+       the installer forces the other two off, see installPending), a taught
+       meter has a zone, and an enabled assist is real by definition. */
+    var s = vis && vis.shotAssist;
+    var mtr = (s && s.meter && typeof s.meter === 'object') ? s.meter : null;
+    var zone = mtr ? mtr.zone : null;
+    var zoneTaught = false, k;
+    if(zone && typeof zone === 'object' && !Array.isArray(zone)){
+      for(k in zone) if(Object.prototype.hasOwnProperty.call(zone, k)){ zoneTaught = true; break; }
+    }
+    /* A "grow" meter is taught by its own LENGTH and never has a zone at all
+       — 2K26's arrow has no track behind it to read a position against, so
+       what was measured is how long it gets. Without this a fully taught 2K
+       config reads as "nothing ever set this up", because the discriminator
+       was looking for the one thing that mode deliberately does not use. */
+    if(mtr && mtr.read === 'grow' && +mtr.spanFrac >= 0.01) zoneTaught = true;
+    /* THE METER'S OWN COLOUR IS NOT A HUNT COLOUR, and the difference is the
+       whole shape of the screen. Teaching a shot meter taps the bar itself,
+       and a tap on the picture also used to be written to `vision.target` —
+       measured on the owner's own 2K26 config, vision.target came back
+       byte-identical to shotAssist.meter.bar: {u:194, v:206, radius:18,
+       minLuma:40, maxLuma:255}. The raw u/v test below then said "this config
+       carries a colour", `timingOnly` went false, and the whole aim-help block
+       un-hid: "How much it helps", "When it works", "How it helps" and
+       fourteen more controls that the shot assist never reads — the settings
+       he described as looking like they came from another game entirely.
+       A target that IS the meter's bar colour says nothing about aim assist,
+       so it does not count as the colour tool. Chroma only: the radius and the
+       luma gate differ between the two writers and neither changes which
+       colour it is. */
+    var bar = (mtr && mtr.bar && typeof mtr.bar === 'object') ? mtr.bar : null;
+    var meterColourOnly = !!(t && typeof t === 'object' &&
+                             !t.color && !t.preset && sameChroma(t, bar));
+    /* no colour of ANY spelling in the target — stricter than !colour,
+       which is also false for the meter's own bar colour */
+    var noColourAtAll = !(t && typeof t === 'object' &&
+                          (t.color || t.preset ||
+                           (typeof t.u === 'number' && typeof t.v === 'number')));
+    return {
+      colour: !meterColourOnly &&
+              !!(t && typeof t === 'object' && (t.color || t.preset ||
+                (typeof t.u === 'number' && typeof t.v === 'number'))),
+      /* the tool is here and the colour is not — see the block above */
+      colourPending: !!(t && typeof t === 'object') && noColourAtAll &&
+                     cvPackIdentity(vis) && cvDeclaresColour(vis) &&
+                     !cvBlankStanding(vis),
+      model:  !!(m && typeof m === 'object' && m.enabled),
+      shot:   !!(s && typeof s === 'object' && !Array.isArray(s) &&
+                (s.enabled === true ||
+                 (typeof s.feedbackRegion === 'string' && s.feedbackRegion !== '') ||
+                 zoneTaught))
+    };
+  }
+  function bytesLabel(n){
+    n = Number(n)||0;
+    if(n >= 1048576) return (n/1048576).toFixed(1)+' MB';
+    if(n >= 1024) return Math.round(n/1024)+' KB';
+    return n+' bytes';
+  }
+  /* a picture of the screen with the pack's watched areas drawn on it —
+     far clearer than four numbers per region */
+  function regionMap(regions){
+    var boxes = (regions||[]).map(function(r){
+      var q = Array.isArray(r.rect)? r.rect : [0,0,0,0];
+      var x = Math.max(0,Math.min(1,+q[0]||0))*260, y = Math.max(0,Math.min(1,+q[1]||0))*146;
+      var w = Math.max(0,Math.min(1,+q[2]||0))*260, h = Math.max(0,Math.min(1,+q[3]||0))*146;
+      return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(4,w).toFixed(1)+
+        '" height="'+Math.max(4,h).toFixed(1)+'" rx="3" fill="rgba(57,197,207,.18)" stroke="var(--accent)" stroke-width="1.5"/>'+
+        '<text x="'+(x+3).toFixed(1)+'" y="'+(y+11).toFixed(1)+'" font-size="8" fill="var(--accent)">'+
+        esc((PURPOSE_LABEL[r.purpose]||r.name||'area').slice(0,16))+'</text>';
+    }).join('');
+    return '<div class="vizbox" style="padding:10px">'+
+      '<svg viewBox="0 0 260 146" style="width:100%;height:auto" role="img" aria-label="which parts of the screen this pack watches">'+
+      '<rect x="0.5" y="0.5" width="259" height="145" rx="6" fill="var(--bg)" stroke="var(--line)"/>'+
+      '<circle cx="130" cy="73" r="9" fill="none" stroke="var(--muted)" stroke-width="1.2"/>'+
+      '<line x1="130" y1="60" x2="130" y2="68" stroke="var(--muted)" stroke-width="1.2"/>'+
+      '<line x1="130" y1="78" x2="130" y2="86" stroke="var(--muted)" stroke-width="1.2"/>'+
+      '<line x1="117" y1="73" x2="125" y2="73" stroke="var(--muted)" stroke-width="1.2"/>'+
+      '<line x1="135" y1="73" x2="143" y2="73" stroke="var(--muted)" stroke-width="1.2"/>'+
+      boxes+'</svg>'+
+      '<div style="color:var(--muted);font-size:12px;text-align:center;margin-top:6px">'+
+      (boxes? 'the parts of your screen this pack reads' : 'this pack doesn’t read any screen areas')+'</div></div>';
+  }
+
+  /* ── regions: boxes the user draws ON the live picture ──────────────
+     A region is a NAMED RECTANGLE in 0..1 fractions of the frame. Normalised
+     on purpose: the preview is 640 wide, the capture is 1280 or 1920, and the
+     board thinks in fractions — a box drawn on the phone has to mean the same
+     part of the screen on all three, and it has to survive the user switching
+     the card from 720p to 1080p.
+
+     They live in the profile's `vision.regions`, which is the SAME list a
+     vision pack ships and the same list docs/VISION-PACKS.md describes. A box
+     Caleb draws and a box a pack author wrote are the same object; that is why
+     the pack view below can draw them too.
+
+     WHAT A BOX ACTUALLY DOES, AND HOW THIS SCREEN KNOWS
+     ---------------------------------------------------
+     Exactly one thing is wired all the way through today: a region with a HUD
+     purpose becomes an EXCLUSION ZONE for the colour hunt
+     (detect.zones_from_regions -> build_filters -> ColourDetector). So "ignore
+     this area" is real, and this screen does not take that on trust — it reads
+     the board's own filter list back out of /vision/status and only says the
+     area is being ignored when the board says the rectangle is in it.
+
+     Everything else a box could do — watch a colour, watch it light up, watch
+     for movement, read a word, read a number — needs the board's region
+     reader. This screen ASKS for it (GET /vision/regions) and offers those
+     choices only when the board answers. No setting here is saved into a field
+     nothing reads. */
+
+  /* what a box can be told to do. [key, title, what it does, needs the reader] */
+  var CV_KINDS = [
+    /* FIRST, because it is the one that changes what the adapter DOES rather
+       than adding a separate reading, and because it is the only box that
+       makes the hunt faster instead of slower. It is stored as a `purpose`
+       rather than a `kind`: `kind` is validated against a closed list on the
+       board, so a config carrying an unknown one is rejected whole by an
+       older board and will not load at all. An unknown purpose is ignored. */
+    ['hunt', 'Search ONLY here',
+     'looks for enemies inside this box only — faster, and it sees finer detail. Make it about a third of the screen, over where you aim', false],
+    ['ignore', 'Ignore this area',
+     'your adapter stops hunting for your colour inside this box — good for a health bar or a minimap that is the same colour as an enemy', false],
+    ['colour', 'Watch for a colour',
+     'tells you when your colour turns up inside this box', true],
+    ['brightness', 'Watch it light up',
+     'tells you when this part of the screen gets bright — a prompt appearing, an icon lighting up', true],
+    ['change', 'Watch for movement',
+     'tells you when anything inside the box changes', true],
+    ['match', 'Read what it says',
+     'you show it each thing once and it learns to tell them apart — a weapon name, a game mode', true],
+    ['digits', 'Read a number',
+     'reads a counter, like the ammo in your magazine', true]
+  ];
+  /* an "ignore" box still has to say WHICH bit of the HUD it is: the board
+     turns the name into the sentence it shows back ("the ammo counter area"),
+     and only these names count as HUD (detect.HUD_PURPOSES). */
+  var CV_PURPOSES = [['ammo','Ammo counter'], ['health','Health bar'],
+    ['reticle','Crosshair'], ['minimap','Mini-map'], ['score','Scoreboard'],
+    ['prompt','On-screen prompt']];
+
+  function cvKindRow(k){
+    for(var i=0;i<CV_KINDS.length;i++) if(CV_KINDS[i][0]===k) return CV_KINDS[i];
+    return CV_KINDS[0];
+  }
+  /* What a stored region is asking for. A pack's regions have a `purpose` and
+     no `kind` at all, so they read as "ignore" when the purpose is a HUD one
+     and as "not decided yet" when it is `custom` — which is the truth, and
+     better than silently inventing a job for somebody else's rectangle. */
+  /* 'hunt' and 'ignore' are the two entries stored as a PURPOSE rather than a
+     `kind`, so neither may be matched against r.kind — start the kind scan
+     past both of them. */
+  var CV_PURPOSE_KINDS = ['hunt', 'ignore'];
+  function cvKindOf(r){
+    var pur = r && r.purpose ? String(r.purpose).toLowerCase() : '';
+    if(pur === 'hunt') return 'hunt';
+    var k = r && r.kind ? String(r.kind) : '', i, j;
+    for(i=0;i<CV_KINDS.length;i++){
+      if(CV_PURPOSE_KINDS.indexOf(CV_KINDS[i][0]) >= 0) continue;
+      if(CV_KINDS[i][0] === k) return k;
+    }
+    for(j=0;j<CV_PURPOSES.length;j++) if(CV_PURPOSES[j][0]===pur) return 'ignore';
+    return '';
+  }
+  function cvPurposeLabel(pur){
+    for(var i=0;i<CV_PURPOSES.length;i++) if(CV_PURPOSES[i][0]===pur) return CV_PURPOSES[i][1];
+    return 'Custom area';
+  }
+
+  /* P7: one kind→art map for the region list rows AND the kind picker, so
+     the two can never disagree. For the colour kind the ACTUAL taught swatch
+     beats an abstract icon — and an empty dashed swatch ("colour goes here")
+     when nothing is taught yet. Decorative by RULE ZERO (aria-hidden
+     wrapper); pure function of (kind, taught colour) only, so the region
+     poll's repaints byte-match identical state. */
+  var CV_KIND_ICO = { hunt:'target', ignore:'block', brightness:'bolt',
+                      change:'wave', match:'shapes', digits:'numbers' };
+  function cvKindArt(kind, r){
+    if(kind === 'colour'){
+      var hex = r && r.colour && r.colour.hex ? cvHex(r.colour.hex) : '';
+      return '<span class="gly-deco" aria-hidden="true" style="width:15px;height:15px;'+
+        'border-radius:4px;margin-right:6px;vertical-align:-2px;'+
+        (hex ? 'border:1px solid rgba(255,255,255,.25);background:#'+hex
+             : 'border:1px dashed var(--muted);background:transparent')+'"></span>';
+    }
+    var name = CV_KIND_ICO[kind];
+    if(!name) return '';
+    return '<span class="gly-deco" aria-hidden="true" style="width:16px;height:16px;'+
+      'color:var(--muted);margin-right:6px;vertical-align:-3px">'+ico(name, 16)+'</span>';
+  }
+
+  var CV_MIN_SIDE = 0.03;    /* a box smaller than this is a tap, not a box */
+  var CV_MAX_REGIONS = 16;   /* build_filters refuses more than 16 zones */
+
+  function cv01(n){ n = Number(n); if(!(n===n)) return 0; return n<0?0:(n>1?1:n); }
+  /* [x,y,w,h] fractions, clamped so a box can never leave the picture and can
+     never be too small to grab again with a finger */
+  function cvRect(q){
+    var a = (q && q.length===4) ? q : [0.4,0.4,0.2,0.2];
+    var x = cv01(a[0]), y = cv01(a[1]);
+    var w = Math.max(CV_MIN_SIDE, cv01(a[2])), h = Math.max(CV_MIN_SIDE, cv01(a[3]));
+    if(x + w > 1) x = Math.max(0, 1 - w);
+    if(y + h > 1) y = Math.max(0, 1 - h);
+    return [x, y, Math.min(w, 1-x), Math.min(h, 1-y)];
+  }
+  function cvRectEq(a, b){
+    if(!a || !b) return false;
+    return Math.abs(a[0]-(+b.x||0)) < 0.006 && Math.abs(a[1]-(+b.y||0)) < 0.006 &&
+           Math.abs(a[2]-(+b.w||0)) < 0.006 && Math.abs(a[3]-(+b.h||0)) < 0.006;
+  }
+  function cvRegionsOf(v){
+    var list = (v && Array.isArray(v.regions)) ? v.regions : [];
+    var out = [], i;
+    for(i=0;i<list.length;i++) if(list[i] && typeof list[i]==='object') out.push(list[i]);
+    return out;
+  }
+  /* ids are what the board and a Smart Action would name a region by, so they
+     are kept to the charset the schema allows and made unique here rather than
+     hoping two boxes never share a name */
+  function cvRegId(name, taken){
+    var base = String(name||'area').toLowerCase().replace(/[^a-z0-9_-]+/g,'-')
+                 .replace(/^-+|-+$/g,'').slice(0,24) || 'area';
+    var id = base, n = 2;
+    while(taken[id]){ id = base.slice(0,26)+'-'+n; n++; }
+    return id;
+  }
+
+  /* ── the live picture ───────────────────────────────────────────────
+     What the adapter can actually SEE, at the top of the tab and as big as
+     the screen allows. Everything else on this screen is a claim; this is
+     the evidence, so it goes first and it gets the space.
+
+     The detection is drawn as an SVG layer OVER the <img>, never burnt into
+     the JPEG. The board encodes one picture and we draw on top of it, so the
+     marker costs the board nothing, and it can move between frames.
+
+     That SVG deliberately has NO viewBox. Without one its user units are the
+     CSS pixels of its own box, so a position given in % lands on exactly the
+     same pixel as that % of the image underneath, while radii and stroke
+     widths given in px stay round and even — which a stretched viewBox
+     (preserveAspectRatio="none") would smear into ellipses.
+
+     The region boxes are plain DIVs in a THIRD layer, not SVG shapes, because
+     they have to be grabbed: a div takes pointer events, a CSS cursor, a
+     focus ring and a 44px handle without any of it being re-derived from a
+     viewBox on every frame.                                              */
+
+  var CV_CSS_ID = 'cv-region-css';
+  function cvCss(){
+    if(document.getElementById(CV_CSS_ID)) return;
+    var s = document.createElement('style');
+    s.id = CV_CSS_ID;
+    s.appendChild(document.createTextNode([
+      /* THE OVERLAY BOX IS THE VISION ROOM'S COLOUR, NOT PLAYSTATION'S.
+         It was #58a6ff — --blue, which MEANS PlayStation everywhere else in
+         this product (docs/DESIGN.md). On the one screen where a blue
+         rectangle is a computer-vision region, blue meant something else,
+         and the family badge sitting two screens away meant the first thing.
+         var(--tint) resolves from #dbody[data-tint="vision"] (zs-kit.css
+         §17), so the box now carries the same hue as the room's tabs, ticks
+         and switches, and a palette change is one line instead of six. The
+         literal is the fallback for a stage rendered outside the tinted
+         subtree, and it is that tint's own value. */
+      '#cv-boxes .cvrg{position:absolute;box-sizing:border-box;',
+        'border:2px solid var(--tint,#6f9bff);',
+        'border-radius:6px;background:var(--tint-wash,rgba(111,155,255,.14))}',
+      '#cv-boxes .cvrg.ign{border-style:dashed;border-color:#b6c2ce;background:rgba(182,194,206,.13)}',
+      '#cv-boxes .cvrg.und{border-style:dotted;border-color:#d29922;background:rgba(210,153,34,.12)}',
+      '#cv-boxes .cvrg.hit{border-color:#3fb950;background:rgba(63,185,80,.20)}',
+      '#cv-boxes .cvrg.on{box-shadow:0 0 0 2px rgba(2,6,11,.62),0 0 0 4px #f0f6fc}',
+      '#cv-boxes.live .cvrg{pointer-events:auto;cursor:move;touch-action:none}',
+      '#cv-boxes .cvrg-t{position:absolute;left:-2px;bottom:100%;margin-bottom:3px;',
+        'white-space:nowrap;font-size:10.5px;font-weight:700;color:#e6edf3;',
+        'background:rgba(3,7,12,.84);border:1px solid rgba(120,150,180,.42);',
+        'border-radius:5px;padding:1px 6px;pointer-events:none;max-width:none}',
+      '#cv-boxes .cvrg.low .cvrg-t{bottom:auto;top:3px;left:3px;margin:0}',
+      '#cv-boxes .cvrg-t i{font-style:normal;font-weight:600;color:#8fd4ff;margin-left:6px}',
+      '#cv-boxes .cvrg-t i.g{color:#7ee787}',
+      '#cv-boxes .cvrg-t i.w{color:#e3b341}',
+      '#cv-boxes .cvrg-h{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;',
+        'border-radius:50%;background:#f0f6fc;border:2px solid #1f6feb;display:none;',
+        'box-sizing:border-box;touch-action:none;box-shadow:0 1px 3px rgba(0,0,0,.55)}',
+      '#cv-boxes.live .cvrg.on .cvrg-h{display:block}',
+      'body.a11y-big #cv-boxes .cvrg-h{width:30px;height:30px;margin:-15px 0 0 -15px}',
+      'body.a11y-big #cv-boxes .cvrg-t{font-size:12.5px}'
+    ].join('')));
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  var CV_RADII = [[22,'Exact'],[45,'Normal'],[80,'Loose']];
+
+  /* How wide the preview picture is asked for. These are not cosmetic sizes:
+     making the picture is the most expensive thing on this screen, and the
+     width is most of that cost. Measured on the board on 2026-08-10 with a
+     real 1280x720 frame from the capture card, one 640-wide preview costs
+     50.5 ms of the adapter's own processor to make — 23.2 ms of which is
+     nothing but shrinking the picture — and while a game was actually running
+     the adapter reported 116 ms per frame. That is time the target-finding
+     does not get, which is why this is a control the user can reach rather
+     than a constant in the code. */
+  var CV_PIC_SIZES = [[320,'Small'],[640,'Normal'],[1280,'Large']];
+  function cvPicSizeIdx(w){
+    var best = 1, d = 1e9, i, gap;
+    for(i=0;i<CV_PIC_SIZES.length;i++){
+      gap = Math.abs((Number(w)||640) - CV_PIC_SIZES[i][0]);
+      if(gap < d){ d = gap; best = i; }
+    }
+    return best;
+  }
+
+  function cvNum(n, dp){
+    var m = Math.pow(10, dp||0);
+    return String(Math.round((Number(n)||0)*m)/m);
+  }
+  function cvPct(f){ return cvNum(Math.max(0, Math.min(1, Number(f)||0))*100, 2)+'%'; }
+  function cvHex(s){
+    var t = String(s||'').replace(/[^0-9a-fA-F]/g,'').slice(0,6);
+    return t.length===6 ? t : '888888';
+  }
+  /* which of the three colour-match widths a radius is nearest to */
+  function cvRadiusIdx(r){
+    var best = 1, d = 1e9, i;
+    for(i=0;i<CV_RADII.length;i++){
+      var gap = Math.abs((Number(r)||45) - CV_RADII[i][0]);
+      if(gap < d){ d = gap; best = i; }
+    }
+    return best;
+  }
+  /* "up and to the left of the middle" — the sentence a beginner needs, not
+     two decimals of a normalised coordinate */
+  function cvWhere(x, y){
+    var dx = (Number(x)||0) - 0.5, dy = (Number(y)||0) - 0.5;
+    var near = 0.07, side = '', updown = '';
+    if(Math.abs(dx) < near && Math.abs(dy) < near) return 'right in the middle of your screen';
+    if(Math.abs(dx) >= near) side = dx < 0 ? 'left' : 'right';
+    if(Math.abs(dy) >= near) updown = dy < 0 ? 'above' : 'below';
+    if(side && updown) return updown+' the middle and to the '+side;
+    if(side) return 'to the '+side+' of the middle';
+    return updown+' the middle';
+  }
+
+  /* The STAGE ONLY. It used to be cvPanel(), stage + every slot div in one
+     string — the slots now live on the Screen Assist sub-tabs (see R.vision),
+     and the stage stays ABOVE the tabs because it is both the proof and the
+     teach surface: no one tab owns it. The slots are all empty at after()
+     time and painted by wireCv, which resolves them once at init regardless
+     of visibility — so distributing the divs across panes is safe. */
+  function cvStageHtml(){
+    /* The stage holds its own shape (padding-top is a percentage of its WIDTH,
+       so this is an aspect box) and the picture fills it absolutely. That is
+       not decoration: an <img> with height:auto collapses to nothing for the
+       instant between "new src assigned" and "new frame decoded", so at four
+       frames a second the whole screen jumped every 250 ms. The box is resized
+       to the real frame's shape the first time one arrives. */
+    return '<div class="vizbox" id="cv-stagebox" style="padding:8px">'+
+        '<div id="cv-stage" style="position:relative;border-radius:9px;overflow:hidden;'+
+             'background:#05070a;padding-top:56.25%;touch-action:none;'+
+             '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none">'+
+          '<img id="cv-frame" alt="the picture your adapter is looking at right now" '+
+            'draggable="false" '+
+            'style="position:absolute;left:0;top:0;width:100%;height:100%;'+
+            'display:block;visibility:hidden">'+
+          /* the marker layer is a DIV that HOLDS the svg, not the svg itself:
+             innerHTML on a plain HTML element parses <svg> into the right
+             namespace every time, which assigning into an <svg> does not. */
+          '<div id="cv-ovl" style="position:absolute;left:0;top:0;right:0;bottom:0;'+
+            'pointer-events:none" aria-hidden="true"></div>'+
+          '<div id="cv-boxes" style="position:absolute;left:0;top:0;right:0;bottom:0;'+
+            'pointer-events:none"></div>'+
+          /* pointer-events:none because this sits ON TOP of the box layer.
+             With the picture switched off it is showing, and a finger landing
+             on the middle of the stage has to reach the box under it — without
+             this, dragging a box in the middle drew a new one instead. */
+          '<div id="cv-hint" style="position:absolute;left:0;right:0;top:50%;'+
+            'transform:translateY(-50%);text-align:center;color:var(--muted);'+
+            'font-size:13px;padding:0 18px;line-height:1.5;'+
+            'pointer-events:none">Asking your adapter…</div>'+
+          '<div id="cv-fps" style="position:absolute;top:8px;right:8px;font-size:11px;'+
+            'font-variant-numeric:tabular-nums;color:#cfe6ff;background:rgba(3,7,12,.72);'+
+            'border:1px solid rgba(120,150,180,.35);border-radius:999px;padding:3px 9px;'+
+            'display:none"></div>'+
+          '<div id="cv-arm" style="position:absolute;left:8px;right:8px;bottom:8px;'+
+            'text-align:center;font-size:12px;font-weight:700;color:#08131f;'+
+            'background:#7ee787;border-radius:8px;padding:7px 10px;display:none"></div>'+
+        '</div>'+
+      '</div>';
+  }
+
+  /* The marker layer. Percentages everywhere for position, pixels for size. */
+  /* The reach and dead-zone rings are ELLIPSES, not circles, and that is the
+     board's own geometry rather than a drawing flourish. assist.pull_vector
+     multiplies the vertical error by verticalScale BEFORE measuring distance,
+     so the region it actually helps inside is
+         ex^2 + (ey * verticalScale)^2 <= window^2
+     — - taller than it is wide by exactly 1/verticalScale. Drawing a circle
+     would show a shape the board does not use, and the first thing anyone
+     would do with it is wonder why a target inside the ring got no help. */
+  function cvRings(a){
+    if(!a) return '';
+    var vs = Number(a.verticalScale); if(!(vs > 0)) vs = 1;
+    var ax = cvPct(Number(a.aimX) >= 0 ? a.aimX : 0.5);
+    var ay = cvPct(Number(a.aimY) >= 0 ? a.aimY : 0.5);
+    var out = '';
+    var w = Number(a.window) || 0;
+    if(w > 0){
+      out += '<ellipse cx="'+ax+'" cy="'+ay+'" rx="'+cvPct(w)+'" ry="'+
+             cvPct(Math.min(w / vs, 1.5))+'" fill="none" stroke="rgba(88,166,255,.55)" '+
+             'stroke-width="1.5" stroke-dasharray="6 5"/>';
+    }
+    var dz = Number(a.deadZone) || 0;
+    if(dz > 0){
+      out += '<ellipse cx="'+ax+'" cy="'+ay+'" rx="'+cvPct(dz)+'" ry="'+
+             cvPct(Math.min(dz / vs, 1.5))+'" fill="none" stroke="rgba(210,153,34,.75)" '+
+             'stroke-width="1.5"/>';
+    }
+    return out;
+  }
+
+  /* Everything the tracker is currently holding, not just the one it chose.
+     "It is looking at the wrong thing" and "it cannot see anything" need
+     completely different fixes, and without this they look identical. */
+  function cvCandidates(tr, lockedId){
+    var d = (tr && tr.detail) || [];
+    var out = '', i, t, x, y, col;
+    for(i = 0; i < d.length && i < 12; i++){
+      t = d[i];
+      if(t.id === lockedId) continue;          /* the lock is drawn in green */
+      x = cvPct(t.x); y = cvPct(t.y);
+      col = t.static ? 'rgba(139,148,158,.55)' : 'rgba(210,153,34,.8)';
+      out += '<circle cx="'+x+'" cy="'+y+'" r="5" fill="none" stroke="'+col+
+             '" stroke-width="1.5"/>';
+      if(t.static){
+        out += '<line x1="'+x+'" y1="'+y+'" x2="'+x+'" y2="'+y+'" stroke="'+col+
+               '" stroke-width="1.5"/>';
+      }
+    }
+    return out;
+  }
+
+  function cvOverlay(det, tap, show, assist, tracking){
+    if(!show) return '';
+    var s = cvRings(assist) +
+      cvCandidates(tracking, tracking && tracking.lockedId) +
+      '<g fill="rgba(255,255,255,.82)">'+
+      '<rect x="50%" y="50%" width="2" height="9" transform="translate(-1,-20)"/>'+
+      '<rect x="50%" y="50%" width="2" height="9" transform="translate(-1,11)"/>'+
+      '<rect x="50%" y="50%" width="9" height="2" transform="translate(-20,-1)"/>'+
+      '<rect x="50%" y="50%" width="9" height="2" transform="translate(11,-1)"/>'+
+      '<circle cx="50%" cy="50%" r="1.6"/></g>';
+    if(det && det.found){
+      var x = cvPct(det.x), y = cvPct(det.y);
+      var b = det.box || {};
+      if((Number(b.w)||0) > 0 && (Number(b.h)||0) > 0){
+        s += '<rect x="'+cvPct(b.x)+'" y="'+cvPct(b.y)+'" width="'+cvPct(b.w)+
+             '" height="'+cvPct(b.h)+'" rx="4" fill="rgba(63,185,80,.10)" '+
+             'stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5 4"/>';
+      }
+      s += '<line x1="50%" y1="50%" x2="'+x+'" y2="'+y+'" stroke="rgba(63,185,80,.5)" '+
+             'stroke-width="1.5" stroke-dasharray="4 4"/>'+
+           '<circle cx="'+x+'" cy="'+y+'" r="13" fill="none" stroke="#3fb950" stroke-width="2.5"/>'+
+           '<circle cx="'+x+'" cy="'+y+'" r="3" fill="#3fb950"/>'+
+           '<text x="'+x+'" y="'+y+'" dy="-19" text-anchor="middle" font-size="11" '+
+             'font-weight="700" fill="#56d364" stroke="rgba(0,0,0,.65)" stroke-width="3" '+
+             'paint-order="stroke">found it</text>';
+    }
+    if(tap){
+      /* same reason as the region box above: this ring marks WHERE YOU
+         TAPPED on the CV stage, which is a vision fact, not a device family */
+      s += '<circle cx="'+cvPct(tap.x)+'" cy="'+cvPct(tap.y)+'" r="11" fill="none" '+
+             'stroke="#6f9bff" stroke-width="2"/>'+
+           '<circle cx="'+cvPct(tap.x)+'" cy="'+cvPct(tap.y)+'" r="2.5" fill="#6f9bff"/>';
+    }
+    return '<svg style="position:absolute;left:0;top:0;width:100%;height:100%" '+
+      'xmlns="http://www.w3.org/2000/svg">'+s+'</svg>';
+  }
+
+  var CV_HANDLES = [['nw',0,0],['n',50,0],['ne',100,0],['e',100,50],
+                    ['se',100,100],['s',50,100],['sw',0,100],['w',0,50]];
+
+  /* One box. `res` is whatever the board says about it right now — never a
+     guess made here, so a box that says "ignored" is a box the board told us
+     it is ignoring. */
+  function cvBoxHtml(r, i, sel, res, ghost){
+    var q = cvRect(r.rect);
+    var kind = cvKindOf(r);
+    var cls = 'cvrg';
+    if(ghost) cls += ' new';
+    if(kind === 'ignore') cls += ' ign';
+    else if(!kind) cls += ' und';
+    if(res && res.hit) cls += ' hit';
+    if(i === sel) cls += ' on';
+    if(q[1] < 0.10) cls += ' low';
+    var handles = '';
+    if(i === sel && !ghost){
+      for(var h=0;h<CV_HANDLES.length;h++){
+        handles += '<span class="cvrg-h" data-hz="'+CV_HANDLES[h][0]+'" style="left:'+
+          CV_HANDLES[h][1]+'%;top:'+CV_HANDLES[h][2]+'%"></span>';
+      }
+    }
+    var tag = '';
+    if(!ghost){
+      var chip = res && res.chip
+        ? '<i class="'+(res.tone||'')+'">'+esc(res.chip)+'</i>' : '';
+      tag = '<span class="cvrg-t">'+esc(String(r.name||'Area').slice(0,22))+chip+'</span>';
+    }
+    return '<div class="'+cls+'"'+(ghost?'':' data-ri="'+i+'"')+
+      ' style="left:'+cvPct(q[0])+';top:'+cvPct(q[1])+';width:'+cvPct(q[2])+
+      ';height:'+cvPct(q[3])+'">'+tag+handles+'</div>';
+  }
+
+  /* The state line: the BRAND'S RETICLE, a headline, and a sentence with no
+     jargon in it. The reticle is the crosshair from the logo doing its actual
+     job — idle when nothing is watched, rotating while the detector hunts,
+     ring closed with the centre dot when a target is held (zs-mark.js
+     reticle(); the states are built and colour-independent, and reduced
+     motion swaps the spin for a breathe via zs-brand.css). The generic
+     coloured dot it replaces survives only as the fallback for a build that
+     ships without zs-mark.js.
+
+     NEVER MOTION ALONE: the headline and sentence beside it say the same
+     thing in words ("Not watching your screen yet" / "Watching" / "Target
+     seen"), and the reticle itself carries an aria-label naming its state.
+
+     Poll-safety is the caller's put(): identical state = identical HTML =
+     the node is left alone and the scanning loop runs on across polls; a
+     state flip recreates the node, which is exactly what fires the built
+     .zs-ret-lock dot pop at the true acquisition moment. */
+  function cvSayCard(s, ret){
+    var col = s.t==='good' ? 'var(--green)' : s.t==='warn' ? 'var(--amber)'
+            : s.t==='ok'   ? 'var(--accent)' : 'var(--grey)';
+    var mark;
+    if(window.ZSLOGO && ZSLOGO.reticle){
+      var rWord = ret==='locked' ? 'target held' : ret==='scanning' ? 'scanning' : 'idle';
+      mark = '<span style="flex:none;margin-top:1px">'+
+        ZSLOGO.reticle({size:22, state:(ret||'idle'), label:'reticle — '+rWord})+'</span>';
+    } else {
+      mark = '<span style="flex:none;width:11px;height:11px;border-radius:50%;margin-top:4px;'+
+        'background:'+col+';box-shadow:0 0 0 4px '+
+        (s.t==='good'?'rgba(63,185,80,.16)':s.t==='warn'?'rgba(210,153,34,.16)':
+         s.t==='ok'?'rgba(88,166,255,.14)':'transparent')+'"></span>';
+    }
+    return '<div class="vizbox" style="padding:13px 14px;display:flex;gap:11px;'+
+        'align-items:flex-start;text-align:left">'+
+      mark+
+      '<span style="min-width:0"><b style="display:block;font-size:15px;'+
+        'font-weight:700">'+esc(s.h)+'</b>'+
+      '<span style="display:block;color:var(--muted);font-size:12.5px;'+
+        'line-height:1.5;margin-top:3px">'+esc(s.s)+'</span></span></div>'+
+      (s.q && ZS.helpHTML ? ZS.helpHTML('cv-state-'+s.t, s.h, esc(s.s+' '+s.q)) : '');
+  }
+
+  /* The four rungs Caleb asked for. The last one is NOT hard-coded either way:
+     it reads whatever the board reports about its aim step. A board that has
+     no aim step says so and the rung stays grey; a board that has one gets to
+     light it. The app never claims an ability on the board's behalf. */
+  function cvRungs(reached, assist){
+    var known = !!assist;
+    var rows = [['Capture card','something is plugged in'],
+                ['Watching','a picture is coming in'],
+                ['Target seen','it found your colour'],
+                ['Aim help', !known ? 'your adapter isn’t reporting this'
+                   : assist.killed ? 'your board switched it off after a problem'
+                   : assist.enabled === false ? 'your board has it, switched off'
+                   : assist.active ? 'nudging your aim now'
+                   : 'ready, not nudging right now']];
+    return '<div class="vizbox" style="padding:12px 14px">'+
+      rows.map(function(r, i){
+        var last = (i === 3);
+        var on = last ? !!(known && assist.active) : (i < reached);
+        var col = (last && !known) ? 'var(--grey)' : (on ? 'var(--green)' : 'var(--muted)');
+        return '<div style="display:flex;align-items:flex-start;gap:10px;'+
+            (i?'margin-top:9px':'')+'">'+
+          '<span style="flex:none;width:16px;height:16px;border-radius:50%;margin-top:1px;'+
+            'border:2px solid '+col+';background:'+(on?'var(--green)':'transparent')+
+            ';box-shadow:'+(on?'0 0 0 3px rgba(63,185,80,.16)':'none')+'"></span>'+
+          '<span style="min-width:0"><b style="font-size:13.5px;font-weight:600;color:'+
+            ((last&&!known)?'var(--grey)':(on?'var(--text)':'var(--muted)'))+'">'+esc(r[0])+'</b>'+
+          '<em style="display:block;font-style:normal;font-size:11.5px;color:var(--muted);'+
+            'margin-top:1px">'+esc(r[1])+'</em></span></div>';
+      }).join('')+'</div>';
+  }
+
+  /* ── THE RELEASE-TIMING CONTROL'S MEASURED CONSTANTS ──────────────────
+     One knob: profile.vision.shotAssist.aimOffsetMs, in milliseconds, 1:1
+     with the wall clock. predict.py:1164 builds the release instant as
+
+         deadline = t_cross - lat / 1000.0 + cfg.aim_offset_ms / 1000.0
+
+     and `deadline` is an ABSOLUTE instant on the monotonic clock, so adding a
+     bigger number moves the release FURTHER INTO THE FUTURE. +20 lets go
+     20 ms LATER (a longer arrow), -20 lets go 20 ms EARLIER. Thumb right =
+     later. That sign is pinned on the board by
+     test_the_aim_offset_is_a_separate_signed_nudge, and it must never be
+     inverted anywhere in this chain.
+
+     THE USER-FACING MAPPING IS THE OPPOSITE OF THAT SIGN, which is why it is
+     printed on the card in 2K's own two phrases rather than left for anyone
+     to derive: 2K says "Slightly LATE" -> he let go too late -> he needs
+     EARLIER -> minus. 2K says "Slightly EARLY" -> plus.
+
+     RT_STEP is 5 ms and it is not a guess. docs/reference/nba2k26/README.md
+     measures 2K26's arrow at 242 px/s over a 95 px span and concludes in as
+     many words: "the release-timing control needs steps of about 5 ms —
+     anything coarser cannot address the inside of the window at all — and
+     +-100 ms of trim is the right range: 2.7 window widths either side".
+     Cross-checked against the other estimate in the tree (predict.py:155-158,
+     ~300-330 ms of fill on fast/contested shots): the green window is 28.5 ms
+     at the fast end and 37.3 ms at the slow one, so one 5 ms nudge is between
+     a fifth and a seventh of the window either way. The step survives the
+     disagreement between the two measurements, which is why it is the number
+     we ship, and from dead centre it takes 3-4 notches to walk from the
+     middle of the green to its edge — one notch can never throw a shot from
+     inside the window to outside it.
+
+     A 1 ms step - which is what this control had until now, because slider()
+     emits no step attribute and HTML defaults it to 1 - moves the release by
+     a quarter of a pixel of arrow. That is under the meter reader's own
+     1.17 px mean error and under the output leg's measured fire sigma of
+     1.8 ms: 201 detents of which ~190 are indistinguishable from their
+     neighbours.
+
+     RT_WINDOW_MS is the FALLBACK only. The board publishes the real number as
+     shotAssist.shot.plan.windowMs on any ok plan and rtPaint prefers it — the
+     window really is narrower on a contested pull-up than on a set shot, and
+     a picture that pretended otherwise would be lying quietly. While the
+     fallback is in use the label says "about", and it never says anything
+     else.                                                                  */
+  var RT_STEP      = 5;      /* ms per nudge                                */
+  /* predict.SHOT_NUMS' own aimOffsetMs bound, and it is +-300 rather than
+     +-100 because ONLINE PLAY IS A DIFFERENT RIG, not a fine adjustment to
+     this one: 2K's servers add delay on top of the capture-and-output chain
+     the trim was measured against, and at +-100 the owner ran out of range
+     with every shot still landing late. At 5 ms a nudge that is 120 detents
+     end to end, which is why the +/- keys are not the only way in — the value
+     is tap-to-type and the track drags coarsely. */
+  var RT_LIMIT     = 300;
+  /* ── MEASURE MY DELAY (D90) — the numbers the one-tap measurement sends ──
+     The board's D89 contract bounds presses to 1..20 and gapMs to 500..5000;
+     eight presses a second and a half apart is the plan's own recipe (§5b
+     step 1 asked for eight, ten seconds apart, on the PC; a phone tap gets
+     the same eight, closer together, because nobody is typing between
+     them). The poll is the recorder's 250 ms. MD_DEFAULT_MS is the number
+     the schema ships in every profile (profiles/schema.py, `latencyMs: 90`)
+     and the 2K pack ships the same, so a config still on it has "the
+     default guess" and nothing more — the delay line says exactly that. */
+  var MD_PRESSES    = 8;
+  var MD_GAP_MS     = 1500;
+  var MD_POLL_MS    = 250;
+  var MD_DEFAULT_MS = 90;
+  /* the output path in words, from the status's `backend` — the two paths
+     the plan compares, and an honest generic for anything else */
+  function mdPathWords(be){
+    be = String(be == null ? '' : be);
+    if(be === 'remoteplay') return 'over Remote Play';
+    if(be === 'pico') return 'over the USB adapter';
+    if(!be) return '';
+    return 'over the '+be+' output';
+  }
+  function mdToday(){
+    var d = new Date();
+    function two(n){ return (n < 10 ? '0' : '')+n; }
+    return d.getFullYear()+'-'+two(d.getMonth()+1)+'-'+two(d.getDate());
+  }
+  var RT_WINDOW_MS = 35;     /* fallback green-window width, 28.5..37.3     */
+  var RT_X0 = 20, RT_XW = 260;          /* the ruler, in SVG units          */
+  function rtX(ms){
+    var c = Math.max(-RT_LIMIT, Math.min(RT_LIMIT, ms));
+    return RT_X0 + (c + RT_LIMIT) / (2 * RT_LIMIT) * RT_XW;
+  }
+  /* the sentence the value is READ as — never a bare signed number, on the
+     card or in the screen reader. "+20" and "20" are the same string once a
+     minus sign has been dropped by a font, a screen reader or a squint. */
+  function rtSay(v){
+    return v === 0 ? 'right when it computed'
+         : (v > 0 ? v + ' ms later' : (-v) + ' ms earlier');
+  }
+
+  /* ── THE PICTURE: a RULER IN MILLISECONDS, not a drawing of the meter ──
+     WHAT IT ANSWERS: "how much is 5 ms?" and "how far have I moved?". Both
+     are questions about the units under his thumb, so the axis is those
+     units. Nothing here is derived from a fit, so it is correct on the first
+     frame with no shot ever taken and it tracks the thumb exactly 1:1.
+
+     THE ARROW-SHAPED DRAWING THAT WAS DESIGNED FIRST IS NOT BUILT, AND MUST
+     NOT BE. Its scale came from lastHoldMs / growAtFrac, but lastHoldMs is
+     press-to-release WALL TIME: it contains the gather, the capture chain and
+     aimOffsetMs itself. Dragging the slider would therefore rescale the
+     drawing and spring the marker back toward the centre — the control would
+     fight the finger. Its basis had already drifted 552 -> 698 ms inside one
+     20-shot tape on the owner's own board.
+
+     WHAT IT DELIBERATELY DOES NOT SHOW: where the green is. The board does
+     not know. 68.5 ms of the assumed 90 ms latency is unattributed — the
+     capture card, the display chain and the output backend, which the board
+     says outright it cannot time. The owner's trim is -55 ms, which almost
+     certainly means his true rig delay is ~145 ms, not 90; a green band
+     pinned to zero would draw him 37 ms "outside the green" while he is
+     greening. So the window appears only as a BRACKET THAT TRAVELS WITH THE
+     MARKER — a ruler legend saying how wide a green window is in these units
+     — and never as a target with an inside and an outside.
+
+     At a 340 px card the ruler is ~295 CSS px, one 5 ms notch is 7.4 px, and
+     the 11-unit text renders at ~12.5 CSS px, above the 11 px caption floor.
+
+     aria-hidden, and not apologetically: the stepper announces the value and
+     rtSay() puts it in words. A second announcer would double every nudge. */
+  function rtRulerSVG(v, winMs, winIsGuess){
+    var x = rtX(v), half = (winMs / 2) / RT_LIMIT * (RT_XW / 2);
+    var bl = Math.max(RT_X0, x - half), br = Math.min(RT_X0 + RT_XW, x + half);
+    var lx = Math.max(76, Math.min(224, x));
+    var t = '';
+    [-300, -150, 0, 150, 300].forEach(function(m){
+      var tx = rtX(m).toFixed(1);
+      t += '<line x1="'+tx+'" y1="'+(m===0?22:26)+'" x2="'+tx+'" y2="'+
+           (m===0?38:34)+'" stroke="var(--muted)" stroke-width="'+
+           (m===0?1.5:1)+'"/>';
+    });
+    return '<svg viewBox="0 0 300 68" aria-hidden="true" focusable="false">'+
+      '<line x1="'+RT_X0+'" y1="30" x2="'+(RT_X0+RT_XW)+'" y2="30" '+
+        'stroke="var(--line)" stroke-width="1.5"/>'+ t +
+      '<text x="'+RT_X0+'" y="16" fill="var(--muted)" font-size="11">← earlier</text>'+
+      '<text x="'+(RT_X0+RT_XW)+'" y="16" text-anchor="end" '+
+        'fill="var(--muted)" font-size="11">later →</text>'+
+      /* the value: a rule THROUGH the ruler with a triangular cap, so it is a
+         shape and not only a hue — never colour alone (docs/DESIGN.md) */
+      '<path d="M'+(x-5).toFixed(1)+',6 L'+(x+5).toFixed(1)+',6 L'+
+        x.toFixed(1)+',13 Z" fill="var(--tint,#6f9bff)"/>'+
+      '<line x1="'+x.toFixed(1)+'" y1="13" x2="'+x.toFixed(1)+
+        '" y2="41" stroke="var(--tint,#6f9bff)" stroke-width="2"/>'+
+      /* the legend bracket — HOW WIDE a green window is, in these units */
+      '<path d="M'+bl.toFixed(1)+',46 v5 M'+bl.toFixed(1)+',48.5 H'+
+        br.toFixed(1)+' M'+br.toFixed(1)+',46 v5" fill="none" '+
+        'stroke="var(--muted)" stroke-width="1"/>'+
+      '<text x="'+lx.toFixed(1)+'" y="64" text-anchor="middle" '+
+        'fill="var(--muted)" font-size="11">'+
+        (winIsGuess ? 'about ' : '')+Math.round(winMs)+
+        ' ms — one green window</text>'+
+      '</svg>';
+  }
+
+  /* The control's own stylesheet, the id-guarded idiom cvCss()/pgCss() use:
+     injected once per document, never per render. --tint/--tint-wash resolve
+     from #dbody[data-tint="vision"] (zs-kit.css §17) exactly the way the
+     region boxes above do, and carry that tint's own literal as the fallback
+     for a stage rendered outside the tinted subtree. */
+  var RT_CSS_ID = 'zs-rt-css';
+  function rtCss(){
+    if(document.getElementById(RT_CSS_ID)) return;
+    var s = document.createElement('style'); s.id = RT_CSS_ID;
+    s.appendChild(document.createTextNode([
+      /* SOLID inset, not another translucent pane: the owner's "real visual
+         distinction between cards, not everything the same shade of dark
+         blue", answered with a material step rather than a sixth hue —
+         docs/DESIGN.md, "never stack a light translucent surface on
+         another". */
+      '#cv-rt{background:var(--panel2);border:1px solid var(--line);',
+        'border-radius:14px;padding:12px 12px 14px;margin:12px 0 4px}',
+      '#cv-rt .rtfld{padding:0;border:0}',
+      '#cv-rt .rtpic{margin:8px 0 10px}',
+      '#cv-rt .rtpic svg{display:block;width:100%;height:auto}',
+      '#cv-rt .rtkeys{display:flex;justify-content:center;margin:2px 0 10px}',
+      '#cv-rt .rtkeys .stp{transform:scale(1.12);transform-origin:center}',
+      '#cv-rt .rtrng{width:100%;margin-top:0}',
+      '#cv-rt .rtends{display:flex;justify-content:space-between;gap:12px;',
+        'margin-top:10px}',
+      '#cv-rt .rtends span{display:block;max-width:47%;color:var(--muted);',
+        'font-size:11px;line-height:1.4;letter-spacing:.004em}',
+      '#cv-rt .rtends span+span{text-align:right}',
+      '#cv-rt .rtends b{display:block;color:var(--text);font-size:12.5px;',
+        'font-weight:600;letter-spacing:0}',
+      '#cv-rt .rtreset{display:block;width:100%;margin-top:12px;',
+        'min-height:44px;border:1px solid var(--line);',
+        'border-radius:var(--r-ctl,12px);background:transparent;',
+        'color:var(--muted);font-size:12.5px;cursor:pointer;',
+        'font-family:inherit}',
+      '#cv-rt .rtreset[disabled]{opacity:.4;cursor:default}',
+      /* PRESS FEEDBACK, on pointer-down. docs/DESIGN.md: "anything a finger
+         can touch" answers immediately, and "the moment it waits for touch-up,
+         directness falls off a cliff". These two are the only controls in the
+         block the kit does not already cover — the .stp keys ride
+         `.stp button:active` and zs-motion's pressable() SEL, the range has a
+         real thumb — so without these lines a full-width 44 px button and
+         five tappable dots were the only dead-feeling things on the card.
+         Same travel the kit uses: .972 for a wide control, .90 for a small
+         square one. A `[disabled]` reset must not dip; it did nothing. */
+      '#cv-rt .rtreset:not([disabled]):active{transform:scale(.972);',
+        'background:var(--panel)}',
+      '#cv-rt-out .rtdot:active{transform:scale(.9)}',
+      /* THE OUTCOME BLOCK. "It let go for you" and "it stood back" must not
+         be the same object: one is the feature working, the other is the
+         feature declining to act, and they call for opposite responses. Fill
+         AND wording differ, never the fill alone. */
+      '#cv-rt-out .rtcard{border-radius:14px;padding:10px 12px;margin:10px 0 0;',
+        'border:1px solid var(--line);background:var(--panel2)}',
+      '#cv-rt-out .rtcard.fired{border-color:var(--tint,#6f9bff);',
+        'background:var(--tint-wash,rgba(111,155,255,.14))}',
+      '#cv-rt-out .rtcard.stood{background:transparent}',
+      '#cv-rt-out .rtcard b{display:block;font-size:13.5px}',
+      '#cv-rt-out .rtcard em{display:block;font-style:normal;color:var(--muted);',
+        'font-size:11.5px;margin-top:3px}',
+      /* THE GAP IS 38 px AND THAT IS ARITHMETIC, NOT TASTE. A 14 px cap with
+         an ::after inset of -15px has a 44 px hit box, so two neighbouring
+         caps 8 px apart would have hit boxes OVERLAPPING by 22 px — exactly
+         the defect ibGap() was written for, where a tap in the seam
+         hit-tested to whichever ::after painted last. 44 + 8 = 52 px between
+         centres, minus the 14 px cap, is 38 px of flex gap; five dots then
+         span 222 px, which fits a 340 px card with room over. */
+      '#cv-rt-out .rtdots{display:flex;gap:38px;align-items:center;',
+        'flex-wrap:wrap;margin:10px 0 0;padding:0 2px}',
+      '#cv-rt-out .rtdot{position:relative;flex:none;width:14px;height:14px;',
+        'border-radius:50%;padding:0;box-sizing:border-box;',
+        'border:1.5px solid var(--muted);background:transparent;cursor:pointer}',
+      '#cv-rt-out .rtdot::after{content:"";position:absolute;inset:-15px}',
+      '#cv-rt-out .rtdot.on{border-color:var(--tint,#6f9bff);',
+        'background:var(--tint,#6f9bff)}',
+      '#cv-rt-out .rtlab{display:block;color:var(--muted);font-size:11.5px;',
+        'margin-top:12px}',
+      '#cv-rt-out .rtsum{display:block;color:var(--muted);font-size:11.5px;',
+        'margin-top:10px}',
+      'body.a11y-big #cv-rt .rtkeys .stp{transform:scale(1.2)}',
+      'body.a11y-big #cv-rt-out .rtdot{width:18px;height:18px}',
+      /* THE DELAY LINE + MEASURE MY DELAY (D90): the line under the outcome
+         block, and the sheet's own pieces. Tokens only; the big readout is
+         tabular so a changing number never reflows its row (DESIGN.md). */
+      '#cv-delay .dlline{color:var(--muted);font-size:12.5px;line-height:1.5;',
+        'margin:10px 2px 0}',
+      '#cv-delay .dlline b{color:var(--text,#e6edf3);font-variant-numeric:tabular-nums}',
+      '#cv-delay .btn{margin-top:10px}',
+      '.mdl .mdl-p{font-size:14px;line-height:1.5;margin:8px 0 10px}',
+      '.mdl .mdl-p .gly-deco{display:inline-block;vertical-align:middle;',
+        'width:22px;height:22px;margin:0 3px}',
+      '.mdl .mdl-big{font-size:22px;font-weight:700;text-align:center;',
+        'font-variant-numeric:tabular-nums;margin:10px 0 6px}',
+      '.mdl .mdl-samples{color:var(--muted);font-size:12.5px;line-height:1.5;',
+        'text-align:center;font-variant-numeric:tabular-nums;margin-bottom:6px}',
+      /* the "measuring" dot breathes; the words carry the state on their own
+         (never colour or motion alone), and Reduce Motion stills it */
+      '.mdl .mdl-dot{display:inline-block;width:10px;height:10px;border-radius:50%;',
+        'background:var(--accent);margin-right:8px;vertical-align:middle;',
+        'animation:zs-mdl-pulse 1.2s ease-in-out infinite}',
+      '@keyframes zs-mdl-pulse{0%,100%{opacity:.35}50%{opacity:1}}',
+      'body.a11y-motion .mdl .mdl-dot{animation:none}',
+      '@media (prefers-reduced-motion:reduce){.mdl .mdl-dot{animation:none}}'
+    ].join('')));
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* Everything live on this screen. Three self-pacing loops (a JSON status
+     poll, the picture itself, and — only when the board has one — the region
+     reader) and the things the user can do: turn it on, tap a colour, widen
+     the match, draw a box, move it, resize it, name it, teach it, delete it.
+     Every one of them is a real call to the board.
+
+     The picture loop is paced by each frame actually landing rather than by a
+     fixed interval, so a slow link makes the preview slower instead of piling
+     up requests the board has to answer. Asking faster than the board makes
+     pictures is nearly free too: the ask carries the name of the frame we
+     already hold, and the board answers "still that one" in a few dozen bytes
+     with no picture attached. It never re-encodes, and now it never re-sends
+     either. */
+
+  /* shared with 23-vision.js (wireCv and R.vision) */
+  SEC.visionOf = visionOf;
+  SEC.visionWrite = visionWrite;
+  SEC.visionSaid = visionSaid;
+  SEC.saveVision = saveVision;
+  SEC.clearVision = clearVision;
+  SEC.sameChroma = sameChroma;
+  SEC.cvBlankStanding = cvBlankStanding;
+  SEC.cvMergeExclude = cvMergeExclude;
+  SEC.cvMergeRegions = cvMergeRegions;
+  SEC.cvToolsOf = cvToolsOf;
+  SEC.bytesLabel = bytesLabel;
+  SEC.regionMap = regionMap;
+  SEC.cvKindRow = cvKindRow;
+  SEC.cvKindOf = cvKindOf;
+  SEC.cvPurposeLabel = cvPurposeLabel;
+  SEC.cvKindArt = cvKindArt;
+  SEC.cv01 = cv01;
+  SEC.cvRect = cvRect;
+  SEC.cvRectEq = cvRectEq;
+  SEC.cvRegionsOf = cvRegionsOf;
+  SEC.cvRegId = cvRegId;
+  SEC.cvCss = cvCss;
+  SEC.cvPicSizeIdx = cvPicSizeIdx;
+  SEC.cvNum = cvNum;
+  SEC.cvHex = cvHex;
+  SEC.cvRadiusIdx = cvRadiusIdx;
+  SEC.cvWhere = cvWhere;
+  SEC.cvStageHtml = cvStageHtml;
+  SEC.cvOverlay = cvOverlay;
+  SEC.cvBoxHtml = cvBoxHtml;
+  SEC.cvSayCard = cvSayCard;
+  SEC.cvRungs = cvRungs;
+  SEC.mdPathWords = mdPathWords;
+  SEC.mdToday = mdToday;
+  SEC.rtSay = rtSay;
+  SEC.rtRulerSVG = rtRulerSVG;
+  SEC.rtCss = rtCss;
+  SEC.AIM_POINTS = AIM_POINTS;
+  SEC.AIM_POINT_NAMES = AIM_POINT_NAMES;
+  SEC.REACH_PRESETS = REACH_PRESETS;
+  SEC.REACH_NAMES = REACH_NAMES;
+  SEC.CAP_LABEL = CAP_LABEL;
+  SEC.CV_KINDS = CV_KINDS;
+  SEC.CV_PURPOSES = CV_PURPOSES;
+  SEC.CV_MIN_SIDE = CV_MIN_SIDE;
+  SEC.CV_MAX_REGIONS = CV_MAX_REGIONS;
+  SEC.CV_RADII = CV_RADII;
+  SEC.CV_PIC_SIZES = CV_PIC_SIZES;
+  SEC.RT_STEP = RT_STEP;
+  SEC.RT_LIMIT = RT_LIMIT;
+  SEC.MD_PRESSES = MD_PRESSES;
+  SEC.MD_GAP_MS = MD_GAP_MS;
+  SEC.MD_POLL_MS = MD_POLL_MS;
+  SEC.MD_DEFAULT_MS = MD_DEFAULT_MS;
+  SEC.RT_WINDOW_MS = RT_WINDOW_MS;
+});

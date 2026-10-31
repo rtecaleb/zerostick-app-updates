@@ -1,0 +1,1319 @@
+/* sections/22-global.js — Global Settings: the room about the box.
+ *
+ * R.global and its tabs (General, Performance, Access, and Developer in a dev
+ * build only, zs-build.js): the theme
+ * (D185), Passthrough Mode's shortcuts (navBlock, /navigate/settings), the device
+ * strip, credits, the developer tools (calibration packs from 06-velocity-cal.js).
+ *
+ * Screens (window.RENDERERS):  R.global
+ * Core / board routes:        /logs, /navigate/active, /navigate/settings, /service/restart,
+ *                             /settings/tournament, /settings/slotkeys (D346, D348),
+ *                             /settings/menufeedback (D352),
+ *                             /vision/snapshot, and (Developer, a dev Core only) /vision/patch/<n>
+ * Tests:                      test-theme.js, test-settings-icons.js, test-core-mode.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('global', function (SEC) {
+  /* from the files before this one */
+  var acc = SEC.acc, addbtn = SEC.addbtn, armConfirm = SEC.armConfirm, btn = SEC.btn,
+      card = SEC.card, esc = SEC.esc, helpHTML = SEC.helpHTML, ico = SEC.ico,
+      note = SEC.note, picCreditsHTML = SEC.picCreditsHTML, R = SEC.R, seg = SEC.seg,
+      sh = SEC.sh, srcGly = SEC.srcGly, srcNameOf = SEC.srcNameOf,
+      toggleFld = SEC.toggleFld, warnNotes = SEC.warnNotes, wireRebind = SEC.wireRebind,
+      ZS = SEC.ZS, openCalPacks = SEC.openCalPacks, openSavePack = SEC.openSavePack,
+      ovSetTab = SEC.ovSetTab, copyText = SEC.copyText, fld = SEC.fld;
+
+  /* ── Global Settings (tabbed) ─────────────────────────────────── */
+  /* There is no DEV.version any more. It was a hard-coded '0.4.1' presented on
+     two tabs as "Firmware — ZeroStick 0.4.1" while the board itself reported
+     0.1.0, and the .bin flasher below it invented a new version number out of
+     the filename after a 2.6-second fake progress bar. The only real version in
+     this product is the one the agent reports, so that is the only one shown. */
+  var G_TAB = 'General';
+  /* DEVELOPER MODE (owner, 2026-10-02): the Developer tab exists only in a
+     dev build (zs-build.js: the owner's builds always, customer builds
+     never). A customer build keeps what a customer needs from it - copy
+     diagnostics, the artwork licences, factory reset - on General. */
+  function devBuild(){ return !!(window.ZS_BUILD && window.ZS_BUILD.dev === true); }
+  if(window.ZS) ZS.devBuild = devBuild;
+  /* DEVELOPER MODE (owner, 2026-10-14): the Debug box's 2200 sets it on this
+     device; it unlocks the screens that are COMING SOON for everyone else */
+  if(window.ZS) ZS.devMode = function(){
+    try{ return localStorage.getItem('zs-dev-mode') === '1'; }catch(e){ return false; }
+  };
+  /* D398 (owner, 2026-10-16: "remove the 'teach the Core this gun' stuff"):
+     gun training (Teach the Core this gun, the trained line, the picture
+     talk) is hidden from everyone, developer mode included, unless THIS
+     switch is on: Global Settings > Developer > Show gun training tools.
+     Developer builds only (a release build never has it), off by default,
+     kept on this device. auto-actions.js asks it. */
+  var GUN_TRAINING_KEY = 'zs-gun-training';
+  if(window.ZS) ZS.gunTraining = function(){
+    if(!devBuild()) return false;
+    try{ return localStorage.getItem(GUN_TRAINING_KEY) === '1'; }catch(e){ return false; }
+  };
+  /* the owner's easter egg (2026-10-13), a combo so nobody finds it by
+     accident. In EVERY build, store builds included (owner, 2026-10-14: "I
+     want the easter egg to be there in launch software and products, but I
+     just don't want anyone to find it but me unless they somehow randomly
+     figure that out"): open Global Settings, then tap General
+     once, Performance exactly 10 times, then General exactly 8 times, with
+     nothing else in between, and a little card opens. Any other tap starts it
+     over. One listener on the page (capture phase), so redraws don't matter. */
+  if(!window.__zsEgg) (function(){
+    window.__zsEgg = true;
+    var COMBO = ['General'];
+    var i;
+    for(i = 0; i < 10; i++) COMBO.push('Performance');
+    for(i = 0; i < 8; i++) COMBO.push('General');
+    var armed = false, pos = 0;
+    function show(){
+      if(!ZS.sheetOpen) return;
+      ZS.sheetOpen('\u2764', '<div class="egg-amelia" style="position:relative;text-align:center;padding:6px 4px 34px">'+
+        '<img class="egg-photo" src="brand/egg-amelia.jpg" width="900" height="599" alt="Caleb and Amelia" style="display:block;width:100%;height:auto;border-radius:14px;margin:0 0 18px">'+
+        '<div style="font-size:40px;line-height:1" aria-hidden="true">\u2764\uFE0F</div>'+
+        '<div style="font-size:24px;font-weight:800;margin-top:14px">I Love Amelia Barton</div>'+
+        '<div style="font-size:18px;margin-top:6px;color:var(--muted)">9/22/?</div>'+
+        '<div class="egg-made" style="position:absolute;left:12px;bottom:8px;font-size:11px;color:var(--muted)">10.12.2026</div></div>');
+    }
+    document.addEventListener('click', function(e){
+      var t = e.target && e.target.closest ? e.target : null;
+      if(!t){ armed = false; pos = 0; return; }
+      /* step 0: opening Global Settings arms it */
+      if(t.closest('[data-more="global"]')){ armed = true; pos = 0; return; }
+      var tab = t.closest('.subtabs button[data-g]');
+      var name = tab ? tab.getAttribute('data-g') : null;
+      if(!armed || name !== COMBO[pos]){ armed = false; pos = 0; return; }
+      pos++;
+      if(pos === COMBO.length){ armed = false; pos = 0; setTimeout(show, 350); }
+    }, true);
+  }());
+  /* THE CORE'S HALF (D223): a Core built as a release image says
+     "devMode":false in /status and has none of its developer-only routes
+     (firmware components/zs_api/parts/dev.c), so even a dev build of this app
+     hides the Developer tools that need them. Absent (an EXO, or a Core from
+     before D223, whose images all had those routes) counts as on. */
+  function coreDevMode(){
+    var st = ZS.live && ZS.live.status;
+    return !(st && st.product === 'core' && st.devMode === false);
+  }
+  if(window.ZS) ZS.coreDevMode = coreDevMode;
+  function isCore(){ return !!(ZS.productId && ZS.productId() === 'core'); }
+  /* Core developer tools: only what a dev Core serves. A new one that calls
+     a developer-only route goes HERE (docs/CODE-STRUCTURE.md) - e.g. the
+     capture chip's firmware tools once /capture/fw/... exists. */
+  function coreDevHTML(){
+    if(!isCore()) return '';
+    if(!coreDevMode()){
+      return sh('Core developer tools')+
+        note('This Core runs a release firmware (developer mode off), so it has no '+
+             'developer routes and their tools are hidden. Flash a developer image '+
+             'to use them.');
+    }
+    var sim = !!(ZS.simMnk && ZS.simMnk.on());
+    return sh('Core developer tools')+
+      btn((sim ? '☑' : '☐')+' Pretend a mouse and keyboard are plugged in', null, 'g-simmnk')+
+      /* D285: the explanation is the "?" */
+      helpHTML('g-simmnk', 'Pretend a mouse and keyboard are plugged in',
+           'Shows the mouse and keyboard tabs and settings as if both were plugged into the Core. '+
+           'Changes still save to the real config. The app reloads when you switch it.')+
+      btn('▦ What each watched area sees (32×16)', null, 'g-patches')+
+      '<div id="g-patchesout" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px"></div>';
+  }
+  /* The Debug box's commands (owner, 2026-10-13). Keys are compared with
+     spaces removed and lower-cased. A command here is a client-side treat or
+     a debug helper: anything that changes the Core goes through the Core's
+     own developer routes, never a secret string in the app, because anyone
+     can read this file. */
+  function eggCard(){
+    if(!ZS.sheetOpen) return;
+    ZS.sheetOpen('\u2764', '<div class="egg-amelia" style="position:relative;text-align:center;padding:6px 4px 34px">'+
+      '<img class="egg-photo" src="brand/egg-amelia.jpg" width="900" height="599" alt="Caleb and Amelia" style="display:block;width:100%;height:auto;border-radius:14px;margin:0 0 18px">'+
+        '<div style="font-size:40px;line-height:1" aria-hidden="true">\u2764\uFE0F</div>'+
+      '<div style="font-size:24px;font-weight:800;margin-top:14px">I Love Amelia Barton</div>'+
+      '<div style="font-size:18px;margin-top:6px;color:var(--muted)">9/22/?</div>'+
+        '<div class="egg-made" style="position:absolute;left:12px;bottom:8px;font-size:11px;color:var(--muted)">10.12.2026</div></div>');
+  }
+  var DEBUG_CMDS = {
+    '01/10/2008': function(){ eggCard(); return ''; },
+    'help': function(){ return 'Commands are secret. Ask the ZeroStick team.'; },
+    /* owner, 2026-10-14: developer mode opens what is locked behind COMING
+       SOON (Legacy Devices). Typed again, it turns off. Kept on this device. */
+    '2200': function(){
+      var on = !(ZS.devMode && ZS.devMode());
+      try{ if(on) localStorage.setItem('zs-dev-mode', '1'); else localStorage.removeItem('zs-dev-mode'); }catch(e){}
+      return on ? 'Developer mode is on.' : 'Developer mode is off.';
+    }
+  };
+  function runDebug(raw){
+    var k = String(raw || '').replace(/\s+/g, '').toLowerCase();
+    if(!k) return '';
+    var fn = DEBUG_CMDS[k];
+    return fn ? fn() : 'Unknown command.';
+  }
+  function gTabs(){ return devBuild() ? ['General','Performance','Access','Developer']
+                                      : ['General','Performance','Access']; }
+  /* what a customer needs from the Developer tab, on General when there is
+     no Developer tab */
+  function supportHTML(){
+    return sh('Support')+
+      btn('⧉ Copy diagnostics — version, config and log', null, 'g-diag')+
+      (window.ZSART && typeof ZSART.creditsHTML === 'function'
+        ? sh('Credits') + acc('Artwork and licences', 'info', ZSART.creditsHTML() + picCreditsHTML(), false)
+        : '')+
+      sh('Danger zone', 'danger')+
+      btn('Factory reset — erase phone-app data','danger','g-freset');
+  }
+
+  /* D272: SETTINGS > LEGAL. The app's legal documents (zs-legal.js, made
+     from legal/app/ by tools/gen-legal.js) open in the app, offline. On
+     General in every build: a customer needs them as much as the owner.
+     No "?" here (D236/D260 are for settings; a document is not one). */
+  function legalHTML(){
+    if(!window.ZSLEGAL) return '';
+    return sh('Legal')+
+      btn('Terms, privacy and licences', null, 'g-legal')+
+      '<p class="gnavd" id="g-legal-said">'+ZSLEGAL.agreedLine()+'</p>'+
+      /* 2026-10-23 (owner): the company that makes ZeroStick, with its mark */
+      '<div class="g-maker" style="display:flex;align-items:center;gap:12px;margin:14px 2px 4px">'+
+        '<img src="brand/rte-logo-white.png" alt="" width="54" height="25" style="display:block">'+
+        '<span style="font-size:12.5px;line-height:1.4;color:var(--muted)">ZeroStick is made by<br>'+
+        '<b style="color:var(--text);font-weight:650">Reliable Trend Enterprises LLC</b></span></div>';
+  }
+
+  /* navBlock() — an eight-control "Passthrough Mode" panel — was removed once as a
+     faithful copy of a XIM feature the board had no trace of: every control
+     saved to localStorage and the copy asserted behaviour ("the LED breathes
+     white while it's on") for an LED that is not wired.
+
+     It is back, and this time the engine is behind it: mapping/navigate.py,
+     engine._set_navigate_active, GET/POST /navigate. Two controls, not eight,
+     because two is what the agent actually implements. Everything drawn here
+     reads from status.navigateMode and writes to the board. */
+
+  var NAV_NAMES = {
+    KEY_LEFTBRACE:'[', KEY_RIGHTBRACE:']',
+    BTN_SELECT:'View', BTN_START:'Menu',
+    BTN_THUMBL:'L3', BTN_THUMBR:'R3',
+    BTN_MODE:'Guide', BTN_SOUTH:'A', BTN_EAST:'B', BTN_WEST:'X', BTN_NORTH:'Y'
+  };
+  /* One naming function for both the summary line and the rows, so a shortcut
+     never reads two different ways on the same screen. NAV_NAMES wins because
+     srcNameOf spells the bracket keys "Leftbrace"/"Rightbrace" — correct, and
+     not what is printed on the key. */
+  function navKeyName(code, p){
+    if(NAV_NAMES[code]) return NAV_NAMES[code];
+    var n = srcNameOf(code, p);
+    if(n) return n;
+    return String(code||'').replace(/^KEY_/,'').replace(/^BTN_/,'').toLowerCase();
+  }
+  function navComboText(combos, p){
+    if(!combos || !combos.length) return 'no shortcut set';
+    return combos.map(function(c){
+      return c.map(function(x){ return navKeyName(x, p); }).join(' + ');
+    }).join('  ·  ');
+  }
+
+  function navBlock(st, live){
+    var nm = (live && st && st.navigateMode) || {};
+    var active = !!nm.active;
+    var armed  = nm.enabled !== false;
+    var combos = nm.combos || [];
+    var custom = nm.usingDefaultCombos === false;
+    /* Friendly names come from the ACTIVE config's device family, the same
+       source R.global's rebind rows already use — this screen has no config
+       of its own. */
+    var ap = ZS.prof(ZS.activeId);
+    function comboWords(c){
+      return c.map(function(code){ return navKeyName(code, ap); }).join(' + ');
+    }
+
+    /* THE FLAGSHIP ACCESSIBILITY ESCAPE HATCH WAS A 44px GREY SWITCH.
+       Passthrough Mode is the way OUT of a config that has remapped you away
+       from the console's own menus — the single most consequential control in
+       Global Settings — and it was a toggle in a row, identical in weight to
+       "Shortcut buttons" underneath it and to "High contrast" on the next
+       tab. General measured 3.5% chromatic with no solid fill anywhere above
+       the fold; this is the one obvious first move on the tab, so it takes
+       the solid ion key and says the verb.
+
+       ONE CONTROL, NOT TWO: the switch is REPLACED, not supplemented — a
+       state that can be changed from two places on the same card is how a
+       tremor turns one press into a no-op. The state stays in words (and in
+       green when it is live), so nothing is carried by colour alone, and
+       #g-nav is still the wrapper every caller and test knows. */
+    var navVerb = active ? 'Turn Passthrough Mode off' : 'Turn on Passthrough Mode';
+    /* D159: NATIVE. On a Core with a keyboard or mouse plugged in, Navigate
+       hands them to the console as they are (the Pico becomes a plain USB
+       keyboard + mouse for a moment); with only a controller, the controller
+       plays with no config. nm.native is absent on older firmware, and then
+       the words are the old ones. The state is always in words. */
+    var nat = nm.native || null;
+    var natWords = {
+      on:        'on — Native: your keyboard and mouse go straight to the console',
+      switching: 'on — switching to Native keyboard + mouse…',
+      pad:       'on — Native: your controller plays with no config',
+      refused:   'on — plain menu controls (this Pico needs the Native update)'
+    };
+    var navSay  = live ? (active ? ((nat && natWords[nat.state]) || 'on — plain menu controls')
+                                 : 'off — your config is running')
+                       : 'board offline — this needs the board';
+    var h = sh('Passthrough Mode')+
+      card('<div id="g-nav">'+
+           '<div class="gnavh"><b>Passthrough Mode</b>'+
+             '<span class="gnavs'+(active?' live':'')+'">'+esc(navSay)+'</span></div>'+
+           /* 30 WORDS BEFORE THE BUTTON, of which the middle 14 were a key
+              map. What you need in front of the button is what the button
+              does; which key lands on which is reference you go looking for,
+              and "your config is not changed" is the reassurance you want
+              available before you press an unfamiliar button — both are the
+              chip's job, and both are in it. */
+           (nat ? '<p class="gnavd">Native: your own keyboard, mouse or controller go to '+
+                    'the console as if plugged straight in, with no config, until you turn it off.</p>'
+                : '<p class="gnavd">Swaps your controls to a plain set for menus, until '+
+                    'you turn it off.</p>')+
+           helpHTML('g-navmap', 'Passthrough Mode',
+             (nat ? 'With a <b>keyboard or mouse</b> plugged into the Core, they reach the '+
+                    'console or PC <b>exactly as they are</b> (the adapter re-connects as a '+
+                    'keyboard + mouse for about a second, on the way in and out). With only a '+
+                    '<b>controller</b>, it plays with no config. Consoles take a keyboard in '+
+                    'their menus; a mouse mostly on a PC. Your shortcut to leave is never typed. '
+                  : 'It puts <b>the d-pad on WASD and the arrow keys, Enter to confirm and '+
+                    'Esc to go back</b>. ')+
+             'Your config is not changed — everything comes back '+
+             'exactly as it was when you turn it off.')+
+           btn(navVerb, 'primary', 'g-nav-go')+
+           '</div>'+
+           '<div id="g-navarm">'+toggleFld('Shortcut buttons', armed,
+             live ? (combos.length ? 'on — '+esc(navComboText(combos, ap))
+                                   : 'on — but no shortcut is set')
+                  : 'board offline', true)+'</div>');
+
+    h += sh('Your shortcuts');
+    if(!live){
+      h += note('<b>Board offline.</b> Shortcuts live on the board, so they cannot be listed or changed until it is reachable.','warn');
+      return h;
+    }
+    if(!combos.length){
+      h += note('None set.')+
+        helpHTML('g-navnone', 'Your shortcuts',
+          'None set — the switch above is the only way in and out. Add one below and it goes straight to your board.');
+    } else {
+      h += card(combos.map(function(c, i){
+        var words = comboWords(c);
+        /* P5: one glyph per key, thin + between them, the words kept after.
+           srcGly draws keycaps for keys, the mouse for clicks and the pad's
+           own family for buttons — never ZSG.chip, which prints its own label
+           and would double the words. ONE aria-hidden wrapper hides the whole
+           strip, so the row announces exactly the words it always did. */
+        var art = '', k;
+        for(k=0;k<c.length;k++){
+          if(k) art += '<span style="color:var(--muted);font-size:11px;margin:0 3px">+</span>';
+          art += srcGly(navKeyName(c[k], ap), c[k]);
+        }
+        /* ── …AND THE SAME RULE THE BUTTONS LIST USES ────────────────────
+           Reviewer, 2026-08-28. srcGly draws a real symbol for a face button
+           but its own LETTERS for a keycap, a stick click or a number — so
+           three of the four default shortcuts printed themselves twice, side
+           by side, 4px apart:
+
+             [ + ]   “[ + ]”   ✕
+             L3 + R3 “L3 + R3” ✕
+             1 + 3   “1 + 3”   ✕
+
+           Only "View + Menu" differed, because those two ARE symbols. Same
+           call as inputRowHTML's sameWord(): compare what the strip actually
+           spells to the words beside it and drop the picture when it is the
+           caption. The words stay — they are the half a screen reader reads,
+           and the half the remove button quotes. */
+        var spelled = art.replace(/<[^>]*>/g, '').replace(/\s+/g, '');
+        if(spelled && spelled === String(words).replace(/\s+/g, '')) art = '';
+        if(art) art = '<span class="gly-deco" aria-hidden="true" style="margin-right:8px">'+art+'</span>';
+        return '<div class="lrow" data-i="'+i+'">'+
+          '<span class="src">'+art+esc(words)+'</span>'+
+          '<span class="rt"><button class="ib danger nav-del" data-i="'+i+'" '+
+            'aria-label="remove shortcut '+esc(words)+'">✕</button></span></div>';
+      }).join(''));
+    }
+    h += addbtn('Add a shortcut','nav-add');
+    if(custom) h += btn('Restore the default shortcuts', 'danger', 'nav-reset');
+    /* the closing paragraph of a list becomes the chip at the foot of it:
+       "press them together" is what a shortcut list already implies, and the
+       two facts worth keeping — that it toggles rather than holds, and that
+       your accommodations survive it — are exactly what somebody scrolls
+       back down here to check. */
+    h += helpHTML('g-navcombo', 'Using a shortcut',
+              'Press its buttons together to turn Passthrough Mode on, and press them '+
+              'again to turn it off. <b>Your accommodations stay on either way.</b>');
+    return h;
+  }
+
+  /* ── ZEN STUDIO PARITY ON THE CORE (D346, D348) ─────────────────────
+     Two device-wide switches a Cronus Zen player looks for, both OFF by
+     default and both kept on the Core (firmware parts/zen.c):
+       Tournament Mode   scripts, Smart Actions (macros, turbo, saved
+                         recoil), AI actions and injected moves all stop;
+                         remaps, sticks and aim stay. POST /settings/tournament.
+       Controller shortcut for configs (Zen's "Remote Slot Change"): hold
+                         the console's home button and press Share / View
+                         (or L3 / LS) to go to the next config.
+                         POST /settings/slotkeys.
+       Script menu feedback (D352): with no phone or PC showing a script's
+                         screen, the controller's light and a buzz say its
+                         mod menu opened (L2/LT + Options/Menu), moved and
+                         closed. POST /settings/menufeedback.
+     Drawn only for a Core whose /status carries them (an older Core or an
+     EXO says nothing and gets nothing). The words say the state, never the
+     colour alone; the explanation is behind the "?" (D236, D285). */
+  var ZEN_CHORDS = ['guide_share', 'guide_l3'];
+  var ZEN_CHORD_WORDS = ['Home + Share / View', 'Home + L3'];
+  function zenBlock(st, live){
+    if(!st || (typeof st.tournament !== 'boolean' && !st.slotKeys &&
+               typeof st.menuFeedback !== 'boolean')) return '';
+    var h = '';
+    if(typeof st.tournament === 'boolean'){
+      var tOn = !!st.tournament;
+      h += sh('Tournament Mode')+
+        card('<div id="g-tourn">'+
+          toggleFld('Tournament Mode', tOn,
+            live ? (tOn ? 'on — scripts, Smart Actions and AI are off'
+                        : 'off — everything you set up runs')
+                 : 'board offline', true)+
+          helpHTML('g-tourn', 'Tournament Mode',
+            'For events and honest play: one switch turns off <b>GPC scripts, Smart Actions '+
+            '(macros, turbo, saved recoil patterns), AI and screen actions</b> and anything '+
+            'that moves the aim for you. <b>Your remaps, sticks, aim settings and '+
+            'accommodations stay exactly as they are.</b> It is saved on the Core, and HOME '+
+            'shows a Tournament badge while it is on.')+
+          '</div>');
+    }
+    if(st.slotKeys){
+      var sk = st.slotKeys;
+      var ci = Math.max(0, ZEN_CHORDS.indexOf(sk.chord));
+      h += sh('Change config from your controller')+
+        card('<div id="g-slotkeys">'+
+          toggleFld('Controller shortcut', !!sk.on,
+            live ? (sk.on ? 'on — '+ZEN_CHORD_WORDS[ci]+' goes to your next config'
+                          : 'off — configs change from the app only')
+                 : 'board offline', true)+
+          seg('Shortcut', ZEN_CHORD_WORDS, ci, true, null,
+            'hold the console button, then press the second one')+
+          helpHTML('g-slotkeys', 'Controller shortcut',
+            'Like a Cronus Zen’s Remote Slot Change. <b>Hold the console’s home button</b> '+
+            '(PS, Xbox or Home) <b>and press Share</b> (Create, View or Minus) — or L3 — '+
+            'and the Core goes to your <b>next config</b>, wrapping round after the last. '+
+            'The second button is kept from the console, so Share does not also take a '+
+            'screenshot. Scripts can read the setting with get_ctrlbutton().')+
+          '</div>');
+    }
+    if(typeof st.menuFeedback === 'boolean'){
+      var mOn = !!st.menuFeedback;
+      h += sh('Script menus without a screen')+
+        card('<div id="g-menufx">'+
+          toggleFld('Menu light and buzz', mOn,
+            live ? (mOn ? 'on — your controller answers a script’s menu'
+                        : 'off — script menus show in the app only')
+                 : 'board offline', true)+
+          helpHTML('g-menufx', 'Menu light and buzz',
+            'Most Zen scripts open their own menu with <b>L2 + Options</b> (LT + Menu) and draw '+
+            'it on a small screen. Your Core has no screen of its own, so the app’s HOME shows '+
+            'it while a script uses it. <b>When neither the app nor EXO Studio is showing it</b>, '+
+            'this lets your controller tell you instead: the light goes <b>white</b> and buzzes '+
+            'once when the menu opens, <b>ticks</b> each time a press changes the menu, and '+
+            'buzzes <b>twice</b> when you close it. A press that changed nothing stays silent. '+
+            'The script still gets every press. Off by default, so L2 + Options in a game never '+
+            'surprises you; rumble set to Off keeps the buzz away and leaves the light.')+
+          '</div>');
+    }
+    return '<div id="g-zen">'+h+'</div>';
+  }
+
+  /* ══ GLOBAL SETTINGS: THE ROOM ABOUT THE BOX ═══════════════════════
+     Measured 2026-08-18 on the running app at 375×812, all four tabs:
+       General 3.5% chromatic · Performance 2.1% · Access 2.6% · Developer
+       2.5%, and on three of the four the MOST PROMINENT PAINTED ELEMENT was
+       div.phead — the back button. Performance does not scroll, so 2.1% was
+       the whole screen. Not one of the four had a solid primary above the
+       fold, and two of them got LESS colourful across the previous pass.
+
+     THE HUE IS NOT THE FIX, AND CANNOT BE. Global already carries
+     data-tint="global" (phone.html openDetail → zs-kit.css §17), and its tint
+     is --steel #b9c6d8 — an ink-grade neutral, deliberately, because this
+     screen is about the HARDWARE and hardware is not one of the five config
+     rooms. Painting steel on more things buys ~0% chroma by construction. So
+     Global's identity has to be STRUCTURAL, and it is three things this
+     stylesheet gives it, on all four tabs:
+       · a device strip — the box's name, its link and its version, in steel,
+         at the top of every tab. It is the one thing that says "you are in
+         the settings for the ADAPTER, not for a config", and it replaces the
+         Device card General had and the Version card Developer had, so it is
+         consolidation rather than another row.
+       · a steel rail down the left of every group card, so the room has an
+         edge the eye can follow the way the tinted rooms have a hue.
+       · one solid primary per tab, above the fold — see each tab below.
+     Injected from here rather than added to a stylesheet the sibling lanes
+     own, the same way smart-actions.js carries its own screen's CSS. */
+  function injectGlobalCSS(){
+    if(document.getElementById('zs-global-css')) return;
+    var s = document.createElement('style');
+    s.id = 'zs-global-css';
+    s.textContent = [
+      /* the device strip */
+      '#dbody[data-tint="global"] .gdev{display:flex;align-items:center;gap:11px;',
+      'padding:12px 14px;margin:10px 0 4px;border:1px solid var(--line);',
+      'border-left:3px solid var(--tint,#b9c6d8);border-radius:var(--r-card);',
+      'background:var(--panel)}',
+      '#dbody[data-tint="global"] .gdev .gdi{flex:none;display:flex;align-items:center;',
+      'justify-content:center;width:34px;height:34px;border-radius:var(--r-chip);',
+      'background:var(--tint-wash,rgba(185,198,216,.13));',
+      'border:1px solid var(--tint-edge,rgba(185,198,216,.46));color:var(--tint,#b9c6d8)}',
+      '#dbody[data-tint="global"] .gdev .gdi svg{width:18px;height:18px}',
+      '#dbody[data-tint="global"] .gdev .gdi.gdpic{width:56px;height:56px;padding:0;overflow:hidden;',
+      'border-radius:12px;border-color:var(--line);background:none}',
+      '#dbody[data-tint="global"] .gdev .gdi.gdpic img{display:block;width:100%;height:100%;object-fit:cover}',
+      '#dbody[data-tint="global"] .gdev .gdt{flex:1;min-width:0}',
+      '#dbody[data-tint="global"] .gdev .gdn{display:block;font-size:14px;font-weight:700;',
+      'color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '#dbody[data-tint="global"] .gdev .gds{display:block;font-size:12px;color:var(--muted);margin-top:2px}',
+      '#dbody[data-tint="global"] .gdev .gdv{flex:none;font-size:11px;font-weight:700;',
+      'font-variant-numeric:tabular-nums;color:var(--tint,#b9c6d8);',
+      'border:1px solid var(--tint-edge,rgba(185,198,216,.46));border-radius:999px;padding:3px 9px}',
+      /* THE ROOM'S EDGE ON EVERY GROUP CARD — except a card of list rows,
+         which is the same exclusion zs-fixes.css §16 already reasoned out:
+         the rows carry their own state on that exact 3px column, and both
+         drawn at once hides every row's state behind one unbroken bar. */
+      '#dbody[data-tint="global"] .grp-card:not(:has(> .lrow))',
+      '{border-left:3px solid var(--tint,#b9c6d8)}',
+      /* .grp-card has NO padding of its own in this app — its children carry
+         it — so every block this file puts straight inside one has to. */
+      '#dbody[data-tint="global"] .grp-card > .gnavh,',
+      '#dbody[data-tint="global"] .grp-card > .gnavd,',
+      '#dbody[data-tint="global"] .grp-card > .gpair,',
+      '#dbody[data-tint="global"] .grp-card > .btn,',
+      '#dbody[data-tint="global"] #g-rate,',
+      '#dbody[data-tint="global"] #g-nav{padding-left:15px;padding-right:15px}',
+      '#dbody[data-tint="global"] #g-nav{padding-top:14px;padding-bottom:15px}',
+      '#dbody[data-tint="global"] .grp-card > .gnavh:first-child{padding-top:14px}',
+      '#dbody[data-tint="global"] .grp-card > .gpair:last-child{padding-bottom:15px}',
+      '#dbody[data-tint="global"] #g-rate{padding-top:14px;padding-bottom:15px}',
+      '#dbody[data-tint="global"] #g-rate > .flab{font-size:15px;font-weight:700;color:var(--text)}',
+      /* Passthrough Mode's own card: state in words, action as a solid key */
+      '#dbody[data-tint="global"] .gnavh{display:flex;align-items:baseline;gap:8px;',
+      'flex-wrap:wrap;margin-bottom:3px}',
+      '#dbody[data-tint="global"] .gnavh b{font-size:15px;font-weight:700;color:var(--text)}',
+      '#dbody[data-tint="global"] .gnavs{font-size:12.5px;color:var(--muted)}',
+      '#dbody[data-tint="global"] .gnavs.live{color:var(--green)}',
+      '#dbody[data-tint="global"] .gnavd{font-size:12.5px;color:var(--muted);',
+      'line-height:1.5;margin:0 0 12px}',
+      /* the output-rate keys */
+      '#dbody[data-tint="global"] .gkeys{display:flex;gap:8px;margin-top:10px}',
+      '#dbody[data-tint="global"] .gkey{flex:1 1 0;min-width:0;min-height:62px;padding:8px 2px;',
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;',
+      'border:1px solid var(--btn-2-edge);border-radius:var(--r-ctl);',
+      'background-color:var(--btn-2-bg);color:var(--btn-2-ink);font-family:inherit;',
+      'font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}',
+      '#dbody[data-tint="global"] .gkey i{font-style:normal;font-size:9.5px;font-weight:700;',
+      'letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}',
+      /* SOLID ION FOR "THIS IS THE ONE RUNNING". Not a new meaning: the
+         wizard's current step (.wzpip.now, zs-fixes.css) and the tapper row
+         (.lrow.tapper.go) already paint --btn-1-bg/--btn-1-ink for exactly
+         this. It is also a control you press, so the ladder's "solid ion = do
+         the thing" is intact. The word NOW under the number carries the same
+         fact without colour. */
+      '#dbody[data-tint="global"] .gkey.now{background-color:var(--btn-1-bg,#2fd9ce);',
+      'background-image:linear-gradient(180deg,#3ee3d8 0%,#2fd9ce 52%,#26c4ba 100%);',
+      'border-color:#3ee3d8;color:var(--btn-1-ink,#04120f);',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 3px 0 var(--btn-1-wall,#135e5a)}',
+      '#dbody[data-tint="global"] .gkey.now i{color:var(--btn-1-ink,#04120f);opacity:.8}',
+      '#dbody[data-tint="global"] .gkey:active{filter:none;box-shadow:inset 0 2px 5px rgba(0,0,0,.3)}',
+      'body.a11y-big #dbody[data-tint="global"] .gkey{min-height:60px;font-size:16px}',
+      /* the Access one-tap pair */
+      '#dbody[data-tint="global"] .gpair{display:flex;gap:8px;margin-top:10px}',
+      '#dbody[data-tint="global"] .gpair .btn{margin-top:0}',
+      '#dbody[data-tint="global"] .gpair .btn.pri{flex:2 1 0}',
+      '#dbody[data-tint="global"] .gpair .btn.sec{flex:1 1 0}',
+      /* the contrast modes flatten the ion cap the same way §14 does app-wide */
+      '@media (prefers-contrast: more){#dbody[data-tint="global"] .gkey.now{',
+      'background-image:none;border:2px solid var(--text)}}',
+      'body.a11y-contrast #dbody[data-tint="global"] .gkey.now{',
+      'background-image:none;border:2px solid var(--text)}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  /* THE ROOM'S SIGNATURE, ON ALL FOUR TABS. One strip, three facts: which box
+     this is, whether it is answering, and what it is running. General used to
+     carry two of them in a Device card and Developer repeated the third in a
+     Version card; this is those two cards, once, at the top, where "am I
+     talking to my adapter" is the question every one of these tabs starts
+     with. Never colour alone — the ● / ○ and the words say the same thing. */
+  function gdevHTML(){
+    var st = ZS.live.status;
+    var live = ZS.live.online!==false && st;
+    /* the product's name and board from the gate (phone.html PRODUCTS):
+       "ZeroStick EXO · Radxa Cubie A7S" as always on an A7S, "ZeroStick
+       Core · ESP32-P4" once /status says core */
+    var name = ZS.productName ? ZS.productName() : 'ZeroStick EXO';
+    var board = ZS.productBoard ? ZS.productBoard() : 'Radxa Cubie A7S';
+    return '<div class="gdev">'+
+      /* the real EXO render (the Device row's and HOME's), not a chip glyph
+         (owner, 2026-10-10: "you still have the placeholder images") */
+      '<span class="gdi gdpic" aria-hidden="true"><img src="brand/zs-exo-device.jpg" width="56" height="56" alt=""></span>'+
+      '<span class="gdt"><b class="gdn">'+esc(name)+'</b>'+
+      /* no board name until the board itself has said which it is (never the
+         product gate's A7S default, 2026-10-13) */
+      '<span class="gds">'+(live ? esc(board)+' · ' : '')+(live
+        ? '<span class="ok">● connected</span>'
+        : '<span style="color:var(--amber)">○ board offline</span>')+'</span></span>'+
+      (live && st.version ? '<span class="gdv">'+esc(st.version)+'</span>' : '')+
+      '</div>';
+  }
+
+  function globalTabHTML(tab){
+    if(tab==='General'){
+      var stG = ZS.live.status;
+      var liveG = ZS.live.online!==false && stG;
+      /* PASSTHROUGH MODE FIRST (2026-08-14). It is the flagship accessibility
+         escape hatch — the way out of a config that remapped you away from
+         the console's own menus — and it sat below the theme picker. The
+         theme can wait; being unable to leave a menu cannot. Order only:
+         every control keeps its label and the global namespace. */
+      return gdevHTML()+
+        /* Passthrough Mode's card and shortcuts, in its yellow (zs-flat.css §10) */
+        '<div class="gnavzone">'+navBlock(stG, liveG)+'</div>'+
+        /* D346 / D348: Tournament Mode and the controller's config shortcut */
+        zenBlock(stG, liveG)+
+        /* THE DEVICE CARD IS GONE FROM HERE and its two facts are in the strip
+           at the top of every tab — the board's name and the agent it is
+           running. It was the same two rows Developer's Version card carried,
+           at the bottom of a 1512px screen. */
+        /* A NOTE ABOUT A BUTTON THAT DOES NOT EXIST. "There is no update
+           button yet — ZeroStick has no updater to run" is a developer's
+           note-to-self shipped to a user: it names a feature, says it is
+           missing, and asks them to do nothing about it. Nobody looking at
+           this screen was wondering. */
+        legalHTML()+
+        btn('Restart adapter','caution','g-restart')+
+        (devBuild() ? '' : supportHTML());
+    }
+    if(tab==='Performance'){
+      var st = ZS.live.status; var live = ZS.live.online!==false && st;
+      var af = ZS.live.full[ZS.activeId];
+      var rateNow = (af && af.output && af.output.rateHz) || 250;
+      /* Four "Input polling" selectors and a "Low-latency mode" switch were
+         removed. Input rate is a property of the USB device itself — the board
+         reads through evdev, which delivers events as they ARRIVE, so there is
+         no rate for this app to set; and the engine loop has no buffer for a
+         low-latency mode to skip. All five wrote to localStorage and were read
+         by nothing. Output rate is real and stays. */
+      /* THE ONE THING YOU CAN DO ON THIS TAB, AS A THING YOU PRESS.
+         Performance is the least colourful screen in the app and it does not
+         scroll, so what you see IS the screen: 2.1% chromatic pixels, no
+         solid fill anywhere, and the loudest painted element was the back
+         header. Its only setting was a native <select> — a 26px grey pill
+         that says nothing until you open it, on a phone, in a product for
+         people with limited hand control.
+
+         It is now four keys with the live one solid. That is not a new
+         meaning for ion: .wzpip.now and .lrow.tapper.go already paint
+         --btn-1-bg / --btn-1-ink for "the one you are on", and these are
+         controls you press, so "solid ion = do the thing" holds too. The
+         word NOW under the number is the second channel.
+
+         HONEST FINDING, RECORDED HERE RATHER THAN INVENTED AROUND:
+         Performance has no action of its own beyond this. It is a readout
+         plus one setting — and that setting is a property of the CONFIG,
+         which is why the same four rates also live on Overview (where
+         test-rate-selector.js pins them). This screen mirrors it; Overview
+         owns it. #g-rate stays the wrapper id test-game-lock.js looks for. */
+      /* THE WRITE CONTROL LEFT THIS TAB (screen-map §7 / FLAG-a #2). The
+         rate is config state ({bind: output.rateHz}), so the config editor
+         owns the write — Device ▸ Update Rate (D340) — and a second set of write buttons here was
+         the two-homes bug this redesign exists to kill. This tab keeps the
+         honest READ (what the active config runs at right now) and a door.
+         #g-rate stays the wrapper id test-game-lock.js looks for. */
+      return gdevHTML()+
+        sh('Output')+
+        card('<div id="g-rate"><div class="flab">Output rate</div>'+
+          '<div class="gnavh" style="margin-top:8px"><b>'+rateNow+' Hz</b>'+
+            '<span class="gnavs'+(live?' live':'')+'">'+
+            (live?'the active config, live from the board':'from the stored config — board offline')+
+            '</span></div>'+
+          helpHTML('g-rate', 'Output rate', 'A property of the <b>config</b>, not the device — change it on '+
+            '<b>Device ▸ Update Rate</b>. Consoles cap this: <b>PS5 and Xbox read at 250 Hz</b>.')+
+          /* D340: the rate is its own card on Device, no longer inside the
+             Connection Method panel; the door scrolls to it */
+          btn('Change it on Device', null, 'g-rate-go')+'</div>')+
+        sh('Live')+
+        /* THREE BIG NUMBERS, NOT THREE MORE ROWS. Measured, this was the
+           least colourful screen in the app (meanChroma 11.5) and 42.7% of
+           it was one flat colour — and it does not scroll, so that WAS the
+           whole screen. These three readouts are the only live thing on it
+           and they were 13px values on the right-hand edge of three
+           identical rows. At 26px tabular they are legible from a metre
+           away, they fill the dead half of the pane with the one thing on it
+           that changes, and the labels are unchanged so nothing that reads
+           this screen reads differently. tabular-nums is not optional on a
+           counter that moves every tick — see docs/DESIGN.md. */
+        (live
+          ? '<div class="grp-card bigstats">'+
+              /* THE NUMBERS STAY, THE ENGINEER'S WORDS GO. "ENGINE TICKS",
+                 "BACKEND SENDS" and "AGENT UPTIME" name three internals —
+                 the engine loop, the output backend and the agent process —
+                 none of which this app has ever asked a user to know about.
+                 Same three values, said as what they are. */
+              '<div class="bigstat"><b>'+Number(st.tickSeq||0).toLocaleString()+'</b><span>Reads of your controls</span></div>'+
+              '<div class="bigstat"><b>'+Number((st.outputBackend&&st.outputBackend.stats&&st.outputBackend.stats.sends)||0).toLocaleString()+'</b><span>Updates to the console</span></div>'+
+              '<div class="bigstat"><b>'+Math.round((st.uptimeS||0)/60)+'<i> min</i></b><span>Running for</span></div>'+
+            '</div>'
+          : card('<div class="stat"><span>Board</span><b style="color:var(--amber)">offline — live stats unavailable</b></div>'))+
+        /* THE BOARD'S OWN COMPLAINTS BELONG ON THE PERFORMANCE SCREEN. This
+           is the tab you open when something feels wrong, and the adapter has
+           been saying what is wrong the whole time — warnNotes() is the same
+           renderer Overview uses, so the words are identical in both places
+           and there is no second source. It also fills the foot with the one
+           thing that is genuinely worth putting there: nothing when the board
+           is happy, which is a screen honestly saying "all clear". */
+        (live ? warnNotes(st) : '');
+    }
+    if(tab==='Access'){
+      /* THE ONE-TAP ACCOMMODATION. This tab measured 2.6% chromatic with no
+         solid fill anywhere and it GOT LESS COLOURFUL over the previous pass
+         — five identical grey rows on the screen whose entire subject is
+         making this app usable. The person who needs all of them needs them
+         at once, and asking someone who cannot read the screen to find and
+         flip four separate switches to be able to read the screen is the
+         defect. This is not a new setting: it writes the same three the rows
+         below own, through the same store, and the rows repaint showing it.
+           Reduce motion is deliberately NOT in either preset — it answers a
+         vestibular need, not a "make it easier to see" one, and folding it
+         in would turn one person's accommodation into another's surprise. */
+      var v = ZS.store.vals;
+      var easedOn = v['global/global|Text size']==='Large' &&
+                    v['global/global|High contrast']==='1' &&
+                    v['global/global|Bigger touch targets']==='1';
+      return gdevHTML()+
+        note('ZeroStick is <b>accessibility-first</b> — these apply everywhere, instantly, and they stick.')+
+        sh('One tap')+
+        card('<div class="gnavh"><b>Easiest to use</b>'+
+          '<span class="gnavs'+(easedOn?' live':'')+'">'+
+          (easedOn?'on — bigger writing, stronger borders, bigger controls'
+                 :'off — this app is at its normal size')+'</span></div>'+
+          helpHTML('g-eased', 'Easiest to use', 'Sets bigger writing, high contrast and bigger touch targets '+
+          'together. Every one of them is still its own switch below.')+
+          /* ONE CONTROL, NOT A STATE SAID THREE TIMES. This was a status line
+             ("off — this app is at its normal size"), a paragraph, and then
+             TWO buttons of which the second repeated the status word for
+             word: "Normal size". Worse, whichever half matched the current
+             state was a control that did nothing. The turn-it-off button now
+             appears only when there is something to turn off, so the card
+             offers exactly one thing to press and it always does something. */
+          '<div class="gpair">'+
+            (easedOn
+              ? '<button class="btn sec" id="g-ease-off">Put it back to normal</button>'
+              : '<button class="btn primary pri" id="g-ease">Make everything easier to see</button>')+
+          '</div>')+
+        sh('Ease of access')+
+        card(seg('Text size', ['Default','Large','XL'], 0, false, null,
+            'bigger writing on every screen of this app')+
+          toggleFld('High contrast', false, 'brighter text and stronger borders')+
+          toggleFld('Reduce motion', false, 'no slide or fade animations')+
+          toggleFld('Bigger touch targets', false, 'larger switches, steppers and buttons')+
+          seg('Hold-repeat speed', ['Fast','Normal','Slow'], 1, false, null,
+            'how fast a held − / + button keeps stepping'))+
+        /* D272: the Accessibility statement, from Ease of Access too */
+        (window.ZSLEGAL ? sh('Accessibility statement')+
+          btn('Our accessibility statement', null, 'g-a11y-stmt') : '')+
+        helpHTML('g-holdrep', 'Hold-repeat',
+          '<b>Hold-repeat</b>: press-and-hold any − / + button to keep stepping — it speeds up '+
+          'as you hold. Tap a stepper’s number to type it directly.')+
+        /* owner, 2026-10-10: "appearance, units and help should be in Access":
+           moved here from General. Every control keeps its label, so what it
+           stored (global/global|Theme, |Show real units, |Show help buttons)
+           is unchanged */
+        sh('Appearance')+
+        /* D444 (owner, 2026-10-23): the app is dark only, so there is no
+           Theme choice; OLED black is the one appearance switch */
+        card(toggleFld('OLED black', false, 'true black — easier on the eyes at night, kinder to an OLED battery'))+
+        /* D189: XIM's numbers, for players who think in them. Off by default:
+           the default screens never show a unit (D164). On, the Aim page's
+           Speed also shows (and takes) cm per 360, Smart Action pushes show
+           the turn they make in deg/s, and calibration already speaks deg/s.
+           A per-device preference, so it lives in the app's own store
+           (global/global|Show real units), not in a config. */
+        sh('Units')+
+        card(toggleFld('Show real units', false, 'also show cm/360 for Speed and °/s for Script aim steps'))+
+        /* D236 (owner, 2026-10-09): explanations live behind a little "?"
+           beside their setting; this hides every "?" for a player who knows
+           the app. ON by default (global/global|Show help buttons). */
+        sh('Help')+
+        card(toggleFld('Show help buttons', true, 'the little ? beside a setting that explains it')+
+          /* D481: the setup video again, Replay tips, Turn tips off/on
+             (onboarding/boot.js; the words are onboarding-text.js) */
+          (window.ZSTIPS ? ZSTIPS.settingsHTML() : ''));
+    }
+    /* Developer */
+    var stD = ZS.live.status;
+    var agentV = (ZS.live.online!==false && stD && stD.version) ? stD.version : null;
+    /* The whole firmware block that stood here — "Installed ZeroStick 0.4.1",
+       an Update-channel Stable/Beta/Dev selector, "⤒ Update from .bin file" and
+       "⚡ Flash firmware" — was removed. The flasher ran a 2.6-second timer that
+       animated a progress bar through "Verifying image… / Writing… /
+       Rebooting…", then set the displayed version to whatever number it could
+       regex out of the FILENAME. Nothing was ever read, verified or written.
+       Shipping a real one needs a signed image, a verification step and an A/B
+       slot on the SD card; docs/STATUS.md says so. */
+    return gdevHTML()+
+      note('For developers and testers. Everything here is device-level — configs are never touched.','warn')+
+      /* THE DEBUG BOX (owner, 2026-10-13): a command line for secret and
+         debug commands. Developer builds only (this whole tab is). Commands
+         live in DEBUG_CMDS; nothing typed here is sent anywhere. */
+      sh('Debug')+
+      '<div class="dbgbox" style="display:flex;flex-direction:column;gap:10px;align-items:stretch">'+
+        '<input id="g-dbg" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" '+
+          'placeholder="Type a command" aria-label="Debug command" style="width:100%;box-sizing:border-box;min-height:56px;font-size:18px;padding:12px 14px;border-radius:12px">'+
+        '<button type="button" class="btn primary" id="g-dbg-run" style="width:100%;min-height:48px;font-size:16px">Run</button></div>'+
+      '<p class="gnavd" id="g-dbg-out" role="status" aria-live="polite"></p>'+
+      /* D398: gun training, off unless the owner asks for it */
+      sh('AI Scripts')+
+      btn(((ZS.gunTraining && ZS.gunTraining()) ? '☑' : '☐')+' Show gun training tools', null, 'g-guntrain')+
+      helpHTML('g-guntrain', 'Show gun training tools',
+           'Shows <b>Teach the Core this gun</b> (and operator, legend or mode), the trained line and the '+
+           'picture notes on AI Scripts pages. Off, those pages show only the gun, its rarity and its '+
+           'Scripts. Kept on this device; never in a release build.')+
+      /* THE ONE OBVIOUS FIRST MOVE ON A DEVELOPER TAB, ABOVE THE FOLD.
+         What anyone actually opens this screen to do is take the state
+         somewhere else — into a bug report, a message, a paste. Both halves
+         already existed and both were grey keys buried inside two closed
+         accordions: ⧉ Copy JSON and ⧉ Copy logs. One key takes the version,
+         the config and the log together, which is the thing that gets asked
+         for every single time. The two individual copies stay where they
+         are for anyone who wants just one. */
+      btn('⧉ Copy diagnostics — version, config and log', 'primary', 'g-diag')+
+      /* the Version card is GONE: the device strip above carries the agent
+         version on every tab, and this repeated it a third time. */
+      sh('Inspect')+
+      acc('Raw config JSON'+(agentV?' (live)':''),'code',
+        '<pre id="g-json" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:11px;line-height:1.5;overflow-x:auto;color:var(--muted)"></pre>'+
+        btn('⧉ Copy JSON',null,'g-jcopy'), false)+
+      acc('Agent log'+(agentV?' (live)':''),'eye',
+        '<pre id="g-logs" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:11px;line-height:1.6;overflow-x:auto;color:var(--muted)">'+
+        (agentV?'loading…':'[offline] board unreachable — no live log')+'</pre>'+
+        btn('⧉ Copy logs',null,'g-lcopy'), false)+
+      /* the what-a-pack-is paragraph moved to the velocity screen's "?" —
+         the single calibration home (screen-map §7/§8); the button keeps
+         the manager for developers. M10 (audit 2026-10-10): packs are the
+         A7S agent's (/calibration/packs), so a Core draws no button that
+         could only answer 501. */
+      ((ZS.productHides && ZS.productHides('calPacks')) ? '' :
+        sh('Calibration packs')+
+        btn('◎ Calibration packs', null, 'g-calpacks'))+
+      /* D115: the way the owner makes a game pack, from a config he tuned */
+      sh('Game packs')+
+      btn('⤓ Save this config as a game pack', null, 'g-savepack')+
+      /* KEEP THESE FRAMES (moved here from Screen Assist's picture card by
+         D223: it was always "for whoever is debugging the detector"). An EXO
+         keeps a 12-frame burst on the board; a Core keeps none and says so. */
+      sh('Screen Assist')+
+      btn('Keep these frames — a 12-frame burst on the board', null, 'g-snap')+
+      '<div id="g-snapsaid" style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:6px"></div>'+
+      coreDevHTML()+
+      /* THE LICENCE, ACTUALLY VISIBLE. The controller drawings on Overview are
+         the_al's, MIT, and MIT asks that the notice travel with the copy — a
+         notice that exists only as an unused API satisfies nobody. ZSART owns
+         the text so the art and its credit can never drift apart; this is the
+         one call that puts it in front of a human. Accordion-closed because a
+         permission notice is reference, not reading matter, and NOT optional
+         to remove — see the THIRD-PARTY NOTICE at the top of controller-art.js. */
+      (window.ZSART && typeof ZSART.creditsHTML === 'function'
+        ? sh('Credits') + acc('Artwork and licences', 'info', ZSART.creditsHTML() + picCreditsHTML(), false)
+        : '')+
+      /* THE TWO MOST DESTRUCTIVE CONTROLS IN THE PRODUCT, AND MEASURED
+         ACROSS 41 FRAMES THERE WAS 0.00% RED BETWEEN THEM. Restart was a
+         plain grey key; Factory reset was tagged .btn.danger in the DOM and
+         PAINTED #28313f, and the group header's tick was teal — the same
+         teal as "Inspect" three rows up. Now the header is red, the reset is
+         the solid destructive fill, and Restart takes the CAUTION face
+         because it is serious and REVERSIBLE: it drops your link for a few
+         seconds and hands it back. Three ranks, three faces. */
+      sh('Danger zone', 'danger')+
+      btn(agentV?'Restart board agent':'Restart adapter','caution','g-restart2')+
+      btn('Factory reset — erase phone-app data','danger','g-freset');
+  }
+
+  R.global = function(){
+    injectGlobalCSS();
+    return { html:'', after: function(root){
+      function render(){
+        if(gTabs().indexOf(G_TAB) < 0) G_TAB = 'General';
+        var h = '<div class="subtabs">'+gTabs().map(function(t){
+          return '<button data-g="'+t+'"'+(t===G_TAB?' class="on"':'')+'>'+t+'</button>'; }).join('')+'</div>';
+        h += globalTabHTML(G_TAB);
+        root.innerHTML = h;
+        ZS.wire(root, 'global/global');
+        root.scrollTop = 0;
+        /* these rows describe buttons you PRESS (Navigate-mode combo, config
+           cycling), so the picker is the input-side grid — it follows the
+           connected pad, not the config's output platform */
+        wireRebind(root, 'source-pad', ZS.prof(ZS.activeId));
+        root.querySelectorAll('.subtabs button').forEach(function(b){
+          b.addEventListener('click', function(){ G_TAB=b.dataset.g; render(); });
+        });
+        if(G_TAB==='Access' || G_TAB==='General'){
+          root.querySelectorAll('.seg2 button, .sw, .fld.tapper').forEach(function(el){
+            el.addEventListener('click', function(){ setTimeout(ZS.applyAccess, 0); });
+          });
+        }
+        if(G_TAB==='Access'){
+          /* Writes the SAME store keys the three rows below own — labFor()
+             builds them from the label's own text node, so these strings are
+             the rows' keys by construction and wire() restores them on the
+             next render. Then applyAccess, then repaint, so the rows show
+             what just happened rather than the state before it. */
+          function setEase(on){
+            var v = ZS.store.vals;
+            v['global/global|Text size'] = on ? 'Large' : 'Default';
+            v['global/global|High contrast'] = on ? '1' : '0';
+            v['global/global|Bigger touch targets'] = on ? '1' : '0';
+            ZS.persistStore();
+            ZS.applyAccess();
+            ZS.toast(on ? 'Bigger writing, stronger borders, bigger controls'
+                        : 'Back to the normal size');
+            if(G_TAB==='Access') setTimeout(render, 0);
+          }
+          var eOn = root.querySelector('#g-ease');
+          if(eOn) eOn.addEventListener('click', function(){ setEase(true); });
+          var eOff = root.querySelector('#g-ease-off');
+          if(eOff) eOff.addEventListener('click', function(){ setEase(false); });
+          var a11y = root.querySelector('#g-a11y-stmt');
+          if(a11y) a11y.addEventListener('click', function(){ ZSLEGAL.openDoc('accessibility'); });
+          /* D481: Setup video / Replay tips / Turn tips off */
+          if(window.ZSTIPS) ZSTIPS.wireSettings(root, function(){ if(G_TAB==='Access') setTimeout(render, 0); });
+        }
+        if(G_TAB==='Performance'){
+          /* the door to the one write home (screen-map §7): deep-link to
+             Overview's Advanced pane — OV_TAB is the module var the pager
+             reads, so setting it before openDetail lands the user on the
+             right pane, the existing deep-link idiom. Guarded: with no
+             active profile object there is nowhere to go, so say so. */
+          var goRate = root.querySelector('#g-rate-go');
+          if(goRate) goRate.addEventListener('click', function(){
+            var pp = ZS.prof(ZS.activeId);
+            if(!pp){ ZS.toast('No active config to open'); return; }
+            ovSetTab('Advanced');
+            ZS.openDetail({id:'overview', lab:'Device'}, pp);
+          });
+        }
+        if(G_TAB==='General'){
+          var lg=root.querySelector('#g-legal');
+          if(lg) lg.addEventListener('click', function(){ ZSLEGAL.openList(); });
+          var rs=root.querySelector('#g-restart');
+          if(rs){
+            if(ZS.live.online!==false && ZS.live.status){
+              armConfirm(rs, function(){
+                ZS.api('/service/restart','POST',{}).then(function(j){
+                  ZS.toast(j.ok?'Board agent restarting…':'Board refused: '+(j.error||''));
+                });
+              });
+            } else rs.addEventListener('click', function(){ ZS.toast('Board offline'); });
+          }
+          /* Passthrough Mode. Both switches are nosave:true, so wire()'s flip()
+             has already toggled the class by the time these run — `want` is
+             the post-flip state, and a refusal toggles it back. Same shape as
+             the PS5 master switch and the kill switch. */
+          var liveNav = ZS.live.online!==false && ZS.live.status;
+          /* The switch became a solid primary key (navBlock). It is NOT a
+             nosave toggle any more, so nothing has pre-flipped a class by the
+             time this runs: `want` is read from the board's own state and the
+             screen repaints from the board's answer, which is one fewer place
+             the UI can disagree with the adapter. */
+          var ngo = root.querySelector('#g-nav-go');
+          var asw = root.querySelector('#g-navarm .sw');
+          /* D195: redraw AFTER the new /status has landed. It used to ask
+             for one and redraw 120 ms later from the copy it already had,
+             so a switch-off that worked still showed "on". */
+          function navRefresh(){
+            var p = ZS.refreshStatus();
+            var redraw = function(){ if(G_TAB==='General') render(); };
+            if(p && p.then) p.then(redraw, redraw); else setTimeout(redraw, 120);
+          }
+          if(ngo && liveNav) ngo.addEventListener('click', function(){
+            /* the FRESHEST state decides which way the key goes (the 400 ms
+               poll, ZS.navLive), never the 8 s /status copy: the chord on the
+               desk may have flipped it since this card was drawn, and asking
+               the Core for the state it is already in did nothing */
+            var nmNow = (ZS.navLive && ZS.navLive()) ||
+                        (ZS.live.status && ZS.live.status.navigateMode) || {};
+            var want = !nmNow.active;
+            ngo.disabled = true;
+            ZS.api('/navigate/active','POST',{active:want}).then(function(j){
+              ngo.disabled = false;
+              if(j.ok){
+                /* the reply IS the Core's state (zs_api.c navigate_ok):
+                   believe it, not the request */
+                var d = j.data;
+                if(d && typeof d.active === 'boolean'){
+                  if(ZS.navSet) ZS.navSet(d);
+                  else if(ZS.live.status) ZS.live.status.navigateMode = d;
+                }
+                if(d && typeof d.active === 'boolean' && d.active !== want){
+                  ZS.toast(want ? 'The Core did not turn Passthrough Mode on'
+                                : 'The Core is still in Passthrough Mode — it did not turn off', {ms:6000});
+                } else {
+                  ZS.toast(want ? 'Passthrough Mode on — plain menu controls'
+                                : 'Passthrough Mode off — your config is back');
+                }
+                navRefresh();
+              } else ZS.toast('Board refused: '+(j.error||''), {ms:6000});
+            });
+          });
+          else if(ngo) ngo.addEventListener('click', function(){
+            ZS.toast('Board offline — Passthrough Mode lives on the board');
+          });
+          if(asw && liveNav) asw.addEventListener('click', function(){
+            var want = asw.classList.contains('on');
+            ZS.api('/navigate/settings','POST',{enabled:want}).then(function(j){
+              if(j.ok){
+                ZS.toast(want ? 'Shortcut buttons on'
+                              : 'Shortcut off — use the switch above');
+                navRefresh();
+              } else { asw.classList.toggle('on'); ZS.toast('Board refused: '+(j.error||'')); }
+            });
+          });
+          else if(asw) asw.addEventListener('click', function(){
+            asw.classList.toggle('on'); ZS.toast('Board offline');
+          });
+
+          /* Shortcut editing. The board is the only store, so every one of
+             these reads the CURRENT list off status and PUTs the whole list
+             back — there is no local copy to drift. What the rows show is what
+             gets sent, which is why adding while on the defaults persists the
+             defaults too: the list on screen is the list you are editing. */
+          var apG = ZS.prof(ZS.activeId);
+          function navCombos(){
+            var s = ZS.live.status && ZS.live.status.navigateMode;
+            return ((s && s.combos) || []).map(function(c){ return c.slice(); });
+          }
+          function navSaveCombos(next, say){
+            ZS.api('/navigate/settings','POST',{combos:next}).then(function(j){
+              if(j.ok){ ZS.toast(say); navRefresh(); }
+              else ZS.toast('Board refused: '+(j.error||''));
+            });
+          }
+          function navWords(c){
+            return c.map(function(x){ return navKeyName(x, apG); }).join(' + ');
+          }
+
+          root.querySelectorAll('.nav-del').forEach(function(delEl){
+            delEl.addEventListener('click', function(){
+              if(!liveNav){ ZS.toast('Board offline'); return; }
+              var i = +delEl.dataset.i;
+              var cur = navCombos();
+              if(!cur[i]) return;
+              var say = navWords(cur[i]);
+              cur.splice(i, 1);
+              navSaveCombos(cur, say+' removed');
+            });
+          });
+
+          var navAdd = root.querySelector('#nav-add');
+          if(navAdd) navAdd.addEventListener('click', function(){
+            if(!liveNav){ ZS.toast('Board offline — shortcuts live on the board'); return; }
+            /* kind only decides which grid the sheet offers as a TAP fallback.
+               Press-to-bind is armed either way and detects whatever you
+               actually press, so a mixed keyboard+pad shortcut still works. */
+            ZS.pickList({title:'What do you want to press?', items:[
+              {name:'Keyboard or mouse', sub:'any two keys, or a mouse button', value:'source-mnk'},
+              {name:'Controller', sub:'any two buttons on your pad', value:'source-pad'}
+            ]}).then(function(kind){
+              if(!kind) return;
+              ZS.pickButton({kind:kind, p:apG, capture:true,
+                             title:'Press the FIRST button'}).then(function(a){
+                if(!a || !a.source) return;
+                ZS.pickButton({kind:kind, p:apG, capture:true,
+                               title:'…and now the SECOND button'}).then(function(b){
+                  if(!b || !b.source) return;
+                  if(b.source === a.source){
+                    ZS.toast('Pick two different buttons — one cannot be both halves'); return;
+                  }
+                  var pair = [a.source, b.source];
+                  var cur = navCombos();
+                  var key = pair.slice().sort().join('|');
+                  var dup = cur.some(function(c){
+                    return c.slice().sort().join('|') === key;
+                  });
+                  if(dup){ ZS.toast(navWords(pair)+' is already a shortcut'); return; }
+                  cur.push(pair);
+                  navSaveCombos(cur, navWords(pair)+' added');
+                });
+              });
+            });
+          });
+
+          /* D346 / D348: both switches are nosave toggles, so wire()'s flip()
+             has already moved the class: `want` is the post-flip state, the
+             screen repaints from the Core's answer, and a refusal (or no
+             board) puts the switch back. */
+          function zenRefresh(){
+            var p = ZS.refreshStatus();
+            var redraw = function(){ if(G_TAB==='General') render(); if(ZS.renderHome) ZS.renderHome(); };
+            if(p && p.then) p.then(redraw, redraw); else setTimeout(redraw, 120);
+          }
+          function zenPost(path, body, sw, said){
+            if(!liveNav){
+              if(sw) sw.classList.toggle('on');
+              ZS.toast('Board offline — this setting lives on the Core');
+              setTimeout(function(){ if(G_TAB==='General') render(); }, 0);
+              return;
+            }
+            ZS.api(path, 'POST', body).then(function(j){
+              if(j && j.ok){ ZS.toast(said(j.data || {})); zenRefresh(); }
+              else {
+                if(sw) sw.classList.toggle('on');
+                ZS.toast('Board refused: '+((j && j.error) || ''), {ms:6000});
+                zenRefresh();
+              }
+            });
+          }
+          var tsw = root.querySelector('#g-tourn .sw');
+          if(tsw) tsw.addEventListener('click', function(){
+            var want = tsw.classList.contains('on');
+            zenPost('/settings/tournament', {on:want}, tsw, function(d){
+              return d.on ? 'Tournament Mode on — scripts and Smart Actions are off'
+                          : 'Tournament Mode off — everything runs again';
+            });
+          });
+          var ksw = root.querySelector('#g-slotkeys .sw');
+          if(ksw) ksw.addEventListener('click', function(){
+            var want = ksw.classList.contains('on');
+            zenPost('/settings/slotkeys', {on:want}, ksw, function(d){
+              var i = Math.max(0, ZEN_CHORDS.indexOf(d.chord));
+              return d.on ? 'Controller shortcut on — '+ZEN_CHORD_WORDS[i]
+                          : 'Controller shortcut off';
+            });
+          });
+          var msw = root.querySelector('#g-menufx .sw');
+          if(msw) msw.addEventListener('click', function(){
+            var want = msw.classList.contains('on');
+            zenPost('/settings/menufeedback', {on:want}, msw, function(d){
+              return d.on ? 'Menu light and buzz on' : 'Menu light and buzz off';
+            });
+          });
+          root.querySelectorAll('#g-slotkeys .seg2 button').forEach(function(b, i){
+            b.addEventListener('click', function(){
+              if(!ZEN_CHORDS[i]) return;
+              zenPost('/settings/slotkeys', {chord:ZEN_CHORDS[i]}, null, function(d){
+                var k = Math.max(0, ZEN_CHORDS.indexOf(d.chord));
+                return 'Shortcut: '+ZEN_CHORD_WORDS[k];
+              });
+            });
+          });
+
+          var navReset = root.querySelector('#nav-reset');
+          if(navReset) navReset.addEventListener('click', function(){
+            if(!liveNav){ ZS.toast('Board offline'); return; }
+            ZS.api('/navigate/settings','POST',{combos:null}).then(function(j){
+              if(j.ok){ ZS.toast('Default shortcuts restored'); navRefresh(); }
+              else ZS.toast('Board refused: '+(j.error||''));
+            });
+          });
+        }
+        if(G_TAB==='Developer'){
+          var dbg=root.querySelector('#g-dbg'), dbgRun=root.querySelector('#g-dbg-run'),
+              dbgOut=root.querySelector('#g-dbg-out');
+          var go=function(){ if(!dbg) return; var said=runDebug(dbg.value);
+            if(dbgOut) dbgOut.textContent=said; dbg.value=''; };
+          if(dbgRun) dbgRun.addEventListener('click', go);
+          if(dbg) dbg.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); go(); } });
+        }
+        if(G_TAB==='Developer' || (!devBuild() && G_TAB==='General')){
+          var jc=root.querySelector('#g-jcopy');
+          var jp=root.querySelector('#g-json');
+          var liveDev = ZS.live.online!==false && ZS.live.status;
+          if(jp){
+            var fullAp = ZS.live.full[ZS.activeId];
+            jp.textContent = (liveDev && fullAp)
+              ? JSON.stringify(fullAp, null, 2)
+              : JSON.stringify({ schema:2, active:ZS.prof(ZS.activeId), savedSettings:Object.keys(ZS.store.vals).length }, null, 2);
+          }
+          if(jc) jc.addEventListener('click', function(){
+            copyText(jp.textContent, 'JSON copied');
+          });
+          var lp=root.querySelector('#g-logs');
+          /* the log for Copy diagnostics too, which a release build shows on
+             General with no <pre> to read it back from (D223) */
+          var logText = null;
+          if(liveDev && (lp || root.querySelector('#g-diag'))){
+            ZS.api('/logs?limit=60').then(function(j){
+              if(!j.ok || !Array.isArray(j.data)){ logText='[error] could not fetch the log'; }
+              else logText = j.data.map(function(l){
+                return (l.level? '['+l.level+'] ' : '') + (l.msg||l.message||JSON.stringify(l));
+              }).join('\n') || '(log is empty)';
+              if(lp) lp.textContent = logText;
+            });
+          }
+          /* the active config as the Raw config JSON accordion shows it,
+             whether or not that accordion is on this screen */
+          function configText(){
+            if(jp) return jp.textContent;
+            var fullAp = ZS.live.full[ZS.activeId];
+            return (liveDev && fullAp)
+              ? JSON.stringify(fullAp, null, 2)
+              : JSON.stringify({ schema:2, active:ZS.prof(ZS.activeId), savedSettings:Object.keys(ZS.store.vals).length }, null, 2);
+          }
+          var lc=root.querySelector('#g-lcopy'); if(lc) lc.addEventListener('click', function(){
+            copyText((lp&&lp.textContent)||'', 'Logs copied');
+          });
+          /* One paste with everything a bug report needs. Reads the two <pre>
+             elements the accordions already fill, so there is no second
+             source of truth and a closed accordion is not an empty report —
+             the JSON is written on render and the log fetch lands into the
+             node whether or not it is on screen. */
+          var gt=root.querySelector('#g-guntrain'); if(gt) gt.addEventListener('click', function(){
+            var on = !(ZS.gunTraining && ZS.gunTraining());
+            try{ if(on) localStorage.setItem(GUN_TRAINING_KEY, '1'); else localStorage.removeItem(GUN_TRAINING_KEY); }catch(e){}
+            ZS.toast(on ? 'Gun training tools shown' : 'Gun training tools hidden');
+            render();
+          });
+          var sm=root.querySelector('#g-simmnk'); if(sm) sm.addEventListener('click', function(){
+            var k = (ZS.simMnk && ZS.simMnk.key) || 'zs-sim-mnk';
+            try{ localStorage.setItem(k, (ZS.simMnk && ZS.simMnk.on()) ? '0' : '1'); }catch(e){}
+            location.reload();
+          });
+          var dg=root.querySelector('#g-diag'); if(dg) dg.addEventListener('click', function(){
+            /* the version is read HERE, not closed over from globalTabHTML —
+               that `agentV` is a local of the markup builder and threw
+               ReferenceError on every press (caught by emulate-app.js). It is
+               also the honest read: the agent may have answered, or stopped
+               answering, since the screen was drawn. */
+            var stDiag = ZS.live.status;
+            var vDiag = (ZS.live.online!==false && stDiag && stDiag.version) || null;
+            var txt = 'ZeroStick EXO diagnostics\n'+
+              'when: '+new Date().toISOString()+'\n'+
+              'board agent: '+(vDiag || 'offline — unknown')+'\n'+
+              'app: '+(navigator.userAgent||'')+' ('+(devBuild()?'developer':'release')+' build)\n'+
+              (stDiag && stDiag.product === 'core'
+                ? 'core firmware: '+(stDiag.devMode === false ? 'release' : 'developer')+' image\n' : '')+
+              '\n── active config ──\n'+(configText()||'(none)')+'\n\n'+
+              '── agent log ──\n'+((lp&&lp.textContent)||logText||'(none)')+'\n';
+            copyText(txt, 'Diagnostics copied — paste them into your report');
+          });
+          /* Opens in every state, like the calibration button on Overview: the
+             screen itself says the board is away and refuses, which is more
+             use than a control that does nothing when you press it. */
+          var cpb=root.querySelector('#g-calpacks');
+          if(cpb) cpb.addEventListener('click', openCalPacks);
+          var spb=root.querySelector('#g-savepack');
+          if(spb) spb.addEventListener('click', openSavePack);
+          /* Twelve frames over ~1.4 s, kept on the BOARD rather than sent to
+             the phone: they are for whoever is debugging the detector. The
+             row under the key says what happened, including the honest
+             cases (picture off, no HDMI input, a Core that keeps none). */
+          var snb=root.querySelector('#g-snap');
+          if(snb) snb.addEventListener('click', function(){
+            var said = root.querySelector('#g-snapsaid');
+            snb.disabled = true; snb.textContent = 'Keeping…';
+            if(said) said.textContent = 'hold the shot now — keeping 12 frames';
+            ZS.api('/vision/snapshot', 'POST', {count:12, width:1280})
+              .then(function(j){
+                if(said) said.textContent = (j && j.ok)
+                  ? (j.message || 'kept them')
+                  : ('nothing to keep — ' + ((j && j.error) || 'no picture'));
+              })
+              .catch(function(){ if(said) said.textContent = 'could not reach the adapter'; })
+              .then(function(){ snb.disabled = false; snb.textContent = 'Keep these frames — a 12-frame burst on the board'; });
+          });
+          /* GET /vision/patch/<n> (a dev Core only, D223): the Core's own
+             32x16 grey picture of each watched area, the pixels a taught
+             picture is matched against */
+          var pab=root.querySelector('#g-patches');
+          if(pab) pab.addEventListener('click', function(){
+            var out = root.querySelector('#g-patchesout');
+            if(!out) return;
+            out.textContent = 'reading…';
+            var got = [], left = 4;
+            function done(){
+              if(--left > 0) return;
+              out.innerHTML = '';
+              got.sort(function(a, b){ return a.area - b.area; });
+              if(!got.length){ out.textContent = 'no watched area has been read yet'; return; }
+              got.forEach(function(d){
+                var cv = document.createElement('canvas'), w = d.w|0, h = d.h|0;
+                cv.width = w; cv.height = h;
+                cv.style.cssText = 'width:'+(w*4)+'px;height:'+(h*4)+'px;image-rendering:pixelated;'+
+                  'border:1px solid var(--line);border-radius:6px';
+                cv.setAttribute('aria-label', 'watched area '+d.area);
+                try{
+                  var bin = atob(d.b64), ctx = cv.getContext('2d'), im = ctx.createImageData(w, h), k;
+                  for(k = 0; k < w*h && k < bin.length; k++){
+                    var g = bin.charCodeAt(k);
+                    im.data[k*4] = im.data[k*4+1] = im.data[k*4+2] = g; im.data[k*4+3] = 255;
+                  }
+                  ctx.putImageData(im, 0, 0);
+                }catch(e){}
+                var fig = document.createElement('div');
+                fig.style.cssText = 'font-size:12px;color:var(--muted);text-align:center';
+                fig.appendChild(cv);
+                fig.appendChild(document.createElement('br'));
+                fig.appendChild(document.createTextNode('area '+d.area+' · read '+d.seq));
+                out.appendChild(fig);
+              });
+            }
+            [0,1,2,3].forEach(function(n){
+              ZS.api('/vision/patch/'+n).then(function(j){
+                if(j && j.ok && j.data && j.data.b64) got.push(j.data);
+              }).catch(function(){}).then(done);
+            });
+          });
+          var rs2=root.querySelector('#g-restart2');
+          if(rs2){
+            if(liveDev) armConfirm(rs2, function(){
+              ZS.api('/service/restart','POST',{}).then(function(j){
+                ZS.toast(j.ok?'Board agent restarting…':'Board refused: '+(j.error||''));
+              });
+            });
+            /* m12: offline there is nothing to restart, and saying "(mock)"
+               told the player something happened */
+            else rs2.addEventListener('click', function(){ ZS.toast('Board offline \u2014 there is nothing to restart'); });
+          }
+          var fr=root.querySelector('#g-freset');
+          if(fr) armConfirm(fr, function(){
+            /* m12 (audit 2026-10-10): EVERY key this app keeps, not only the
+               config list: the last-seen line, the last gun, the pad family,
+               the curve clipboard and the mouse-rate choice outlived the
+               "erase". Two are kept on purpose: zs-device (which page this
+               is, devices.js: "never rename") and zs-zsp-rev (the save
+               counter a Core has already seen; going back to 1 would make a
+               new save look older than the stored one). D271 adds a third:
+               zs-exo-dev, the developer unlock (devices.js devUnlock) - a
+               reset must not shut the owner out of the app he is resetting;
+               More > Lock developer access is the way to drop it. D272 adds
+               a fourth: zs-legal, the person's agreement to the Terms and
+               the Privacy Policy (legal/app/WIRING.md: a reset is not a
+               withdrawal). */
+            try{
+              var keep = { 'zs-device':1, 'zs-zsp-rev':1, 'zs-exo-dev':1, 'zs-legal':1 }, gone = [], k, i;
+              for(i = 0; i < localStorage.length; i++){
+                k = localStorage.key(i);
+                if(k && /^zs[-.]/.test(k) && !keep[k]) gone.push(k);
+              }
+              gone.forEach(function(x){ localStorage.removeItem(x); });
+            }catch(e){}
+            /* D272: the config pictures too (IndexedDB, zs-photos.js), as the
+               Privacy Policy says. The Calibration Dongle's own keys
+               (zsdongle:*) are NOT this app's to erase: the two apps share
+               no storage (D264), so the dongle screens keep theirs. */
+            var photosGone = (window.ZSPHOTOS && ZSPHOTOS.clearAll) ? ZSPHOTOS.clearAll() : null;
+            ZS.toast('Factory reset — reloading…');
+            Promise.resolve(photosGone).then(function(){ setTimeout(function(){ location.reload(); }, 900); });
+          });
+        }
+      }
+      render();
+    }};
+  };
+});

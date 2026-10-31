@@ -1,0 +1,644 @@
+/* sections/10-aim-controller.js — the Aim page's controller half.
+ *
+ * makeAimController: the stick mode (Native / EXO Linear / Custom, D184/D186)
+ * with the grid curve editor, the controller page (D245: sensitivity, rest
+ * zone, ADS, triggers), the ADS gain switch and the stick's smoothing ladder.
+ * It was the middle of R.aim until 2026-10-31 and is byte for byte the same
+ * code: the closure locals it read (p, baseNs, smSel, boardFull), the
+ * mouse-page helpers it calls (smStyleSeg, classicSteppers, smStyleHelp,
+ * smWrite, smcarHTML) and render are its PARAMETERS, under the same names,
+ * and R.aim calls it once per draw and takes the eleven functions it hands
+ * back. Nothing here runs until R.aim does.
+ *
+ * Screens (window.RENDERERS):  none (10-aim.js draws R.aim)
+ * Tests:                      test-stick-modes.js, test-stick-ads.js, test-stick-antidz.js, test-smoothing.js, test-aim-stance.js
+ *
+ * ONE OF THE APP'S SCREEN FILES (2026-10-02: phone-sections.js, split into
+ * one file per screen). phone-sections.js is the loader and explains the
+ * rules: the files run in order inside ZS_SECTIONS.run(), and share names
+ * only through the lists at the top and the bottom of each file.
+ */
+ZS_SECTIONS.add('aim-controller', function (SEC) {
+  /* from the files before this one */
+  var B = SEC.B, btn = SEC.btn, card = SEC.card, door = SEC.door, esc = SEC.esc,
+      helpHTML = SEC.helpHTML, R = SEC.R, seg = SEC.seg, stepper = SEC.stepper,
+      slider = SEC.slider, warnHTML = SEC.warnHTML, ZS = SEC.ZS,
+      stickChoiceOf = SEC.stickChoiceOf, stickChoiceWrite = SEC.stickChoiceWrite,
+      stickModesCore = SEC.stickModesCore;
+  /* from 10-aim-tables.js */
+  var smClassicFromValues = SEC.smClassicFromValues,
+      smClassicPreset = SEC.smClassicPreset, classicShown = SEC.classicShown,
+      smStickCaption = SEC.smStickCaption, labHelp = SEC.labHelp,
+      SM_CLASSIC_PRESETS = SEC.SM_CLASSIC_PRESETS, CLASSIC_SEED = SEC.CLASSIC_SEED,
+      SM_STICK = SEC.SM_STICK, AIM_HELP = SEC.AIM_HELP;
+  /* from files after this one, bound once every file has run (never used
+     while this file is loading) */
+  var trModelOf;
+  ZS_SECTIONS.after(function () {
+    trModelOf = SEC.trModelOf;
+  });
+
+  function makeAimController(p, baseNs, smSel, boardFull, smStyleSeg, classicSteppers, smStyleHelp, smWrite, smcarHTML, render){
+    /* ── THE STICK MODE: D184's three choices, ONE control (D186) ─────
+       Per stick, three choices, Native by default:
+         Native      the stick passes through untouched, the game's own feel:
+                     the rest cut and Sensitivity, nothing else
+         EXO Linear  the Core pre-compensates the game's MEASURED stick law
+                     (the config's game translator: its dead zone and curve,
+                     hip and aiming) so every bit of stick turns the camera
+                     the same amount
+         Custom      the player's own shaping. On a measured game: EXO
+                     Linear plus their curve, drawn on the grid editor
+                     (zs-curve-grid.js). Without one: the old Tuned stick
+                     (the Core's curve, deadzones and smoothing on top of
+                     the game), so it always works. Smoothing (steadying for
+                     a shaky hand) and the deadzones are Custom's either way.
+       Stored as stick.mode plus stick.right / stick.left = { mode, grid,
+       points, adsGrid, adsPoints }, always written together by
+       stickChoiceWrite (module scope, which says how each choice writes
+       both). `points` (15-16 samples) is what the Core reads (the STICKFEEL
+       section), `grid` the editor's handles (seven numbers, or the editor's
+       {v:2, h, s} once handles move across or a segment is straight; see
+       zs-curve-grid.js). EXO Linear needs a game
+       translator: without one its button says "Calibrate this game first".
+       The right stick lives in the hip page's ONE card (it is the look
+       stick, the main one); the left stick's mode is in the fold beside
+       Movement speed; aiming's own curve is on the ADS page's card (D77:
+       banner, one card, the ••• fold, nothing more). An EXO's agent has no
+       stick-mode stage, so there the control is Native | Custom over
+       stick.mode alone, on the aim stick, for both sticks. */
+    function feelFull(){ return ZS.live.online!==false ? ZS.live.full[p.id] : null; }
+    /* the D184 half: a Core feature (stickModesCore, module scope) */
+    function feelShown(){ return stickModesCore(); }
+    function feelSpec(side){
+      var f = feelFull(), st = f && f.stick && f.stick[side];
+      return (st && typeof st === 'object') ? st : {};
+    }
+    function feelOf(side){
+      if(!feelShown() && side==='left') side = 'right';    /* one switch, both sticks */
+      return stickChoiceOf(ZS.live.full[p.id] || boardFull, side);
+    }
+    function feelGrid(side, ads){
+      var st = feelSpec(side);
+      var g = window.ZSCURVE ? ZSCURVE.gridOf(ads ? st.adsGrid : st.grid) : null;
+      return g || (ads ? null : (window.ZSCURVE ? ZSCURVE.straight() : []));
+    }
+    /* a game translator is running: the Core has a model it can invert */
+    function feelReady(){
+      var mt = (feelFull() || {}).mouseTranslation || {};
+      var r = mt.resolvedAimModel;
+      return !!(r && typeof r === 'object' && r.generic !== true && r.hip && r.ads);
+    }
+    /* the drawn curve is what the Core runs: a measured game AND this stick
+       written as Custom by name. An old Tuned config reads as Custom but
+       names no mode, so the Core still runs its old curve (D186); one tap
+       on "Draw my curve" names it. */
+    function feelGridLive(side){
+      return feelShown() && feelReady() && feelOf(side)==='custom' && feelSpec(side).mode==='custom';
+    }
+    /* XIM's Curve Editor (zs-curve-grid.js): title "Curve Editor -
+       <stick> : <stance>", handles, straight segments, zoom, COPY / PASTE
+       (one clipboard for every curve in the app); a paste saves through
+       onCommit like any other change (feelCurveSave) */
+    function feelCurveHTML(id, ys, label, presets, title){
+      if(!window.ZSCURVE) return '';
+      return ZSCURVE.html({ id: id, ys: ys, label: label, presets: presets, title: title,
+        xName: 'Stick push', yName: 'Camera speed',
+        help: 'Across: how far you push the stick, 0–100%. Up: how fast the reticle turns, 0–100%. '+
+          'Drag a circle to move it; tap a dot to straighten that part. Applied after the Core takes out '+
+          'this game’s own stick curve, so the two are never stacked.' });
+    }
+    /* The writes. Each goes into the cached config too (adsSet's reasoning:
+       the redraw must show what the queued write is about to make true). */
+    function feelWrite(fn){
+      if(ZS.live.full[p.id]) ZS.editProfile(p.id, fn);     /* M8, as smWrite */
+      else ZS.putProfileDebounced(p.id, fn);
+    }
+    function feelSide(f, side){
+      if(!f.stick || typeof f.stick !== 'object') f.stick = {};
+      if(!f.stick[side] || typeof f.stick[side] !== 'object') f.stick[side] = {};
+      return f.stick[side];
+    }
+    function feelSet(side, mode, root){
+      if(ZS.live.online===false || !ZS.live.full[p.id]){
+        ZS.toast('Your board is offline \u2014 this switch has not reached it yet');
+        render(root);
+        return;
+      }
+      if(mode==='exoLinear' && !feelReady()){
+        ZS.toast('Calibrate this game first \u2014 EXO Linear needs its measured stick');
+        render(root);
+        return;
+      }
+      var res = null;
+      feelWrite(function(f){
+        var r = stickChoiceWrite(f, side, mode);
+        if(!res) res = r;
+      });
+      if(res && res.reset.length){
+        ZS.toast('Native \u2014 your controller, untouched. '+res.reset.join(' and ')+
+          (res.reset.length>1 ? ' are' : ' is')+' back to 100%.');
+      }
+      render(root);
+    }
+    function feelCurveSave(side, ads, ys){
+      feelWrite(function(f){
+        var st = feelSide(f, side);
+        if(ads){ st.adsGrid = ys; st.adsPoints = ZSCURVE.sample(ys); }
+        else { st.grid = ys; st.points = ZSCURVE.sample(ys); }
+      });
+    }
+    function feelWire(root){
+      root.querySelectorAll('[data-feelmode]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var side = b.getAttribute('data-feelside'), mode = b.getAttribute('data-feelmode');
+          /* the one already on: nothing to write */
+          if(mode===feelOf(side)) return;
+          feelSet(side, mode, root);
+        });
+      });
+      root.querySelectorAll('[data-feelmat]').forEach(function(b){
+        b.addEventListener('click', function(){ feelSet(b.getAttribute('data-feelmat'), 'custom', root); });
+      });
+      if(window.ZSCURVE){
+        [['right', false, 'feel-right'], ['left', false, 'feel-left'], ['right', true, 'feel-right-ads']]
+          .forEach(function(c){
+            var wrap = root.querySelector('[data-cgwrap="'+c[2]+'"]');
+            /* every change lands here: a drag, a key, Add / Remove /
+               Straighten, a preset, a PASTE. ys is the stored shape (seven
+               numbers, or {v:2,h,s}); the Core gets ZSCURVE.sample(ys) */
+            if(wrap) ZSCURVE.wire(wrap, { ys: feelGrid(c[0], c[1]),
+              onCommit: function(ys){ feelCurveSave(c[0], c[1], ys); } });
+          });
+      }
+      var draw = root.querySelector('[data-feeladsdraw]');
+      if(draw) draw.addEventListener('click', function(){
+        var g = feelGrid('right', false);
+        feelCurveSave('right', true, g);
+        render(root);
+      });
+      var clr = root.querySelector('[data-feeladsclear]');
+      if(clr) clr.addEventListener('click', function(){
+        feelWrite(function(f){
+          var st = feelSide(f, 'right');
+          delete st.adsGrid;
+          delete st.adsPoints;
+        });
+        render(root);
+      });
+      var use = root.querySelector('[data-feeluse]');
+      if(use) use.addEventListener('click', function(){
+        var found = trModelOf(p);
+        if(!found || ZS.live.online===false || !ZS.live.full[p.id]){
+          ZS.toast('Your board is offline \u2014 this has not reached it yet');
+          return;
+        }
+        use.disabled = true;
+        feelWrite(function(f){
+          if(!f.mouseTranslation) f.mouseTranslation = {};
+          var rm = ZSAIMMODEL.resolve(found.model, f.mouseTranslation, p.platform);
+          if(rm) f.mouseTranslation.resolvedAimModel = rm;
+        });
+        ZS.toast(found.pack.name+'\u2019s measured stick is on \u2014 EXO Linear is ready');
+        render(root);
+      });
+    }
+
+    /* ── the CONTROLLER page (D245) ─────────────────────────────────
+       Owner, 2026-10-09: "it should literally be just like the 8K pad, but
+       have the option in the aim curves to disable it and use the native game
+       aim curve ... literally take the app and make it fit into my mobile
+       area". The stick pages (the Hip/ADS pager, the Thumbstick card and its
+       ••• fold) are gone: the controller Aim screen IS the ZS8K
+       Configurator's Sticks and Triggers tabs (zk-pad.js) on this config's
+       fields. Each stick's curve row starts with Native, which turns the
+       curve off; a curve on a Native stick makes it Custom with that curve.
+       What the 8K app has no card for and the Core does - Sensitivity, the
+       ADS sensitivity, Smoothing, Movement speed - is one more card in the
+       same look (Speed), shown only while a stick is on a curve (D241:
+       Native has nothing to set). */
+    var ZKTAB = window.ZS_ZKTAB || (window.ZS_ZKTAB = {});
+    var ZKSEL = window.ZS_ZKSEL || (window.ZS_ZKSEL = {});   /* D249: the stick on screen */
+    function zkOpt(root){
+      var ready = feelShown() && feelReady();
+      var slot = {}, after = {}, mode = {}, drawn = {};
+      ['left','right'].forEach(function(sd){
+        mode[sd] = feelOf(sd);
+        drawn[sd] = ready;          /* a measured game: Native | EXO Linear | Custom */
+        if(mode[sd]!=='custom') return;
+        if(feelGridLive(sd)){
+          slot[sd] = feelCurveHTML('feel-'+sd, feelGrid(sd, false),
+            sd==='right' ? 'Aim stick curve' : 'Movement stick curve', true,
+            'Curve Editor - '+(sd==='right' ? 'Right' : 'Left')+' stick : Hip');
+
+        } else if(ready){
+          /* an old Tuned config names no mode: one tap names it, and the
+             drawn curve takes over from the Core's */
+          slot[sd] = '<button class="btn ghost" data-feelmat="'+sd+'" style="margin-top:8px">'+
+            'Draw my curve on this game\u2019s measured stick</button>';
+        }
+      });
+      /* not measured yet: EXO Linear waits for Calibrate, and a game whose
+         pack already carries its measured stick is one tap away */
+      var foot = '';
+      if(feelShown() && !feelReady()){
+        var found = trModelOf(p);
+        foot = '<div class="zkmuted"><b>Calibrate this game first</b> for EXO Linear.</div>'+
+          helpHTML('zk-linear', 'EXO Linear', 'It uses this '+
+          'game\u2019s measured stick, from Translation \u25b8 Calibrate.')+
+          ((found && found.model && found.model.needsCalibration === false)
+            ? '<button class="btn primary" data-feeluse="1" style="margin-top:8px">Use '+
+                esc(found.pack.name)+'\u2019s measured stick</button>' : '')+
+          '<button class="btn ghost" data-door="translation" data-doorlab="Translation" style="margin-top:8px">Open Translation</button>';
+      }
+      return {
+        mode: mode, exo: feelShown(), exoReady: feelReady(), drawn: drawn, curveFoot: foot,
+        anti: zkAntiFw(),           /* D261: the Anti slider, only on a Core that reads it */
+        slot: slot, after: after,
+        dzExtra: seg('Deadzone shape', ['Round','Per-axis'], 0, false,
+          B('deadZones.mode', 1, {t:'str', map:{'Round':'radial','Per-axis':'axial'}})),
+        sel: ZKSEL[p.id] || 'right',
+        onSel: function(s){ ZKSEL[p.id] = s; if(root) render(root); },
+        onTab: function(t){ ZKTAB[p.id] = t; },
+        /* D246: Copy L -> R / R -> L - the stick's mode, its curve and its
+           deadzones (D261: its anti-deadzone too); the other stick's own
+           speeds stay its own */
+        onCopy: function(from){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){
+            ZS.toast('Your board is offline \u2014 this has not reached it yet');
+            return;
+          }
+          var to = from==='left' ? 'right' : 'left';
+          feelWrite(function(f){
+            stickChoiceWrite(f, to, stickChoiceOf(f, from));
+            if(!f.curves) f.curves = {};
+            var src = f.curves[from+'Stick'] || {};
+            var dst = f.curves[to+'Stick'] || (f.curves[to+'Stick'] = {});
+            dst.type = src.type || 'linear';
+            dst.strength = (typeof src.strength==='number') ? src.strength : 1.0;
+            dst.points = Array.isArray(src.points) ? JSON.parse(JSON.stringify(src.points)) : [];
+            if(!f.deadZones) f.deadZones = {};
+            ['Inner','Outer','Anti'].forEach(function(k){
+              if(typeof f.deadZones[from+k]==='number') f.deadZones[to+k] = f.deadZones[from+k];
+              else if(k==='Anti') delete f.deadZones[to+k];   /* D261: none is none */
+            });
+          });
+          ZS.toast((from==='left' ? 'Left' : 'Right')+' stick copied to the '+to+' stick');
+          if(root) render(root);
+        },
+        onMode: function(side, m, fn){
+          if(ZS.live.online===false || !ZS.live.full[p.id]){
+            ZS.toast('Your board is offline \u2014 this has not reached it yet');
+            return;
+          }
+          if(side==='ads'){                 /* D254: the aiming curve has no mode */
+            if(fn) feelWrite(fn);
+            if(root) render(root);
+            return;
+          }
+          if(m==='exoLinear' && !feelReady()){
+            ZS.toast('Calibrate this game first \u2014 EXO Linear needs its measured stick');
+            return;
+          }
+          var res = null;
+          feelWrite(function(f){
+            var r = stickChoiceWrite(f, side, m);
+            if(!res) res = r;
+            if(fn) fn(f);
+          });
+          if(res && res.reset.length){
+            ZS.toast('Native \u2014 your controller, untouched. '+res.reset.join(' and ')+
+              (res.reset.length>1 ? ' are' : ' is')+' back to 100%.');
+          }
+          if(root) render(root);
+        }
+      };
+    }
+    /* aiming's own drawn curve (D184), under the hip one on a measured game */
+    function zkAdsCurveHTML(){
+      var g = feelGrid('right', true);
+      return '<div class="fld col feelfld" data-feel="right-ads"><div class="flab">Aiming curve'+
+          '<em>'+(g ? 'Your own curve while you aim.' : 'While you aim, your hip curve is used, on this game\u2019s aiming numbers.')+'</em></div>'+
+        (g ? feelCurveHTML('feel-right-ads', g, 'Aiming curve', true, 'Curve Editor - Right stick : ADS')+
+             '<button class="btn ghost" data-feeladsclear="1" style="margin-top:8px">Use the hip curve while aiming</button>'
+           : '<button class="btn ghost" data-feeladsdraw="1" style="margin-top:8px">Draw an aiming curve</button>')+
+      '</div>';
+    }
+    /* the Speed card: the Core's own stick speeds, in the Configurator's look */
+    /* D248 (owner, 2026-10-09: "put sensitivity at the top, and for
+       controller do a 0-100 scale, 100 being the native pass-through turn
+       rate the console would expect"): curves.<side>Stick.gain as 0..100,
+       100 = gain 1.0 = the stick exactly as the console expects it. The
+       Core refuses a gain under 0.1, so the lowest step is 10. Shown on a
+       Native stick too - Native honours gain, and 100 is Native exactly. */
+    function zkSpeedHTML(){
+      var sel = ZKSEL[p.id] || 'right';
+      var rc = feelOf('right')==='custom';
+      var full = ZS.live.full[p.id] || boardFull || {};
+      function pct(side, k){
+        var c = (full.curves || {})[side+'Stick'] || {};
+        var g = (typeof c[k]==='number' && isFinite(c[k])) ? c[k] : 1;
+        return Math.max(10, Math.min(100, Math.round(g*100)));
+      }
+      if(sel==='left'){
+        return ZSZK.cardHTML('speed', '#3ddc84', 'Speed',
+          slider('Movement speed', 10, 100, pct('left', 'gain'), '',
+            B('curves.leftStick.gain', .01, {mn:0.1, mx:1}))+
+          helpHTML('zk-speed-l', 'Speed', '<b>Movement speed</b> is how fast the stick you walk with moves, '+
+            'on a 0\u2013100 scale: <b>100</b> is the stick exactly as the console expects it; lower is '+
+            'slower, down to 10.'), ' data-zkcard="speed"');
+      }
+      var body = slider('Sensitivity', 10, 100, pct('right', 'gain'), '',
+        B('curves.rightStick.gain', .01, {mn:0.1, mx:1}));
+
+      /* Smoothing only where it runs: a Native stick passes 0.0 literally */
+      if(rc){
+        var opts = smStickOptions(), preset = smStickPreset(), idx = opts.indexOf(preset);
+        if(idx<0){ idx = 0; preset = opts[0]; }
+        body += '<div class="smblk"><div class="smtitle">Smoothing</div>'+
+            smcarHTML(' data-smset="stick"', preset, idx, opts.length)+
+            '<div class="smcap">'+esc(smStickCaption(preset))+'</div>'+
+          '</div>'+(preset==='Custom' ? smStickCustomHTML() : '');
+      }
+      return ZSZK.cardHTML('speed', '#3ddc84', 'Speed', body+
+        helpHTML('zk-speed', 'Speed', '<b>Sensitivity</b> is how fast the aim stick turns, on a 0\u2013100 scale: '+
+          '<b>100</b> is the stick exactly as the console expects it (the native turn rate); lower is slower, '+
+          'down to 10. The <b>ADS</b> tab sets it while you aim down sights. <b>Smoothing</b> '+
+          'steadies a shaky hand for a few '+
+          'milliseconds of settling time (a stick on a curve only).'), ' data-zkcard="speed"');
+    }
+    /* D253 (owner, 2026-10-09: "you can just click a slider at the top to
+       inherit the settings between the two if you don't want them separate -
+       when enabled it copies it over, and when disabled doesn't delete but
+       stops copying"). The ADS tab: the Same as Hip switch first. ON =
+       curves.rightStick.adsGain null, so the Core uses the hip numbers -
+       copying for ever. OFF = adsGain seeded with the hip number (adsSet), so
+       the copy stays and is ADS's own from then on.
+       What the Core holds ONE copy of - deadzones, the curve, Smoothing,
+       the triggers - applies in both stances; the page says so rather than
+       draw a second set of sliders that would write the same fields. */
+    function zkAdsHTML(){
+      var g = adsGainOf(), same = g===null;
+      var full = ZS.live.full[p.id] || boardFull || {};
+      var rs = (full.curves || {}).rightStick || {};
+      var pctA = Math.max(10, Math.min(100, Math.round(((same ? rs.gain : g) || 1)*100)));
+      var h = '<div class="zkcard zkinherit" data-zkcard="inherit">'+
+        '<button type="button" class="zkswrow" data-xinherit="stick" role="switch" aria-checked="'+(same ? 'true' : 'false')+'">'+
+          '<span class="zkswtxt"><b>Same as Hip</b><em>'+(same
+            ? 'ADS uses your Hip settings, and keeps following them.'
+            : 'ADS has its own settings. Switch on to copy Hip again.')+'</em></span>'+
+          '<span class="zksw'+(same ? ' on' : '')+'" aria-hidden="true"><i></i></span></button></div>';
+      /* D254 (owner, 2026-10-09: "all the options inside the sticks tab
+         should be in the aiming one, except triggers and deadzones - the
+         curves should be there - and if someone disables the copy, it reveals
+         the curve stuff"): Same as Hip ON shows the switch and the aiming
+         door only; OFF reveals ADS's own Speed (Sensitivity, Smoothing) and
+         its own Response Curve. */
+      var rc = feelOf('right')==='custom';
+      var helpTxt = '<b>ADS</b> is while you aim down sights: pulling <b>L2</b>, or holding the button set '+
+        'under <b>Choose what counts as aiming</b>. <b>Same as Hip</b> on: ADS copies your Hip Sensitivity, '+
+        'Smoothing and curve, and keeps copying them. Off: the copy stays, and from then on ADS has its own. '+
+        'Deadzones and triggers are the same in both.';
+      var door = '<button class="btn ghost" data-door="roles" data-doorlab="Aim" style="margin-top:8px">'+
+        'Choose what counts as aiming</button>';
+      if(same){
+        h += ZSZK.cardHTML('speed', '#3ddc84', 'ADS', door+helpHTML('zk-ads', 'ADS', helpTxt), ' data-zkcard="adsspeed"');
+        return h;
+      }
+      var sm = (full.smoothing || {});
+      var smA = (typeof sm.rightStickAds==='number') ? sm.rightStickAds : (sm.rightStick || 0);
+      var body = slider('Sensitivity', 10, 100, pctA, '', B('curves.rightStick.adsGain', .01, {mn:0.1, mx:1}));
+      if(rc){
+        /* the same four steps as HIP's Smoothing ladder, on smoothing.rightStickAds */
+        body += '<div class="smblk"><div class="smtitle">Smoothing</div>'+
+          '<div class="zkseg" role="group" aria-label="ADS smoothing">'+
+          SM_STICK.map(function(r){
+            var on = Math.abs(smA - r[1]) < 0.005;
+            return '<button type="button" data-zkadssm="'+r[1]+'"'+(on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"')+
+              '>'+esc(r[0])+'</button>';
+          }).join('')+'</div></div>';
+      }
+      body += door;
+      h += ZSZK.cardHTML('speed', '#3ddc84', 'ADS Speed', body+helpHTML('zk-ads', 'ADS', helpTxt), ' data-zkcard="adsspeed"');
+      if(feelGridLive('right')){
+        h += ZSZK.cardHTML('curve', '#bb9af7', 'ADS Curve', zkAdsCurveHTML(), ' data-zkcard="adscurve"');
+      } else if(rc){
+        h += ZSZK.adsCurveHTML(full);
+      } else {
+        h += '<div class="zkmuted zkshared">Your right stick is <b>Native</b> on HIP: give it a curve there and '+
+          'ADS can have its own curve and Smoothing too.</div>';
+      }
+      if(!zkAdsFw()){
+        h += warnHTML('Your Core needs its next update for ADS\u2019s own curve and Smoothing. Until then '+
+          'ADS uses the Hip curve and Smoothing (ADS Sensitivity already works).', 'zk-adsfw');
+      }
+      return h;
+    }
+    /* D254: does the Core apply ADS's own curve and Smoothing yet? (a Core
+       built before D254 reads past the section and uses Hip's) */
+    function zkAdsFw(){
+      /* the Core's own list of the settings blocks it reads (/status
+         profileFormat.sections); STICKADS is 0x0033 = 51 */
+      var st = ZS.live && ZS.live.status;
+      var secs = st && st.profileFormat && st.profileFormat.sections;
+      return Array.isArray(secs) && secs.some(function(v){ return +v === 51 || String(v).toLowerCase() === '0x0033'; });
+    }
+    /* D261: does the Core apply each stick's anti-deadzone? STICKANTI is
+       0x0034 = 52 in /status profileFormat.sections (a Core built before
+       D261 skips the section, so the slider would write nothing) */
+    function zkAntiFw(){
+      var st = ZS.live && ZS.live.status;
+      var secs = st && st.profileFormat && st.profileFormat.sections;
+      return Array.isArray(secs) && secs.some(function(v){ return +v === 52 || String(v).toLowerCase() === '0x0034'; });
+    }
+    function zkPadPageHTML(){
+      if(!window.ZSZK) return '';
+      /* D246: no Controller Feel door - its limits are on the Deadzones and
+         Trigger Settings cards, its stick response is the curves + Smoothing */
+      return ZSZK.pageHTML(ZS.live.full[p.id] || boardFull, zkOpt(null), ZKTAB[p.id] || 'hip',
+        { speed: zkSpeedHTML(), ads: zkAdsHTML() });
+    }
+    /* curves.rightStick.adsGain as the ENGINE reads it: a finite positive
+       number, or null. Read from the live cache rather than boardFull —
+       boardFull is the object R.aim was handed, and putProfile replaces
+       ZS.live.full[p.id] with a new one on every landed write, so after one
+       switch flip the captured reference is a generation behind. The
+       stage's own _ads_cfg treats anything that is not a positive finite
+       number as off, and so does this. */
+    function adsGainOf(){
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      var rs = full && full.curves && full.curves.rightStick;
+      var g = rs ? rs.adsGain : null;
+      return (typeof g==='number' && isFinite(g) && g>0) ? g : null;
+    }
+    /* The switch's one write. ON seeds the hip gain (a number the schema has
+       already accepted, so the board cannot refuse it) or 1.0; OFF writes
+       null, which is the engine's off. The seed goes into the CACHED config
+       as well as the queued write, and not for optimism's sake: bindRead
+       prefers the board's copy and hands back undefined for null, so until
+       the debounced write lands the new stepper would open on whatever the
+       local cache last held for this label — the 60% from a session since
+       switched off, say — over a board about to hold the hip gain. Writing
+       the value the queued mutation is about to make true, where the one
+       reader that wins looks for it, is how the dial and the wire agree
+       from the first frame. putProfile clones from a fresh GET and replaces
+       the cache on success, so nothing here outlives the write. */
+    function adsSet(on, root){
+      if(ZS.live.online===false || !ZS.live.full[p.id]){
+        ZS.toast('Your board is offline — this switch has not reached it yet');
+        render(root);                 /* the switch goes back where the board has it */
+        return;
+      }
+      var full = ZS.live.full[p.id];
+      var hip = (full.curves && full.curves.rightStick) ? full.curves.rightStick.gain : null;
+      var seed = on ? ((typeof hip==='number' && hip>=0.1 && hip<=3) ? hip : 1.0) : null;
+      /* D254: ADS's own curve and Smoothing go the same way - OFF (own)
+         copies Hip's as they are now, ON (Same as Hip) clears them so the
+         Core follows Hip again. Nothing else is touched. */
+      var hrs = (full.curves && full.curves.rightStick) || {};
+      var curveSeed = on ? {
+        type: hrs.type || 'linear',
+        strength: (typeof hrs.strength==='number' && hrs.strength>=0.1) ? hrs.strength : 1.0,
+        points: Array.isArray(hrs.points) ? JSON.parse(JSON.stringify(hrs.points)) : []
+      } : null;
+      var hsm = (full.smoothing && typeof full.smoothing.rightStick==='number') ? full.smoothing.rightStick : 0;
+      var smSeed = on ? hsm : null;
+      function put(f){
+        if(!f.curves) f.curves = {};
+        if(!f.curves.rightStick) f.curves.rightStick = {};
+        f.curves.rightStick.adsGain = seed;
+        f.curves.rightStick.adsCurve = curveSeed ? JSON.parse(JSON.stringify(curveSeed)) : null;
+        if(!f.smoothing) f.smoothing = {};
+        f.smoothing.rightStickAds = smSeed;
+      }
+      ZS.editProfile(p.id, put);      /* M8: onto a clone, never in place */
+      render(root);   /* the stepper appears and disappears with the switch */
+      /* render() replaced the very switch that was tapped. Put the focus
+         back on its twin, or a keyboard or switch user pays a hunt per flip. */
+      var sw = root.querySelector('[data-xinherit="stick"]');
+      if(sw && sw.focus){ try{ sw.focus(); }catch(e){} }
+    }
+
+    /* Which preset the stick shows. The tap the user just made wins, then the
+       board's stored number, then what was last picked here — never a name the
+       value denies. A local 'Custom' beats an exact match, for the same reason
+       the mouse's does: a number that happens to equal a preset may still be
+       one the user dialled, and having the Custom dial vanish out from under a
+       thumb mid-tune is worse than a stale word on the carousel. */
+    function smStickStyle(sm){
+      return (sm && sm.rightStickStyle==='classic' && classicShown()) ? 'classic' : 'standard';
+    }
+    function smStickOptions(){
+      return SM_STICK.map(function(r){ return r[0]; })
+        .concat(classicShown() ? SM_CLASSIC_PRESETS.map(function(r){ return r[0]; }) : [])
+        .concat(['Custom']);
+    }
+    function smStickCustomHTML(){
+      var sm = ((ZS.live.online!==false ? ZS.live.full[p.id] : null) || {}).smoothing || {};
+      var style = smStickStyle(sm);
+      var h = '<div class="smcustom" data-smcustom="stick">';
+      if(classicShown()) h += smStyleSeg(' data-smstylefor="stick"', style)+smStyleHelp('stick');
+      if(style==='classic'){
+        h += classicSteppers(['smoothing.rightStickClassicSmooth','smoothing.rightStickClassicDecay','smoothing.rightStickClassicSynch'],
+          [typeof sm.rightStickClassicSmooth==='number' ? sm.rightStickClassicSmooth : 0,
+           typeof sm.rightStickClassicDecay==='number' ? sm.rightStickClassicDecay : 9,
+           typeof sm.rightStickClassicSynch==='number' ? sm.rightStickClassicSynch : 0], 'stick');
+      } else {
+        h += labHelp(stepper('Steadiness', 35, 5, 0, 95, '%',
+              'how hard the stick is steadied',
+              B('smoothing.rightStick', .01, {mn:0, mx:0.95})), 'aim-steady-stick', 'Steadiness', AIM_HELP.steady);
+      }
+      return h+'</div>';
+    }
+    function smStickStyleSet(style, root){
+      smSel.stick = 'Custom';
+      {
+        smWrite(function(f){
+          if(!f.smoothing) f.smoothing = {};
+          var sm = f.smoothing;
+          sm.rightStickStyle = style;
+          if(style==='classic'){
+            ['Smooth','Decay','Synch'].forEach(function(n, i){
+              if(typeof sm['rightStickClassic'+n]!=='number') sm['rightStickClassic'+n] = CLASSIC_SEED[i];
+            });
+          }
+        });
+      }
+      render(root);
+    }
+    function smStickPreset(){
+      if(smSel.stick) return smSel.stick;
+      var local = ZS.store.vals[baseNs+'|sm-stick'];
+      var full = ZS.live.online!==false ? ZS.live.full[p.id] : null;
+      if(!full) return local || 'Disabled';
+      if(local==='Custom') return 'Custom';
+      if(smStickStyle(full.smoothing)==='classic'){
+        var fs = full.smoothing;
+        return smClassicFromValues(fs.rightStickClassicSmooth, fs.rightStickClassicDecay,
+                                   fs.rightStickClassicSynch) || 'Custom';
+      }
+      var v = (full.smoothing||{}).rightStick;
+      var s = typeof v==='number' ? v : 0;          /* the engine's own default */
+      for(var i=0;i<SM_STICK.length;i++){
+        if(Math.abs(s-SM_STICK[i][1])<0.005) return SM_STICK[i][0];
+      }
+      return 'Custom';
+    }
+    /* One tap, one field. Custom writes NOTHING: the number already on the
+       board IS the custom value and the dial below opens on it — the same rule
+       the mouse's hip Custom follows, and unlike the mouse it needs no seed
+       because smoothing.rightStick always exists (schema default 0.0). Offline
+       the pick is kept locally, exactly like the curve preset. */
+    function smStickApply(name, root, d){
+      smSel.stick = name;
+      ZS.store.vals[baseNs+'|sm-stick'] = name; ZS.persistStore();
+      var pr = null, cp = smClassicPreset(name), i;
+      for(i=0;i<SM_STICK.length;i++){ if(SM_STICK[i][0]===name) pr = SM_STICK[i]; }
+      if(pr || cp){
+        smWrite(function(f){
+          if(!f.smoothing) f.smoothing = {};
+          if(pr){
+            f.smoothing.rightStick = pr[1];
+            /* D191: a Standard preset is Standard; never-named stays unnamed */
+            if(f.smoothing.rightStickStyle!=null) f.smoothing.rightStickStyle = 'standard';
+          } else {
+            f.smoothing.rightStickStyle = 'classic';
+            f.smoothing.rightStickClassicSmooth = cp[1];
+            f.smoothing.rightStickClassicDecay = cp[2];
+            f.smoothing.rightStickClassicSynch = cp[3];
+          }
+        });
+      }
+      render(root);   /* the Custom dial appears and disappears with the name */
+      /* render() replaced the very arrow that was pressed. Put the focus back
+         on its twin, or stepping Disabled -> Light -> Balanced costs a
+         keyboard or switch user three hunts for the same control. */
+      var a = root.querySelector('.smcar[data-smset="stick"] .arr[data-d="'+(d<0?'-1':'1')+'"]');
+      if(a && !a.disabled && a.focus){ try{ a.focus(); }catch(e){} }
+    }
+
+    /* D184/D275: the mouse's hip curve is the shared curve editor
+       (zs-curve-grid.js, ZSCURVE, XIM's Curve Editor): handles, straight
+       segments, zoom, the presets and COPY / PASTE, a smooth rising curve
+       sent to the Core as 15-16 samples in curvePoints, the handles kept in
+       curveGrid for the editor (seven numbers, or {v:2, h, s}). An old
+       three-dot curve or a power curve (the old Gentle / Aggressive) opens
+       as the curve it already is; nothing is written until a point moves.
+       Linear writes the plain linear curve (no points). */
+    return {
+      feelOf: feelOf,
+      feelWrite: feelWrite,
+      feelWire: feelWire,
+      zkOpt: zkOpt,
+      zkPadPageHTML: zkPadPageHTML,
+      adsGainOf: adsGainOf,
+      adsSet: adsSet,
+      smStickOptions: smStickOptions,
+      smStickStyleSet: smStickStyleSet,
+      smStickPreset: smStickPreset,
+      smStickApply: smStickApply
+    };
+  }
+
+  SEC.makeAimController = makeAimController;
+});
