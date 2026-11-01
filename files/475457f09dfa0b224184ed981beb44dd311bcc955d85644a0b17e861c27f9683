@@ -1,0 +1,111 @@
+{
+  "zerostickGamePack": 1,
+  "id": "destiny-2",
+  "name": "Destiny 2",
+  "aliases": [
+    "Destiny",
+    "D2"
+  ],
+  "version": 2,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "destiny-2.jpg",
+    "tall": "destiny-2-tall.jpg",
+    "panel": "destiny-2-panel.jpg"
+  },
+  "aimPreset": "d2",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "destiny-2",
+    "name": "Destiny 2 - ESTIMATED, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "D569 ESTIMATED 2026-11-01 (aim agent B): no turn rate, curve or zone for Destiny 2 is published anywhere; every number below is an estimate to be replaced by Calibrate (docs/AIM-PRESETS-2026-11-01-B.md)."
+      },
+      {
+        "what": "Look Sensitivity 1-20 (cap raised from 10 for Season 15, Aug 2021; 1-10 unchanged), ADS Sensitivity Modifier 0.5-1.5, Sprint Turn Scale 0.3-0.8; Traction removed (High, Bungie TWAB 2021-08-12 via Destructoid).",
+        "url": "https://destructoid.com/?p=279493"
+      },
+      {
+        "what": "No dead-zone, curve or acceleration option exists in the game (Medium: players keep asking, no patch note adds one).",
+        "url": "https://steamcommunity.com/app/1085660/discussions/3/2514645967863187874"
+      },
+      {
+        "what": "Dead zone 0.20 round and curve x^2.8: ESTIMATED from GIMX's open PS4 Destiny 1 calibration (dead zone 28-29/127, compensation exponent 0.35), same studio and engine family (Low for Destiny 2).",
+        "url": "https://github.com/matlo/GIMX-configurations"
+      },
+      {
+        "what": "Turn speed ESTIMATED: hip 300 deg/s base at Look Sensitivity 20, about 450 once the rim ramp has run (gain 1.5 after 0.4 s above 95 % stick). Players report the camera \"slowly accelerating\" at full stick, with no numbers (Low); 20 read as about twice the old cap 10. Pitch 0.65 x yaw and aiming 0.55 x hip at ADS modifier 1.0 are Bungie-family guesses; a scope's own zoom slows aiming further.",
+        "url": "https://steamcommunity.com/app/1085660/discussions/0/5116650215580424158"
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Sensitivity",
+        "value": "20"
+      },
+      {
+        "setting": "ADS Sensitivity Modifier",
+        "value": "1.0"
+      },
+      {
+        "setting": "Sprint Turn Scale",
+        "value": "0.8"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.2,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "power",
+        "exp": 2.8
+      },
+      "turnRate": {
+        "yaw": 300,
+        "pitch": 195
+      },
+      "ramp": {
+        "threshold": 0.95,
+        "delayMs": 0,
+        "riseMs": 400,
+        "gain": 1.5
+      },
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 165,
+        "pitch": 107
+      }
+    }
+  },
+  "notes": "Destiny 2, Steam app 1085660.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Destiny 2 are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "No measured mouse turn rates for Destiny 2 are in the repo yet. This block sets nothing, so a mouse config starts on the same neutral mouse settings every new config gets.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "Nothing has been measured for Destiny 2 with a stick in one hand and a mouse in the other. This block sets nothing: the neutral settings every new config gets.",
+      "config": {}
+    }
+  }
+}

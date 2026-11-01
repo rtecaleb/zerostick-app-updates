@@ -1,0 +1,417 @@
+{
+  "zerostickRecognition": 1,
+  "game": "fortnite",
+  "trainedOn": "2026-11-01",
+  "catalogAsOf": "2026-10-21",
+  "reader": "zs_iconread 1",
+  "icons": {
+    "finder": "band",
+    "rows": 36,
+    "pool": 3,
+    "mask": 0,
+    "accept": 0.8,
+    "lead": 0.14,
+    "search": [
+      4,
+      2
+    ],
+    "every": 4,
+    "items": [
+      {
+        "id": "shotguns.8_bit_shotgun"
+      },
+      {
+        "id": "assault_rifles.assault_rifle"
+      },
+      {
+        "id": "assault_rifles.balloon_popper_assault_rifle"
+      },
+      {
+        "name": "Bandages",
+        "decoy": true
+      },
+      {
+        "id": "items.bass_boost"
+      },
+      {
+        "id": "shotguns.blitz_pump_shotgun"
+      },
+      {
+        "id": "smgs.bonerattler_smg"
+      },
+      {
+        "id": "assault_rifles.brutus_minigun"
+      },
+      {
+        "id": "shotguns.brutus_twin_hammer_shotguns"
+      },
+      {
+        "id": "assault_rifles.deadeye_assault_rifle"
+      },
+      {
+        "id": "shotguns.dragons_belch_shotgun"
+      },
+      {
+        "id": "smgs.drum_gun"
+      },
+      {
+        "id": "crossbows.dual_fiend_hunters"
+      },
+      {
+        "id": "shotguns.extending_focus_shotgun"
+      },
+      {
+        "id": "pistols.finger_guns"
+      },
+      {
+        "id": "items.firework_flare_gun"
+      },
+      {
+        "id": "melee.freddys_nightmare"
+      },
+      {
+        "id": "shotguns.gatekeeper_shotgun"
+      },
+      {
+        "id": "pistols.hand_cannon"
+      },
+      {
+        "id": "assault_rifles.heavy_assault_rifle"
+      },
+      {
+        "id": "sniper_rifles.heavy_impact_sniper_rifle"
+      },
+      {
+        "id": "shotguns.high_stakes_shotgun"
+      },
+      {
+        "id": "pistols.hyperburst_pistol"
+      },
+      {
+        "id": "shotguns.iron_pump_shotgun"
+      },
+      {
+        "id": "melee.kingdom_key"
+      },
+      {
+        "id": "pistols.krustys_mr_blasty"
+      },
+      {
+        "id": "melee.last_call"
+      },
+      {
+        "id": "assault_rifles.light_machine_gun"
+      },
+      {
+        "name": "Med Kit",
+        "decoy": true
+      },
+      {
+        "id": "explosives.mega_buster"
+      },
+      {
+        "id": "pistols.midas_masterpiece"
+      },
+      {
+        "id": "assault_rifles.morphite_heavy_assault_rifle"
+      },
+      {
+        "id": "shotguns.morphite_sentinel_pump_shotgun"
+      },
+      {
+        "id": "shotguns.oni_shotgun"
+      },
+      {
+        "id": "items.overdrive_grenade"
+      },
+      {
+        "id": "shotguns.overpowered_pump_shotgun"
+      },
+      {
+        "id": "pistols.pistol"
+      },
+      {
+        "id": "shotguns.pump_shotgun"
+      },
+      {
+        "id": "assault_rifles.ranger_assault_rifle"
+      },
+      {
+        "id": "pistols.ranger_pistol"
+      },
+      {
+        "id": "smgs.rebeccas_guns"
+      },
+      {
+        "name": "Shield Potion",
+        "decoy": true
+      },
+      {
+        "name": "Small Shield Potion",
+        "decoy": true
+      },
+      {
+        "id": "items.sonic_power_sneakers"
+      },
+      {
+        "id": "assault_rifles.striker_ar"
+      },
+      {
+        "id": "shotguns.sweeper_shotgun"
+      },
+      {
+        "id": "assault_rifles.tactical_assault_rifle"
+      },
+      {
+        "id": "pistols.tactical_pistol"
+      },
+      {
+        "id": "melee.thornes_vampiric_blade"
+      },
+      {
+        "id": "smgs.thunder_burst_smg"
+      },
+      {
+        "id": "assault_rifles.warforged_assault_rifle"
+      },
+      {
+        "id": "zero_build.where_we_droppin_pistol"
+      },
+      {
+        "id": "shotguns.wood_stake_shotgun"
+      }
+    ],
+    "templates": 55,
+    "bytes": 10672,
+    "b64": "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maqaqYQ5d5mZqpqphCmJmZmqmpmFOJmZmaqZmZVHmZmZqhoAdmZmZ6ZmZ8dmZmZt5mZpuGZmZm7mZmq4ZmZmndZmabhmZmjfmpZquGZma92bh2q4ZmZ7+ap2arhmZo7oiXZqyGZoz5mJdmrIZmjtqZhma8hme+m4p2Zr2GZ6pnmGZmi3VneIiImId5Zmd4iHCIiI52Z3iJQIiIjnZneIgFmIh+dmeIlgm6iI52Z4ihWqyYjnVnebKsy4d+dWd6hqvKh351Z4xZu8l3f3VnmGrsqHd/dmeDm/2Yd392Z4aYyoiHe3GwB2ZmZmZmd2ZnZmZmZmi6ZnZmZmZpfOhmZmZmZm3dd2ZmZmZnv/xmZmdmZ3z/23dmZnafv776dmZnZozs/I2nd2d3it3Xd6x2Z3eJrad4eHdnd52qh3t3Z2dmiZp2dmZmdWeJqqqqmHZVeJmru7pnh2Z4mru7tziHZniau8iEmYdmeJq7uAaph2eJqrpAKLqYd5qlo1JLuph3ialDCbmamHeJpgB8y6eYd4mmMHu7qZh3iYhFm7upmHaIiImqqpmHYcAGZmZmZmZmZmZmZmZmZmZmZmZ5i8uszLZmaduLqZZm1macuIiMdmbWZqvJdm1maMZmjNiHjKq612Zr/5iZu9vHZmyNl4jdxuZmaau3d9d8pmZn7ZeImrpmZlZnZVVmZmZnd3d3d3d3d3dnd3d3d3d2ZlZneJmaqoVjNHh5h6vLgzRap3dn3d2kRnyXZmfu7rZne5dmZ97sx2d3qnZmd43nd3j/ZVWKz8dneN6GZq7+l3ZmvYd3iZhmZ2d4d3d3d3Zh0AdmZmZmeqdmZmZmZmfJq2ZmZmZnmahsdmZmZombiY12ZmZomc2HyWZmZnhp76jWZmZmh2v+jaZmZmeHv/i9dmZmZ5j/i9hmZmZqu5u8pmZmZ2qJzMlmZmZmZ6qYdmZmd3Z4maqqqYmHZ4maq7uQB5h4mau8uEAAmYiaq8lphQCZiJqrh8lmOamJmrh4eFdbqYmql3aYdJupiZqIeZdluqmImoh6diu6qYmYNndCq7qpiJcQMjq7qpmHiFKJqqqZmIHgB3d2Zmd4q4d3Z3ZmZ439p3dnZmd33/93d2ZmZ3z/t3d3Zmd57/h3d3dnd7/7d3d3d3eO35dnZnZ3eNuvd3dmd3d7y713d3d3d3eqynd3d3d3d7qndmd3d3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qZiZlQhzTLqpmIiZmYe6qZiImJu1QpqqmYiZqXZja6qZmIiapClqqpmIiJmWOmqqmZkoAGZmZmZmZmZmd3d3eIiYmZiqq7qqqZmYeGZmZmZ4eaZnZmZmae7LlmdmZmfP/sd2Z2Zmeq7fhmZnZmi7ythmZmdme87J12ZmZ2Zt7N7XZmZnZmeLznZmZmdmaIqrlmZmZpmZmZmZmZmZmZmZmZmZmqpWeIiZqqqamIiJmaqpqWiGiJmqqlOXiYeImaqSkHuZh4maqjMBqpmHmZqDADuqqYeZpgAgS7qpmJmmCHJrqqmHiJmoZrqpmIeInMZRiqmZhykAdmZmZmZmZmZ2ZmZ3iYdmZnZmaM29yGZmdmZ82s7admZ2Zp/e2c+nZneJz6q3n7hmd4meurmdl2Z2Zn3amM6WZnZma+qoznZmdmZnvMq4ZmZ2ZmZ4h2ZmZmZmZmZmZmZmVmeImZmId2VWd4iZmJh3ZWd4mahXmId2Z4maQSaomHZniJpmnNiHdlZ4iu393WZlVmZ+/d3/hmVWd43ome+XZWd4isR674dmZniIuYvJd2VWd4iJmYh3ZVZ3iIiIiHdmKgB3ZmebhmZmZ3Zme824ZmZmdmZ9rNx2ZmZ2Zo3vzoZmZnZmjZx7pmZmdmZ/qpvGZmZ2Zn+6mtdmZnZmbPqJ52ZmdmZo+onoZmZ2Zmf8uthmZ3ZmZq28t2ZmdmZmZ3d3d4dmZ3eJh3d2ZmZneLyYd3ZmZmd6zKl3dmZmZ3u8zId2ZmZne97dl3ZmZmd77t2ndmZmZ3n//qd2ZmZneO/+x3ZmZmd3z/7HdmZmZ3ee7bd2ZmZnd4u6l3ZmZmZ3d4d3d2YrAHVVVlVVVVm2ZVV5dnZVWrdlVYqruJdaxmVXybvZqWq2ZVuYy7uaisZlXWetupuKxmVtZmqpjIrGZX53eYmsesdlbnVniNt6x2Vp52d61lvHZVe+2rt1W+dVVWiZdlVXtmeImZmZmYdmZ4mImpmZl2ZoiZqYqomYhniZhWprp5mneZgzjIiZibeKpxJWd5uK6Jq2ETNnnIv5mrciM1eMi/maqSMiR5ua+YmYYyNXuqr4eJiHZnqZmfd4iYiamZmYlywAd3d3d3d3nHd2ZmZmZnn+d3ZmZnd3n9dndmZneXj7d2d2Zmd736dmZ3ZmZ8/bd2Zndnd87+dmZmd2Z7//l2ZmZ3Z7/eh2ZmZn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"
+  },
+  "read": {
+    "streak": 2,
+    "blank": "hold"
+  },
+  "box": {
+    "suggested": [
+      0.55,
+      0.8194,
+      0.45,
+      0.1708
+    ]
+  },
+  "verified": {
+    "how": "each creator held out in turn, read by the Core's own code",
+    "strips": 9199,
+    "right": 6300,
+    "none": 2892,
+    "wrong": 7,
+    "moments": {
+      "n": 2184,
+      "right": 1599,
+      "none": 584,
+      "wrong": 1
+    },
+    "perItem": {
+      "Assault Rifle": {
+        "right": 424,
+        "none": 458
+      },
+      "Kingdom Key": {
+        "right": 426,
+        "none": 13
+      },
+      "Overdrive Grenade": {
+        "right": 622,
+        "none": 35,
+        "wrong": 4
+      },
+      "Bonerattler SMG": {
+        "right": 1553,
+        "none": 810
+      },
+      "Shield Potion": {
+        "right": 104,
+        "none": 20
+      },
+      "Sweeper Shotgun": {
+        "none": 208,
+        "right": 510,
+        "wrong": 2
+      },
+      "Mega Buster": {
+        "right": 150,
+        "none": 4
+      },
+      "Dual Fiend Hunters": {
+        "none": 14,
+        "right": 59
+      },
+      "Rebecca's Guns": {
+        "none": 80,
+        "right": 251,
+        "wrong": 1
+      },
+      "Finger Guns": {
+        "right": 130,
+        "none": 61
+      },
+      "Gatekeeper Shotgun": {
+        "none": 88,
+        "right": 170
+      },
+      "Iron Pump Shotgun": {
+        "none": 256
+      },
+      "Small Shield Potion": {
+        "right": 56,
+        "none": 18
+      },
+      "Last Call": {
+        "right": 39,
+        "none": 5
+      },
+      "Balloon Popper Assault Rifle": {
+        "none": 168,
+        "right": 50
+      },
+      "Wood Stake Shotgun": {
+        "none": 154
+      },
+      "Thorne's Vampiric Blade": {
+        "right": 196,
+        "none": 160
+      },
+      "Tactical Pistol": {
+        "none": 85,
+        "right": 276
+      },
+      "Sonic Power Sneakers": {
+        "right": 484,
+        "none": 82
+      },
+      "Heavy Assault Rifle": {
+        "none": 61,
+        "right": 400
+      },
+      "Extending Focus Shotgun": {
+        "right": 130,
+        "none": 26
+      },
+      "Bandages": {
+        "none": 7,
+        "right": 21
+      },
+      "Ranger Assault Rifle": {
+        "right": 18,
+        "none": 9
+      },
+      "Drum Gun": {
+        "none": 25,
+        "right": 21
+      },
+      "Pump Shotgun": {
+        "right": 184,
+        "none": 43
+      },
+      "Freddy's Nightmare": {
+        "none": 2,
+        "right": 26
+      }
+    },
+    "baseline": {
+      "shipped2026-10-24": {
+        "how": "the 2026-10-24 recognition.json unchanged, on the 47 creators it never saw",
+        "moments": {
+          "n": 1866,
+          "right": 992,
+          "wrong": 31
+        }
+      },
+      "sameTestOldCreatorsOnly": {
+        "how": "this test set, templates only from the 8 creators of 2026-10-24 (labels corrected)",
+        "moments": {
+          "n": 2189,
+          "right": 1194,
+          "wrong": 18
+        }
+      }
+    }
+  },
+  "training": {
+    "strips": 11137,
+    "creators": [
+      "aboy",
+      "auraduo",
+      "chanchin",
+      "chipotle",
+      "clapu",
+      "coffee",
+      "crazyrampager",
+      "danetree",
+      "dieison",
+      "dkay",
+      "duffy",
+      "dylans",
+      "eddiewhite",
+      "enigma",
+      "evolvejake",
+      "fallentoast",
+      "fireflyfn",
+      "fortknight",
+      "gallant",
+      "golfguy",
+      "groovykitty",
+      "gurkken",
+      "hellmaddy",
+      "isconi",
+      "jasser",
+      "kingjoe",
+      "knightpb",
+      "ksprite",
+      "litfn",
+      "liyahh",
+      "lordpain",
+      "mcy",
+      "midnightfox",
+      "mitchzone",
+      "mythicaldad",
+      "nekocafe",
+      "neyro",
+      "ngaming",
+      "nono",
+      "official",
+      "otter",
+      "ozlee",
+      "possum",
+      "raycofn",
+      "scrimbowo",
+      "skoesza",
+      "sliinky",
+      "tameable",
+      "taper",
+      "tgplays",
+      "urscary",
+      "wakhrd",
+      "wertson",
+      "whadonaite",
+      "xenoshift",
+      "z3ro"
+    ],
+    "frameSet": "D:/zs-scratch/gunread/fortnite-night/sets.tar (mFinal2/labels.json over coreA-D, coreO5)",
+    "decision": "D-FN-2026-11-01",
+    "official": {
+      "items": [
+        "Brutus' Minigun",
+        "Hand Cannon",
+        "Striker AR",
+        "Thunder Burst SMG"
+      ],
+      "how": "owner exception 2026-11-01: the game's own inventory icon (catalog weapons/, wiki copy) placed on real hotbar tiles; ONE template an item, only for live guns no real frame shows; right rate unmeasured"
+    },
+    "noTemplate": {
+      "items": [
+        "Morphite Sentinel Pump Shotgun",
+        "Where We Droppin Pistol"
+      ],
+      "why": "read other guns held out (Wood Stake, Tactical Pistol); too few strips"
+    }
+  }
+}

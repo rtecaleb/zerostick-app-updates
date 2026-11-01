@@ -1,0 +1,462 @@
+{
+  "zerostickGamePack": 1,
+  "id": "cyberpunk-2077",
+  "name": "Cyberpunk 2077",
+  "aliases": [
+    "Cyberpunk",
+    "CP2077",
+    "Cyberpunk 2077 Phantom Liberty",
+    "Cyberpunk 2077 Ultimate Edition"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "cyberpunk-2077.jpg",
+    "tall": "cyberpunk-2077-tall.jpg",
+    "panel": "cyberpunk-2077-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "cyberpunk-2077",
+    "name": "Cyberpunk 2077 (Raw) - ESTIMATED, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Cyberpunk 2077 on PS5 / Xbox Series. Hip ~270 deg/s yaw at the highest Horizontal Sensitivity with Turning Bonus 0, aiming ~135; pitch 0.65 x yaw. Genre priors (first-person console shooters), not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+      },
+      {
+        "what": "The four Response Curve options and their internal presets, from the game's own patch-2.31 options.json: Recommended = CameraMovementA, Raw = CameraMovementLinear, Sensitive = CameraMovementSensitive, Dynamic = CameraMovementDynamic; Inner Dead Zone 0.00-0.49 (0.35 in the PC file), Outer 0.50-1.00 (0.90)",
+        "url": "https://github.com/deten/cp2077-Hidden-Settings"
+      },
+      {
+        "what": "Advanced controller options: Horizontal / Vertical Sensitivity, Zoom Sensitivity Reduction, Horizontal / Vertical Turning Bonus, Turning Ramp-Up Time, Turning Delay (and their ADS copies)",
+        "url": "https://www.gamerevolution.com/guides/669388-cyberpunk-2077-best-controller-settings-pc-ps4-ps5-xbox-one-series-x-s"
+      },
+      {
+        "what": "Curve shapes are PRIORS except Raw (the game's file names it Linear): Recommended power 2, Sensitive power 1.5, Dynamic the BO7-style reverse-S points. The Core's calibration must replace them."
+      },
+      {
+        "what": "Dead zone 0.05 assumes Inner Dead Zone set to 0.05 (gameSettings); CDPR's console guidance quoted 0.15 (PS5) / 0.35 (Xbox) as the defaults (Prima Games, search excerpt)."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Response Curve",
+        "value": "Raw"
+      },
+      {
+        "setting": "Horizontal Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Inner Dead Zone",
+        "value": "0.05"
+      },
+      {
+        "setting": "Outer Dead Zone",
+        "value": "1.00"
+      },
+      {
+        "setting": "Horizontal / Vertical Turning Bonus (and ADS)",
+        "value": "0 (no rim ramp)"
+      },
+      {
+        "setting": "Aim Assist",
+        "value": "Off"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.05,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 270,
+        "pitch": 176
+      },
+      "ramp": null,
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 135,
+        "pitch": 88
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "raw",
+      "label": "Raw",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cyberpunk-2077",
+        "name": "Cyberpunk 2077 (Raw) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Cyberpunk 2077 on PS5 / Xbox Series. Hip ~270 deg/s yaw at the highest Horizontal Sensitivity with Turning Bonus 0, aiming ~135; pitch 0.65 x yaw. Genre priors (first-person console shooters), not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "The four Response Curve options and their internal presets, from the game's own patch-2.31 options.json: Recommended = CameraMovementA, Raw = CameraMovementLinear, Sensitive = CameraMovementSensitive, Dynamic = CameraMovementDynamic; Inner Dead Zone 0.00-0.49 (0.35 in the PC file), Outer 0.50-1.00 (0.90)",
+            "url": "https://github.com/deten/cp2077-Hidden-Settings"
+          },
+          {
+            "what": "Advanced controller options: Horizontal / Vertical Sensitivity, Zoom Sensitivity Reduction, Horizontal / Vertical Turning Bonus, Turning Ramp-Up Time, Turning Delay (and their ADS copies)",
+            "url": "https://www.gamerevolution.com/guides/669388-cyberpunk-2077-best-controller-settings-pc-ps4-ps5-xbox-one-series-x-s"
+          },
+          {
+            "what": "Curve shapes are PRIORS except Raw (the game's file names it Linear): Recommended power 2, Sensitive power 1.5, Dynamic the BO7-style reverse-S points. The Core's calibration must replace them."
+          },
+          {
+            "what": "Dead zone 0.05 assumes Inner Dead Zone set to 0.05 (gameSettings); CDPR's console guidance quoted 0.15 (PS5) / 0.35 (Xbox) as the defaults (Prima Games, search excerpt)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Response Curve",
+            "value": "Raw"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Inner Dead Zone",
+            "value": "0.05"
+          },
+          {
+            "setting": "Outer Dead Zone",
+            "value": "1.00"
+          },
+          {
+            "setting": "Horizontal / Vertical Turning Bonus (and ADS)",
+            "value": "0 (no rim ramp)"
+          },
+          {
+            "setting": "Aim Assist",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.05,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 270,
+            "pitch": 176
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 135,
+            "pitch": 88
+          }
+        }
+      }
+    },
+    {
+      "key": "recommended",
+      "label": "Recommended",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cyberpunk-2077",
+        "name": "Cyberpunk 2077 (Recommended) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Cyberpunk 2077 on PS5 / Xbox Series. Hip ~270 deg/s yaw at the highest Horizontal Sensitivity with Turning Bonus 0, aiming ~135; pitch 0.65 x yaw. Genre priors (first-person console shooters), not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "The four Response Curve options and their internal presets, from the game's own patch-2.31 options.json: Recommended = CameraMovementA, Raw = CameraMovementLinear, Sensitive = CameraMovementSensitive, Dynamic = CameraMovementDynamic; Inner Dead Zone 0.00-0.49 (0.35 in the PC file), Outer 0.50-1.00 (0.90)",
+            "url": "https://github.com/deten/cp2077-Hidden-Settings"
+          },
+          {
+            "what": "Advanced controller options: Horizontal / Vertical Sensitivity, Zoom Sensitivity Reduction, Horizontal / Vertical Turning Bonus, Turning Ramp-Up Time, Turning Delay (and their ADS copies)",
+            "url": "https://www.gamerevolution.com/guides/669388-cyberpunk-2077-best-controller-settings-pc-ps4-ps5-xbox-one-series-x-s"
+          },
+          {
+            "what": "Curve shapes are PRIORS except Raw (the game's file names it Linear): Recommended power 2, Sensitive power 1.5, Dynamic the BO7-style reverse-S points. The Core's calibration must replace them."
+          },
+          {
+            "what": "Dead zone 0.05 assumes Inner Dead Zone set to 0.05 (gameSettings); CDPR's console guidance quoted 0.15 (PS5) / 0.35 (Xbox) as the defaults (Prima Games, search excerpt)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Response Curve",
+            "value": "Recommended"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Inner Dead Zone",
+            "value": "0.05"
+          },
+          {
+            "setting": "Outer Dead Zone",
+            "value": "1.00"
+          },
+          {
+            "setting": "Horizontal / Vertical Turning Bonus (and ADS)",
+            "value": "0 (no rim ramp)"
+          },
+          {
+            "setting": "Aim Assist",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.05,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 270,
+            "pitch": 176
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 135,
+            "pitch": 88
+          }
+        }
+      }
+    },
+    {
+      "key": "sensitive",
+      "label": "Sensitive",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cyberpunk-2077",
+        "name": "Cyberpunk 2077 (Sensitive) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Cyberpunk 2077 on PS5 / Xbox Series. Hip ~270 deg/s yaw at the highest Horizontal Sensitivity with Turning Bonus 0, aiming ~135; pitch 0.65 x yaw. Genre priors (first-person console shooters), not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "The four Response Curve options and their internal presets, from the game's own patch-2.31 options.json: Recommended = CameraMovementA, Raw = CameraMovementLinear, Sensitive = CameraMovementSensitive, Dynamic = CameraMovementDynamic; Inner Dead Zone 0.00-0.49 (0.35 in the PC file), Outer 0.50-1.00 (0.90)",
+            "url": "https://github.com/deten/cp2077-Hidden-Settings"
+          },
+          {
+            "what": "Advanced controller options: Horizontal / Vertical Sensitivity, Zoom Sensitivity Reduction, Horizontal / Vertical Turning Bonus, Turning Ramp-Up Time, Turning Delay (and their ADS copies)",
+            "url": "https://www.gamerevolution.com/guides/669388-cyberpunk-2077-best-controller-settings-pc-ps4-ps5-xbox-one-series-x-s"
+          },
+          {
+            "what": "Curve shapes are PRIORS except Raw (the game's file names it Linear): Recommended power 2, Sensitive power 1.5, Dynamic the BO7-style reverse-S points. The Core's calibration must replace them."
+          },
+          {
+            "what": "Dead zone 0.05 assumes Inner Dead Zone set to 0.05 (gameSettings); CDPR's console guidance quoted 0.15 (PS5) / 0.35 (Xbox) as the defaults (Prima Games, search excerpt)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Response Curve",
+            "value": "Sensitive"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Inner Dead Zone",
+            "value": "0.05"
+          },
+          {
+            "setting": "Outer Dead Zone",
+            "value": "1.00"
+          },
+          {
+            "setting": "Horizontal / Vertical Turning Bonus (and ADS)",
+            "value": "0 (no rim ramp)"
+          },
+          {
+            "setting": "Aim Assist",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.05,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 1.5
+          },
+          "turnRate": {
+            "yaw": 270,
+            "pitch": 176
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 135,
+            "pitch": 88
+          }
+        }
+      }
+    },
+    {
+      "key": "dynamic",
+      "label": "Dynamic",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cyberpunk-2077",
+        "name": "Cyberpunk 2077 (Dynamic) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Cyberpunk 2077 on PS5 / Xbox Series. Hip ~270 deg/s yaw at the highest Horizontal Sensitivity with Turning Bonus 0, aiming ~135; pitch 0.65 x yaw. Genre priors (first-person console shooters), not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "The four Response Curve options and their internal presets, from the game's own patch-2.31 options.json: Recommended = CameraMovementA, Raw = CameraMovementLinear, Sensitive = CameraMovementSensitive, Dynamic = CameraMovementDynamic; Inner Dead Zone 0.00-0.49 (0.35 in the PC file), Outer 0.50-1.00 (0.90)",
+            "url": "https://github.com/deten/cp2077-Hidden-Settings"
+          },
+          {
+            "what": "Advanced controller options: Horizontal / Vertical Sensitivity, Zoom Sensitivity Reduction, Horizontal / Vertical Turning Bonus, Turning Ramp-Up Time, Turning Delay (and their ADS copies)",
+            "url": "https://www.gamerevolution.com/guides/669388-cyberpunk-2077-best-controller-settings-pc-ps4-ps5-xbox-one-series-x-s"
+          },
+          {
+            "what": "Curve shapes are PRIORS except Raw (the game's file names it Linear): Recommended power 2, Sensitive power 1.5, Dynamic the BO7-style reverse-S points. The Core's calibration must replace them."
+          },
+          {
+            "what": "Dead zone 0.05 assumes Inner Dead Zone set to 0.05 (gameSettings); CDPR's console guidance quoted 0.15 (PS5) / 0.35 (Xbox) as the defaults (Prima Games, search excerpt)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Response Curve",
+            "value": "Dynamic"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Inner Dead Zone",
+            "value": "0.05"
+          },
+          {
+            "setting": "Outer Dead Zone",
+            "value": "1.00"
+          },
+          {
+            "setting": "Horizontal / Vertical Turning Bonus (and ADS)",
+            "value": "0 (no rim ramp)"
+          },
+          {
+            "setting": "Aim Assist",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.05,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.25,
+                0.18
+              ],
+              [
+                0.5,
+                0.33
+              ],
+              [
+                0.75,
+                0.55
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 270,
+            "pitch": 176
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 135,
+            "pitch": 88
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Cyberpunk 2077 (CD PROJEKT RED; PS5 / Xbox Series, patch 2.x). D580 (2026-11-01): the most played first-person shooter RPG on console missing from our packs (TrueAchievements 2026 Xbox YTD #19, #14 and rising in the current week). Mouse and keyboard: Xbox has it natively, PS5 does not, so the Core's translator matters most on PS5. DRAFT for the owner's review. The aim translator is an ESTIMATE (D581): needsCalibration, Not started. Variants are the game's four Response Curve options (Raw is linear by the game's own file). HUD plan: docs/POPULAR-GAMES-2026-11-01.md and ZeroStick Model Library/Cyberpunk 2077.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Cyberpunk 2077 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Cyberpunk 2077 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Cyberpunk 2077 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

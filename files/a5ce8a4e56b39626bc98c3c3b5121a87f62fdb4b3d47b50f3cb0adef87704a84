@@ -1,0 +1,546 @@
+{
+  "zerostickRecognition": 1,
+  "game": "apex-legends",
+  "trainedOn": "2026-10-24",
+  "catalogAsOf": "2026-10-24",
+  "reader": "zs_textread 1",
+  "text": {
+    "case": "upper",
+    "polarity": "bright",
+    "inkDrop": 50,
+    "plane": "luma2x",
+    "span": "line",
+    "minCapHeight": 12,
+    "maxCapHeight": 32,
+    "shear64": 0
+  },
+  "font": {
+    "bits": 2,
+    "bytes": 4887,
+    "shapes": "P20VOLTDEINKRABWCH-SGM39.ZQUF45178entilcougmavfprkdwb6zqhs",
+    "real": "P20VOLTDEINKRABWCH-SGM39.ZQUF45178",
+    "drawn": "entilcougmavfprkdwb6zqhs",
+    "drawnTwins": "",
+    "realSamples": {
+      "P": 69,
+      "2": 24,
+      "0": 48,
+      "V": 29,
+      "O": 119,
+      "L": 124,
+      "T": 127,
+      "D": 9,
+      "E": 254,
+      "I": 111,
+      "N": 116,
+      "K": 48,
+      "R": 182,
+      "A": 146,
+      "B": 43,
+      "W": 38,
+      "C": 43,
+      "H": 21,
+      "-": 55,
+      "S": 64,
+      "G": 48,
+      "M": 63,
+      "3": 24,
+      "9": 26,
+      ".": 8,
+      "Z": 11,
+      "Q": 11,
+      "U": 20,
+      "F": 40,
+      "4": 11,
+      "5": 11,
+      "1": 14,
+      "7": 9,
+      "8": 4
+    },
+    "drawnFrom": {
+      "font": "RussoOne-Regular.ttf",
+      "tool": "synth_glyphs.py",
+      "params": {
+        "cap": 7.8,
+        "xs": 0.88,
+        "track": 0.8,
+        "blur": 0.6,
+        "q": 80,
+        "white": 246
+      },
+      "decision": "D411"
+    },
+    "b64": "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"
+  },
+  "read": {
+    "threshold": 0.6,
+    "margin": 0.5,
+    "streak": 2,
+    "blank": "none",
+    "hunt": false,
+    "twin": {
+      "dx": 0.0885,
+      "ratio": 1.35,
+      "brightness": "max"
+    }
+  },
+  "box": {
+    "suggested": [
+      0.7854,
+      0.9537,
+      0.0938,
+      0.0278
+    ],
+    "pc": [
+      0.8083,
+      0.9537,
+      0.0594,
+      0.0278
+    ]
+  },
+  "names": {
+    "hud": {
+      "assault_rifles.havoc_rifle": "HAVOC",
+      "assault_rifles.vk_47_flatline": "FLATLINE",
+      "assault_rifles.hemlok_breach_ar": "HEMLOK",
+      "assault_rifles.r_301_carbine": "R-301",
+      "assault_rifles.nemesis_burst_ar": "NEMESIS",
+      "smgs.alternator_smg": "ALTERNATOR",
+      "smgs.prowler_burst_pdw": "PROWLER",
+      "smgs.r_99_smg": "R-99",
+      "smgs.volt_smg": "VOLT",
+      "smgs.c_a_r_smg": "C.A.R",
+      "lmgs.devotion_lmg": "DEVOTION",
+      "lmgs.l_star_emg": "L-STAR",
+      "lmgs.m600_spitfire": "SPITFIRE",
+      "lmgs.rampage_lmg": "RAMPAGE",
+      "marksman.g7_scout": "G7 SCOUT",
+      "marksman.triple_take": "TRIPLE TAKE",
+      "marksman.30_30_repeater": "30-30",
+      "marksman.bocek_compound_bow": "BOCEK",
+      "sniper_rifles.charge_rifle": "CHARGE RIFLE",
+      "sniper_rifles.longbow_dmr": "LONGBOW",
+      "sniper_rifles.kraber_50_cal_sniper": "KRABER",
+      "sniper_rifles.sentinel": "SENTINEL",
+      "shotguns.eva_8_auto": "EVA-8",
+      "shotguns.mastiff": "MASTIFF",
+      "shotguns.mozambique_shotgun": "MOZAMBIQUE",
+      "shotguns.peacekeeper": "PEACEKEEPER",
+      "pistols.re_45": "RE-45",
+      "pistols.p2020": "P2020",
+      "pistols.wingman": "WINGMAN"
+    },
+    "unreadable": [],
+    "decoys": []
+  },
+  "missing": "",
+  "verified": {
+    "crops": 491,
+    "right": 375,
+    "none": 116,
+    "wrong": 0,
+    "how": "each video held out in turn",
+    "perGun": {
+      "-Uzrj60ZgFY": {
+        "frames": 1,
+        "right": 0,
+        "none": 1,
+        "wrong": 0
+      },
+      "-n7IkS1_OtE": {
+        "frames": 21,
+        "right": 21,
+        "none": 0,
+        "wrong": 0
+      },
+      "0BGGL9pfMFg": {
+        "frames": 6,
+        "right": 3,
+        "none": 3,
+        "wrong": 0
+      },
+      "1fURWwiV_cQ": {
+        "frames": 5,
+        "right": 5,
+        "none": 0,
+        "wrong": 0
+      },
+      "2HuO-gN60bU": {
+        "frames": 3,
+        "right": 3,
+        "none": 0,
+        "wrong": 0
+      },
+      "3QHxWaDBPD8": {
+        "frames": 5,
+        "right": 5,
+        "none": 0,
+        "wrong": 0
+      },
+      "3hUBZysT4o0": {
+        "frames": 3,
+        "right": 1,
+        "none": 2,
+        "wrong": 0
+      },
+      "4EeJ31gU4IE": {
+        "frames": 4,
+        "right": 3,
+        "none": 1,
+        "wrong": 0
+      },
+      "7A1uBlfo7Pg": {
+        "frames": 10,
+        "right": 9,
+        "none": 1,
+        "wrong": 0
+      },
+      "AhQ5XfIqNfg": {
+        "frames": 10,
+        "right": 0,
+        "none": 10,
+        "wrong": 0
+      },
+      "AiBwkOJeHzM": {
+        "frames": 13,
+        "right": 10,
+        "none": 3,
+        "wrong": 0
+      },
+      "BCvUHZ2TO2I": {
+        "frames": 3,
+        "right": 2,
+        "none": 1,
+        "wrong": 0
+      },
+      "CCjnsB8LnxQ": {
+        "frames": 3,
+        "right": 1,
+        "none": 2,
+        "wrong": 0
+      },
+      "EbFWOVXdWgM": {
+        "frames": 21,
+        "right": 20,
+        "none": 1,
+        "wrong": 0
+      },
+      "Eo-wuoqG988": {
+        "frames": 17,
+        "right": 15,
+        "none": 2,
+        "wrong": 0
+      },
+      "GFConQnnIos": {
+        "frames": 6,
+        "right": 6,
+        "none": 0,
+        "wrong": 0
+      },
+      "HP0yZobmuLA": {
+        "frames": 8,
+        "right": 8,
+        "none": 0,
+        "wrong": 0
+      },
+      "IdNqL7shjgs": {
+        "frames": 5,
+        "right": 5,
+        "none": 0,
+        "wrong": 0
+      },
+      "IlqeZH8PPnI": {
+        "frames": 8,
+        "right": 3,
+        "none": 5,
+        "wrong": 0
+      },
+      "JKN8pyBIgOM": {
+        "frames": 11,
+        "right": 11,
+        "none": 0,
+        "wrong": 0
+      },
+      "K-TgoEAN7Wk": {
+        "frames": 6,
+        "right": 0,
+        "none": 6,
+        "wrong": 0
+      },
+      "M49PtZSTSpc": {
+        "frames": 7,
+        "right": 7,
+        "none": 0,
+        "wrong": 0
+      },
+      "PrumhxghPac": {
+        "frames": 24,
+        "right": 14,
+        "none": 10,
+        "wrong": 0
+      },
+      "R6bDgaEm8aQ": {
+        "frames": 11,
+        "right": 11,
+        "none": 0,
+        "wrong": 0
+      },
+      "Rucvj6J-vBw": {
+        "frames": 12,
+        "right": 1,
+        "none": 11,
+        "wrong": 0
+      },
+      "SYMeiSbBM00": {
+        "frames": 6,
+        "right": 6,
+        "none": 0,
+        "wrong": 0
+      },
+      "T9aFiNsKPao": {
+        "frames": 16,
+        "right": 3,
+        "none": 13,
+        "wrong": 0
+      },
+      "UDu7gyos1YY": {
+        "frames": 3,
+        "right": 3,
+        "none": 0,
+        "wrong": 0
+      },
+      "U_y6SF_5ZwE": {
+        "frames": 4,
+        "right": 4,
+        "none": 0,
+        "wrong": 0
+      },
+      "YuGpZEEqizg": {
+        "frames": 18,
+        "right": 10,
+        "none": 8,
+        "wrong": 0
+      },
+      "_vxMWTWfBGQ": {
+        "frames": 3,
+        "right": 2,
+        "none": 1,
+        "wrong": 0
+      },
+      "cTfCsGWaVQQ": {
+        "frames": 6,
+        "right": 3,
+        "none": 3,
+        "wrong": 0
+      },
+      "e3-jsxyXkFg": {
+        "frames": 30,
+        "right": 14,
+        "none": 16,
+        "wrong": 0
+      },
+      "eurisPd_5Q8": {
+        "frames": 8,
+        "right": 4,
+        "none": 4,
+        "wrong": 0
+      },
+      "g9nZFSHezi0": {
+        "frames": 12,
+        "right": 10,
+        "none": 2,
+        "wrong": 0
+      },
+      "gLlBVD_hMjk": {
+        "frames": 10,
+        "right": 10,
+        "none": 0,
+        "wrong": 0
+      },
+      "hMXqQi3-32c": {
+        "frames": 6,
+        "right": 6,
+        "none": 0,
+        "wrong": 0
+      },
+      "id7GxpsliOw": {
+        "frames": 1,
+        "right": 1,
+        "none": 0,
+        "wrong": 0
+      },
+      "jTCVhTFo2LY": {
+        "frames": 9,
+        "right": 9,
+        "none": 0,
+        "wrong": 0
+      },
+      "kqZLggqJUME": {
+        "frames": 24,
+        "right": 23,
+        "none": 1,
+        "wrong": 0
+      },
+      "mtPAxeyWLE8": {
+        "frames": 7,
+        "right": 7,
+        "none": 0,
+        "wrong": 0
+      },
+      "p73hs6pMCLk": {
+        "frames": 6,
+        "right": 3,
+        "none": 3,
+        "wrong": 0
+      },
+      "qzLL6EKOQqc": {
+        "frames": 4,
+        "right": 4,
+        "none": 0,
+        "wrong": 0
+      },
+      "sBEUDKxwTHQ": {
+        "frames": 13,
+        "right": 13,
+        "none": 0,
+        "wrong": 0
+      },
+      "sXLMm34c8Cw": {
+        "frames": 7,
+        "right": 7,
+        "none": 0,
+        "wrong": 0
+      },
+      "yc2otQxGmZg": {
+        "frames": 3,
+        "right": 3,
+        "none": 0,
+        "wrong": 0
+      },
+      "youtube-202": {
+        "frames": 72,
+        "right": 66,
+        "none": 6,
+        "wrong": 0
+      }
+    },
+    "twoStrips": {
+      "how": "D461/D462 two-strip read, 2026-10-24 coverage push: 1312 frames with both strips (Model Library Apex Legends/tools/apex_twinframes.py; 46 videos, 19 creators), each video held out (its fold font), the brighter strip read by the Core's own code (twin_eval.py), PC-HUD videos through box.pc",
+      "frames": 1312,
+      "right": 1105,
+      "none": 207,
+      "wrong": 0,
+      "strip": {
+        "held": 1145,
+        "other": 0,
+        "unsure": 167
+      },
+      "byCreator": {
+        "frames": 1312,
+        "right": 1105,
+        "none": 207,
+        "wrong": 0,
+        "how": "each creator (YouTube channel) held out in turn"
+      },
+      "oldFrames": {
+        "frames": 404,
+        "right": 341,
+        "none": 63,
+        "wrong": 0,
+        "note": "the 404 frames of the 2026-10-24 D461 run; that blob read 343 at ratio 1.25 and 340 at ratio 1.3"
+      },
+      "ratioNote": "twin ratio raised 1.25 -> 1.30: at 1.25 one held red EVA-8 strip (median luma 48) lost to a dim olive BOCEK strip (60) and read BOCEK; 1.30 reads none there and 0 wrong in all 1312",
+      "pcBox": [
+        0.8083,
+        0.9537,
+        0.0594,
+        0.0278
+      ],
+      "d579": {
+        "how": "D579 (2026-11-01): the held strip = the brighter by max(R,G,B) (brightness 'max', the trailer's 7th byte) at ratio 1.35; same 1312 frames, each video held out, Core C code (twin_eval.py --maxc)",
+        "frames": 1312,
+        "right": 1231,
+        "none": 81,
+        "wrong": 0,
+        "variants": {
+          "luma 1.30 (2026-10-24)": [
+            1105,
+            207,
+            0
+          ],
+          "luma 1.35": [
+            1075,
+            237,
+            0
+          ],
+          "max 1.25": [
+            1262,
+            50,
+            0
+          ],
+          "max 1.30": [
+            1249,
+            63,
+            0
+          ],
+          "max 1.35": [
+            1231,
+            81,
+            0
+          ],
+          "max 1.40": [
+            1214,
+            98,
+            0
+          ]
+        },
+        "olderFirmware": "a firmware before D579 ignores the 7th byte and compares luma at 1.35: 1075/1312, 0 wrong"
+      }
+    },
+    "newHeldOut2026_11_01": {
+      "how": "8 public videos uploaded 2026-10-04..2026-11-01 (Season 30 Split 2), 7 creators never used in training + hv apex (PC key caps, console box), 1467 panels captured, 384 sampled (48 a video, spread over time) and judged by eye against the held gun's picture; right/wrong/none of the 326 with a weapon panel on screen",
+      "frames": 326,
+      "results": {
+        "app line before (D461 blob, luma 1.25)": [
+          225,
+          6,
+          95
+        ],
+        "coverage push (luma 1.30)": [
+          221,
+          2,
+          103
+        ],
+        "luma 1.35": [
+          216,
+          0,
+          110
+        ],
+        "max 1.25": [
+          262,
+          0,
+          64
+        ],
+        "max 1.30": [
+          258,
+          0,
+          68
+        ],
+        "max 1.35 (this file)": [
+          258,
+          0,
+          68
+        ]
+      },
+      "wrongs": "every wrong: a held RED shotgun strip (Mastiff) beside a teal Hemlok strip: red is dark in luma, so the teal strip passed 1.25/1.30",
+      "unread": "Bzbblegum (Hm0NGOqcrC8): 43 of 48 panels unread - his weapon panel is drawn larger and lower (another HUD scale), so the console box and the twin offset miss the strips; the player's own box fixes the left strip only (dx is fixed in the blob)",
+      "dataDir": "D:/zs-scratch/night2-apex-rivals (cap_apex, sheets, reads_*.json, truth_eval.py)"
+    }
+  },
+  "training": {
+    "frames": 491,
+    "used": 281,
+    "drawnNames": 47,
+    "frameSet": "D:/zs-scratch/coverage/apex/apex-core-1024"
+  }
+}

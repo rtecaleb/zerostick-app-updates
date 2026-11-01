@@ -1,0 +1,751 @@
+{
+  "zerostickGamePack": 1,
+  "id": "cod-mw4",
+  "name": "Call of Duty: Modern Warfare 4",
+  "aliases": [
+    "Modern Warfare 4",
+    "MW4",
+    "COD MW4",
+    "COD Modern Warfare 4",
+    "Call of Duty MW4"
+  ],
+  "version": 2,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "cod-mw4.jpg",
+    "tall": "cod-mw4-tall.jpg",
+    "panel": "cod-mw4-panel.jpg"
+  },
+  "aimPreset": "cod",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "cod-mw4",
+    "name": "Modern Warfare 4 (Linear) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "Seed 2026-10-23, re-seeded 2026-11-01 (D560): Black Ops 7's top speeds as XIM measured them (hip 1122 / 1070, aiming 383 / 379 deg/s PS5 / Xbox), because Modern Warfare 4 has no XIM translator and no measurement. Infinity Ward's engine since MW2019, as Black Ops 7's. See docs/AIM-PRESETS-2026-11-01-A.md."
+      },
+      {
+        "what": "Up/down speed is a PRIOR: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS). No modern title publishes it."
+      },
+      {
+        "what": "Dead zone 0.02 is a PRIOR (the gameSettings set Right Stick Min Deadzone to 0; 0.02 allows for a resting pad's own zone). Default Min 15 (allthings.how, Medium)."
+      },
+      {
+        "what": "Curve shape: D561: measured in Warzone (Dec 2023) by AlphaAnton, timed 360s at 10-100 % stick (youtube.com/watch?v=Jis_av3IfDc), read off the video by ZeroStick 2026-11-01; this linear curve turns 25 % of full speed at half stick. Medium: one measurement, on Warzone of that season, not on this exact game (ESTIMATED for it)."
+      },
+      {
+        "what": "Not modelled: CoD's climb from rest. MW2 (2009) reached full speed about 0.2 s after full stick (drstrangevolt.blogspot.com/2012/12/aim-acceleration-in-console-shooters-part2.html, Medium); our BO2 measured about 4400 deg/s^2. Players report it on all three curves in MWII/MW3 (Steam forum, Low). `accel` is informational and left out until the Core measures it."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Horizontal / Vertical Stick Sensitivity",
+        "value": "Highest (the top of the decimal scale)"
+      },
+      {
+        "setting": "Aim Response Curve Type",
+        "value": "Linear"
+      },
+      {
+        "setting": "Aim Response Curve Slope Scale",
+        "value": "1.00 (if the slider exists)"
+      },
+      {
+        "setting": "Right Stick Min Deadzone",
+        "value": "0 (the default is 15)"
+      },
+      {
+        "setting": "Right Stick Max Deadzone",
+        "value": "99"
+      },
+      {
+        "setting": "ADS Sensitivity Multiplier (every zoom)",
+        "value": "1.00"
+      },
+      {
+        "setting": "ADS Sens Transition Timing",
+        "value": "Instant"
+      },
+      {
+        "setting": "Field of View",
+        "value": "90"
+      },
+      {
+        "setting": "ADS Field of View",
+        "value": "Affected (default)"
+      },
+      {
+        "setting": "1st / 3rd Person Camera Movement",
+        "value": "Least (50%)"
+      }
+    ],
+    "stickHz": 120,
+    "hip": {
+      "deadzone": 0.02,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "points",
+        "points": [
+          [
+            0.0826,
+            0.0101
+          ],
+          [
+            0.1316,
+            0.022
+          ],
+          [
+            0.1853,
+            0.0405
+          ],
+          [
+            0.2354,
+            0.0625
+          ],
+          [
+            0.2881,
+            0.092
+          ],
+          [
+            0.3368,
+            0.122
+          ],
+          [
+            0.3895,
+            0.16
+          ],
+          [
+            0.4393,
+            0.2007
+          ],
+          [
+            0.4917,
+            0.251
+          ],
+          [
+            0.5408,
+            0.3021
+          ],
+          [
+            0.5918,
+            0.3613
+          ],
+          [
+            0.6939,
+            0.4902
+          ],
+          [
+            0.7959,
+            0.6489
+          ],
+          [
+            0.898,
+            0.826
+          ],
+          [
+            0.949,
+            0.9135
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "turnRate": {
+        "yaw": 1122,
+        "pitch": 370.3
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 1122,
+          "pitch": 370.3
+        },
+        "xbox": {
+          "yaw": 1070,
+          "pitch": 353.1
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 383,
+        "pitch": 210.7
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 383,
+          "pitch": 210.7
+        },
+        "xbox": {
+          "yaw": 379,
+          "pitch": 208.5
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "standard",
+      "label": "Standard",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Standard) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23, re-seeded 2026-11-01 (D560): Black Ops 7's top speeds as XIM measured them (hip 1102 / 1102, aiming 381 / 381 deg/s PS5 / Xbox), because Modern Warfare 4 has no XIM translator and no measurement. Infinity Ward's engine since MW2019, as Black Ops 7's. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Up/down speed is a PRIOR: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS). No modern title publishes it."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR (the gameSettings set Right Stick Min Deadzone to 0; 0.02 allows for a resting pad's own zone). Default Min 15 (allthings.how, Medium)."
+          },
+          {
+            "what": "Curve shape: D561: measured in Warzone (Dec 2023) by AlphaAnton, timed 360s at 10-100 % stick (youtube.com/watch?v=Jis_av3IfDc), read off the video by ZeroStick 2026-11-01; this standard curve turns 18 % of full speed at half stick. Medium: one measurement, on Warzone of that season, not on this exact game (ESTIMATED for it)."
+          },
+          {
+            "what": "Not modelled: CoD's climb from rest. MW2 (2009) reached full speed about 0.2 s after full stick (drstrangevolt.blogspot.com/2012/12/aim-acceleration-in-console-shooters-part2.html, Medium); our BO2 measured about 4400 deg/s^2. Players report it on all three curves in MWII/MW3 (Steam forum, Low). `accel` is informational and left out until the Core measures it."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Standard"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.0842,
+                0.0037
+              ],
+              [
+                0.1348,
+                0.0088
+              ],
+              [
+                0.1855,
+                0.0166
+              ],
+              [
+                0.2377,
+                0.029
+              ],
+              [
+                0.2884,
+                0.0452
+              ],
+              [
+                0.3379,
+                0.0676
+              ],
+              [
+                0.3895,
+                0.0967
+              ],
+              [
+                0.4393,
+                0.1338
+              ],
+              [
+                0.4914,
+                0.1777
+              ],
+              [
+                0.5408,
+                0.2314
+              ],
+              [
+                0.6939,
+                0.4354
+              ],
+              [
+                0.7959,
+                0.6052
+              ],
+              [
+                0.898,
+                0.7939
+              ],
+              [
+                0.949,
+                0.8909
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 1102,
+            "pitch": 363.7
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1102,
+              "pitch": 363.7
+            },
+            "xbox": {
+              "yaw": 1102,
+              "pitch": 363.7
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 381,
+            "pitch": 209.6
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 381,
+              "pitch": 209.6
+            },
+            "xbox": {
+              "yaw": 381,
+              "pitch": 209.6
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Linear) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23, re-seeded 2026-11-01 (D560): Black Ops 7's top speeds as XIM measured them (hip 1122 / 1070, aiming 383 / 379 deg/s PS5 / Xbox), because Modern Warfare 4 has no XIM translator and no measurement. Infinity Ward's engine since MW2019, as Black Ops 7's. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Up/down speed is a PRIOR: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS). No modern title publishes it."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR (the gameSettings set Right Stick Min Deadzone to 0; 0.02 allows for a resting pad's own zone). Default Min 15 (allthings.how, Medium)."
+          },
+          {
+            "what": "Curve shape: D561: measured in Warzone (Dec 2023) by AlphaAnton, timed 360s at 10-100 % stick (youtube.com/watch?v=Jis_av3IfDc), read off the video by ZeroStick 2026-11-01; this linear curve turns 25 % of full speed at half stick. Medium: one measurement, on Warzone of that season, not on this exact game (ESTIMATED for it)."
+          },
+          {
+            "what": "Not modelled: CoD's climb from rest. MW2 (2009) reached full speed about 0.2 s after full stick (drstrangevolt.blogspot.com/2012/12/aim-acceleration-in-console-shooters-part2.html, Medium); our BO2 measured about 4400 deg/s^2. Players report it on all three curves in MWII/MW3 (Steam forum, Low). `accel` is informational and left out until the Core measures it."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Linear"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.0826,
+                0.0101
+              ],
+              [
+                0.1316,
+                0.022
+              ],
+              [
+                0.1853,
+                0.0405
+              ],
+              [
+                0.2354,
+                0.0625
+              ],
+              [
+                0.2881,
+                0.092
+              ],
+              [
+                0.3368,
+                0.122
+              ],
+              [
+                0.3895,
+                0.16
+              ],
+              [
+                0.4393,
+                0.2007
+              ],
+              [
+                0.4917,
+                0.251
+              ],
+              [
+                0.5408,
+                0.3021
+              ],
+              [
+                0.5918,
+                0.3613
+              ],
+              [
+                0.6939,
+                0.4902
+              ],
+              [
+                0.7959,
+                0.6489
+              ],
+              [
+                0.898,
+                0.826
+              ],
+              [
+                0.949,
+                0.9135
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 1122,
+            "pitch": 370.3
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1122,
+              "pitch": 370.3
+            },
+            "xbox": {
+              "yaw": 1070,
+              "pitch": 353.1
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 383,
+            "pitch": 210.7
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 383,
+              "pitch": 210.7
+            },
+            "xbox": {
+              "yaw": 379,
+              "pitch": 208.5
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "dynamic",
+      "label": "Dynamic",
+      "setting": "Aim Response Curve Type",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "cod-mw4",
+        "name": "Modern Warfare 4 (Dynamic) - SEEDED FROM BLACK OPS 7, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "Seed 2026-10-23, re-seeded 2026-11-01 (D560): Black Ops 7's top speeds as XIM measured them (hip 1104 / 1075, aiming 381 / 381 deg/s PS5 / Xbox), because Modern Warfare 4 has no XIM translator and no measurement. Infinity Ward's engine since MW2019, as Black Ops 7's. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Up/down speed is a PRIOR: pitch = 0.33 x yaw hip, 0.55 x aiming (IW/Treyarch turn rates: MW2 aim_turnrate_pitch/yaw 90/260 = 0.35 hip, 55/90 = 0.61 ADS; ZeroStick's measured BO2 0.326 hip, 0.54 ADS). No modern title publishes it."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR (the gameSettings set Right Stick Min Deadzone to 0; 0.02 allows for a resting pad's own zone). Default Min 15 (allthings.how, Medium)."
+          },
+          {
+            "what": "Curve shape: D561: measured in Warzone (Dec 2023) by AlphaAnton, timed 360s at 10-100 % stick (youtube.com/watch?v=Jis_av3IfDc), read off the video by ZeroStick 2026-11-01; this dynamic curve turns 21 % of full speed at half stick. Medium: one measurement, on Warzone of that season, not on this exact game (ESTIMATED for it)."
+          },
+          {
+            "what": "Not modelled: CoD's climb from rest. MW2 (2009) reached full speed about 0.2 s after full stick (drstrangevolt.blogspot.com/2012/12/aim-acceleration-in-console-shooters-part2.html, Medium); our BO2 measured about 4400 deg/s^2. Players report it on all three curves in MWII/MW3 (Steam forum, Low). `accel` is informational and left out until the Core measures it."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Horizontal / Vertical Stick Sensitivity",
+            "value": "Highest (the top of the decimal scale)"
+          },
+          {
+            "setting": "Aim Response Curve Type",
+            "value": "Dynamic"
+          },
+          {
+            "setting": "Aim Response Curve Slope Scale",
+            "value": "1.00 (if the slider exists)"
+          },
+          {
+            "setting": "Right Stick Min Deadzone",
+            "value": "0 (the default is 15)"
+          },
+          {
+            "setting": "Right Stick Max Deadzone",
+            "value": "99"
+          },
+          {
+            "setting": "ADS Sensitivity Multiplier (every zoom)",
+            "value": "1.00"
+          },
+          {
+            "setting": "ADS Sens Transition Timing",
+            "value": "Instant"
+          },
+          {
+            "setting": "Field of View",
+            "value": "90"
+          },
+          {
+            "setting": "ADS Field of View",
+            "value": "Affected (default)"
+          },
+          {
+            "setting": "1st / 3rd Person Camera Movement",
+            "value": "Least (50%)"
+          }
+        ],
+        "stickHz": 120,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.0832,
+                0.0128
+              ],
+              [
+                0.133,
+                0.0255
+              ],
+              [
+                0.185,
+                0.0425
+              ],
+              [
+                0.234,
+                0.0616
+              ],
+              [
+                0.2858,
+                0.0853
+              ],
+              [
+                0.3368,
+                0.1128
+              ],
+              [
+                0.3881,
+                0.1424
+              ],
+              [
+                0.4405,
+                0.1783
+              ],
+              [
+                0.4917,
+                0.2136
+              ],
+              [
+                0.5408,
+                0.2552
+              ],
+              [
+                0.5918,
+                0.3018
+              ],
+              [
+                0.6939,
+                0.4025
+              ],
+              [
+                0.7959,
+                0.5302
+              ],
+              [
+                0.898,
+                0.715
+              ],
+              [
+                0.949,
+                0.8523
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 1104,
+            "pitch": 364.3
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1104,
+              "pitch": 364.3
+            },
+            "xbox": {
+              "yaw": 1075,
+              "pitch": 354.8
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 381,
+            "pitch": 209.6
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 381,
+              "pitch": 209.6
+            },
+            "xbox": {
+              "yaw": 381,
+              "pitch": 209.6
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Modern Warfare 4 (2026, Infinity Ward), released 2026-10-23. DRAFT for the owner's review. The aim translator is SEEDED FROM BLACK OPS 7 (its XIM top speeds and priors) because MW4 has no XIM translator and nothing is measured yet (ZeroStick Model Library/AIM-CURVES-RESEARCH.md section 2): needsCalibration, and the picker shows it Not started. Warzone moves onto MW4 in Season 1 (expected 2026-11-06). The gun-name reader is game-data/cod-mw4/recognition.json (luma2x, box 0.715 0.872 0.112 0.030).",
+  "smartActions": [
+    {
+      "template": "slidecancel",
+      "enabled": false
+    },
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Call of Duty: Modern Warfare 4 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Modern Warfare 4 is seeded from Black Ops 7 (aimModel): every number is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Modern Warfare 4 is seeded from Black Ops 7 (aimModel): every number is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

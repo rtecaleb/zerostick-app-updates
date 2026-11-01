@@ -1,0 +1,276 @@
+{
+  "zerostickGamePack": 1,
+  "id": "helldivers-2",
+  "name": "HELLDIVERS 2",
+  "aliases": [
+    "Helldivers 2",
+    "Helldivers II",
+    "HD2"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "helldivers-2.jpg",
+    "tall": "helldivers-2-tall.jpg",
+    "panel": "helldivers-2-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "helldivers-2",
+    "name": "HELLDIVERS 2 (Linear (Acceleration Speed 0)) - ESTIMATED, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for HELLDIVERS 2 on PS5 / Xbox Series. Hip (third-person look) ~300 deg/s yaw at the highest Look Sensitivity, aiming ~150; pitch = 0.6 x yaw from the game's own default Vertical Multiplier 0.6. Genre priors, not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+      },
+      {
+        "what": "Defaults from the game's user_settings.config: gamepad_sensitivity [5 0.6] (look 5.0, vertical multiplier 0.6), gamepad_acceleration [0.7 3.0] (speed 0.7, exponent 3.0 in the file = 2.0 in the menu), deadzone 0.1 (read from a wiki excerpt; low confidence)",
+        "url": "https://www.pcgamingwiki.com/wiki/Helldivers_2"
+      },
+      {
+        "what": "Acceleration Speed 0 makes the look completely linear (KontrolFreek's settings guide)",
+        "url": "https://www.kontrolfreek.com/blogs/kfb/helldivers-ii-best-controller-settings-and-tips-for-beginners"
+      },
+      {
+        "what": "Menu names (Look Sensitivity, Vertical Multiplier, Aim Sensitivity, Scope Sensitivity, Deadzone, Acceleration Speed, Acceleration Exponent)",
+        "url": "https://steamcommunity.com/app/553850/discussions/0/585058364696910070/"
+      },
+      {
+        "what": "Curve shapes are PRIORS: linear for Acceleration Speed 0; the default 0.7 / 2.0 is modelled as power 2 with a rim ramp prior (gain 1.6 after 100 ms over 500 ms). The Core's calibration must replace both."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Look Sensitivity Vertical Multiplier",
+        "value": "0.6 (default)"
+      },
+      {
+        "setting": "Aim Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Deadzone",
+        "value": "0.1 (default)"
+      },
+      {
+        "setting": "Acceleration Speed",
+        "value": "0"
+      },
+      {
+        "setting": "Controller Sticky Aim",
+        "value": "Off"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.1,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 300,
+        "pitch": 180
+      },
+      "ramp": null,
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 150,
+        "pitch": 90
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "linear",
+      "label": "Linear (Acceleration Speed 0)",
+      "setting": "Acceleration Speed",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "helldivers-2",
+        "name": "HELLDIVERS 2 (Linear (Acceleration Speed 0)) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for HELLDIVERS 2 on PS5 / Xbox Series. Hip (third-person look) ~300 deg/s yaw at the highest Look Sensitivity, aiming ~150; pitch = 0.6 x yaw from the game's own default Vertical Multiplier 0.6. Genre priors, not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "Defaults from the game's user_settings.config: gamepad_sensitivity [5 0.6] (look 5.0, vertical multiplier 0.6), gamepad_acceleration [0.7 3.0] (speed 0.7, exponent 3.0 in the file = 2.0 in the menu), deadzone 0.1 (read from a wiki excerpt; low confidence)",
+            "url": "https://www.pcgamingwiki.com/wiki/Helldivers_2"
+          },
+          {
+            "what": "Acceleration Speed 0 makes the look completely linear (KontrolFreek's settings guide)",
+            "url": "https://www.kontrolfreek.com/blogs/kfb/helldivers-ii-best-controller-settings-and-tips-for-beginners"
+          },
+          {
+            "what": "Menu names (Look Sensitivity, Vertical Multiplier, Aim Sensitivity, Scope Sensitivity, Deadzone, Acceleration Speed, Acceleration Exponent)",
+            "url": "https://steamcommunity.com/app/553850/discussions/0/585058364696910070/"
+          },
+          {
+            "what": "Curve shapes are PRIORS: linear for Acceleration Speed 0; the default 0.7 / 2.0 is modelled as power 2 with a rim ramp prior (gain 1.6 after 100 ms over 500 ms). The Core's calibration must replace both."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Sensitivity Vertical Multiplier",
+            "value": "0.6 (default)"
+          },
+          {
+            "setting": "Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Deadzone",
+            "value": "0.1 (default)"
+          },
+          {
+            "setting": "Acceleration Speed",
+            "value": "0"
+          },
+          {
+            "setting": "Controller Sticky Aim",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 300,
+            "pitch": 180
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 150,
+            "pitch": 90
+          }
+        }
+      }
+    },
+    {
+      "key": "default",
+      "label": "Default (Acceleration 0.7)",
+      "setting": "Acceleration Speed",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "helldivers-2",
+        "name": "HELLDIVERS 2 (Default (Acceleration 0.7)) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for HELLDIVERS 2 on PS5 / Xbox Series. Hip (third-person look) ~300 deg/s yaw at the highest Look Sensitivity, aiming ~150; pitch = 0.6 x yaw from the game's own default Vertical Multiplier 0.6. Genre priors, not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "Defaults from the game's user_settings.config: gamepad_sensitivity [5 0.6] (look 5.0, vertical multiplier 0.6), gamepad_acceleration [0.7 3.0] (speed 0.7, exponent 3.0 in the file = 2.0 in the menu), deadzone 0.1 (read from a wiki excerpt; low confidence)",
+            "url": "https://www.pcgamingwiki.com/wiki/Helldivers_2"
+          },
+          {
+            "what": "Acceleration Speed 0 makes the look completely linear (KontrolFreek's settings guide)",
+            "url": "https://www.kontrolfreek.com/blogs/kfb/helldivers-ii-best-controller-settings-and-tips-for-beginners"
+          },
+          {
+            "what": "Menu names (Look Sensitivity, Vertical Multiplier, Aim Sensitivity, Scope Sensitivity, Deadzone, Acceleration Speed, Acceleration Exponent)",
+            "url": "https://steamcommunity.com/app/553850/discussions/0/585058364696910070/"
+          },
+          {
+            "what": "Curve shapes are PRIORS: linear for Acceleration Speed 0; the default 0.7 / 2.0 is modelled as power 2 with a rim ramp prior (gain 1.6 after 100 ms over 500 ms). The Core's calibration must replace both."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Sensitivity Vertical Multiplier",
+            "value": "0.6 (default)"
+          },
+          {
+            "setting": "Aim Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Deadzone",
+            "value": "0.1 (default)"
+          },
+          {
+            "setting": "Acceleration Speed",
+            "value": "0.7 (default), Acceleration Exponent default"
+          },
+          {
+            "setting": "Controller Sticky Aim",
+            "value": "Off"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 300,
+            "pitch": 180
+          },
+          "ramp": {
+            "threshold": 0.85,
+            "delayMs": 100,
+            "riseMs": 500,
+            "gain": 1.6
+          },
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 150,
+            "pitch": 90
+          }
+        }
+      }
+    }
+  ],
+  "notes": "HELLDIVERS 2 (Arrowhead; PS5 since 2024, Xbox Series since 2025-08-26). D580 (2026-11-01): the biggest co-op shooter on both consoles missing from our packs (TrueAchievements 2026 Xbox YTD #24; a top PS5 seller). DRAFT for the owner's review. The aim translator is an ESTIMATE (D581): needsCalibration, Not started. Variants are the Acceleration Speed setting (0 = linear). Scripts that matter: stratagem codes (D-pad sequences the HUD lists), anti-recoil per weapon. HUD plan: docs/POPULAR-GAMES-2026-11-01.md and ZeroStick Model Library/HELLDIVERS 2.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for HELLDIVERS 2 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for HELLDIVERS 2 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for HELLDIVERS 2 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

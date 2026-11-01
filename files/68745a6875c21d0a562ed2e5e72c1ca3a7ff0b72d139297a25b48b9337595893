@@ -1,0 +1,41 @@
+{
+  "zerostickGamePack": 1,
+  "id": "ea-sports-fc-27",
+  "name": "EA SPORTS FC 27",
+  "aliases": [
+    "FC 27",
+    "FC27",
+    "EA FC 27",
+    "EA Sports FC",
+    "FIFA 27"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "ea-sports-fc-27.jpg",
+    "tall": "ea-sports-fc-27-tall.jpg",
+    "panel": "ea-sports-fc-27-panel.jpg"
+  },
+  "aimPreset": null,
+  "notes": "EA SPORTS FC 27 (EA Vancouver / Bucharest, released 2026-09). D580 (2026-11-01): the #1 PS5 download in Europe and #2 in North America for September 2026 (PlayStation Blog) and a top-20 Xbox game every year (FC 26 #20 in TrueAchievements' 2026 YTD). No camera to aim, so no aimModel (like the NBA 2K and MLB packs). What a controller adapter adds: skill-move and finesse-shot macros, timed finishing, one-button accessibility remaps. DRAFT for the owner's review. HUD plan (the shot / pass power bar under the player): docs/POPULAR-GAMES-2026-11-01.md and ZeroStick Model Library/EA SPORTS FC 27. The pack keeps its id for the next FC, as nba-2k26 did.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured settings for EA SPORTS FC 27 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "FC has no camera to aim, so there is no mouse translator; keys map to the pad's buttons and the left stick. Nothing in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "FC has no camera to aim, so there is no mouse translator. Nothing in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

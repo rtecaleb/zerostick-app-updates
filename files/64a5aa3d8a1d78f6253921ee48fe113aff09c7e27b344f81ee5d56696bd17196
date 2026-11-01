@@ -1,0 +1,230 @@
+# Where every game picture comes from
+
+Publisher artwork, used to identify the game. Decision D116: this is the
+publisher's copyright and trademark in a sold, unlicensed accessory, and the
+owner accepted that risk (and again on 2026-10-24: real publisher art for
+every game, licensing later). Delete this folder's pictures and every config
+falls back to our own banner with nothing else changed.
+
+Rules: official publisher-provided images only. The Steam store's own
+capsules for the game's app id; for a game Steam does not sell (or whose
+Steam art does not name the game), the PlayStation Store's own art for the
+game's concept page (the publisher uploads it, the same as a Steam capsule);
+or the publisher's press kit / own site. Never Wikipedia covers, fan sites,
+SteamGridDB or image search. Every row below keeps the exact URL, so a picture
+can be swapped if a publisher objects.
+
+These pictures live in the app only: the exe and the phone app carry this
+folder, and nothing about a picture is ever sent to the Core (D120).
+
+## The three shapes, and the sizes they are saved at (D121, D434; re-cut 2026-11-01)
+
+Measured in the app (393 x 852 CSS px, dark theme, the theme-shots fixture),
+2026-11-01:
+
+| shape | where the app draws it | the box there | the picture |
+|---|---|---|---|
+| `wide` | the Overview banner; the Configs list; the new-config wizard's game list | about 356 x 166 CSS px (2.14:1) at most; the list and wizard tiles are smaller | Steam's **2x header capsule**, 920 x 430 (2.14:1), title included; 1024 x 576 (16:9) for the three from the PlayStation Store |
+| `tall` | HOME's picture (and the More menu's small square) | about 364 x 414 CSS px on a 393 x 852 phone (0.88:1; it is `flex: 1`, so 0.75 to 0.9 across phones), with the Settings bar over its bottom 13 % | Steam's **2x vertical capsule** (`hero_capsule_2x`), 748 x 896 (0.83:1), title included; 800 x 1200 (2:3) where it comes from the PlayStation Store |
+| `panel` | the simple settings menu's art panel (D433) | about 364 x 230..420 CSS px, `object-fit: cover` anchored at the top, the EXO / console chips over its top ~14 %, the config's name over it from ~53 % down | 900 x 900 JPEG cut so the title sits in the band between the two |
+
+Every slot draws its picture WHOLE except the panel (contained over a blurred,
+darkened copy of itself, .art.fit), so a picture a little off the slot's shape
+gets soft edges and never loses its title.
+
+**Why the vertical capsule for `tall` (2026-11-01).** Before this, `tall`
+was Steam's 2:3 library capsule (600 x 900). HOME's box is 0.88:1, so a 2:3
+cover was drawn about 276 CSS px wide with wide blurred bars each side, and at
+600 px it was under 2.2x of what it was drawn at. Steam's vertical capsule is
+0.83:1, nearly the box's own shape, and 748 px wide, so it fills HOME and is
+sharp on a 2x phone. Warzone and Black Ops 7 already used it (their apps name
+no library capsule). **PUBG, Rust and Black Ops 7** carry their title on the capsule's
+foot, where HOME's Settings bar sits; their tall pictures are the whole
+capsule with 150 rows of the same art blurred and darkened added below
+(748 x 1046), so the title lands above the bar. No pixel of the art is
+re-toned or cut.
+
+**Why the 2x header for `wide`.** Steam's 460 x 215 header was drawn at
+up to 356 CSS px, so it was soft on every 2x and 3x phone; the 2x header is
+the same art at 920 x 430. Black Ops II and Black Ops 6 have no 2x header on
+Steam and keep the 460 x 215 one.
+
+**JPEG, not PNG (2026-11-01).** Every picture is now a JPEG (quality 85-86,
+progressive). The old PNG covers were 0.4-1.6 MB each for photographs; the
+whole folder went from about 17 MB to about 8 MB with three times the pixels
+where they show. (WebP would be smaller again, but game-packs.js and its
+tests accept .png and .jpg only, and that is code, not art.)
+
+## Wide and tall pictures
+
+Steam rows: the exact file is the `header_2x` / `hero_capsule_2x` (or
+`header`) asset that Steam's own store API names for the app
+(`api.steampowered.com/IStoreBrowseService/GetItems/v1` with
+`"data_request": {"include_assets": true}`), read on 2026-11-01: the file is
+`store_item_assets/` plus `asset_url_format` with `${FILENAME}` filled in,
+without the `?t=` stamp. The hash folder changes when the publisher replaces
+the art, so a row that starts answering 404 later needs the same lookup again.
+App ids: Modern Warfare III 3595270, Warzone 1962663, Modern Warfare 4
+4435490, Black Ops 7 3606480, Black Ops 6 2933620, Black Ops II 202970, Apex
+Legends 1172470, Rainbow Six Siege 359550, Overwatch 2357570, Counter-Strike 2
+730, Marvel Rivals 2767030, Battlefield 6 2807960, PUBG 578080, THE FINALS
+2073850, ARC Raiders 1808500, Destiny 2 1085660, Halo Infinite 1240440, NBA
+2K27 4356430 (the pack keeps its id `nba-2k26`, D475), Rocket League 252950,
+Marathon 3065800, Rust 252490.
+
+PlayStation Store rows: images the publisher uploaded to the game's concept
+or product page (`store.playstation.com/en-us/concept/<id>` or
+`.../product/<id>`), read from that page's media list on 2026-11-01 and
+fetched whole (no `?w=`), then scaled down. Fortnite (concept 228748), MLB
+The Show 25 (10011213) and VALORANT (10010048) are not on Steam: the same
+images as before (`SIXTEEN_BY_NINE_BANNER` / VALORANT's `GAMEHUB_COVER_ART`
+for wide, `PORTRAIT_BANNER` for tall), now at 1024 x 576 and 800 x 1200
+instead of 504 x 284 and 600 x 900. **Marvel Rivals** (concept 10010451) is on
+Steam, but Steam's capsules are this season's Avengers crossover art, which
+does not say "Marvel Rivals"; its `SIXTEEN_BY_NINE_BANNER` and
+`PORTRAIT_BANNER` carry the logo. **Black Ops 6**'s tall picture is its
+`PORTRAIT_BANNER` (product UP0002-PPSA01649_00-CODBO6CROSSGEN01): Steam
+serves it only a 374 x 448 vertical capsule.
+
+Seasonal art: Overwatch's Steam capsules are its current season's ("S5: A
+Grim Doctrine"), Warzone's 2x header is its current season's green key art,
+and Fortnite's PlayStation art changes every season. **Rainbow Six Siege**'s
+wide picture is its PlayStation `SIXTEEN_BY_NINE_BANNER` (concept 203897,
+the same set as its panel), because Steam's 2x header carries a
+"Limited-time event" strip and its plain header is only 460 x 215. They are the
+publishers' current official art; a new season's pictures are the same lookup
+again.
+
+| file | shape | game | size | source | fetched |
+|---|---|---|---|---|---|
+| cod-mw3.jpg | wide | Call of Duty: Modern Warfare III | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/7d0f21912a075c33bbb5ea558100e187ceb234ac/header_2x.jpg | 2026-11-01 |
+| cod-mw3-tall.jpg | tall | Call of Duty: Modern Warfare III | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/937d48fbc2615cc152a204448d2dececc08c6956/hero_capsule_2x.jpg | 2026-11-01 |
+| cod-warzone.jpg | wide | Call of Duty: Warzone | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1962663/de90b98146b7f9153957d4ef686acdce23d87088/header_alt_assets_20_2x.jpg | 2026-11-01 |
+| cod-warzone-tall.jpg | tall | Call of Duty: Warzone | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1962663/c4c51637319d5c93006cdac9c15b3029387e8ca4/hero_capsule_alt_assets_20_2x.jpg | 2026-11-01 |
+| cod-mw4.jpg | wide | Call of Duty: Modern Warfare 4 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/0c492be3204835d71e8b454b6eb1817f8ff68c0d/header_2x.jpg | 2026-11-01 |
+| cod-mw4-tall.jpg | tall | Call of Duty: Modern Warfare 4 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/70ec22ad484349c95a45e8b1afb7c865e79af9b4/hero_capsule_2x.jpg | 2026-11-01 |
+| cod-bo7.jpg | wide | Call of Duty: Black Ops 7 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/d7041a15f572f7702d5f4bc97e498cd3e1cc62e2/header_2x.jpg | 2026-11-01 |
+| cod-bo7-tall.jpg | tall | Call of Duty: Black Ops 7 | 748 x 1046 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/31b4b3e440129c472e45f78ebb375b6e83f91c90/hero_capsule_2x.jpg | 2026-11-01 |
+| cod-bo6.jpg | wide | Call of Duty: Black Ops 6 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2933620/header.jpg | 2026-11-01 |
+| cod-bo6-tall.jpg | tall | Call of Duty: Black Ops 6 | 800 x 1200 | https://image.api.playstation.com/vulcan/ap/rnd/202405/2921/b39b0874faf0447a3a921852545c9668ac332fe173602a10.png | 2026-11-01 |
+| cod-bo2.jpg | wide | Call of Duty: Black Ops II | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/202970/header.jpg | 2026-11-01 |
+| cod-bo2-tall.jpg | tall | Call of Duty: Black Ops II | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/202970/9ff8af86545550539fdee2fd3c5ef265ca324ab3/hero_capsule_2x.jpg | 2026-11-01 |
+| apex-legends.jpg | wide | Apex Legends | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/6cf04767652d703b6050da84b82cfb1194258d7d/header_2x.jpg | 2026-11-01 |
+| apex-legends-tall.jpg | tall | Apex Legends | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/ca3ff3a41bbf7aba58c0bd4ef68a1b8497489d14/hero_capsule_2x.jpg | 2026-11-01 |
+| rainbow-six-siege.jpg | wide | Tom Clancy's Rainbow Six Siege | 1024 x 576 | https://image.api.playstation.com/vulcan/ap/rnd/202602/2616/2649e4d60002747e78c3d353f7a99b00f24741c734c92dbf.jpg | 2026-11-01 |
+| rainbow-six-siege-tall.jpg | tall | Tom Clancy's Rainbow Six Siege | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/359550/883c304e3b893b11624096c9f8f91921b1847bf5/hero_capsule_2x.jpg | 2026-11-01 |
+| fortnite.jpg | wide | Fortnite | 1024 x 576 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1519/372c37ff95c41c2578e1fe2f2097245e81cd0d1c43f98e26.jpg | 2026-11-01 |
+| fortnite-tall.jpg | tall | Fortnite | 800 x 1200 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1519/fb3f5da1ecb1a4dc6a2d0fe0a8250321b246edc99211a418.jpg | 2026-11-01 |
+| overwatch.jpg | wide | Overwatch | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2357570/5c208b2699cd38ed6125d039be388fa744db54a4/header_alt_assets_23_2x.jpg | 2026-11-01 |
+| overwatch-tall.jpg | tall | Overwatch | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2357570/c1979568c70002bfc37ec4a2ecb7b0433d8d58ca/hero_capsule_alt_assets_23_2x.jpg | 2026-11-01 |
+| valorant.jpg | wide | VALORANT | 1024 x 576 | https://image.api.playstation.com/vulcan/ap/rnd/202609/0921/7ca70f70156fc5ee73f2a7c82ee14835f69d84b16e0768a3.png | 2026-11-01 |
+| valorant-tall.jpg | tall | VALORANT | 800 x 1200 | https://image.api.playstation.com/vulcan/ap/rnd/202609/0921/0281b6e941b2b34e1ca2bda4fbb79d42151647382c0cb950.png | 2026-11-01 |
+| counter-strike-2.jpg | wide | Counter-Strike 2 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/162664aa5da85f418105350c5d67ca565f6c3713/header_2x.jpg | 2026-11-01 |
+| counter-strike-2-tall.jpg | tall | Counter-Strike 2 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/6fa459ed6388e8d5a8fd96cdb6ba60acd5210481/hero_capsule_2x.jpg | 2026-11-01 |
+| marvel-rivals.jpg | wide | Marvel Rivals | 1024 x 576 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1008/d10ff875735f815f593e7b11fb55724a139c0f56e3f0587c.jpg | 2026-11-01 |
+| marvel-rivals-tall.jpg | tall | Marvel Rivals | 800 x 1200 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1008/2224cf6acd247af36c7a476e94941aa9e0198fbfc9b84ce0.png | 2026-11-01 |
+| battlefield-6.jpg | wide | Battlefield 6 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2807960/c12d12ce3c7d217398d3fcad77427bfc9d57c570/header_2x.jpg | 2026-11-01 |
+| battlefield-6-tall.jpg | tall | Battlefield 6 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2807960/4bf05302e4ac2086fed8a75ed7cd0673602b2c62/hero_capsule_2x.jpg | 2026-11-01 |
+| pubg.jpg | wide | PUBG: Battlegrounds | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/578080/841ea38bc58cabb70aef65365cf50bc2d79329d9/header_2x.jpg | 2026-11-01 |
+| pubg-tall.jpg | tall | PUBG: Battlegrounds | 748 x 1046 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/578080/bdf06fda158573f5dd1b996c373356fba9cfa926/hero_capsule_2x.jpg | 2026-11-01 |
+| the-finals.jpg | wide | The Finals | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2073850/4b0efa1275c8cedc030209eb174af726a5ca1776/header_2x.jpg | 2026-11-01 |
+| the-finals-tall.jpg | tall | The Finals | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2073850/a0605df8ab24a56ae2d306e18914ca011fffad38/hero_capsule_2x.jpg | 2026-11-01 |
+| arc-raiders.jpg | wide | ARC Raiders | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1808500/41ee6c5c81a5797132879892586465b917acc563/header_alt_assets_9_2x.jpg | 2026-11-01 |
+| arc-raiders-tall.jpg | tall | ARC Raiders | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1808500/5552ecd357f237f55c0725d9385266ce6701163c/hero_capsule_alt_assets_9_2x.jpg | 2026-11-01 |
+| destiny-2.jpg | wide | Destiny 2 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1085660/0ccf0dc0a8c4ec078db7ab99ddc820b2fa884441/header_2x.jpg | 2026-11-01 |
+| destiny-2-tall.jpg | tall | Destiny 2 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1085660/297d1005fa8c3879935c5aa4cabac72197b1b0a4/hero_capsule_2x.jpg | 2026-11-01 |
+| halo-infinite.jpg | wide | Halo Infinite | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1240440/2262ffb4f1659df1c1cbf2c70af40560b4fa12e4/header_2x.jpg | 2026-11-01 |
+| halo-infinite-tall.jpg | tall | Halo Infinite | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1240440/7bba50fdffd7ec125e729317a94ad2b3e2e924d4/hero_capsule_2x.jpg | 2026-11-01 |
+| nba-2k27.jpg | wide | NBA 2K27 | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4356430/9152438fde7de9f4c20b4fd9072ba69f844dacab/header_2x.jpg | 2026-11-01 |
+| nba-2k27-tall.jpg | tall | NBA 2K27 | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4356430/46f721b6cd1fcc5e9942302c22cb42cf1f931afd/hero_capsule_2x.jpg | 2026-11-01 |
+| mlb-the-show-25.jpg | wide | MLB The Show 25 | 1024 x 576 | https://image.api.playstation.com/vulcan/ap/rnd/202509/0922/78ba464cf6eac0e749cbd4603f824c9ef442166b733221dc.jpg | 2026-11-01 |
+| mlb-the-show-25-tall.jpg | tall | MLB The Show 25 | 800 x 1200 | https://image.api.playstation.com/vulcan/ap/rnd/202509/0922/8cc0fc4c7dbfa791b5810915ebe08a9af2885b26fd8c9f59.jpg | 2026-11-01 |
+| rocket-league.jpg | wide | Rocket League | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252950/3abd9ab079c8896a4762dbe34a853d89b7f704df/header_alt_assets_17_2x.jpg | 2026-11-01 |
+| rocket-league-tall.jpg | tall | Rocket League | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252950/215c0facac1b8653b01b4f6bfffbebebb3aa798c/hero_capsule_alt_assets_17_2x.jpg | 2026-11-01 |
+| marathon.jpg | wide | Marathon | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3065800/c3093fec19fed6eb0750a87261c53743a5757827/header_2x.jpg | 2026-11-01 |
+| marathon-tall.jpg | tall | Marathon | 748 x 896 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3065800/226c6311b33fef0b8ebcc25a7be32c0c7a36cee1/hero_capsule_2x.jpg | 2026-11-01 |
+| rust.jpg | wide | Rust | 920 x 430 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252490/header_2x.jpg | 2026-11-01 |
+| rust-tall.jpg | tall | Rust | 748 x 1046 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252490/9ab66b4c9ed4ba387af7ac5a7a7e9bce01d82fef/hero_capsule_2x.jpg | 2026-11-01 |
+| gta-v.jpg | wide | Grand Theft Auto V | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/header.jpg | 2026-11-01 |
+| gta-v-tall.jpg | tall | Grand Theft Auto V | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/394239e5da54fed177bd0ab04590812f6add1bb5/library_600x900_2x.jpg | 2026-11-01 |
+| helldivers-2.jpg | wide | HELLDIVERS 2 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/850e2f9e5bb15c5706bb9a1edc832f4f782e8be5/header.jpg | 2026-11-01 |
+| helldivers-2-tall.jpg | tall | HELLDIVERS 2 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/a79b4d13ce2b1e1379116085b4f97b45c14548ab/library_capsule_2x.jpg | 2026-11-01 |
+| cyberpunk-2077.jpg | wide | Cyberpunk 2077 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/48a93d6445a67520ea49833c93dae8f2e68fc540/header_alt_assets_9.jpg | 2026-11-01 |
+| cyberpunk-2077-tall.jpg | tall | Cyberpunk 2077 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/6399de67cce3cecadce7900e03f6e09ff910a235/library_capsule_2x.jpg | 2026-11-01 |
+| ea-sports-fc-27.jpg | wide | EA SPORTS FC 27 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4080220/ff6a3779f1ca83aae8ad3878454f6c11008ea24d/header.jpg | 2026-11-01 |
+| ea-sports-fc-27-tall.jpg | tall | EA SPORTS FC 27 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4080220/81210d536b70c14e4cf9725f3f03d82bf64e5e25/library_capsule_2x.jpg | 2026-11-01 |
+| space-marine-2.jpg | wide | Warhammer 40,000: Space Marine 2 | 460 x 215 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2183900/c0da5cad512f85a006abb9181cb3f45107fb0223/header_alt_assets_14.jpg | 2026-11-01 |
+| space-marine-2-tall.jpg | tall | Warhammer 40,000: Space Marine 2 | 600 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2183900/library_600x900_2x.jpg | 2026-11-01 |
+
+## The panel pictures (D434)
+
+The simple settings menu (D433) draws the config's picture across everything
+under its four doors, `object-fit: cover` anchored at the top, with the EXO
+and console chips across its top and the config's name across its foot. A
+2:3 or 0.83:1 cover cut to that box loses its title, so every pack has a
+`panel` picture: a 900 x 900 JPEG cut from the publisher's own art so the
+title sits whole between about 15 % and 50 % of the square's height.
+
+The crop column says exactly what was cut, as `x, y, side` in the source's
+own pixels, then scaled to 900 x 900. A negative `y` (or `x`) means the
+crop starts outside the picture: those rows are the same art blurred and
+darkened (the fill the app already draws behind off-shape pictures), and the
+art's edge fades into them over 24 rows; a crop that runs past the bottom
+does the same below. Most of the new ones (2026-11-01) are the PlayStation
+Store's `MASTER` square key art (1024 x 1024), which puts the title in its
+top quarter (under the chips) for most games, hence the rows added above.
+Halo Infinite (not on PlayStation) and Counter-Strike 2 (PC only) are cut from
+Steam's vertical capsule. **Marvel Rivals** and **Marathon** are the
+concept page's title-less key art (`BACKGROUND` / `GAMEHUB_COVER_ART`) with
+the same page's own `LOGO` image laid over it in the band (a soft shadow
+under the logo, nothing else changed): Marvel Rivals' `MASTER` puts its logo
+under the name, and Marathon's runs down the left edge under both banners.
+The PlayStation Store draws its game hub the same way, from the same layers.
+
+The rows dated before 2026-11-01 were kept as they were (their notes are in
+git history, `git log -- dashboard/public/game-packs/art/SOURCES.md`).
+Warzone's is Activision's own (callofduty.com's Season 02 share image).
+Black Ops 7's and Black Ops 6's say "Cross-Gen Bundle" under the title
+because the PlayStation Store sells the games as that bundle.
+
+| file | shape | game | size | source | crop | fetched |
+|---|---|---|---|---|---|---|
+| cod-mw3-panel.jpg | panel | Call of Duty: Modern Warfare III | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202308/1722/15f4ab1e0fe6a37609b164362a653c0e5bcee98a861d0f10.png | MASTER (product UP0002-PPSA01649_00-CODMW3CROSSGEN01), 0, 70, 1024 | 2026-11-01 |
+| cod-bo6-panel.jpg | panel | Call of Duty: Black Ops 6 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202405/2921/4b45cf4b319a65e05f6e4f87a22c7b91d2e7e8aeb247b61f.png | MASTER (product UP0002-PPSA01649_00-CODBO6CROSSGEN01), 102, 205, 820 | 2026-11-01 |
+| overwatch-panel.jpg | panel | Overwatch | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202609/2119/654f0b61e6ed9137704ba4679152d2749f676a62f6af1f42.png | MASTER (concept 216627), 0, -120, 1024: 120 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| counter-strike-2-panel.jpg | panel | Counter-Strike 2 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/6fa459ed6388e8d5a8fd96cdb6ba60acd5210481/hero_capsule_2x.jpg | Steam vertical capsule (app 730, 748 x 896), 0, -70, 748: 70 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| marvel-rivals-panel.jpg | panel | Marvel Rivals | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1008/7280d4fe59dfca90c197f773d2da1f52dd4b0e7030a5a159.png | BACKGROUND (concept 10010451, 1920 x 1080, no title) with the concept's own LOGO laid over, 420, 0, 1080; the logo is https://image.api.playstation.com/vulcan/ap/rnd/202607/1008/7967e84a835eae2f75713111c2b2f535ec59df07ab3f9709.png, 640 px wide, centred at 450, 300 of the square | 2026-11-01 |
+| battlefield-6-panel.jpg | panel | Battlefield 6 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202507/2514/606363ddf40fc2a7ec23f78f5310de1d41008d316dc2c98d.png | MASTER (concept 10009568), 50, -20, 924: 20 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| pubg-panel.jpg | panel | PUBG: Battlegrounds | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202602/0504/a667297e99ffe4f306b1b513ffd1f38b429ab22ab4848408.png | MASTER (concept 232860), 0, -70, 1024: 70 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| the-finals-panel.jpg | panel | The Finals | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202610/1612/321c715c18980aac97cbfeecf83f5be8696779c09413f096.png | MASTER (concept 10006873), -70, -210, 1164: 210 rows of the art blurred and darkened added above, so the title sits below the chips (and 70 columns each side, so the title is not cut) | 2026-11-01 |
+| arc-raiders-panel.jpg | panel | ARC Raiders | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202610/2911/330ecd4da66e479a9814eea7bfdcfd20b15e1b601468db4e.png | MASTER (concept 10003610), 0, -150, 1024: 150 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| destiny-2-panel.jpg | panel | Destiny 2 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202605/2700/67e26ca577583cd8189696baa2181bfc51820ecab1709869.png | MASTER (concept 221852), 0, 90, 1024 | 2026-11-01 |
+| halo-infinite-panel.jpg | panel | Halo Infinite | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1240440/7bba50fdffd7ec125e729317a94ad2b3e2e924d4/hero_capsule_2x.jpg | Steam vertical capsule (app 1240440, 748 x 896), 0, -110, 748: 110 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| nba-2k26-panel.jpg | panel | NBA 2K27 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202606/2913/4a31f711e2ff460cd44ad646983f36533278cea61f639be9.png | MASTER (concept 10018502), 0, -160, 1024: 160 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| mlb-the-show-25-panel.jpg | panel | MLB The Show 25 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202509/0922/42277abc2f6993a5c8194cfb77f82b36e0f9ba510f7a4403.png | MASTER (concept 10011213), 0, -120, 1024: 120 rows of the art blurred and darkened added above, so the title sits below the chips | 2026-11-01 |
+| rocket-league-panel.jpg | panel | Rocket League | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202609/1706/a03b0fde2903545c6b1e1906841e5991b52a108f9eec2e0f.png | MASTER (concept 203715), 50, 100, 924 | 2026-11-01 |
+| marathon-panel.jpg | panel | Marathon | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202606/0404/ab677209ce5520f4a7808686be7208a27682a68d9e0c6db8.jpg | GAMEHUB_COVER_ART (concept 10008864, 3840 x 2160, no title) with the concept's own LOGO laid over, 1000, 0, 2160; the logo is https://image.api.playstation.com/vulcan/ap/rnd/202606/0404/73e9e63e82e87ab0841da453f58ab4bf2cdc1ab1a82b04cd.png, 720 px wide, centred at 450, 280 of the square | 2026-11-01 |
+| cod-bo2-panel.jpg | panel | Call of Duty: Black Ops II | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202606/2619/c4ce7fe379aa05dd3f6ecc11e8fa38dfea03d4b4a8bad73a.png | MASTER (concept 10017658), 0, -120, 1024: 120 rows of the art's own black added above | 2026-10-22 |
+| cod-warzone-panel.jpg | panel | Call of Duty: Warzone | 900 x 900 | https://imgs.callofduty.com/content/dam/atvi/callofduty/cod-touchui/warzone2/blackops7/season-2/WZ_S2_meta_thumbnail.webp | callofduty.com Warzone Season 02 (Black Ops 7) share image (1920 x 1080 dark key art, operator + full logo), 0, 0, 1920: the whole art on top, 840 rows of it blurred and darkened added below (see above) | 2026-10-23 |
+| cod-bo7-panel.jpg | panel | Call of Duty: Black Ops 7 | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202508/2119/8c163e488e9e46b842889e773a8d6807b52f9d0e00b05652.png | MASTER (product UP0002-PPSA01649_00-CODBO7CROSSGEN01), 132, 244, 780: zoomed in so the title clears the name | 2026-10-22 |
+| cod-mw4-panel.jpg | panel | Call of Duty: Modern Warfare 4 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/70ec22ad484349c95a45e8b1afb7c865e79af9b4/hero_capsule_2x.jpg | Steam hero capsule (app 4435490, 748 x 896), 94, -64, 560: 64 rows of the art blurred and darkened added above (fading into it over 24 rows) so the title sits below the chips | 2026-10-24 |
+| rust-panel.jpg | panel | Rust | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202103/1609/iXyUOZpAfq34g4CGsgUb9VEc.png | FOUR_BY_THREE_BANNER (concept 233072, the base game's art), 360, -140, 2160: 140 rows of the art's own black added above | 2026-10-22 |
+| fortnite-panel.jpg | panel | Fortnite | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202608/2716/7327dedce378c26158c6bde93adab301c6cf2ae6839c8e98.png | MASTER (product UP1477-PPSA01922_00-FNOGBNDL00000000, Fortnite OG on concept 228748), 0, 0, 1024: whole | 2026-10-22 |
+| rainbow-six-siege-panel.jpg | panel | Tom Clancy's Rainbow Six Siege | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202602/2616/b8caad33ff5fdf712d88de35c192016ad8d84fe9f68e6943.png | MASTER (concept 203897), 0, 0, 1024: whole | 2026-10-22 |
+| apex-legends-panel.jpg | panel | Apex Legends | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202607/3013/6a6c898139c7550f3f5cd26135675bd3f3651be30bb17b74.png | MASTER (concept 232352), 74, 148, 876: zoomed in so the title clears the name | 2026-10-22 |
+| valorant-panel.jpg | panel | VALORANT | 900 x 900 | https://image.api.playstation.com/vulcan/ap/rnd/202609/0921/8b9042708110602ee93c3a28f4efee0aba91c4b9419fa128.png | MASTER (concept 10010048), 0, 0, 1024: whole | 2026-10-24 |
+| gta-v-panel.jpg | panel | Grand Theft Auto V | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/597b780d9d00f1e037baeacbff4b499e8e034193/hero_capsule_2x.jpg | Steam hero capsule (748 x 896), 0, 62, 748: the art below its ENHANCED strap | 2026-11-01 |
+| helldivers-2-panel.jpg | panel | HELLDIVERS 2 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/6a1b49766b68f9408f1ced2db36d303a7b37e64a/hero_capsule_2x.jpg | Steam hero capsule (748 x 896), 0, -100, 748: 100 rows of the art blurred and darkened added above (fading into it over 24 rows) so the title sits below the chips | 2026-11-01 |
+| cyberpunk-2077-panel.jpg | panel | Cyberpunk 2077 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/fdc73f21320557808c3be64b4a90f6bdaec0fa47/hero_capsule_alt_assets_9_2x.jpg | Steam hero capsule (748 x 896), 0, 148, 748: the bottom square, title in the middle band | 2026-11-01 |
+| ea-sports-fc-27-panel.jpg | panel | EA SPORTS FC 27 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4080220/59cd1ce6eeba1a7a009ef1a64bd07458c1356d90/hero_capsule_2x.jpg | Steam hero capsule (748 x 896), 0, -130, 748: 130 rows of the art blurred and darkened added above (fading into it over 24 rows) so the title sits below the chips | 2026-11-01 |
+| space-marine-2-panel.jpg | panel | Warhammer 40,000: Space Marine 2 | 900 x 900 | https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2183900/5c7c61bb34ce62648394b03487374aa1ba73d891/hero_capsule_alt_assets_14_2x.jpg | Steam hero capsule (748 x 896), 0, -110, 748: 110 rows of the art blurred and darkened added above (fading into it over 24 rows) so the title sits below the chips | 2026-11-01 |
+
+**No panel picture (D434):** none. Every pack has one since 2026-11-01.
+
+## Missing
+
+None. Every pack in index.json has all three pictures since 2026-11-01 (the
+seven that had none - Overwatch, Marvel Rivals, Battlefield 6, Black Ops 6,
+THE FINALS, Marathon, Counter-Strike 2 - got theirs that night, the owner's
+request: "gather good artwork for all games that fits well the aspect ratios
+of the app").

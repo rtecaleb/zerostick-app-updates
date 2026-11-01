@@ -1,0 +1,276 @@
+{
+  "zerostickGamePack": 1,
+  "id": "gta-v",
+  "name": "Grand Theft Auto V",
+  "aliases": [
+    "GTA V",
+    "GTA 5",
+    "GTA Online",
+    "GTAV",
+    "GTA5",
+    "Grand Theft Auto Online",
+    "Grand Theft Auto V Enhanced"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "gta-v.jpg",
+    "tall": "gta-v-tall.jpg",
+    "panel": "gta-v-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "gta-v",
+    "name": "Grand Theft Auto V (Acceleration Lowest) - ESTIMATED, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for GTA V on PS5 / Xbox Series (searched: open GIMX configs, FiveM docs, Steam and Reddit threads). Third-person look at the highest Look-Around Sensitivity ~240 deg/s yaw, aiming ~110; pitch 0.6 x yaw. Genre priors (third-person console shooters at max sensitivity), not GTA numbers; see docs/POPULAR-GAMES-2026-11-01.md"
+      },
+      {
+        "what": "Setting names: the game's own profile settings (Targeting Mode, Third/First Person Aiming and Look-Around Sensitivity, Aim/Look Deadzone, Aim/Look Acceleration)",
+        "url": "https://docs.fivem.net/docs/game-references/profile-settings/"
+      },
+      {
+        "what": "The Aim/Look Deadzone and Acceleration sliders were added in the December 2014 update; factory defaults are not published",
+        "url": "https://www.gtaboom.com/can-now-alter-gta-v-shooting-deadzone/"
+      },
+      {
+        "what": "Curve shape is a PRIOR: GTA has no curve selector, only the Acceleration slider. At Acceleration Lowest the look is assumed straight (linear); the default-acceleration variant carries a rim ramp prior (gain 1.5 after 150 ms over 400 ms) that the Core's calibration must replace."
+      },
+      {
+        "what": "Dead zone 0.10 is a PRIOR (the Aim/Look Deadzone slider at its lowest still leaves the pad's own zone; the factory value is unpublished). stickHz 30 is a prior (the console game runs at 30 fps in its Fidelity mode, 60 in Performance)."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Targeting Mode",
+        "value": "Free Aim (the Core aims; Assisted Aim snaps and fights the mouse)"
+      },
+      {
+        "setting": "Third Person Look-Around Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Third Person Aiming Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Third Person Aim/Look Deadzone",
+        "value": "Lowest"
+      },
+      {
+        "setting": "Third Person Aim/Look Acceleration",
+        "value": "Lowest"
+      },
+      {
+        "setting": "Graphics Mode",
+        "value": "Performance (60 fps)"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.1,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 240,
+        "pitch": 144
+      },
+      "ramp": null,
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 110,
+        "pitch": 66
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "accel-lowest",
+      "label": "Acceleration Lowest",
+      "setting": "Third Person Aim/Look Acceleration",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "gta-v",
+        "name": "Grand Theft Auto V (Acceleration Lowest) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for GTA V on PS5 / Xbox Series (searched: open GIMX configs, FiveM docs, Steam and Reddit threads). Third-person look at the highest Look-Around Sensitivity ~240 deg/s yaw, aiming ~110; pitch 0.6 x yaw. Genre priors (third-person console shooters at max sensitivity), not GTA numbers; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "Setting names: the game's own profile settings (Targeting Mode, Third/First Person Aiming and Look-Around Sensitivity, Aim/Look Deadzone, Aim/Look Acceleration)",
+            "url": "https://docs.fivem.net/docs/game-references/profile-settings/"
+          },
+          {
+            "what": "The Aim/Look Deadzone and Acceleration sliders were added in the December 2014 update; factory defaults are not published",
+            "url": "https://www.gtaboom.com/can-now-alter-gta-v-shooting-deadzone/"
+          },
+          {
+            "what": "Curve shape is a PRIOR: GTA has no curve selector, only the Acceleration slider. At Acceleration Lowest the look is assumed straight (linear); the default-acceleration variant carries a rim ramp prior (gain 1.5 after 150 ms over 400 ms) that the Core's calibration must replace."
+          },
+          {
+            "what": "Dead zone 0.10 is a PRIOR (the Aim/Look Deadzone slider at its lowest still leaves the pad's own zone; the factory value is unpublished). stickHz 30 is a prior (the console game runs at 30 fps in its Fidelity mode, 60 in Performance)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Targeting Mode",
+            "value": "Free Aim (the Core aims; Assisted Aim snaps and fights the mouse)"
+          },
+          {
+            "setting": "Third Person Look-Around Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Third Person Aiming Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Third Person Aim/Look Deadzone",
+            "value": "Lowest"
+          },
+          {
+            "setting": "Third Person Aim/Look Acceleration",
+            "value": "Lowest"
+          },
+          {
+            "setting": "Graphics Mode",
+            "value": "Performance (60 fps)"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 240,
+            "pitch": 144
+          },
+          "ramp": null,
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 110,
+            "pitch": 66
+          }
+        }
+      }
+    },
+    {
+      "key": "accel-default",
+      "label": "Acceleration Default",
+      "setting": "Third Person Aim/Look Acceleration",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "gta-v",
+        "name": "Grand Theft Auto V (Acceleration Default) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for GTA V on PS5 / Xbox Series (searched: open GIMX configs, FiveM docs, Steam and Reddit threads). Third-person look at the highest Look-Around Sensitivity ~240 deg/s yaw, aiming ~110; pitch 0.6 x yaw. Genre priors (third-person console shooters at max sensitivity), not GTA numbers; see docs/POPULAR-GAMES-2026-11-01.md"
+          },
+          {
+            "what": "Setting names: the game's own profile settings (Targeting Mode, Third/First Person Aiming and Look-Around Sensitivity, Aim/Look Deadzone, Aim/Look Acceleration)",
+            "url": "https://docs.fivem.net/docs/game-references/profile-settings/"
+          },
+          {
+            "what": "The Aim/Look Deadzone and Acceleration sliders were added in the December 2014 update; factory defaults are not published",
+            "url": "https://www.gtaboom.com/can-now-alter-gta-v-shooting-deadzone/"
+          },
+          {
+            "what": "Curve shape is a PRIOR: GTA has no curve selector, only the Acceleration slider. At Acceleration Lowest the look is assumed straight (linear); the default-acceleration variant carries a rim ramp prior (gain 1.5 after 150 ms over 400 ms) that the Core's calibration must replace."
+          },
+          {
+            "what": "Dead zone 0.10 is a PRIOR (the Aim/Look Deadzone slider at its lowest still leaves the pad's own zone; the factory value is unpublished). stickHz 30 is a prior (the console game runs at 30 fps in its Fidelity mode, 60 in Performance)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Targeting Mode",
+            "value": "Free Aim (the Core aims; Assisted Aim snaps and fights the mouse)"
+          },
+          {
+            "setting": "Third Person Look-Around Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Third Person Aiming Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Third Person Aim/Look Deadzone",
+            "value": "Lowest"
+          },
+          {
+            "setting": "Third Person Aim/Look Acceleration",
+            "value": "Default (not changed)"
+          },
+          {
+            "setting": "Graphics Mode",
+            "value": "Performance (60 fps)"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 240,
+            "pitch": 144
+          },
+          "ramp": {
+            "threshold": 0.9,
+            "delayMs": 150,
+            "riseMs": 400,
+            "gain": 1.5
+          },
+          "dampingMs": 0
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 110,
+            "pitch": 66
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Grand Theft Auto V / GTA Online (Rockstar North; PS5 and Xbox Series 'Enhanced' edition). D580 (2026-11-01): added because it is the #3-#4 most played game on both consoles (Circana 2025 US: Fortnite, Call of Duty, GTA V on PlayStation and Xbox; TrueAchievements 2026 Xbox YTD #4) and has no native mouse and keyboard on console. DRAFT for the owner's review. The aim translator is an ESTIMATE (D581: no published turn rate anywhere): needsCalibration, and the picker shows it Not started. Variants are the Aim/Look Acceleration slider (the game has no curve selector). Targeting Mode must be Free Aim for the mouse. HUD plan (weapon icon and ammo, top right, shown only for a few seconds after a change): docs/POPULAR-GAMES-2026-11-01.md and ZeroStick Model Library/Grand Theft Auto V. GTA VI (due 2026-11-19) gets its own pack when it ships.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Grand Theft Auto V exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Grand Theft Auto V is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Grand Theft Auto V is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

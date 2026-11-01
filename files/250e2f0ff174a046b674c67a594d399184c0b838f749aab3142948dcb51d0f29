@@ -1,0 +1,518 @@
+{
+  "zerostickGameCatalog": 1,
+  "game": "cod-mw4",
+  "title": "Call of Duty: Modern Warfare 4",
+  "asOf": "2026-10-24",
+  "season": "Launch (pre-Season 1)",
+  "integrated": [
+    "Modern Warfare 4"
+  ],
+  "kind": "weapons",
+  "groups": [
+    {
+      "id": "assault_rifles",
+      "name": "Assault Rifles",
+      "items": [
+        {
+          "id": "assault_rifles.han_86",
+          "name": "Han 86",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_han_86.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.m4",
+          "name": "M4",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_m4.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.hyeon_burst",
+          "name": "Hyeon Burst",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_hyeon_burst.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "assault_rifles.patriot_xmr",
+          "name": "Patriot XMR",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_patriot_xmr.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.kastov_762",
+          "name": "Kastov 762",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_kastov_762.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.oden",
+          "name": "Oden",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_oden.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.axion",
+          "name": "Axion",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_axion.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.cronen_squall",
+          "name": "Cronen Squall",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_cronen_squall.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "assault_rifles.cronen_osprey",
+          "name": "Cronen Osprey",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-warzone-season-1-announcement",
+            "https://gamingtrend.com/news/everything-you-need-to-know-about-season-1-for-modern-warfare-4/",
+            "https://www.destructoid.com/mw4-season-1-weapons-dmz-zone-maps-more/"
+          ],
+          "uncertain": "Season 1 weapon, not in the game before 2026-11-06 (Season 1 Battle Pass). Named in Activision's Season 1 announcement as reported by the press on 2026-11-01 (callofduty.com refused the connection that night); no HUD has shown it yet, so its letters the font has never seen are drawn."
+        }
+      ]
+    },
+    {
+      "id": "smgs",
+      "name": "SMGs",
+      "items": [
+        {
+          "id": "smgs.iso_nightshade",
+          "name": "ISO Nightshade",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_iso_nightshade.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.vel_46",
+          "name": "VEL 46",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_vel_46.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.wz_55_striga",
+          "name": "Wz.55 Striga",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_wz_55_striga.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.ppsh_41",
+          "name": "PPSh-41",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_ppsh_41.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.x_58_nyx",
+          "name": "X-58 Nyx",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_x_58_nyx.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "smgs.iso_trace",
+          "name": "ISO Trace",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_iso_trace.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": "Not a separate gun in Activision's list: it is the ISO Nightshade's Apex Attachment (the launch blog lists 'Apex Attachment: ISO Trace' under the ISO Nightshade). While it is fitted the HUD prints \"ISO\" in grey and \"Trace\" in orange, the way it marks a fire mode (seen 2026-10-24). Filed with the SMGs."
+        },
+        {
+          "id": "smgs.csg_35",
+          "name": "CSG-35",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-warzone-season-1-announcement",
+            "https://gamingtrend.com/news/everything-you-need-to-know-about-season-1-for-modern-warfare-4/",
+            "https://www.destructoid.com/mw4-season-1-weapons-dmz-zone-maps-more/"
+          ],
+          "uncertain": "Season 1 weapon, not in the game before 2026-11-06 (Season 1 Battle Pass). Named in Activision's Season 1 announcement as reported by the press on 2026-11-01 (callofduty.com refused the connection that night); no HUD has shown it yet, so its letters the font has never seen are drawn."
+        }
+      ]
+    },
+    {
+      "id": "shotguns",
+      "name": "Shotguns",
+      "items": [
+        {
+          "id": "shotguns.rezi_12",
+          "name": "Rezi 12",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_rezi_12.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "shotguns.warlord",
+          "name": "Warlord",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_warlord.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "shotguns.jak_12",
+          "name": "JAK 12",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-warzone-season-1-announcement",
+            "https://gamingtrend.com/news/everything-you-need-to-know-about-season-1-for-modern-warfare-4/",
+            "https://www.destructoid.com/mw4-season-1-weapons-dmz-zone-maps-more/"
+          ],
+          "uncertain": "Season 1 weapon, not in the game before 2026-11-06 (an in-season event, later in Season 1). Named in Activision's Season 1 announcement as reported by the press on 2026-11-01 (callofduty.com refused the connection that night); no HUD has shown it yet, so its letters the font has never seen are drawn."
+        }
+      ]
+    },
+    {
+      "id": "lmgs",
+      "name": "LMGs",
+      "items": [
+        {
+          "id": "lmgs.finn_lmg",
+          "name": "FiNN LMG",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_finn_lmg.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.type_73",
+          "name": "Type 73",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_type_73.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "lmgs.apoc_338",
+          "name": "APOC-338",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_apoc_338.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "marksman_rifles",
+      "name": "Marksman Rifles",
+      "items": [
+        {
+          "id": "marksman_rifles.mar_9",
+          "name": "MAR-9",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_mar_9.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.oris_8_6",
+          "name": "Oris 8.6",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_oris_8_6.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "marksman_rifles.mosin_nagant",
+          "name": "Mosin-Nagant",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_mosin_nagant.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "sniper_rifles",
+      "name": "Sniper Rifles",
+      "items": [
+        {
+          "id": "sniper_rifles.kg_7_vulcan",
+          "name": "KG-7 Vulcan",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_kg_7_vulcan.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.astaroth_57",
+          "name": "Astaroth .57",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_astaroth_57.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "sniper_rifles.signal_50",
+          "name": "Signal 50",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_signal_50.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "pistols",
+      "name": "Pistols",
+      "items": [
+        {
+          "id": "pistols.sang_9mm",
+          "name": "SANG 9mm",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_sang_9mm.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "pistols.krait_p68",
+          "name": "Krait P68",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_krait_p68.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null,
+          "fireMode": "burst"
+        },
+        {
+          "id": "pistols.50_gs",
+          "name": ".50 GS",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_50_gs.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "pistols.mojave_357",
+          "name": "Mojave .357",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_mojave_357.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "launchers",
+      "name": "Launchers",
+      "items": [
+        {
+          "id": "launchers.pila",
+          "name": "PILA",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_pila.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.rpg_8",
+          "name": "RPG-8",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_rpg_8.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.jokr",
+          "name": "JOKR",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_jokr.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        },
+        {
+          "id": "launchers.pm_40_anvil",
+          "name": "PM-40 Anvil",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_pm_40_anvil.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": null
+        }
+      ]
+    },
+    {
+      "id": "melee",
+      "name": "Melee",
+      "items": [
+        {
+          "id": "melee.fss_carbon_edge_1095",
+          "name": "FSS Carbon Edge 1095",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_fss_carbon_edge_1095.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": "Activision's only melee weapon at launch (a knife); its name has not been seen on the HUD yet, so whether the HUD prints it whole is not known."
+        },
+        {
+          "id": "melee.zlr_talonhawk",
+          "name": "ZLR Talonhawk",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-warzone-season-1-announcement",
+            "https://gamingtrend.com/news/everything-you-need-to-know-about-season-1-for-modern-warfare-4/",
+            "https://www.destructoid.com/mw4-season-1-weapons-dmz-zone-maps-more/"
+          ],
+          "uncertain": "Season 1 weapon, not in the game before 2026-11-06 (an in-season event, later in Season 1). Named in Activision's Season 1 announcement as reported by the press on 2026-11-01 (callofduty.com refused the connection that night); no HUD has shown it yet, so its letters the font has never seen are drawn."
+        }
+      ]
+    },
+    {
+      "id": "lethal",
+      "name": "Lethal Equipment",
+      "items": [
+        {
+          "id": "lethal.zip_gun",
+          "name": "Zip Gun",
+          "from": "Modern Warfare 4",
+          "image": "weapons/mw4_zip_gun.png",
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-launch-multiplayer-operators-weapons-equipment-create-a-class"
+          ],
+          "uncertain": "Lethal equipment in Activision's launch blog (unlocked at Player Level 17), not a weapon; its name was seen once on the HUD at a swap (2026-10-24) and the reader was never taught it."
+        }
+      ]
+    },
+    {
+      "id": "unconfirmed",
+      "name": "Seen on the HUD",
+      "items": [
+        {
+          "id": "unconfirmed.volt_edge",
+          "name": "Volt Edge",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-live-worldwide-now"
+          ],
+          "uncertain": "Not a gun of its own: Activision's launch-day blog lists the Vault Edition's “Volt-Edge” Oris 8.6 Marksman Rifle Blueprint (Signature Weapon Collection), and the HUD prints the blueprint's name, \"Volt Edge\" (no hyphen), in place of \"Oris 8.6\" while it is equipped (seen in an Oris 8.6 gameplay video, 2026-10-24). A Script meant for the Oris 8.6 has to be tied to this name too.",
+          "aliases": [
+            "Oris 8.6"
+          ]
+        },
+        {
+          "id": "unconfirmed.la_sombra_venenosa",
+          "name": "La Sombra Venenosa",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/10/call-of-duty-modern-warfare-4-live-worldwide-now"
+          ],
+          "uncertain": "Not a gun of its own: the Vault Edition's \"La Sombra Venenosa\" ISO Nightshade Blueprint (Activision's launch-day blog, Signature Weapon Collection). The HUD prints the blueprint's name in place of \"ISO Nightshade\" while it is equipped (seen in a Champs Network gameplay video, 2026-11-01). A Script meant for the ISO Nightshade has to be tied to this name too.",
+          "aliases": [
+            "ISO Nightshade"
+          ]
+        },
+        {
+          "id": "unconfirmed.inner_circuit",
+          "name": "Inner Circuit",
+          "from": "Modern Warfare 4",
+          "image": null,
+          "sources": [
+            "https://www.callofduty.com/blog/2026/09/call-of-duty-modern-warfare-4-preorder-bonus-inner-circuit-m4-blueprint"
+          ],
+          "uncertain": "Not a gun of its own: the digital pre-order's \"Inner Circuit\" M4 Blueprint (Activision's pre-order blog). The HUD prints the blueprint's name in place of \"M4\" while it is equipped (seen in a Champs Network gameplay video, 2026-11-01). A Script meant for the M4 has to be tied to this name too.",
+          "aliases": [
+            "M4"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,503 @@
+{
+  "zerostickGamePack": 1,
+  "id": "the-finals",
+  "name": "The Finals",
+  "aliases": [
+    "THE FINALS",
+    "Finals"
+  ],
+  "version": 2,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "the-finals.jpg",
+    "tall": "the-finals-tall.jpg",
+    "panel": "the-finals-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "the-finals",
+    "name": "The Finals (Linear)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4524 (TFinalsL, curves TFinalsL-ADS-P5.1 / TFinalsL-ADS-XS.1 / TFinalsL-Hip-P5.1 / TFinalsL-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 753, aiming 753 on PS5; Xbox Series hip 748, aiming 748 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Sensitivity Horizontal and Vertical set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (D562: the gameSettings set Aiming Inner Deadzone to 0 (guides run it at 0-10, gfinityesports.com/guides/the-finals-best-controller-settings); 0.02 allows for a resting pad's own zone; ESTIMATED)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Response Curve",
+        "value": "Linear"
+      },
+      {
+        "setting": "Look Sensitivity Horizontal",
+        "value": "Highest"
+      },
+      {
+        "setting": "Look Sensitivity Vertical",
+        "value": "Highest"
+      },
+      {
+        "setting": "Zoom Sensitivity Multiplier",
+        "value": "100"
+      },
+      {
+        "setting": "Scoped Sensitivity Multiplier",
+        "value": "100"
+      },
+      {
+        "setting": "Look Acceleration",
+        "value": "0 %"
+      },
+      {
+        "setting": "Horizontal / Vertical Look Boost (and Zoom)",
+        "value": "0"
+      },
+      {
+        "setting": "Aiming Inner Deadzone",
+        "value": "0"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.02,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 753,
+        "pitch": 753
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 753,
+          "pitch": 753
+        },
+        "xbox": {
+          "yaw": 748,
+          "pitch": 748
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 753,
+        "pitch": 753
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 753,
+          "pitch": 753
+        },
+        "xbox": {
+          "yaw": 748,
+          "pitch": 748
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "default",
+      "label": "Exponential",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "the-finals",
+        "name": "The Finals (Exponential)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4468 (TFinals, curves TFinals-ADS-P5.3 / TFinals-ADS-XS.3 / TFinals-Hip-P5.3 / TFinals-Hip-XS.3). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 748, aiming 748 on PS5; Xbox Series hip 748, aiming 748 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Sensitivity Horizontal and Vertical set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (D562: the gameSettings set Aiming Inner Deadzone to 0 (guides run it at 0-10, gfinityesports.com/guides/the-finals-best-controller-settings); 0.02 allows for a resting pad's own zone; ESTIMATED)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D562: the menu calls this curve Exponential (gfinityesports.com, afkgaming.com, gamer-guides.com; Medium); no exponent is published, 2 is the usual one (ESTIMATED)). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Exponential"
+          },
+          {
+            "setting": "Look Sensitivity Horizontal",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Sensitivity Vertical",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Scoped Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Look Acceleration",
+            "value": "0 %"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost (and Zoom)",
+            "value": "0"
+          },
+          {
+            "setting": "Aiming Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 748,
+            "pitch": 748
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 748,
+              "pitch": 748
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 748,
+            "pitch": 748
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 748,
+              "pitch": 748
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "the-finals",
+        "name": "The Finals (Linear)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4524 (TFinalsL, curves TFinalsL-ADS-P5.1 / TFinalsL-ADS-XS.1 / TFinalsL-Hip-P5.1 / TFinalsL-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 753, aiming 753 on PS5; Xbox Series hip 748, aiming 748 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Sensitivity Horizontal and Vertical set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (D562: the gameSettings set Aiming Inner Deadzone to 0 (guides run it at 0-10, gfinityesports.com/guides/the-finals-best-controller-settings); 0.02 allows for a resting pad's own zone; ESTIMATED)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Linear"
+          },
+          {
+            "setting": "Look Sensitivity Horizontal",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Sensitivity Vertical",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Scoped Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Look Acceleration",
+            "value": "0 %"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost (and Zoom)",
+            "value": "0"
+          },
+          {
+            "setting": "Aiming Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 753,
+            "pitch": 753
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 753,
+              "pitch": 753
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 753,
+            "pitch": 753
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 753,
+              "pitch": 753
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "s-curve",
+      "label": "Sinusoidal",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "the-finals",
+        "name": "The Finals (Sinusoidal)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4525 (TFinalsS, curves TFinalsS-ADS-P5.1 / TFinalsS-ADS-XS.1 / TFinalsS-Hip-P5.1 / TFinalsS-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 751, aiming 751 on PS5; Xbox Series hip 748, aiming 748 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Look Sensitivity Horizontal and Vertical set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (D562: the gameSettings set Aiming Inner Deadzone to 0 (guides run it at 0-10, gfinityesports.com/guides/the-finals-best-controller-settings); 0.02 allows for a resting pad's own zone; ESTIMATED)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D562: the menu calls this curve Sinusoidal (gfinityesports.com, afkgaming.com; Medium); read as the half sine (1 - cos(pi x)) / 2 in 12 points (ESTIMATED: no formula is published)). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Sinusoidal"
+          },
+          {
+            "setting": "Look Sensitivity Horizontal",
+            "value": "Highest"
+          },
+          {
+            "setting": "Look Sensitivity Vertical",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Scoped Sensitivity Multiplier",
+            "value": "100"
+          },
+          {
+            "setting": "Look Acceleration",
+            "value": "0 %"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost (and Zoom)",
+            "value": "0"
+          },
+          {
+            "setting": "Aiming Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.1,
+                0.0245
+              ],
+              [
+                0.2,
+                0.0955
+              ],
+              [
+                0.3,
+                0.2061
+              ],
+              [
+                0.4,
+                0.3455
+              ],
+              [
+                0.5,
+                0.5
+              ],
+              [
+                0.6,
+                0.6545
+              ],
+              [
+                0.7,
+                0.7939
+              ],
+              [
+                0.8,
+                0.9045
+              ],
+              [
+                0.9,
+                0.9755
+              ],
+              [
+                0.95,
+                0.9938
+              ],
+              [
+                0.98,
+                0.999
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 751,
+            "pitch": 751
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 751,
+              "pitch": 751
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 751,
+            "pitch": 751
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 751,
+              "pitch": 751
+            },
+            "xbox": {
+              "yaw": 748,
+              "pitch": 748
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "The Finals: pack made by import-xim-translators.js (D394) for a game whose turn speeds XIM's data carries. No art yet.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for The Finals are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for The Finals comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for The Finals comes with the game (aimModel, D394). Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

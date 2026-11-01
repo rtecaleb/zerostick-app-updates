@@ -1,0 +1,93 @@
+{
+  "zerostickGamePack": 1,
+  "id": "space-marine-2",
+  "name": "Warhammer 40,000: Space Marine 2",
+  "aliases": [
+    "Space Marine 2",
+    "Space Marine II",
+    "SM2",
+    "Warhammer 40K Space Marine 2"
+  ],
+  "version": 1,
+  "status": "notStarted",
+  "aiScripts": false,
+  "art": {
+    "wide": "space-marine-2.jpg",
+    "tall": "space-marine-2-tall.jpg",
+    "panel": "space-marine-2-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "space-marine-2",
+    "name": "Warhammer 40,000: Space Marine 2 (no curve option) - ESTIMATED, NOT MEASURED",
+    "needsCalibration": true,
+    "sources": [
+      {
+        "what": "ESTIMATE 2026-11-01 (D581): no published or measured turn rate exists for Space Marine 2 on PS5 / Xbox Series. Third-person look at the highest sensitivity ~250 deg/s yaw, aiming ~120; pitch 0.6 x yaw. Genre priors, not measured; see docs/POPULAR-GAMES-2026-11-01.md"
+      },
+      {
+        "what": "The console menu has only a look sensitivity and an aiming sensitivity slider (no dead zone, no curve option): a player request on the publisher's own forum asks for them",
+        "url": "https://community.focus-entmt.com/focus-entertainment/space-marine-2/ideas/8575-better-camera-options-for-controller"
+      },
+      {
+        "what": "Curve shape and dead zone are PRIORS (linear, 0.12: the game exposes neither). The Core's calibration must replace them."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Camera / Look Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Aiming Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Aim Assist",
+        "value": "Off"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.12,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 250,
+        "pitch": 150
+      },
+      "ramp": null,
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 120,
+        "pitch": 72
+      }
+    }
+  },
+  "notes": "Warhammer 40,000: Space Marine 2 (Saber Interactive / Focus; PS5, Xbox Series, PC; 2024). D580 (2026-11-01): the fifth pick, a third-person shooter at #21 on Xbox in 2026 so far (TrueAchievements) and on Game Pass. DRAFT for the owner's review. The aim translator is an ESTIMATE (D581): needsCalibration, Not started; the game has no curve option, so there are no variants. HUD plan: docs/POPULAR-GAMES-2026-11-01.md and ZeroStick Model Library/Warhammer 40,000 Space Marine 2.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Warhammer 40,000: Space Marine 2 exist yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Warhammer 40,000: Space Marine 2 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Warhammer 40,000: Space Marine 2 is an ESTIMATE (aimModel, needsCalibration): every turn rate is a prior until the Core measures this game. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

@@ -1,0 +1,507 @@
+{
+  "zerostickGamePack": 1,
+  "id": "arc-raiders",
+  "name": "ARC Raiders",
+  "aliases": [
+    "Arc Raiders",
+    "ARC"
+  ],
+  "version": 3,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "arc-raiders.jpg",
+    "tall": "arc-raiders-tall.jpg",
+    "panel": "arc-raiders-panel.jpg"
+  },
+  "aimPreset": null,
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "arc-raiders",
+    "name": "ARC Raiders (Linear)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4515 (ArcRaiders, curves ArcRaiders-ADS-P5.2 / ArcRaiders-ADS-XS.1 / ArcRaiders-Hip-P5.2 / ArcRaiders-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 995, aiming 1989 on PS5; Xbox Series hip 995, aiming 1989 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+      },
+      {
+        "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (D568: Look Inner Deadzone set to 0; about 10 % stays at 0 (Low, vortexgaming.io); the slider default is 5 of 0-90 (Medium, arcraiders.wiki))."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (D568: the game names this curve Linear (options Exponential default, Linear, Sinusoidal, Medium, arcraiders.wiki)). XIM keeps its shapes in encrypted records that were not decrypted."
+      },
+      {
+        "what": "D568: ARC Raiders defaults (Medium, community wiki): sensitivity 10-400 (80 / 60), Zoom multiplier 1-200 % (25), Scoped 1-200 % (50), Look Boost 55 / 15 with Ramp-Up 1.6 s, Zoom Look Boost 55 / 39 with 1.2 s, boost only at full stick. XIM's aiming speed is 2.0 x hip at Zoom 200 %, which agrees.",
+        "url": "https://arcraiders.wiki/wiki/Settings"
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Look Response Curve",
+        "value": "Linear"
+      },
+      {
+        "setting": "Horizontal Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Vertical Sensitivity",
+        "value": "Highest"
+      },
+      {
+        "setting": "Zoom Sensitivity Multiplier",
+        "value": "Highest"
+      },
+      {
+        "setting": "Scoped Zoom Sensitivity Multiplier",
+        "value": "Highest"
+      },
+      {
+        "setting": "Horizontal / Vertical Look Boost",
+        "value": "0"
+      },
+      {
+        "setting": "Zoom Horizontal / Vertical Look Boost",
+        "value": "0"
+      },
+      {
+        "setting": "Look Inner Deadzone",
+        "value": "0"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.1,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 995,
+        "pitch": 995
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 995,
+          "pitch": 995
+        },
+        "xbox": {
+          "yaw": 995,
+          "pitch": 995
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 1989,
+        "pitch": 1989
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 1989,
+          "pitch": 1989
+        },
+        "xbox": {
+          "yaw": 1989,
+          "pitch": 1989
+        }
+      }
+    }
+  },
+  "aimVariants": [
+    {
+      "key": "default",
+      "label": "Linear",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "arc-raiders",
+        "name": "ARC Raiders (Linear)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4515 (ArcRaiders, curves ArcRaiders-ADS-P5.2 / ArcRaiders-ADS-XS.1 / ArcRaiders-Hip-P5.2 / ArcRaiders-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 995, aiming 1989 on PS5; Xbox Series hip 995, aiming 1989 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (D568: Look Inner Deadzone set to 0; about 10 % stays at 0 (Low, vortexgaming.io); the slider default is 5 of 0-90 (Medium, arcraiders.wiki))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D568: the game names this curve Linear (options Exponential default, Linear, Sinusoidal, Medium, arcraiders.wiki)). XIM keeps its shapes in encrypted records that were not decrypted."
+          },
+          {
+            "what": "D568: ARC Raiders defaults (Medium, community wiki): sensitivity 10-400 (80 / 60), Zoom multiplier 1-200 % (25), Scoped 1-200 % (50), Look Boost 55 / 15 with Ramp-Up 1.6 s, Zoom Look Boost 55 / 39 with 1.2 s, boost only at full stick. XIM's aiming speed is 2.0 x hip at Zoom 200 %, which agrees.",
+            "url": "https://arcraiders.wiki/wiki/Settings"
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Linear"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Scoped Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost",
+            "value": "0"
+          },
+          {
+            "setting": "Zoom Horizontal / Vertical Look Boost",
+            "value": "0"
+          },
+          {
+            "setting": "Look Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 995,
+            "pitch": 995
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 995,
+              "pitch": 995
+            },
+            "xbox": {
+              "yaw": 995,
+              "pitch": 995
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 1989,
+            "pitch": 1989
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1989,
+              "pitch": 1989
+            },
+            "xbox": {
+              "yaw": 1989,
+              "pitch": 1989
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "exponential",
+      "label": "Exponential",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "arc-raiders",
+        "name": "ARC Raiders (Exponential - ESTIMATED)",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4515 (ArcRaiders, curves ArcRaiders-ADS-P5.2 / ArcRaiders-ADS-XS.1 / ArcRaiders-Hip-P5.2 / ArcRaiders-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 995, aiming 1989 on PS5; Xbox Series hip 995, aiming 1989 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (D568: Look Inner Deadzone set to 0; about 10 % stays at 0 (Low, vortexgaming.io); the slider default is 5 of 0-90 (Medium, arcraiders.wiki))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D568 ESTIMATED: an \"Exponential\" stick curve, x^2). XIM keeps its shapes in encrypted records that were not decrypted."
+          },
+          {
+            "what": "D568: ARC Raiders defaults (Medium, community wiki): sensitivity 10-400 (80 / 60), Zoom multiplier 1-200 % (25), Scoped 1-200 % (50), Look Boost 55 / 15 with Ramp-Up 1.6 s, Zoom Look Boost 55 / 39 with 1.2 s, boost only at full stick. XIM's aiming speed is 2.0 x hip at Zoom 200 %, which agrees.",
+            "url": "https://arcraiders.wiki/wiki/Settings"
+          },
+          {
+            "what": "D565 ESTIMATED variant: XIM's data has no translator for this in-game option. The top speed is borrowed from the measured variant (a curve option reshapes the travel, it does not change full stick, Medium); the game's DEFAULT curve, x^2 (no exponent published), with the default Look Boost modelled as a rim ramp (threshold 0.99, 1.6 s hip / 1.2 s zoom to 1.55 x yaw; pitch boosts less, which this format cannot say). Calibrate replaces it (docs/AIM-PRESETS-2026-11-01-B.md)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Exponential"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Scoped Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost",
+            "value": "55 / 15 (default)"
+          },
+          {
+            "setting": "Look Boost Ramp-Up Time",
+            "value": "1.6 (default)"
+          },
+          {
+            "setting": "Zoom Horizontal / Vertical Look Boost",
+            "value": "55 / 39 (default)"
+          },
+          {
+            "setting": "Zoom Look Boost Ramp-Up Time",
+            "value": "1.2 (default)"
+          },
+          {
+            "setting": "Look Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 995,
+            "pitch": 995
+          },
+          "ramp": {
+            "threshold": 0.99,
+            "delayMs": 0,
+            "riseMs": 1600,
+            "gain": 1.55
+          },
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 995,
+              "pitch": 995
+            },
+            "xbox": {
+              "yaw": 995,
+              "pitch": 995
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 1989,
+            "pitch": 1989
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1989,
+              "pitch": 1989
+            },
+            "xbox": {
+              "yaw": 1989,
+              "pitch": 1989
+            }
+          },
+          "ramp": {
+            "threshold": 0.99,
+            "delayMs": 0,
+            "riseMs": 1200,
+            "gain": 1.55
+          }
+        }
+      }
+    },
+    {
+      "key": "sinusoidal",
+      "label": "Sinusoidal",
+      "setting": "Look Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "arc-raiders",
+        "name": "ARC Raiders (Sinusoidal - ESTIMATED)",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4515 (ArcRaiders, curves ArcRaiders-ADS-P5.2 / ArcRaiders-ADS-XS.1 / ArcRaiders-Hip-P5.2 / ArcRaiders-Hip-XS.1). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 995, aiming 1989 on PS5; Xbox Series hip 995, aiming 1989 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (Horizontal and Vertical Sensitivity set to the same value)."
+          },
+          {
+            "what": "Dead zone 0.1 is a PRIOR, not in XIM's plaintext (D568: Look Inner Deadzone set to 0; about 10 % stays at 0 (Low, vortexgaming.io); the slider default is 5 of 0-90 (Medium, arcraiders.wiki))."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D568 ESTIMATED: Sinusoidal read as (1 - cos(pi x)) / 2). XIM keeps its shapes in encrypted records that were not decrypted."
+          },
+          {
+            "what": "D568: ARC Raiders defaults (Medium, community wiki): sensitivity 10-400 (80 / 60), Zoom multiplier 1-200 % (25), Scoped 1-200 % (50), Look Boost 55 / 15 with Ramp-Up 1.6 s, Zoom Look Boost 55 / 39 with 1.2 s, boost only at full stick. XIM's aiming speed is 2.0 x hip at Zoom 200 %, which agrees.",
+            "url": "https://arcraiders.wiki/wiki/Settings"
+          },
+          {
+            "what": "D565 ESTIMATED variant: XIM's data has no translator for this in-game option. The top speed is borrowed from the measured variant (a curve option reshapes the travel, it does not change full stick, Medium); an S-shaped curve (slow centre, steep middle, flat top), the points a guess at a half-sine. Calibrate replaces it (docs/AIM-PRESETS-2026-11-01-B.md)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Look Response Curve",
+            "value": "Sinusoidal"
+          },
+          {
+            "setting": "Horizontal Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Vertical Sensitivity",
+            "value": "Highest"
+          },
+          {
+            "setting": "Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Scoped Zoom Sensitivity Multiplier",
+            "value": "Highest"
+          },
+          {
+            "setting": "Horizontal / Vertical Look Boost",
+            "value": "0"
+          },
+          {
+            "setting": "Zoom Horizontal / Vertical Look Boost",
+            "value": "0"
+          },
+          {
+            "setting": "Look Inner Deadzone",
+            "value": "0"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.1,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.25,
+                0.146
+              ],
+              [
+                0.5,
+                0.5
+              ],
+              [
+                0.75,
+                0.854
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 995,
+            "pitch": 995
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 995,
+              "pitch": 995
+            },
+            "xbox": {
+              "yaw": 995,
+              "pitch": 995
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 1989,
+            "pitch": 1989
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 1989,
+              "pitch": 1989
+            },
+            "xbox": {
+              "yaw": 1989,
+              "pitch": 1989
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "ARC Raiders (Embark Studios). Its weapons and rarities are in game-data/arc-raiders/. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/arc-raiders.json, and --remove takes it out. D474 (2026-10-24): Steam header and library capsule art; its weapons and gun reader are in game-data/arc-raiders/.",
+  "smartActions": [],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for ARC Raiders are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for ARC Raiders comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for ARC Raiders comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}

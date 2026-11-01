@@ -1,0 +1,1031 @@
+{
+  "zerostickGamePack": 1,
+  "id": "apex-legends",
+  "name": "Apex Legends",
+  "aliases": [
+    "Apex"
+  ],
+  "version": 5,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "apex-legends.jpg",
+    "tall": "apex-legends-tall.jpg",
+    "panel": "apex-legends-panel.jpg"
+  },
+  "aimPreset": "apex",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "apex-legends",
+    "name": "Apex Legends (Advanced Look Controls)",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "D394: imported 2026-10-15 from XIM game id 4353 (ApexL, curves ApexL-ADS-P4.5 / ApexL-ADS-X1.4 / ApexL-Hip-P4.5 / ApexL-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+      },
+      {
+        "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 500, aiming 412 on PS5; Xbox Series hip 500, aiming 412 (XIM record types 150 / 151)."
+      },
+      {
+        "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (ALC Pitch Speed = Yaw Speed (500 both), and ALC speeds are deg/s)."
+      },
+      {
+        "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set ALC Look Deadzone to None)."
+      },
+      {
+        "what": "Curve shape is a PRIOR, not in XIM's plaintext (ALC Response Curve 0 is the linear one (Apex profile.cfg gamepad_custom_curve)). XIM keeps its shapes in encrypted records that were not decrypted."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Advanced Look Controls",
+        "value": "On"
+      },
+      {
+        "setting": "Yaw Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "Pitch Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Yaw Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "ADS Pitch Speed",
+        "value": "Highest"
+      },
+      {
+        "setting": "Turning Extra Yaw / Pitch",
+        "value": "0"
+      },
+      {
+        "setting": "Response Curve",
+        "value": "0"
+      },
+      {
+        "setting": "Look Deadzone",
+        "value": "None"
+      },
+      {
+        "setting": "Per Optic ADS (1x/Iron)",
+        "value": "1.0"
+      },
+      {
+        "setting": "Field of View",
+        "value": "Lowest"
+      }
+    ],
+    "stickHz": 60,
+    "hip": {
+      "deadzone": 0.02,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "linear"
+      },
+      "turnRate": {
+        "yaw": 500,
+        "pitch": 500
+      },
+      "ramp": null,
+      "dampingMs": 0,
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 500,
+          "pitch": 500
+        },
+        "xbox": {
+          "yaw": 500,
+          "pitch": 500
+        }
+      }
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 412,
+        "pitch": 412
+      },
+      "turnRateByConsole": {
+        "playstation": {
+          "yaw": 412,
+          "pitch": 412
+        },
+        "xbox": {
+          "yaw": 412,
+          "pitch": 412
+        }
+      }
+    },
+    "sights": [
+      {
+        "name": "1x / iron sights",
+        "adsScale": 1
+      },
+      {
+        "name": "2x",
+        "adsScale": 0.6068
+      },
+      {
+        "name": "3x",
+        "adsScale": 0.4049
+      },
+      {
+        "name": "4x (incl. 2x-4x)",
+        "adsScale": 0.305
+      },
+      {
+        "name": "6x (incl. 4x-8x)",
+        "adsScale": 0.2033
+      },
+      {
+        "name": "8x",
+        "adsScale": 0.1524
+      },
+      {
+        "name": "10x",
+        "adsScale": 0.122
+      },
+      {
+        "name": "sight 8 (unnamed in the data)",
+        "adsScale": 1
+      }
+    ]
+  },
+  "aimVariants": [
+    {
+      "key": "alc",
+      "label": "Advanced Look Controls",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (Advanced Look Controls)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4353 (ApexL, curves ApexL-ADS-P4.5 / ApexL-ADS-X1.4 / ApexL-Hip-P4.5 / ApexL-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 500, aiming 412 on PS5; Xbox Series hip 500, aiming 412 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (ALC Pitch Speed = Yaw Speed (500 both), and ALC speeds are deg/s)."
+          },
+          {
+            "what": "Dead zone 0.02 is a PRIOR, not in XIM's plaintext (the gameSettings set ALC Look Deadzone to None)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (ALC Response Curve 0 is the linear one (Apex profile.cfg gamepad_custom_curve)). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "On"
+          },
+          {
+            "setting": "Yaw Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Pitch Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Yaw Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "ADS Pitch Speed",
+            "value": "Highest"
+          },
+          {
+            "setting": "Turning Extra Yaw / Pitch",
+            "value": "0"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "0"
+          },
+          {
+            "setting": "Look Deadzone",
+            "value": "None"
+          },
+          {
+            "setting": "Per Optic ADS (1x/Iron)",
+            "value": "1.0"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.02,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 500,
+            "pitch": 500
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 500,
+              "pitch": 500
+            },
+            "xbox": {
+              "yaw": 500,
+              "pitch": 500
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 412,
+            "pitch": 412
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 412,
+              "pitch": 412
+            },
+            "xbox": {
+              "yaw": 412,
+              "pitch": 412
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "classic",
+      "label": "Classic",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (Classic)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4428 (ApexLC, curves ApexLC-ADS-P4.5 / ApexLC-ADS-X1.4 / ApexLC-Hip-P4.5 / ApexLC-Hip-X1.4). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 566, aiming 466 on PS5; Xbox Series hip 566, aiming 466 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (D562: Apex's shipped looksensitivity.txt gives yaw = pitch at sensitivity 7 and 8 (500 / 500 hip and ADS); the old 0.75 / 0.68 was sensitivity 3's ratio (github.com/Syampuuh/TitanfallApexLegends cfg/aimassist, High))."
+          },
+          {
+            "what": "Dead zone 0.09 is a PRIOR, not in XIM's plaintext (GIMX XOne Apex calibration, dead zone 11-13/127; the game's Small zone is an unpublished engine constant)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (D562: Classic is out = in^2, the game's shipped aimcurve_look_0.txt (TRANSFORM: squared), github.com/Syampuuh/TitanfallApexLegends cfg/aimassist (High); the old x^1.25 was a GIMX fit). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "Off"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "Classic"
+          },
+          {
+            "setting": "Look Sensitivity",
+            "value": "7"
+          },
+          {
+            "setting": "Look Sensitivity (ADS)",
+            "value": "7"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.09,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 2
+          },
+          "turnRate": {
+            "yaw": 566,
+            "pitch": 566
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 566,
+              "pitch": 566
+            },
+            "xbox": {
+              "yaw": 566,
+              "pitch": 566
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 466,
+            "pitch": 466
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 466,
+              "pitch": 466
+            },
+            "xbox": {
+              "yaw": 466,
+              "pitch": 466
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "linear",
+      "label": "Linear",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (Linear)",
+        "needsCalibration": false,
+        "sources": [
+          {
+            "what": "D394: imported 2026-10-15 from XIM game id 4467 (ApexLL, curves ApexLL-ADS-P4.3 / ApexLL-ADS-X1.3 / ApexLL-Hip-P4.3 / ApexLL-Hip-X1.3). XIM MATRIX game-support repository (XIMR-20260914-114333.ximmr, the owner's own downloaded copy), statically extracted 2026-10-15 to Replica\\xim-matrix\\replica\\extracted\\games_full.json. Only the plaintext type-130 config and the type-150/151 scalars are used; the encrypted curve bodies (types 138-141) were not decrypted (D394). The owner states the use is lawyer-approved (the extraction README, \"Boundary note\")."
+          },
+          {
+            "what": "Turn speeds as XIM measured them (deg/s at full stick, at the gameSettings values): hip 565, aiming 466 on PS5; Xbox Series hip 565, aiming 466 (XIM record types 150 / 151)."
+          },
+          {
+            "what": "Up/down speed is a PRIOR, not in XIM's plaintext: pitch = 1 x yaw hip, 1 x aiming (D562: Apex's shipped looksensitivity.txt gives yaw = pitch at sensitivity 7 and 8 (500 / 500 hip and ADS); the old 0.75 / 0.68 was sensitivity 3's ratio (github.com/Syampuuh/TitanfallApexLegends cfg/aimassist, High))."
+          },
+          {
+            "what": "Dead zone 0.09 is a PRIOR, not in XIM's plaintext (GIMX XOne Apex calibration, dead zone 11-13/127; the game's Small zone is an unpublished engine constant)."
+          },
+          {
+            "what": "Curve shape is a PRIOR, not in XIM's plaintext (the game names this curve Linear). XIM keeps its shapes in encrypted records that were not decrypted."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "Off"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "Linear"
+          },
+          {
+            "setting": "Look Sensitivity",
+            "value": "7"
+          },
+          {
+            "setting": "Look Sensitivity (ADS)",
+            "value": "7"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.09,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "linear"
+          },
+          "turnRate": {
+            "yaw": 565,
+            "pitch": 565
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 565,
+              "pitch": 565
+            },
+            "xbox": {
+              "yaw": 565,
+              "pitch": 565
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 466,
+            "pitch": 466
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 466,
+              "pitch": 466
+            },
+            "xbox": {
+              "yaw": 466,
+              "pitch": 466
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "steady",
+      "label": "Steady",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (Steady) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATED 2026-11-01 (D560): Apex's Steady response curve, which XIM's data does not carry. Top speeds are Classic's at sensitivity 7 as XIM measured them (hip 566, aiming 466 deg/s): the curves only reshape the travel, Classic and Linear measured within 0.2 % of each other. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Curve shape: Steady is out = in^3, the game's shipped aimcurve_look_1.txt (\"LINEAR 1.0 1.0, TRANSFORM: cubed\"); High."
+          },
+          {
+            "what": "Up/down = left/right: the shipped looksensitivity.txt gives 500 / 500 at sensitivity 7 (High)."
+          },
+          {
+            "what": "Dead zone 0.09 is a PRIOR (GIMX XOne Apex calibration, 11-13/127; the game's Small zone is an unpublished constant)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "Off"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "Steady"
+          },
+          {
+            "setting": "Look Sensitivity",
+            "value": "7"
+          },
+          {
+            "setting": "Look Sensitivity (ADS)",
+            "value": "7"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.09,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "power",
+            "exp": 3
+          },
+          "turnRate": {
+            "yaw": 566,
+            "pitch": 566
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 566,
+              "pitch": 566
+            },
+            "xbox": {
+              "yaw": 566,
+              "pitch": 566
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 466,
+            "pitch": 466
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 466,
+              "pitch": 466
+            },
+            "xbox": {
+              "yaw": 466,
+              "pitch": 466
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "fine-aim",
+      "label": "Fine Aim",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (Fine Aim) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATED 2026-11-01 (D560): Apex's Fine Aim response curve, which XIM's data does not carry. Top speeds are Classic's at sensitivity 7 as XIM measured them (hip 566, aiming 466 deg/s): the curves only reshape the travel, Classic and Linear measured within 0.2 % of each other. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Curve shape: Fine Aim is the shipped aimcurve_look_2.txt: table (0.1 -> 0.4, 0.98 -> 0.6, 0.981 -> 1.0) then cubed, so 0.064 of full speed at 10 % past the zone, 0.216 at 98 % and full only at the rim; High."
+          },
+          {
+            "what": "Up/down = left/right: the shipped looksensitivity.txt gives 500 / 500 at sensitivity 7 (High)."
+          },
+          {
+            "what": "Dead zone 0.09 is a PRIOR (GIMX XOne Apex calibration, 11-13/127; the game's Small zone is an unpublished constant)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "Off"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "Fine Aim"
+          },
+          {
+            "setting": "Look Sensitivity",
+            "value": "7"
+          },
+          {
+            "setting": "Look Sensitivity (ADS)",
+            "value": "7"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.09,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.025,
+                0.001
+              ],
+              [
+                0.05,
+                0.008
+              ],
+              [
+                0.075,
+                0.027
+              ],
+              [
+                0.1,
+                0.064
+              ],
+              [
+                0.2,
+                0.07554
+              ],
+              [
+                0.3,
+                0.08839
+              ],
+              [
+                0.4,
+                0.10262
+              ],
+              [
+                0.5,
+                0.11831
+              ],
+              [
+                0.6,
+                0.13551
+              ],
+              [
+                0.7,
+                0.1543
+              ],
+              [
+                0.8,
+                0.17476
+              ],
+              [
+                0.9,
+                0.19695
+              ],
+              [
+                0.98,
+                0.216
+              ],
+              [
+                0.981,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 566,
+            "pitch": 566
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 566,
+              "pitch": 566
+            },
+            "xbox": {
+              "yaw": 566,
+              "pitch": 566
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 466,
+            "pitch": 466
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 466,
+              "pitch": 466
+            },
+            "xbox": {
+              "yaw": 466,
+              "pitch": 466
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    },
+    {
+      "key": "high-velocity",
+      "label": "High Velocity",
+      "setting": "Response Curve",
+      "aimModel": {
+        "format": "zs-aim-model/1",
+        "id": "apex-legends",
+        "name": "Apex Legends (High Velocity) - ESTIMATED, NOT MEASURED",
+        "needsCalibration": true,
+        "sources": [
+          {
+            "what": "ESTIMATED 2026-11-01 (D560): Apex's High Velocity response curve, which XIM's data does not carry. Top speeds are Classic's at sensitivity 7 as XIM measured them (hip 566, aiming 466 deg/s): the curves only reshape the travel, Classic and Linear measured within 0.2 % of each other. See docs/AIM-PRESETS-2026-11-01-A.md."
+          },
+          {
+            "what": "Curve shape: High Velocity is the shipped aimcurve_look_3.txt: table (0.25 -> 1.0) then squared, so full speed at 25 % past the zone and flat after (written 0.9999 at 25 %: the format wants both columns rising). A mouse gets a quarter of the stick's resolution here: Classic or ALC are the better choice; High."
+          },
+          {
+            "what": "Up/down = left/right: the shipped looksensitivity.txt gives 500 / 500 at sensitivity 7 (High)."
+          },
+          {
+            "what": "Dead zone 0.09 is a PRIOR (GIMX XOne Apex calibration, 11-13/127; the game's Small zone is an unpublished constant)."
+          }
+        ],
+        "gameSettings": [
+          {
+            "setting": "Advanced Look Controls",
+            "value": "Off"
+          },
+          {
+            "setting": "Response Curve",
+            "value": "High Velocity"
+          },
+          {
+            "setting": "Look Sensitivity",
+            "value": "7"
+          },
+          {
+            "setting": "Look Sensitivity (ADS)",
+            "value": "7"
+          },
+          {
+            "setting": "Field of View",
+            "value": "Lowest"
+          }
+        ],
+        "stickHz": 60,
+        "hip": {
+          "deadzone": 0.09,
+          "deadzoneShape": "radial",
+          "curve": {
+            "type": "points",
+            "points": [
+              [
+                0.05,
+                0.04
+              ],
+              [
+                0.1,
+                0.16
+              ],
+              [
+                0.15,
+                0.36
+              ],
+              [
+                0.2,
+                0.64
+              ],
+              [
+                0.25,
+                0.9999
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          },
+          "turnRate": {
+            "yaw": 566,
+            "pitch": 566
+          },
+          "ramp": null,
+          "dampingMs": 0,
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 566,
+              "pitch": 566
+            },
+            "xbox": {
+              "yaw": 566,
+              "pitch": 566
+            }
+          }
+        },
+        "ads": {
+          "inherit": "hip",
+          "turnRate": {
+            "yaw": 466,
+            "pitch": 466
+          },
+          "turnRateByConsole": {
+            "playstation": {
+              "yaw": 466,
+              "pitch": 466
+            },
+            "xbox": {
+              "yaw": 466,
+              "pitch": 466
+            }
+          }
+        },
+        "sights": [
+          {
+            "name": "1x / iron sights",
+            "adsScale": 1
+          },
+          {
+            "name": "2x",
+            "adsScale": 0.6068
+          },
+          {
+            "name": "3x",
+            "adsScale": 0.4049
+          },
+          {
+            "name": "4x (incl. 2x-4x)",
+            "adsScale": 0.305
+          },
+          {
+            "name": "6x (incl. 4x-8x)",
+            "adsScale": 0.2033
+          },
+          {
+            "name": "8x",
+            "adsScale": 0.1524
+          },
+          {
+            "name": "10x",
+            "adsScale": 0.122
+          },
+          {
+            "name": "sight 8 (unnamed in the data)",
+            "adsScale": 1
+          }
+        ]
+      }
+    }
+  ],
+  "notes": "Apex Legends, Steam app 1172470. The aim preset is Match Your Game's Apex row, a hand-picked starting point. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/apex-legends.json, and --remove takes it out.",
+  "smartActions": [
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Apex Legends are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Apex Legends comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Apex Legends comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  }
+}
