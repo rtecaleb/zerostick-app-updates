@@ -1,0 +1,160 @@
+/* zs-navaux.js — D661: Navigate's "PC on AUX" target, the page's half
+ * (window.ZSNAVAUX).
+ *
+ * ES5 ONLY, the zs-serial.js discipline.
+ *
+ * The Core streams its front-port keyboard and mouse as ZSN lines on the USB
+ * link while Navigate Mode is on and its target is the PC (firmware
+ * components/zs_navaux):
+ *
+ *     ZSN  base64(18-byte frame)  .  crc32 as 8 hex  \n
+ *
+ * zs-serial.js hands every ZSN line here (its 'navaux' listeners). This file
+ * checks the CRC and sends the 18 bytes, as one binary message, to the app's
+ * own local server over a WebSocket (ws://<this page's host>/zs/navaux),
+ * where src/navinject.js turns them into real Windows input.
+ *
+ * THE HEARTBEAT. For each {"t":"tick"} the server sends (every 250 ms, only
+ * while its input helper is up) this writes "ZSH1" to the Core. Driven by
+ * the server on purpose: a minimised window's timers are throttled, a
+ * WebSocket message is not. No server, no helper, no cable -> no ZSH1, and
+ * the Core falls back to the console by itself within 1.5 s.
+ *
+ * WHERE IT RUNS. Only where both exist: Web Serial (a desktop browser) and a
+ * page served by the app's local server (http on localhost / 127.0.0.1).
+ * On a phone, or the page opened from a file, it does nothing at all.
+ */
+(function () {
+  'use strict';
+
+  var FRAME_LEN = 18;
+  var RETRY_MS = 3000;
+
+  /* CRC-32, zlib's (the same as zs-serial.js and the firmware's) */
+  var T = (function () {
+    var t = [], c, n, k;
+    for (n = 0; n < 256; n++) {
+      c = n;
+      for (k = 0; k < 8; k++) { c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); }
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(b) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < b.length; i++) { c = T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+  /* "ZSN...." -> the 18 frame bytes (Uint8Array), or null for anything that
+     is not a whole, version-1 frame with a good CRC. Never throws. */
+  function decodeLine(line) {
+    if (typeof line !== 'string') { return null; }
+    line = line.replace(/[\r\n]+$/, '');
+    if (line.length !== 36 || line.slice(0, 3) !== 'ZSN' || line.charAt(27) !== '.') { return null; }
+    var out = new Uint8Array(FRAME_LEN), o = 0, i, k;
+    for (i = 3; i < 27; i += 4) {
+      var v = 0;
+      for (k = 0; k < 4; k++) {
+        var x = B64.indexOf(line.charAt(i + k));
+        if (x < 0) { return null; }
+        v = (v << 6) | x;
+      }
+      out[o++] = (v >>> 16) & 0xFF;
+      out[o++] = (v >>> 8) & 0xFF;
+      out[o++] = v & 0xFF;
+    }
+    var hex = line.slice(28);
+    if (!/^[0-9a-fA-F]{8}$/.test(hex) || parseInt(hex, 16) !== crc32(out)) { return null; }
+    if (out[0] !== 1) { return null; }
+    return out;
+  }
+
+  var st = {
+    serial: null, ws: null, open: false, ready: false, why: 'not started', dry: false,
+    lines: 0, bad: 0, sent: 0, hellos: 0, started: false, retry: null
+  };
+  var watchers = [];
+  function changed() {
+    for (var i = 0; i < watchers.length; i++) {
+      try { watchers[i](status()); } catch (e) { /* a bad watcher is not ours */ }
+    }
+  }
+
+  function status() {
+    return { running: st.started, server: st.open, ready: st.ready, why: st.why, dry: st.dry,
+             lines: st.lines, bad: st.bad, sent: st.sent, hellos: st.hellos };
+  }
+
+  function onLine(line) {
+    st.lines += 1;
+    var b = decodeLine(line);
+    if (!b) { st.bad += 1; return; }
+    if (st.ws && st.open) {
+      try { st.ws.send(b); st.sent += 1; } catch (e) { /* closing */ }
+    }
+  }
+
+  function connect() {
+    st.retry = null;
+    var ws;
+    try {
+      ws = new WebSocket('ws://' + location.host + '/zs/navaux');
+    } catch (e) {
+      st.retry = setTimeout(connect, RETRY_MS);
+      return;
+    }
+    ws.binaryType = 'arraybuffer';
+    st.ws = ws;
+    ws.onopen = function () { st.open = true; changed(); };
+    ws.onmessage = function (ev) {
+      var m = null;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (!m) { return; }
+      if (m.t === 'state') {
+        st.ready = !!m.ready; st.why = String(m.why || ''); st.dry = !!m.dry;
+        changed();
+      } else if (m.t === 'tick' && st.serial && st.serial.isConnected && st.serial.isConnected()) {
+        st.hellos += 1;
+        st.serial.writeLine('ZSH1\n');
+      }
+    };
+    ws.onclose = function () {
+      var was = st.open || st.ready;
+      st.open = false; st.ready = false; st.ws = null; st.why = 'the app’s server is not answering';
+      if (was) { changed(); }
+      if (!st.retry) { st.retry = setTimeout(connect, RETRY_MS); }
+    };
+    ws.onerror = function () { /* onclose follows */ };
+  }
+
+  /* Start once the transport exists. Inert (returns false) where it cannot
+     work, which is every phone. */
+  function start(serial) {
+    if (st.started) { return true; }
+    if (!serial || !serial.on || !serial.writeLine) { return false; }
+    if (typeof WebSocket === 'undefined' || typeof location === 'undefined') { return false; }
+    if (location.protocol !== 'http:' || !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      return false;
+    }
+    if (serial.supported && !serial.supported().ok) { return false; }
+    st.started = true;
+    st.serial = serial;
+    serial.on('navaux', onLine);
+    connect();
+    return true;
+  }
+
+  window.ZSNAVAUX = {
+    start: start,
+    status: status,
+    watch: function (fn) { if (typeof fn === 'function') { watchers.push(fn); } },
+    decodeLine: decodeLine,
+    _crc32: crc32
+  };
+
+  /* on the PC exe the transport is already loaded (phone.html puts this
+     right after zs-serial.js) */
+  if (window.ZSSERIAL) { start(window.ZSSERIAL); }
+})();
