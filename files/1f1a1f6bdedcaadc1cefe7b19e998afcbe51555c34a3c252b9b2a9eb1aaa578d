@@ -1,0 +1,94 @@
+/* shell/15b-game-settings.js — "Set these in the game" (D693).
+ *
+ * A measured translator (Curve Lab on the PC, Measure this game on the Core,
+ * a pack's measured model) is right only at the in-game settings it was
+ * measured at: the owner measures each game once at HIS preset (a look
+ * sensitivity, an in-game dead zone, a response curve), and every player has
+ * to copy them or the mouse turns the wrong amount. The list rides in
+ * mouseTranslation.resolvedAimModel.gameSettings (zs-aim-model.js resolve).
+ *
+ * When a player picks a config (Configs list: ZS.setActive) or opens one
+ * (openEditor), and that config runs a measured translator with such a list
+ * and a mouse, a sheet says so: the list, OK, and "Don't show again for this
+ * config". OK quiets it for this session; "Don't show again" is kept in the
+ * app's store (ZS.store.vals['gameSettingsSeen|<config id>']) against the
+ * translator's own fingerprint, so a NEW measurement (other numbers, other
+ * settings) shows it again. Focus lands on OK, so a controller's A (Navigate
+ * Mode) or Enter answers it; Tab walks to the other button (the sheet's trap).
+ *
+ * PART OF THE APP SHELL (classic script, see 12-sheets.js's header): it
+ * only defines window.ZSMEASUREDSET; the calls come after the page has loaded.
+ */
+(function(){
+  var quiet = {};            /* config id -> fingerprint OK'd this session */
+
+  function measured(p){
+    var full = (window.ZS && ZS.live && ZS.live.full) ? ZS.live.full[p.id] : null;
+    var r = full && full.mouseTranslation && full.mouseTranslation.resolvedAimModel;
+    if(!r || typeof r !== 'object' || r.generic === true) return null;
+    var gs = Array.isArray(r.gameSettings) ? r.gameSettings.filter(function(g){
+      return g && typeof g.setting === 'string' && g.setting && typeof g.value === 'string';
+    }) : [];
+    return gs.length ? { model: r, rows: gs } : null;
+  }
+  /* the translator's fingerprint: any change to its numbers or its settings
+     is a new measurement (djb2 over its JSON) */
+  function fingerprint(r){
+    var s = JSON.stringify(r), h = 5381, i;
+    for(i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+    return (h >>> 0).toString(16);
+  }
+  function storeKey(id){ return 'gameSettingsSeen|'+id; }
+  function dismissed(id, fp){
+    var v = (ZS.store && ZS.store.vals) ? ZS.store.vals[storeKey(id)] : null;
+    return v === fp;
+  }
+  function rowsHTML(rows){
+    return rows.map(function(g){
+      return '<div class="stat"><span>'+esc(g.setting)+'</span><b>'+esc(g.value)+'</b></div>';
+    }).join('');
+  }
+  /* Show it for config `id` when it should be shown; true when it was. */
+  function maybe(id){
+    if(!window.ZS || !ZS.prof) return false;
+    var p = ZS.prof(id);
+    if(!p || (ZS.inputShows && !ZS.inputShows(p.input, 'mouse'))) return false;
+    var m = measured(p);
+    if(!m) return false;
+    var fp = fingerprint(m.model);
+    if(quiet[id] === fp || dismissed(id, fp)) return false;
+    var w = document.getElementById('sheetwrap');
+    if(!w || w.classList.contains('open')) return false;    /* never over another sheet */
+    quiet[id] = fp;
+    var body = sheetOpen('Set these in the game',
+      '<div class="xsub" id="gs-say" style="margin:0 0 8px">Set these in the game, or mouse movement may be off:</div>'+
+      '<div id="gs-rows">'+rowsHTML(m.rows)+'</div>'+
+      '<div class="xsub" style="margin:8px 0 0">For '+esc(trNameOf(m.model))+'. They are also under Translation, Game translator.</div>'+
+      '<button class="btn primary" id="gs-ok" style="margin-top:12px">OK</button>'+
+      '<button class="btn ghost" id="gs-never" style="margin-top:10px">Don’t show again for this config</button>');
+    var ok = body.querySelector('#gs-ok'), never = body.querySelector('#gs-never');
+    ok.addEventListener('click', function(){ sheetClose(); });
+    never.addEventListener('click', function(){
+      if(ZS.store && ZS.store.vals){
+        ZS.store.vals[storeKey(id)] = fp;
+        if(ZS.persistStore) ZS.persistStore();
+      }
+      sheetClose();
+    });
+    /* controller-first: A (Enter) answers it at once, B (Escape) is the
+       sheet's own close, and a d-pad's up/down (arrow keys) moves between
+       the two buttons as Tab does */
+    body.addEventListener('keydown', function(e){
+      if(e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      try{ (document.activeElement === ok ? never : ok).focus(); }catch(x){}
+    });
+    try{ ok.focus(); }catch(e){}
+    return true;
+  }
+  function trNameOf(r){
+    var n = String(r.name || 'this game’s translator');
+    return (window.ZSAIMMODEL && ZSAIMMODEL.displayName) ? ZSAIMMODEL.displayName(n) : n;
+  }
+  window.ZSMEASUREDSET = { maybe: maybe, fingerprint: fingerprint, rowsHTML: rowsHTML };
+})();
