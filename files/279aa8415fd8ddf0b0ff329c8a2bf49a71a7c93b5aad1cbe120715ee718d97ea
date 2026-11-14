@@ -1,0 +1,609 @@
+/* shell/15b-game-settings.js — "Set exactly these in the game" (D693, D697).
+ *
+ * A measured translator (Curve Lab on the PC, Measure this game on the Core,
+ * a pack's measured model) is right only at the in-game settings it was
+ * measured at: the owner measures each game once at HIS preset (a look
+ * sensitivity, an in-game dead zone, a response curve), and every player has
+ * to copy them or the mouse turns the wrong amount. The list rides in
+ * mouseTranslation.resolvedAimModel.gameSettings (zs-aim-model.js resolve).
+ *
+ * D697 (owner, 2026-11-13): on a MOUSE & KEYBOARD translation config those
+ * settings are REQUIRED, not suggestions. The sheet lists them as "Set
+ * exactly these in the game" with one confirm, "I've set these", and a
+ * required "Your in-game FOV" number: FOV is the player's own choice, but
+ * the game's turn rate follows it (zs-aim-model fov law), so the app has to
+ * know it. The creator's own FOV row is not in the required list; it is
+ * shown as "Made at FOV n" only.
+ *
+ * WHERE IT IS KEPT. Both go in the CONFIG (its normal save, ZS.putProfile,
+ * the D674 patch save), so they survive a reload and reach every app:
+ *   gameSettings[ZSAIMMODEL.PLAYER_FOV_KEY]  the player's FOV (a number)
+ *   gameSettings[CONFIRM_KEY]                {fp, at}: the required list the
+ *                                            player confirmed, by fingerprint
+ * The fingerprint is the translator's numbers and settings with the FOV
+ * scaling taken out (requiredFp), so changing only your FOV keeps the
+ * confirmation, and a NEW measurement (Curve Lab writing another model or
+ * other settings) asks again. Saving the FOV also re-points the translator's
+ * turn rates at it (ZSAIMMODEL.applyPlayerFov), so the Core gets them
+ * already scaled.
+ *
+ * D702 (owner, 2026-11-13, replaces "copy exactly" for the sensitivity):
+ * when the translator carries a sensitivity law (resolvedAimModel.sens,
+ * law "linear"), the player may pick ANY in-game stick sensitivity and the
+ * app does the math (ZSAIMMODEL.applyPlayerSettings: turn rate x yours /
+ * the creator's, times the FOV factor). The creator's sensitivity rows
+ * leave the required list and become "Your sensitivity", prefilled with
+ * the recommendation (the creator's value, MW4 4.00); a value outside what
+ * was tested (below 1.00, above the creator's) gets a calm note. The dead
+ * zone and every other setting stay REQUIRED rows. The FOV has NO
+ * recommendation: it is typed in. Kept as gameSettings[PLAYER_SENS_KEY];
+ * the fingerprint leaves both player values out.
+ *
+ * D726 (owner, 2026-11-14: "you are missing the X and Y sensitivity; you
+ * only have one sensitivity option"): a game whose form has BOTH a
+ * Horizontal and a Vertical stick sensitivity (MW4, Warzone and every CoD
+ * on the 0-4 scale: fields hs and vs) gets two boxes, X and Y, both
+ * prefilled with the recommendation (the creator's, MW4 4.00). X is kept as
+ * gameSettings[PLAYER_SENS_KEY] (the old single key, so an old save reads
+ * as X) and Y as gameSettings[PLAYER_SENS_Y_KEY]; a config saved before
+ * D726 has no Y, and its one value fills both. X scales the yaw rate, Y the
+ * pitch rate (ZSAIMMODEL.applyPlayerSettings). A one-sensitivity game keeps
+ * one box and saves no Y.
+ *
+ * WHEN. Picking a config (ZS.setActive) or opening one (openEditor) shows
+ * the sheet while it is not confirmed ("Not now" quiets that for this
+ * session). D726 (owner, 2026-11-14: "remove that and just show it already
+ * expanded, so users are forced to know they need to apply their in-game
+ * settings"): HOME no longer folds this behind the amber "!" chip (D70); it
+ * shows the card OPEN, the required settings and their values listed
+ * plainly, the recommended sensitivity and the FOV to type, with the why
+ * behind a "?" and one button to the sheet (homeHTML / wireHome, from
+ * 09-home.js). A controller-only
+ * config, a Native Mouse & Keyboard config (no translation) and the
+ * standard translator never see either. The D693 "Don't show again" is
+ * gone: a required setting cannot be dismissed, only confirmed.
+ *
+ * CONTROLLER FIRST: focus lands on the FOV box while it is empty (else on
+ * "I've set these"); the d-pad's up/down (arrow keys) walks the controls,
+ * left/right on the FOV box changes it by 1, A (Enter) confirms, B (Escape)
+ * is the sheet's own close.
+ *
+ * PART OF THE APP SHELL (classic script, see 12-sheets.js's header): it
+ * only defines window.ZSMEASUREDSET; the calls come after the page has loaded.
+ */
+(function(){
+  var quiet = {};            /* config id -> required fingerprint, "Not now" this session */
+  var CONFIRM_KEY = 'requiredSet';
+  var FOV_DEFAULT = { min: 60, max: 120, step: 1, int: true, dflt: null };
+  var FOV_ROW = /^\s*(field of view|fov)\b/i;
+  /* D702: the creator's stick sensitivity rows (not ADS / mouse ones) */
+  var SENS_ROW = /^\s*(horizontal\s+|vertical\s+)?(stick\s+|look\s+)?sensitivity\b/i;
+  var SENS_DEFAULT = { min: 0.01, max: 1000, step: 0.01, int: false };
+
+  function AM(){ return window.ZSAIMMODEL || null; }
+  function fovKey(){ return (AM() && AM().PLAYER_FOV_KEY) || 'playerFov'; }
+  function sensKey(){ return (AM() && AM().PLAYER_SENS_KEY) || 'playerSens'; }
+  function sensYKey(){ return (AM() && AM().PLAYER_SENS_Y_KEY) || 'playerSensY'; }
+  /* the translator's sensitivity law when the app can compensate, or null */
+  function sensLaw(r){
+    var s = r && r.sens;
+    return (s && typeof s === 'object' && s.law === 'linear' && typeof s.measuredAt === 'number' && s.measuredAt > 0) ? s : null;
+  }
+  function fullOf(id){ return (window.ZS && ZS.live && ZS.live.full) ? ZS.live.full[id] : null; }
+
+  function measuredDoc(full){
+    var r = full && full.mouseTranslation && full.mouseTranslation.resolvedAimModel;
+    if(!r || typeof r !== 'object' || r.generic === true) return null;
+    var gs = Array.isArray(r.gameSettings) ? r.gameSettings.filter(function(g){
+      return g && typeof g.setting === 'string' && g.setting && typeof g.value === 'string';
+    }) : [];
+    return gs.length ? { model: r, rows: gs } : null;
+  }
+  function measured(p){ return measuredDoc(fullOf(p.id)); }
+  /* the translator's fingerprint: any change to its numbers or its settings
+     is a new measurement (djb2 over its JSON) */
+  function fingerprint(r){
+    var s = JSON.stringify(r), h = 5381, i;
+    for(i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+    return (h >>> 0).toString(16);
+  }
+  /* D697/D702: the same, with the player's FOV and sensitivity scaling
+     taken out (the turn rates put back to what was measured), so a new FOV
+     or sensitivity is not a new measurement; the creator's settings and the
+     laws stay in. `base` itself is left out (it only repeats the measured
+     rates), so a D697 confirmation stays good after D702 re-resolves. */
+  function requiredFp(r){
+    var c = JSON.parse(JSON.stringify(r));
+    var b = (c.base && typeof c.base === 'object') ? c.base
+      : (c.fov && typeof c.fov === 'object' && c.fov.base && typeof c.fov.base === 'object') ? c.fov.base : null;
+    if(b) ['hip', 'ads'].forEach(function(n){
+      if(c[n] && b[n]){ c[n].vx = b[n].vx; c[n].vy = b[n].vy; }
+    });
+    delete c.base;
+    if(c.fov && typeof c.fov === 'object') delete c.fov.playerFov;
+    if(c.sens && typeof c.sens === 'object'){ delete c.sens.playerSens; delete c.sens.playerSensY; }
+    return fingerprint(canon(c));
+  }
+  /* keys sorted all the way down: the Core's stored copy (its SOURCE
+     sidecar) comes back with its keys in another order, and the same
+     measurement must give the same fingerprint after a reload */
+  function canon(v){
+    if(Array.isArray(v)) return v.map(canon);
+    if(!v || typeof v !== 'object') return v;
+    var o = {};
+    Object.keys(v).sort().forEach(function(k){ o[k] = canon(v[k]); });
+    return o;
+  }
+  /* the creator's rows split: what must match, the FOV row (info) and,
+     when the translator can compensate (`scalable`, D702), the stick
+     sensitivity rows (the recommendation) */
+  function splitRows(rows, scalable){
+    var req = [], fov = null, sens = [];
+    rows.forEach(function(g){
+      if(FOV_ROW.test(g.setting)){ if(!fov) fov = g; }
+      else if(scalable && SENS_ROW.test(g.setting)) sens.push(g);
+      else req.push(g);
+    });
+    return { required: req, fovRow: fov, sensRows: sens };
+  }
+  function creatorFov(m){
+    var f = m.model.fov;
+    if(f && typeof f.measuredAt === 'number') return f.measuredAt;
+    var row = splitRows(m.rows).fovRow, n = row ? parseFloat(row.value) : NaN;
+    return isFinite(n) ? n : null;
+  }
+  /* the game's own controller form field (first of `keys`), or null */
+  function formField(full, keys){
+    try{
+      var nr = window.ZSNAMEREADER, sc = window.ZSGAMESCHEMA;
+      /* the game the translator was measured on (its id, e.g. Curve Lab's
+         "cod-mw4") first, when it has its own form; else the config's game */
+      var rm = full && full.mouseTranslation && full.mouseTranslation.resolvedAimModel;
+      var g = (rm && typeof rm.translator === 'string' && sc && sc.games &&
+        Object.prototype.hasOwnProperty.call(sc.games, rm.translator)) ? sc.games[rm.translator] : null;
+      if(!(g && g.ctl)){
+        var pk = (nr && nr.packOf) ? nr.packOf(full) : null;
+        g = (pk && sc && sc.forPack) ? sc.forPack(pk) : null;
+      }
+      var fs = g && g.ctl && Array.isArray(g.ctl.fields) ? g.ctl.fields : [];
+      for(var i = 0; i < keys.length; i++){
+        var f = fs.filter(function(x){ return x && x.k === keys[i]; })[0];
+        if(f) return f;
+      }
+    }catch(e){}
+    return null;
+  }
+  /* D702: the sensitivity box's range: the game's form's stick sensitivity
+     (MW4 0.00 to 4.00 by 0.01; never below one step: 0 turns nothing) */
+  function sensRange(full){
+    var out = { min: SENS_DEFAULT.min, max: SENS_DEFAULT.max, step: SENS_DEFAULT.step, int: false };
+    var fl = formField(full, ['hs', 'look', 'sens']);
+    out.known = !!fl;
+    if(fl){
+      if(typeof fl.step === 'number' && fl.step > 0) out.step = fl.step;
+      out.int = fl.int === true;
+      if(typeof fl.min === 'number') out.min = fl.min;
+      if(typeof fl.max === 'number') out.max = fl.max;
+    }
+    if(out.min < out.step) out.min = out.step;
+    out.dp = out.int ? 0 : Math.max(0, Math.min(4, Math.round(-Math.log(out.step) / Math.LN10)));
+    /* D726: the game has a separate Vertical stick sensitivity (its form's
+       vs beside hs): two boxes, X and Y */
+    out.split = !!(fl && fl.k === 'hs' && formField(full, ['vs']));
+    return out;
+  }
+  function fmt(v, dp){ return (Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp)).toFixed(dp); }
+  /* the FOV box's range: the game's own form when it has a Field of View,
+     else 60 to 120 */
+  function fovRange(full){
+    var out = { min: FOV_DEFAULT.min, max: FOV_DEFAULT.max, step: 1, int: true, dflt: null };
+    try{
+      var fl = formField(full, ['fov']);
+      if(fl){
+        if(typeof fl.min === 'number') out.min = fl.min;
+        if(typeof fl.max === 'number') out.max = fl.max;
+        if(typeof fl.step === 'number' && fl.step > 0) out.step = fl.step;
+        out.int = fl.int !== false;
+        if(typeof fl.dflt === 'number') out.dflt = fl.dflt;
+      }
+    }catch(e){}
+    return out;
+  }
+  function playerFov(full){
+    var v = full && full.gameSettings ? full.gameSettings[fovKey()] : null;
+    return (typeof v === 'number' && isFinite(v)) ? v : null;
+  }
+  function playerSens(full){
+    var v = full && full.gameSettings ? full.gameSettings[sensKey()] : null;
+    return (typeof v === 'number' && isFinite(v) && v > 0) ? v : null;
+  }
+  /* D726: the vertical one; a save from before D726 (one value) fills both */
+  function playerSensY(full){
+    var v = full && full.gameSettings ? full.gameSettings[sensYKey()] : null;
+    return (typeof v === 'number' && isFinite(v) && v > 0) ? v : playerSens(full);
+  }
+  /* is this config one the owner's rule covers? {p, full, m} or null */
+  function subject(id){
+    if(!window.ZS || !ZS.prof) return null;
+    var p = ZS.prof(id);
+    if(!p || (ZS.inputShows && !ZS.inputShows(p.input, 'mouse'))) return null;
+    var full = fullOf(id);
+    if(!full || full.nativeKbm === true) return null;        /* D470: nothing is translated */
+    var m = measuredDoc(full);
+    return m ? { p: p, full: full, m: m } : null;
+  }
+  function confirmedDoc(full, m){
+    var c = full && full.gameSettings ? full.gameSettings[CONFIRM_KEY] : null;
+    return !!(c && typeof c === 'object' && c.fp === requiredFp(m.model)) && playerFov(full) !== null;
+  }
+  /* true while config `id` must still be confirmed (HOME's chip) */
+  function needs(id){
+    var s = subject(id);
+    return !!s && !confirmedDoc(s.full, s.m);
+  }
+  function rowsHTML(rows){
+    return rows.map(function(g){
+      return '<div class="stat"><span>'+esc(g.setting)+'</span><b>'+esc(g.value)+'</b></div>';
+    }).join('');
+  }
+  function help(id, label, text){
+    return (window.ZS && ZS.helpHTML) ? ZS.helpHTML(id, label, text)
+      : '<div class="note">'+text+'</div>';
+  }
+  function css(){
+    if(document.getElementById('zs-gsreq-css')) return;
+    var s = document.createElement('style');
+    s.id = 'zs-gsreq-css';
+    s.textContent =
+      '.gsreq-tag{display:inline-block;margin:0 0 6px;padding:2px 9px;border-radius:999px;'+
+        'border:1.5px solid var(--amber);color:var(--amber);font-size:11.5px;font-weight:800;letter-spacing:.06em}'+
+      '.gsfov{margin-top:12px}'+
+      '.gsfov .rec{color:var(--text);font-weight:700}'+
+      '.gsfov .gsnote{margin:8px 0 0}'+
+      '.gsreq-h{font-weight:700;margin:2px 0 6px}'+
+      '.gsreq-h .gsreq-tag{margin:0 0 0 6px;vertical-align:middle}'+
+      '.gsfov .flab{font-weight:700;margin-bottom:2px}'+
+      '.gsfov .xsub{margin:0 0 8px}'+
+      '.gsfov-row{display:flex;align-items:center;gap:8px}'+
+      '.gsfov-row button{flex:none;width:48px;height:48px;border-radius:12px;border:1px solid var(--line);'+
+        'background:var(--panel);color:var(--text);font-size:22px;font-weight:700;font-family:inherit;cursor:pointer}'+
+      '.gsfov-row input{flex:1;min-width:0;height:48px;border-radius:12px;border:1.5px solid var(--line);'+
+        'background:var(--panel);color:var(--text);font-size:20px;font-weight:700;text-align:center;font-family:inherit;'+
+        '-moz-appearance:textfield;appearance:textfield}'+
+      /* the − / + buttons are the stepper: no second, tiny one in the box */
+      '.gsfov-row input::-webkit-outer-spin-button,.gsfov-row input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}'+
+      '.gsfov-row input:focus{outline:none;border-color:var(--accent)}'+
+      '.gsfov-row input.bad{border-color:var(--amber)}'+
+      /* D726: X and Y side by side; stacked on a very narrow phone */
+      '.gsxy{display:grid;grid-template-columns:1fr 1fr;gap:10px}'+
+      '.gsxy .flab{font-size:13.5px}'+
+      '.gsxy .gsfov-row{gap:6px}'+
+      '.gsxy .gsfov-row button{width:40px}'+
+      '@media (max-width:340px){.gsxy{grid-template-columns:1fr}}'+
+      /* D726 (owner, 2026-11-14, second look): HOME's ONE slim alert bar.
+         Amber, lit, breathing, one line at 375 px; the whole bar is the
+         door to the sheet. HOME's stage (D65) does not scroll: the bar
+         costs the picture one row. Reduced motion: lit, still. */
+      '.hs-req{flex:none;display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0 0 10px;'+
+        'padding:0 12px 0 14px;border-radius:12px;border:1.5px solid var(--st-warn,var(--amber));cursor:pointer;'+
+        'background:color-mix(in srgb,var(--st-warn,var(--amber)) 16%,var(--zs-card,var(--panel)));'+
+        'color:var(--text);font-family:inherit;font-size:13.5px;font-weight:700;text-align:left;'+
+        'box-shadow:0 0 0 1px rgba(224,163,58,.25),0 0 14px rgba(224,163,58,.38);'+
+        'animation:zsGsreqGlow 1.8s ease-in-out infinite}'+
+      '.hs-req .hs-req-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--st-warn,var(--amber));'+
+        'box-shadow:0 0 8px var(--st-warn,var(--amber))}'+
+      '.hs-req .hs-req-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.hs-req .hs-req-cv{flex:none;font-size:22px;line-height:1;font-weight:700;color:var(--st-warn,var(--amber))}'+
+      '.hs-req:focus-visible{outline:2px solid var(--accent);outline-offset:2px}'+
+      '.hs-req.zs-pressing{transform:scale(.98)}'+
+      '@keyframes zsGsreqGlow{0%,100%{box-shadow:0 0 0 1px rgba(224,163,58,.25),0 0 10px rgba(224,163,58,.30)}'+
+        '50%{box-shadow:0 0 0 2px rgba(224,163,58,.55),0 0 22px rgba(224,163,58,.65)}}'+
+      '@media (prefers-reduced-motion:reduce){.hs-req{animation:none}}'+
+      'body.a11y-motion .hs-req{animation:none}';
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* Open the sheet for config `id` (from the chip, or maybe()). */
+  function open(id, opener){
+    var s = subject(id);
+    if(!s) return false;
+    var w = document.getElementById('sheetwrap');
+    if(!w) return false;
+    css();
+    var m = s.m, full = s.full, sl = sensLaw(m.model), sp = splitRows(m.rows, !!sl), cf = creatorFov(m);
+    var rg = fovRange(full), have = playerFov(full), fp = requiredFp(m.model);
+    var sr = sl ? sensRange(full) : null, sHave = sl ? playerSens(full) : null;
+    var split = !!(sr && sr.split), sHaveY = split ? playerSensY(full) : null;
+    var sRec = sl ? fmt(sl.measuredAt, sr.dp) : '';
+    var K = fovKey(), SK = sensKey(), SKY = sensYKey();
+    /* one sensitivity box (no label): id gs-sens (X, or the game's only
+       one) or gs-sensy (D726: Y) */
+    function sensRow(idp, what, have){
+      return '<div class="gsfov-row">'+
+          '<button type="button" id="'+idp+'dn" aria-label="Lower '+what+'">−</button>'+
+          '<input id="'+idp+'" type="number" inputmode="decimal" min="'+sr.min+'" max="'+sr.max+'" step="'+sr.step+'"'+
+            ' value="'+esc(fmt(have !== null ? have : sl.measuredAt, sr.dp))+'" aria-describedby="gs-senssub">'+
+          '<button type="button" id="'+idp+'up" aria-label="Raise '+what+'">+</button>'+
+        '</div>';
+    }
+    var recSub = sl ? '<span class="rec">Recommended: '+esc(sRec)+(split ? ' for both' : '')+'</span>. '+
+      'Use any you like'+(sr.known ? ' ('+fmt(sr.min, sr.dp)+' to '+fmt(sr.max, sr.dp)+')' : '')+'; the app does the math.' : '';
+    var sensHTML = !sl ? '' :
+      '<div class="gsfov" id="gs-sensbox">'+
+        (split
+          ? '<div class="flab">Your stick sensitivity</div>'+
+            '<div class="xsub" id="gs-senssub">'+recSub+'</div>'+
+            '<div class="gsxy">'+
+              '<div><label class="flab" for="gs-sens">Horizontal (X)</label>'+sensRow('gs-sens', 'horizontal sensitivity', sHave)+'</div>'+
+              '<div><label class="flab" for="gs-sensy">Vertical (Y)</label>'+sensRow('gs-sensy', 'vertical sensitivity', sHaveY)+'</div>'+
+            '</div>'
+          : '<label class="flab" for="gs-sens">Your sensitivity</label>'+
+            '<div class="xsub" id="gs-senssub">'+recSub+'</div>'+
+            sensRow('gs-sens', 'sensitivity', sHave))+
+        '<div class="note gsnote" id="gs-sensnote" role="status" hidden></div>'+
+        help('gs-sens-why', 'Why '+sRec+' is recommended',
+          'Your stick sensitivity in the game ('+esc(sp.sensRows.map(function(g){ return g.setting; }).join(', ') || 'Stick Sensitivity')+'). '+
+          'Set it to anything you like and type the same number here: the app scales your mouse to it. '+
+          (split ? 'The game has a Horizontal (left and right) and a Vertical (up and down) one: type each. '+
+            'Horizontal scales your mouse’s left and right, Vertical its up and down. ' : '')+
+          'A lower sensitivity also lowers the fastest the game can turn, and no mouse swipe can go past that, '+
+          'so your quickest flicks get slower. '+esc(sRec)+' is what this config was made at, so every turn speed it was made for is there. '+
+          'The scaling was tested from '+esc(fmt(Math.min(1, sl.measuredAt), sr.dp))+' to '+esc(sRec)+'.')+
+      '</div>';
+    var body = sheetOpen('Your game settings',
+      (sp.required.length ?
+        '<div class="gsreq-h">Set these in the game <span class="gsreq-tag">REQUIRED</span></div>'+
+        '<div class="xsub" id="gs-say" style="margin:0 0 8px">This config’s mouse aim only works with these exact in-game settings.</div>'+
+        '<div id="gs-rows">'+rowsHTML(sp.required)+'</div>'+
+        help('gs-req-why', 'Why these must match',
+          'Set these in the game, or mouse movement may be off. '+
+          'This config’s mouse aim was measured with the game at exactly these settings. '+
+          'A different deadzone or curve makes every turn the wrong size'+(sl ? ', and the app cannot make up for it' : '')+'. '+
+          (sl ? '' : 'The same goes for your sensitivity. ')+
+          'For '+esc(trNameOf(m.model))+'. They are also under Translation, Game translator.')
+        : '<div id="gs-rows"></div>')+
+      sensHTML+
+      '<div class="gsfov">'+
+        '<label class="flab" for="gs-fov">Your in-game FOV</label>'+
+        '<div class="xsub" id="gs-fovsub">Type the FOV you play at ('+rg.min+' to '+rg.max+').</div>'+
+        '<div class="gsfov-row">'+
+          '<button type="button" id="gs-fovdn" aria-label="Lower FOV">−</button>'+
+          '<input id="gs-fov" type="number" inputmode="numeric" min="'+rg.min+'" max="'+rg.max+'" step="'+rg.step+'"'+
+            ' value="'+(have !== null ? esc(String(have)) : '')+'" placeholder="FOV" aria-describedby="gs-fovsub">'+
+          '<button type="button" id="gs-fovup" aria-label="Raise FOV">+</button>'+
+        '</div>'+
+        help('gs-fov-why', 'Why your FOV is needed',
+          'FOV changes how fast the game turns for the same stick push. '+
+          'For example, Modern Warfare 4 at FOV 100 turns about 31% slower than at 120. '+
+          'The app scales your mouse to the FOV you enter, so it must match the game exactly. '+
+          'Which FOV you play at is your choice.'+
+          (cf !== null ? ' (This config was measured at FOV '+esc(String(cf))+'.)' : ''))+
+      '</div>'+
+      '<div class="note warn" id="gs-err" role="alert" hidden></div>'+
+      '<button class="btn primary" id="gs-ok" style="margin-top:12px">I’ve set these</button>'+
+      '<button class="btn ghost" id="gs-later" style="margin-top:10px">Not now</button>', null, opener);
+    var inp = body.querySelector('#gs-fov'), ok = body.querySelector('#gs-ok'), later = body.querySelector('#gs-later');
+    var sinp = body.querySelector('#gs-sens'), syinp = body.querySelector('#gs-sensy'), snote = body.querySelector('#gs-sensnote');
+    var err = body.querySelector('#gs-err');
+    function say(t){
+      if(!err) return;
+      if(t){ err.textContent = t; err.removeAttribute('hidden'); }
+      else { err.textContent = ''; err.setAttribute('hidden', ''); }
+    }
+    function read(){
+      var v = parseFloat(String(inp.value).replace(',', '.'));
+      if(!isFinite(v) || v < rg.min || v > rg.max) return null;
+      return rg.int ? Math.round(v) : v;
+    }
+    function readSens(el){
+      el = el || sinp;
+      if(!el) return null;
+      var v = parseFloat(String(el.value).replace(',', '.'));
+      if(!isFinite(v) || v < sr.min - 1e-9 || v > sr.max + 1e-9) return null;
+      return sr.int ? Math.round(v) : +fmt(v, sr.dp);
+    }
+    /* D702: a calm note outside the tested range (never blocks) */
+    function sensNote(){
+      if(!snote) return;
+      var am = AM(), v = null;
+      [sinp, syinp].forEach(function(el){
+        var x = el ? readSens(el) : null;
+        if(v === null && x !== null && am && am.sensUntested && am.sensUntested(sl, x)) v = x;
+      });
+      if(v !== null){
+        snote.textContent = 'Sensitivity '+fmt(v, sr.dp)+' has not been tested (tested: '+
+          fmt(Math.min(1, sl.measuredAt), sr.dp)+' to '+sRec+'). It should still work, but it may feel slightly off.';
+        snote.removeAttribute('hidden');
+      } else { snote.textContent = ''; snote.setAttribute('hidden', ''); }
+    }
+    function nudge(d){
+      var v = parseFloat(inp.value);
+      if(!isFinite(v)) v = rg.dflt !== null ? rg.dflt : (cf !== null ? cf : Math.round((rg.min + rg.max) / 2));
+      else v += d * rg.step;
+      v = Math.max(rg.min, Math.min(rg.max, v));
+      inp.value = String(rg.int ? Math.round(v) : v);
+      inp.classList.remove('bad'); say('');
+    }
+    function nudgeSens(d, el){
+      el = el || sinp;
+      var v = parseFloat(String(el.value).replace(',', '.'));
+      if(!isFinite(v)) v = sl.measuredAt;
+      else v += d * sr.step;
+      v = Math.max(sr.min, Math.min(sr.max, v));
+      el.value = fmt(v, sr.dp);
+      el.classList.remove('bad'); say(''); sensNote();
+    }
+    body.querySelector('#gs-fovdn').addEventListener('click', function(){ nudge(-1); });
+    body.querySelector('#gs-fovup').addEventListener('click', function(){ nudge(1); });
+    inp.addEventListener('input', function(){ inp.classList.remove('bad'); say(''); });
+    if(sinp){
+      body.querySelector('#gs-sensdn').addEventListener('click', function(){ nudgeSens(-1); });
+      body.querySelector('#gs-sensup').addEventListener('click', function(){ nudgeSens(1); });
+      sinp.addEventListener('input', function(){ sinp.classList.remove('bad'); say(''); sensNote(); });
+      sensNote();
+    }
+    if(syinp){
+      body.querySelector('#gs-sensydn').addEventListener('click', function(){ nudgeSens(-1, syinp); });
+      body.querySelector('#gs-sensyup').addEventListener('click', function(){ nudgeSens(1, syinp); });
+      syinp.addEventListener('input', function(){ syinp.classList.remove('bad'); say(''); sensNote(); });
+    }
+    var saving = false;
+    function confirm(){
+      if(saving) return;
+      var sv = null, svy = null;
+      if(sinp){
+        sv = readSens(sinp);
+        if(sv === null){
+          sinp.classList.add('bad');
+          say('Enter your '+(syinp ? 'horizontal (X) ' : '')+'sensitivity ('+fmt(sr.min, sr.dp)+' to '+fmt(sr.max, sr.dp)+'), or '+sRec+' as recommended.');
+          try{ sinp.focus(); }catch(e){}
+          return;
+        }
+      }
+      if(syinp){
+        svy = readSens(syinp);
+        if(svy === null){
+          syinp.classList.add('bad');
+          say('Enter your vertical (Y) sensitivity ('+fmt(sr.min, sr.dp)+' to '+fmt(sr.max, sr.dp)+'), or '+sRec+' as recommended.');
+          try{ syinp.focus(); }catch(e){}
+          return;
+        }
+      }
+      var v = read();
+      if(v === null){
+        inp.classList.add('bad');
+        say('Enter the FOV you use in the game ('+rg.min+' to '+rg.max+') first.');
+        try{ inp.focus(); }catch(e){}
+        return;
+      }
+      saving = true; ok.disabled = true; ok.textContent = 'Saving…';
+      var at = new Date().toISOString().slice(0, 10);
+      var put = (ZS.putProfile ? ZS.putProfile(id, function(d){
+        var gs = (d.gameSettings && typeof d.gameSettings === 'object') ? d.gameSettings : {};
+        gs[K] = v;
+        if(sv !== null) gs[SK] = sv;
+        /* D726: Y only where the game has its own; else none (Y is X) */
+        if(svy !== null) gs[SKY] = svy; else delete gs[SKY];
+        gs[CONFIRM_KEY] = { fp: fp, at: at };
+        d.gameSettings = gs;
+        /* the translator's turn rates follow the FOV (D697) and the
+           sensitivity (D702) */
+        var rm = d.mouseTranslation && d.mouseTranslation.resolvedAimModel, am = AM();
+        if(rm && am && am.applyPlayerSettings){
+          var o = { playerFov: v };
+          if(sv !== null){ o.playerSens = sv; o.playerSensY = svy; }
+          am.applyPlayerSettings(rm, o);
+        } else if(rm && am && am.applyPlayerFov) am.applyPlayerFov(rm, v);
+      }) : Promise.resolve({ ok: false, error: 'no save path' }));
+      put.then(function(j){
+        saving = false; ok.disabled = false; ok.textContent = 'I’ve set these';
+        if(j && j.ok){
+          sheetClose();
+          if(typeof renderHome === 'function') try{ renderHome(); }catch(e){}
+          if(ZS.toast) ZS.toast(svy !== null ? 'Saved: sensitivity X '+fmt(sv, sr.dp)+', Y '+fmt(svy, sr.dp)+', FOV '+v
+            : sv !== null ? 'Saved: sensitivity '+fmt(sv, sr.dp)+', FOV '+v : 'Saved: your FOV is '+v);
+        } else {
+          say('Not saved: '+String((j && (j.error || (j.errors && j.errors[0]))) || 'the Core did not take it')+'. Try again.');
+        }
+      }, function(){
+        saving = false; ok.disabled = false; ok.textContent = 'I’ve set these';
+        say('Not saved. Try again.');
+      });
+    }
+    ok.addEventListener('click', confirm);
+    later.addEventListener('click', function(){ quiet[id] = fp; sheetClose(); });
+    /* controller-first: up/down walks the controls (the "?" chips, the two
+       boxes, the two buttons), left/right on a box changes it by one step,
+       A (Enter) on a box confirms */
+    body.addEventListener('keydown', function(e){
+      var t = e.target;
+      var isBox = t === inp || (sinp && t === sinp) || (syinp && t === syinp);
+      if(isBox && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+        e.preventDefault();
+        if(t === inp) nudge(e.key === 'ArrowLeft' ? -1 : 1); else nudgeSens(e.key === 'ArrowLeft' ? -1 : 1, t);
+        return;
+      }
+      if(isBox && e.key === 'Enter'){ e.preventDefault(); confirm(); return; }
+      if(e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      var list = Array.prototype.filter.call(body.querySelectorAll('[data-qh], #gs-sens, #gs-sensy, #gs-fov, #gs-ok, #gs-later'),
+        function(x){ return !x.disabled; });
+      var i = list.indexOf(document.activeElement);
+      e.preventDefault();
+      var n = i < 0 ? 0 : Math.max(0, Math.min(list.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+      try{ list[n].focus(); }catch(x){}
+    });
+    try{ (have === null ? inp : ok).focus(); }catch(e){}
+    return true;
+  }
+  /* Show it for config `id` when it should be shown; true when it was. */
+  function maybe(id){
+    var s = subject(id);
+    if(!s || confirmedDoc(s.full, s.m)) return false;
+    if(quiet[id] === requiredFp(s.m.model)) return false;
+    var w = document.getElementById('sheetwrap');
+    if(!w || w.classList.contains('open')) return false;    /* never over another sheet */
+    return open(id);
+  }
+  /* HOME's alert: '' when nothing is owed. D726 (owner, 2026-11-14): no
+     more D70 amber "!" chip, and (his second look) not a card over the
+     screen either: ONE slim, lit amber bar, one line, a chevron, the whole
+     bar a button that opens the sheet (the required values, X and Y, the
+     FOV, and the why behind its "?"s). It goes once confirmed. */
+  function homeHTML(id){
+    var s = subject(id);
+    if(!s || confirmedDoc(s.full, s.m)) return '';
+    css();
+    return '<button type="button" class="hs-req" id="hsreq" data-gsreq="1" aria-haspopup="dialog" '+
+        'aria-label="'+esc(HOME_SAY+'. Opens the required in-game settings.')+'">'+
+      '<span class="hs-req-dot" aria-hidden="true"></span>'+
+      '<span class="hs-req-t">'+esc(HOME_SAY)+'</span>'+
+      '<span class="hs-req-cv" aria-hidden="true">›</span>'+
+    '</button>';
+  }
+  var HOME_SAY = 'Set your in-game settings for proper aim';
+  function wireHome(root, id){
+    var b = root && root.querySelector ? root.querySelector('[data-gsreq]') : null;
+    if(b) b.addEventListener('click', function(){ open(id, b); });
+  }
+  /* is config `id` one the sheet covers (Translation's "Change" door) */
+  function covers(id){ return !!subject(id); }
+  /* D702: Translation's Game translator rows for a covered config: the
+     required rows, then the player's own sensitivity (with the
+     recommendation) and FOV; '' when not covered */
+  function cardRowsHTML(id){
+    var s = subject(id);
+    if(!s) return '';
+    var sl = sensLaw(s.m.model), sp = splitRows(s.m.rows, !!sl), fv = playerFov(s.full);
+    var h = rowsHTML(sp.required);
+    if(sl){
+      var sr = sensRange(s.full), ps = playerSens(s.full);
+      var recT = ' <span class="xsub" style="font-weight:400">(recommended '+esc(fmt(sl.measuredAt, sr.dp))+')</span></b></div>';
+      if(sr.split){
+        /* D726: X and Y; a save with only the one shows it for both */
+        var py = playerSensY(s.full);
+        h += '<div class="stat"><span>Your sensitivity X</span><b>'+(ps !== null ? esc(fmt(ps, sr.dp)) : 'not entered')+recT+
+             '<div class="stat"><span>Your sensitivity Y</span><b>'+(py !== null ? esc(fmt(py, sr.dp)) : 'not entered')+recT;
+      } else {
+        h += '<div class="stat"><span>Your sensitivity</span><b>'+(ps !== null ? esc(fmt(ps, sr.dp)) : 'not entered')+recT;
+      }
+    }
+    h += '<div class="stat"><span>Your FOV</span><b>'+(fv !== null ? esc(String(fv)) : 'not entered')+'</b></div>';
+    return h;
+  }
+  /* D702: Translation's Game translator card has a door back to the sheet,
+     so the player can change their sensitivity or FOV later (delegated:
+     the section re-renders) */
+  if(typeof document !== 'undefined' && document.addEventListener){
+    document.addEventListener('click', function(e){
+      var t = e.target, b = (t && t.closest) ? t.closest('[data-gsreq-open]') : null;
+      if(b) open(b.getAttribute('data-gsreq-open'), b);
+    });
+  }
+  function trNameOf(r){
+    var n = String(r.name || 'this game’s translator');
+    return (AM() && AM().displayName) ? AM().displayName(n) : n;
+  }
+  window.ZSMEASUREDSET = { maybe: maybe, open: open, needs: needs, homeHTML: homeHTML, wireHome: wireHome,
+    fingerprint: fingerprint, requiredFp: requiredFp, rowsHTML: rowsHTML, splitRows: splitRows,
+    CONFIRM_KEY: CONFIRM_KEY, covers: covers, sensRange: sensRange, cardRowsHTML: cardRowsHTML };
+})();
