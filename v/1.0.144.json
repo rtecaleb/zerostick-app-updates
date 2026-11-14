@@ -446,8 +446,8 @@
  },
  {
   "file_name": "exo/devbar.js",
-  "file_hash": "9a4903c10aa0c538cbf82bde83d0c60812d9c07fdac0db3787e223eb8f0aa433",
-  "download_url": "files/9a4903c10aa0c538cbf82bde83d0c60812d9c07fdac0db3787e223eb8f0aa433"
+  "file_hash": "6ceaa3da6d231be88eeecd2a8911bc64eb5f38a153158995ff10efce9762fae2",
+  "download_url": "files/6ceaa3da6d231be88eeecd2a8911bc64eb5f38a153158995ff10efce9762fae2"
  },
  {
   "file_name": "exo/devices.html",
@@ -11376,8 +11376,8 @@
  },
  {
   "file_name": "exo/game-settings.js",
-  "file_hash": "dbc103e93b612ad8cb36a5eb02b6b0daa02b46f933ac3659a67fc707e3ea16b9",
-  "download_url": "files/dbc103e93b612ad8cb36a5eb02b6b0daa02b46f933ac3659a67fc707e3ea16b9"
+  "file_hash": "45148a6f13348e8deab62af1abca49c42abd5ba61c070571771d4b9c4dece788",
+  "download_url": "files/45148a6f13348e8deab62af1abca49c42abd5ba61c070571771d4b9c4dece788"
  },
  {
   "file_name": "exo/glyphs.js",
@@ -12435,6 +12435,16 @@
   "download_url": "files/82c11e389d77f07c2b4c7e34df71816f8caa187b0fedab5238859faae9a44a7f"
  },
  {
+  "file_name": "exo/owner-kbm-layout.js",
+  "file_hash": "6ccfb45d7ad6bd0da848fd0f8b8738d893849364fbabc722f2f735ffc8a12869",
+  "download_url": "files/6ccfb45d7ad6bd0da848fd0f8b8738d893849364fbabc722f2f735ffc8a12869"
+ },
+ {
+  "file_name": "exo/owner-kbm.js",
+  "file_hash": "fdac43d304f3ab8760b9e8970771ff2047b2357f94d876aa92e0092e71e8bb4d",
+  "download_url": "files/fdac43d304f3ab8760b9e8970771ff2047b2357f94d876aa92e0092e71e8bb4d"
+ },
+ {
   "file_name": "exo/pad-cal.js",
   "file_hash": "b30f35a87e249a1b19205c01319bf16341d7ef144cf79428f5ba0f9959388455",
   "download_url": "files/b30f35a87e249a1b19205c01319bf16341d7ef144cf79428f5ba0f9959388455"
@@ -12461,8 +12471,8 @@
  },
  {
   "file_name": "exo/phone.html",
-  "file_hash": "18b25ae8bf4b5c068e3a44ba0e7eb6eb893aa13e8651de1e1e518caeb2617e67",
-  "download_url": "files/18b25ae8bf4b5c068e3a44ba0e7eb6eb893aa13e8651de1e1e518caeb2617e67"
+  "file_hash": "c26f6742a7f0ee7ed2b5c438f0f053d625d14ba8772c94fd927a4501e1205e1d",
+  "download_url": "files/c26f6742a7f0ee7ed2b5c438f0f053d625d14ba8772c94fd927a4501e1205e1d"
  },
  {
   "file_name": "exo/psn-oauth.js",
@@ -12526,8 +12536,8 @@
  },
  {
   "file_name": "exo/sections/05-game-identity.js",
-  "file_hash": "d93ef295f183387c12370f36ca7b405364dae2b7677881baf593443cd13b4206",
-  "download_url": "files/d93ef295f183387c12370f36ca7b405364dae2b7677881baf593443cd13b4206"
+  "file_hash": "f607a55af1fadbb470af84f0c5f59ed049bd9606dc1eba88f9063087ad0834b0",
+  "download_url": "files/f607a55af1fadbb470af84f0c5f59ed049bd9606dc1eba88f9063087ad0834b0"
  },
  {
   "file_name": "exo/sections/06-velocity-cal.js",
@@ -12556,8 +12566,8 @@
  },
  {
   "file_name": "exo/sections/10-aim-controller.js",
-  "file_hash": "0be2c232cc094f582f79fd8bba7b27ae0f610e07d14818dd008db0df3089fdff",
-  "download_url": "files/0be2c232cc094f582f79fd8bba7b27ae0f610e07d14818dd008db0df3089fdff"
+  "file_hash": "1fac087c2fe7818c16c55c13a4dc5aaf4d5909796282391cc4312e7ef2344bcb",
+  "download_url": "files/1fac087c2fe7818c16c55c13a4dc5aaf4d5909796282391cc4312e7ef2344bcb"
  },
  {
   "file_name": "exo/sections/10-aim-tables.js",
@@ -12576,18 +12586,18 @@
  },
  {
   "file_name": "exo/sections/12-translation.js",
-  "file_hash": "a80496b567b03e56872209434c82f3db08762248ecb12e83ee4f92478d69d657",
-  "download_url": "files/a80496b567b03e56872209434c82f3db08762248ecb12e83ee4f92478d69d657"
+  "file_hash": "ed622251e591bc510891ca386119c61ea319ce712edeb1e56278aef875c4bb99",
+  "download_url": "files/ed622251e591bc510891ca386119c61ea319ce712edeb1e56278aef875c4bb99"
  },
  {
   "file_name": "exo/sections/13-calibrate.js",
-  "file_hash": "15ed6c36a072b7778db7fc8662a01546c24ea0adc2816227717192e03492b682",
-  "download_url": "files/15ed6c36a072b7778db7fc8662a01546c24ea0adc2816227717192e03492b682"
+  "file_hash": "405e47b652838c757e7f10c370dc4c6fa30bde423733a32dd2ca847a0b95bd81",
+  "download_url": "files/405e47b652838c757e7f10c370dc4c6fa30bde423733a32dd2ca847a0b95bd81"
  },
  {
   "file_name": "exo/sections/13b-measure.js",
-  "file_hash": "3d052da83cea8bbe00d5eee5d53b10b5e4e4677419f45ddc86d88e51d63b026b",
-  "download_url": "files/3d052da83cea8bbe00d5eee5d53b10b5e4e4677419f45ddc86d88e51d63b026b"
+  "file_hash": "e828c4230c5f09eafa5b0944ed75f8407c4b92ce824384ed9ea574e390a30e95",
+  "download_url": "files/e828c4230c5f09eafa5b0944ed75f8407c4b92ce824384ed9ea574e390a30e95"
  },
  {
   "file_name": "exo/sections/14-manual-cal.js",
@@ -12686,8 +12696,8 @@
  },
  {
   "file_name": "exo/shell/06-core-configs.js",
-  "file_hash": "f1065a047842f50bba29865acb97f21d15ed0a89ee48df9cd95c5b80e9671f5a",
-  "download_url": "files/f1065a047842f50bba29865acb97f21d15ed0a89ee48df9cd95c5b80e9671f5a"
+  "file_hash": "a87491a70cf8b2d8169a43463b7c3fded5b6f2c8d06952a9c22070515ae7ee64",
+  "download_url": "files/a87491a70cf8b2d8169a43463b7c3fded5b6f2c8d06952a9c22070515ae7ee64"
  },
  {
   "file_name": "exo/shell/07-inputs.js",
@@ -12701,8 +12711,8 @@
  },
  {
   "file_name": "exo/shell/09-home.js",
-  "file_hash": "442c616f09f30479477b13c31b57366e9b12be724d94c73d1a1ef02ce99137ca",
-  "download_url": "files/442c616f09f30479477b13c31b57366e9b12be724d94c73d1a1ef02ce99137ca"
+  "file_hash": "dc4d50d371d33d77e235a1d4552390a2ae13abbecad56e90a36d9cd34a9ba5d6",
+  "download_url": "files/dc4d50d371d33d77e235a1d4552390a2ae13abbecad56e90a36d9cd34a9ba5d6"
  },
  {
   "file_name": "exo/shell/10-editor.js",
@@ -12731,13 +12741,13 @@
  },
  {
   "file_name": "exo/shell/15-configs-api.js",
-  "file_hash": "5df371b427e37582504f5c0f9f4ee0ac5bc5df09926c3744904b87f646883cb9",
-  "download_url": "files/5df371b427e37582504f5c0f9f4ee0ac5bc5df09926c3744904b87f646883cb9"
+  "file_hash": "6c3247f96ed583c84c113d29ac32953b505cb17b4b2038d7823e96ef17632c4e",
+  "download_url": "files/6c3247f96ed583c84c113d29ac32953b505cb17b4b2038d7823e96ef17632c4e"
  },
  {
   "file_name": "exo/shell/15b-game-settings.js",
-  "file_hash": "1f1a1f6bdedcaadc1cefe7b19e998afcbe51555c34a3c252b9b2a9eb1aaa578d",
-  "download_url": "files/1f1a1f6bdedcaadc1cefe7b19e998afcbe51555c34a3c252b9b2a9eb1aaa578d"
+  "file_hash": "f2212f04ce99527b0423c3f299103f188180a684b8df15f4f8b191f070e31e97",
+  "download_url": "files/f2212f04ce99527b0423c3f299103f188180a684b8df15f4f8b191f070e31e97"
  },
  {
   "file_name": "exo/shell/16-start.js",
@@ -13211,8 +13221,8 @@
  },
  {
   "file_name": "exo/weapon-live.js",
-  "file_hash": "1af10eaf3eb5f0ce02915f85554a130b176ec1f673bc6a540c23ef51e1e51814",
-  "download_url": "files/1af10eaf3eb5f0ce02915f85554a130b176ec1f673bc6a540c23ef51e1e51814"
+  "file_hash": "3497a60cc77c2c7155a85482f43e2b26a4e4abb49ba57bd459742d880b2eae27",
+  "download_url": "files/3497a60cc77c2c7155a85482f43e2b26a4e4abb49ba57bd459742d880b2eae27"
  },
  {
   "file_name": "exo/xim-import-screen.js",
@@ -13236,8 +13246,8 @@
  },
  {
   "file_name": "exo/zs-aim-model.js",
-  "file_hash": "f9c4f59113eb2ce481cdc3f0538c5a32b92dfeac263d0e1df949432231b807ee",
-  "download_url": "files/f9c4f59113eb2ce481cdc3f0538c5a32b92dfeac263d0e1df949432231b807ee"
+  "file_hash": "f3524e9f48cfa9cb84384456c87c183b46c67d4eb677708ddea15e484573f1f1",
+  "download_url": "files/f3524e9f48cfa9cb84384456c87c183b46c67d4eb677708ddea15e484573f1f1"
  },
  {
   "file_name": "exo/zs-anim.css",
@@ -13256,8 +13266,8 @@
  },
  {
   "file_name": "exo/zs-ble.js",
-  "file_hash": "814e5649a2ae1ffdef2fb709d678ea8aeae81a47dfc67d1fd053eea5488bf2b2",
-  "download_url": "files/814e5649a2ae1ffdef2fb709d678ea8aeae81a47dfc67d1fd053eea5488bf2b2"
+  "file_hash": "c17da4d23b797f39098c14bd59d318cec7ec41b2809ccee14521fb2b73bfbe12",
+  "download_url": "files/c17da4d23b797f39098c14bd59d318cec7ec41b2809ccee14521fb2b73bfbe12"
  },
  {
   "file_name": "exo/zs-brand.css",
@@ -13381,8 +13391,8 @@
  },
  {
   "file_name": "exo/zs-serial.js",
-  "file_hash": "ee4f4fdac36233b6d30f5b7416f88fbc54f0809085be012fb4ab689640e0ea01",
-  "download_url": "files/ee4f4fdac36233b6d30f5b7416f88fbc54f0809085be012fb4ab689640e0ea01"
+  "file_hash": "9f929bb04d1a9f8c32b7f0b83aa5c7557f72db372138c5167779be6a1525132f",
+  "download_url": "files/9f929bb04d1a9f8c32b7f0b83aa5c7557f72db372138c5167779be6a1525132f"
  },
  {
   "file_name": "exo/zs-vcal.js",
@@ -13791,8 +13801,8 @@
  },
  {
   "file_name": "zs-bundle-version.json",
-  "file_hash": "570a8e591f5404497b462b2d630a64143478157d210ba682f297d9a0de45cadf",
-  "download_url": "files/570a8e591f5404497b462b2d630a64143478157d210ba682f297d9a0de45cadf"
+  "file_hash": "cc67e405a6c0317855ad16ea042a4c857247390a4daa12ddccbec13611a6a0b4",
+  "download_url": "files/cc67e405a6c0317855ad16ea042a4c857247390a4daa12ddccbec13611a6a0b4"
  },
  {
   "file_name": "zs-live-update.js",
