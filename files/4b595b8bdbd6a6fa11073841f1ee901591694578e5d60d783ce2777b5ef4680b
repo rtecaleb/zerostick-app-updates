@@ -1,0 +1,275 @@
+{
+  "zerostickGamePack": 1,
+  "id": "cod-warzone",
+  "name": "Call of Duty: Warzone",
+  "aliases": [
+    "Warzone",
+    "COD Warzone",
+    "Warzone 2.0",
+    "Warzone 2",
+    "WZ"
+  ],
+  "version": 5,
+  "status": "calibrated",
+  "aiScripts": false,
+  "art": {
+    "wide": "cod-warzone.jpg",
+    "tall": "cod-warzone-tall.jpg",
+    "panel": "cod-warzone-panel.jpg"
+  },
+  "aimPreset": "cod",
+  "aimFrom": "cod-mw4",
+  "aimModel": {
+    "format": "zs-aim-model/1",
+    "id": "cod-warzone",
+    "name": "Call of Duty: Warzone - uses Call of Duty: Modern Warfare 4’s measurement",
+    "needsCalibration": false,
+    "sources": [
+      {
+        "what": "Measured on 2026-11-13 by EXO Studio's Curve Lab (D666) from the PC: the Core drove the right stick over its USB link (ZSI) and the capture card's pictures were read by phase correlation (1 run, playstation at 1280x720). Confidence medium (79/100): the 360s differ by 0.76 %; one run only: nothing to compare it with."
+      },
+      {
+        "what": "Degrees from whole turns: 1333.1 strip px per 360 (the view 119.5 deg across, never used by the translator)."
+      },
+      {
+        "what": "Dead zone 0.0830 (ramp 0.1142, fitted 0.0830 adopted); full stick 508.7 deg/s; curve 15 measured points (worst miss 0.0 % of a point, half a stick step allowed)."
+      },
+      {
+        "what": "Pitch 0.340 x yaw at equal stick; the view pitches 0 deg in all."
+      },
+      {
+        "what": "Dead zone shape radial: nudged 1 % at a time, a 45 deg push first moved the view at 0.129 against 0.114 straight (round x1.0, cross x1.41)."
+      },
+      {
+        "what": "Turn ramp: none (full holds up to 3.5 s turn at one speed)."
+      },
+      {
+        "what": "Step 1 at look sensitivity 1.00, step 2 at 4.00: four sticks 3.961-3.997 x (median 3.991); full stick 531.4 deg/s at 1.00, 2120.7 at 4.00 (pairs of holds, left 2117.3 / right 2124.1)."
+      },
+      {
+        "what": "Dead zone 0.114 by the picture (still 0.110, moving 0.118; PS stick steps 0.0079); the curve's points re-based onto it."
+      },
+      {
+        "what": "Aiming down sights at sens 4.00, FOV 120 (ADS FOV Affected): 0.2390 / 0.2389 / 0.2415 / 0.2385 x hip at sticks 0.472 / 0.551 / 0.630 / 1.0, full 505.8 deg/s by whole turns. Up/down 0.340 x left/right. No turn ramp, no outer dead zone."
+      },
+      {
+        "what": "FOV (measured 2026-11-13): hip turn rates x tan(FOV/2)/tan(60 deg) (FOV 100: 0.689 measured at 4 sticks, the rule 0.688); aiming falls faster: FOV 100 = 0.610 x FOV 120 (308.8 deg/s), a fit of (that ratio)^1.32 between FOV 100 and 120. The model's fov block is added once the app accepts it (D697/D700)."
+      },
+      {
+        "what": "Replaces the preset's earlier model (\"Modern Warfare 4 (Linear) - SEEDED FROM BLACK OPS 7, NOT MEASURED\", not measured), kept in docs/calibration/cod-mw4-replaced-2026-11-13.json."
+      },
+      {
+        "what": "D714: Call of Duty: Warzone aims exactly as Call of Duty: Modern Warfare 4 (owner, 2026-11-13): this is game pack \"cod-mw4\" version 3’s model, shared, not measured again. A re-measure of Call of Duty: Modern Warfare 4 is this game’s too."
+      }
+    ],
+    "gameSettings": [
+      {
+        "setting": "Horizontal Stick Sensitivity",
+        "value": "4.00"
+      },
+      {
+        "setting": "Vertical Stick Sensitivity",
+        "value": "4.00"
+      },
+      {
+        "setting": "Right Stick Min",
+        "value": "10"
+      },
+      {
+        "setting": "Right Stick Max",
+        "value": "100"
+      },
+      {
+        "setting": "Aim Response Curve Type",
+        "value": "Standard"
+      },
+      {
+        "setting": "ADS Sens. Multiplier (Low Zoom)",
+        "value": "1.00"
+      },
+      {
+        "setting": "Aim Assist",
+        "value": "Off"
+      },
+      {
+        "setting": "Field of View",
+        "value": "120"
+      }
+    ],
+    "hip": {
+      "deadzone": 0.114,
+      "deadzoneShape": "radial",
+      "curve": {
+        "type": "points",
+        "points": [
+          [
+            0.0047,
+            0.0002
+          ],
+          [
+            0.0136,
+            0.0004
+          ],
+          [
+            0.0225,
+            0.0006
+          ],
+          [
+            0.0491,
+            0.0016
+          ],
+          [
+            0.1024,
+            0.0048
+          ],
+          [
+            0.1735,
+            0.0138
+          ],
+          [
+            0.2446,
+            0.0292
+          ],
+          [
+            0.3157,
+            0.0533
+          ],
+          [
+            0.4046,
+            0.1024
+          ],
+          [
+            0.4935,
+            0.1716
+          ],
+          [
+            0.5823,
+            0.2684
+          ],
+          [
+            0.6801,
+            0.3995
+          ],
+          [
+            0.7867,
+            0.5704
+          ],
+          [
+            0.8934,
+            0.7708
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "turnRate": {
+        "yaw": 2120.7,
+        "pitch": 720.4
+      },
+      "ramp": null,
+      "dampingMs": 0
+    },
+    "ads": {
+      "inherit": "hip",
+      "turnRate": {
+        "yaw": 505.8,
+        "pitch": 171.8
+      }
+    },
+    "fov": {
+      "measuredAt": 120,
+      "law": "tanHalf",
+      "adsLaw": {
+        "law": "tanHalfPow",
+        "k": 1.32
+      }
+    },
+    "sens": {
+      "measuredAt": 4,
+      "law": "linear"
+    },
+    "stickHz": 120
+  },
+  "notes": "Warzone, Steam app 1962663. Same name the old starter list used, so configs made before game packs find this pack's picture by name. D394 (2026-10-15): the aim translator (aimModel, aimVariants) is imported from XIM's plaintext data by dashboard/tools/import-xim-translators.js; the record is dashboard/game-translators/cod-warzone.json, and --remove takes it out. 2026-11-13: aimModel shared from \"cod-mw4\" version 3 (D714, tools/set-pack-aim-model.js), version 5; its own aimVariants were taken out.",
+  "smartActions": [
+    {
+      "template": "slidecancel",
+      "enabled": false
+    },
+    {
+      "template": "toggleads",
+      "enabled": false
+    }
+  ],
+  "config": {},
+  "inputs": {
+    "controller": {
+      "calibrated": false,
+      "why": "No measured stick settings for Call of Duty: Warzone are in the repo yet. This block sets nothing, so a controller config starts on the same neutral 1:1 stick every new config gets.",
+      "config": {}
+    },
+    "mnk": {
+      "calibrated": false,
+      "why": "The mouse translator for Call of Duty: Warzone comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    },
+    "stick_mouse": {
+      "calibrated": false,
+      "why": "The mouse translator for Call of Duty: Warzone comes with the game (aimModel, D394): its turn speeds are measured, its dead zone and curve shape are priors. Nothing else in this block is tuned yet.",
+      "config": {}
+    }
+  },
+  "recoilAuto": true,
+  "recoilSpots": [
+    {
+      "id": "range-recoil-wall",
+      "name": "The firing range's recoil wall",
+      "where": "Firing Range",
+      "say": "Stand in your lane facing the white recoil wall, like the picture. Aim down sights at the bottom of the wall.",
+      "picture": "cod-warzone-range-recoil-wall.jpg",
+      "ref": "FBQVFRUUFBUVFRYWGBcWFhcYFxgZFxcYGhocHBwgFhYWFxYZGhoZGRYXHioqJikhFBQUFBUVFRYWFhYWFhcWFhcYGBgYFxgaGxwcHB4dGBgYGBYXFhcXGRkbHSopJCYhFBQVFRUVFxcWFhcXFhYWFhYXGBkZGRscHB0dHCAaGBcXFhYWFhYXGBgXHSgpJSMjFBUVFRYWFhcXFhYWFhcXGBgYGRkZGhscHh0dHCIWFxYWFxcXFxYWFhgbHSgpJSQjFBUVFhYWFhcWFxYWFhgYGBkZGBkZGRobHBwcHCEWFhYWFxcXFxYWFh4ZHScoJSQjFxYWFhYWFhYWFhYWFxgZGBkZGRkaGhsbHB0dHR0WFhYWFhYWFxcXGhsaHSwoJSMiExcWFhYWFhYWFhYWFxcXFxgYGhobGhsbHB0eIBoXFhYWFhYWFxcbHBsaHS8pJikjEREUFxYWFhYXFhYXFxcXGBkZGRscHBwdHR0dIBYWFhYWFhYWFh0cHBsbHTAnISEjEhISEhcXFxcXFxgXGRkYGRkaGhwdHR4eHh0dHxYWFhYWFhYWGBwcHBsbHC8nJiIiExMTEREUGBcXFxcXFxcZGhobHBwcHR0eHh4fHBcXFhYWFhYbHRwcHBscHConJSEjFBMTExMTEhYYFxcYFxciJCIaHB8cGxsbHB0eGhcWFhYXFhocHBwcGxsbHSMoJSAhGBcVFBMTExITGBcXGBkpMDojHSw+IERKSCdKLhcXFxcWGB0dHRwcHBobHSouLSgmGBgYGxcTExQUExYZGRoaIzI7IkBnWHB2eWd3QBgXFxcYHx0dHBwbGxsfKjtDQj82HBwdHR4eHBwcHR4fICAfHywzL1KEhoyRlZaSUCMiIiMkJSQjIiIiIikvMjtBQD01ICAiJDE7NTEuLi0sLCwsKzlBO2ebn6Oora2nXDAwMTIzNDEqKSgoKC4xRmp5eXdlHBgYGSAqKyspJiYlKCstLi4wLm2ssbS4u7qzZDMxLispJyEgHxwgLEtbSSYjIiUmFhUVFRogHBsaGx4iLDQ3Nzc6PXC2ubu+wL64bjs0LichHh8iGhchLy4iHhUUGB8oFxUVFiVET0Y6LSMlOERKT1BRUnu5vL2/v764eVJLOikqNjovGxUhNTIiGxcbGiIpFxUVFkhHVVdZWlxWS0pDQkxWWoK5u7y8vLq1fVBDPkI8NTNBHBYjOzUlGRsaEhMVFxUVF0hKV1pdXmBgYGRkXVZXWYO3ubm4uLWxe0tHUVI7OTVDHRYlOzcoGRYXFhsdGRUVF0pNWl5iZWViY2RkYF1fYYO1uLa0srOveE9OZmlJRkJIHBYlOzgqHxwRFBMWGRYWGE5QXWBmaWlmZGZpZWJnbYKxsrCvr66ohmBoWHVlXVdPHhYkODgoICUVGBccGhYXGE9vaGRrcnJubHJ8dWtwb3WLjYp7fo2JbGlxgZV4ZFZGGhclNjcqIyojIR8eIBsZGlBmW3F9hIR6cGp1gpKipqeno6Giqautq6BuXniBRF1JGR0mNjYqJC8xMTAxIyMfHFBTW3JxbHJ9lqmtra6tqaigoaeqsrKysqZnQDRXMFFGGh0qMjMpJiYnKiwvIyspIFJGcIV6Z1tVUU9SU1JSTkxLTE1OTVBUWUwmLiw5LC00OyoiMDIoJCEfHiIjJigsK2iFUVJQUFFUVllaW1taWVlbW1tcXV1bSSUlKiorJjM0MissKC4nJikiHSoX",
+      "viewBox": [
+        0.3,
+        0.14,
+        0.4,
+        0.45
+      ],
+      "box": [
+        0.4,
+        0.16,
+        0.2,
+        0.44
+      ],
+      "thrLo": 14,
+      "thrHi": 60,
+      "minScore": 0.7,
+      "tol": 0.045,
+      "fov": {
+        "hip": 103,
+        "ads": 79.3
+      },
+      "ads": true,
+      "adsMs": 600,
+      "fireMaxMs": 8000,
+      "texture": 43.8,
+      "wall": {
+        "lo": 135,
+        "grey": 178,
+        "hip": [
+          0.0656,
+          0.1806
+        ]
+      },
+      "ammoBox": [
+        0.78,
+        0.878,
+        0.08,
+        0.052
+      ],
+      "trainedAt": "2026-10-19",
+      "source": "Trained on a Core from the owner's own captures at his permanent spot (Call of Duty firing range, 2026-10-19, docs/reference/recoil-wall/recoil-spot-2026-10-19): ref is the Core's own thumbnail of frame00 (spot_ref_tool, zs_recoil_spot.c); frame01/02 MATCH 0.99, the auto run's before.jpg 0.91. Wall floor and brightness from the trail suite on the aimed frame (after.jpg). Field of view NOT measured: hip 103 is the app's guess; aiming is from the zoom the Core measured, 1.52 (the wall 83 -> 126 px wide)."
+    }
+  ]
+}
