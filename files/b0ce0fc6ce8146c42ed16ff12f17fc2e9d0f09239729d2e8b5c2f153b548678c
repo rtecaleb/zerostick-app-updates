@@ -1,0 +1,492 @@
+/* shell/16-start.js — boot.
+ *
+ * The appbar (the cog, the device switcher), the live surfaces' subscriptions
+ * to devbar.js, the first paint, the first /status and the 8 s poll.
+ *
+ * PART OF THE APP SHELL: phone.html's one inline script until 2026-10-02,
+ * now these consecutive files, loaded where it was. They are CLASSIC
+ * scripts, as it was: every top-level function and var is a global the
+ * other files (and devbar.js, sections/, smart-actions/) call by name, and
+ * nothing here may use, while loading, a name a LATER shell file declares
+ * (calls made after the page has loaded are fine). phone.html lists them.
+ */
+  /* ── boot ──────────────────────────────────────────────────────── */
+  /* The logochip is gone from the appbar — the real logo IS the title now. */
+  /* ⋯ NOT A GEAR (owner, 2026-08-18: "have that be on a little 3 dot tab on
+     the top right instead of the sun icon"). The gear opened Global Settings
+     alone; the dots open the three doors that used to sit under HOME — the
+     device, the configs, and the settings — because HOME is now the playing
+     config and nothing else. Three lines of markup rather than an icon font:
+     a gear read as 'settings' and this must read as 'more'. */
+  document.getElementById('cog').innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">'+
+      '<circle cx="12" cy="5" r="1.9" fill="currentColor"/>'+
+      '<circle cx="12" cy="12" r="1.9" fill="currentColor"/>'+
+      '<circle cx="12" cy="19" r="1.9" fill="currentColor"/></svg>';
+  document.getElementById('cog').setAttribute('aria-label','More');
+  document.getElementById('cog').setAttribute('aria-haspopup','dialog');
+  /* wrapped, not passed by name: openMoreMenu is declared below this line
+     and a bare reference resolves at WIRE time, which left the listener
+     holding undefined — mini-dom's addEventListener drops a non-function
+     silently, so the dots did nothing and nothing said why. The wrapper
+     resolves at CALL time, when the declaration certainly exists. */
+  document.getElementById('cog').addEventListener('click', function(){ openMoreMenu(); });
+  /* The three doors, as a sheet. Same destinations, same words, same order
+     they had on HOME (the device, then its configs, then the app's own
+     furniture) — only the address changed. Built fresh each open so the
+     config count and the active config's art are never stale. */
+  function openMoreMenu(){
+    var a = prof(activeId), n = PROFILES.length;
+    var DEVS = window.ZS_DEVICES || [], meDev = null, di;
+    for(di=0; di<DEVS.length; di++) if(DEVS[di] && DEVS[di].id===ZS_MY_DEVICE) meDev = DEVS[di];
+    /* ONE CONFIG IS NOT A CHOICE. #cfgrow branched both halves of this and
+       the branch did not travel with the row: a brand-new owner with a
+       single config was offered a switch with nothing to switch to. Both
+       come back — the visible hint and the announced name, which is also
+       the only place 'reorder' can live: it measured 217px and wrapped the
+       visible line at 375px, which is why it was kept out of it. */
+    var cfgHint = (n===1) ? '1 saved — add one per game'
+                          : n+' saved — switch or add one';
+    var cfgLab  = (n===1)
+      ? 'Your configs. '+esc(shownName(a.name))+' is your only config. Add another.'
+      : 'Your configs. '+esc(shownName(a.name))+' is playing now, '+n+
+        ' saved. Switch, reorder or add one.';
+    /* the owner's two logos (2026-10-10) instead of the drawn glyphs */
+    /* D335: inside EXO Studio the device list is Studio's (zs-host.js) */
+    var hostOwnsDevices = !!(window.ZSHOST && ZSHOST.hides('devicePicker'));
+    var h = (hostOwnsDevices ? '' : '<div class="mrow" data-more="devices"><span class="ico ico-img">'+
+        '<img src="brand/zs-your-devices-ico.webp" width="160" height="160" alt=""></span><span class="t"><div class="lab">Your devices</div>'+
+        /* the product's name from the gate (PRODUCTS), which is the registry
+           name on an EXO and "ZeroStick Core" once /status says core */
+        '<div class="hint">'+esc(productName())+'</div></span>'+
+        '<span class="chev">›</span></div>')+
+      '<div class="mrow" data-more="configs" aria-label="'+cfgLab+'">'+artHTML(a, 42, {shape:'square'})+
+        '<span class="t"><div class="lab">Your configs</div>'+
+        '<div class="hint">'+cfgHint+'</div></span>'+
+        '<span class="chev">›</span></div>'+
+      '<div class="mrow" data-more="global"><span class="ico ico-img">'+
+        '<img src="brand/zs-global-settings.webp" width="160" height="160" alt=""></span><span class="t"><div class="lab">Global Settings</div>'+
+        /* A LIST OF INTERNAL TAB NAMES IS NOT A DESCRIPTION. This read
+           "Passthrough Mode, performance, access, developer" — a proper noun
+           the user has never met, a truncated word ("access"), and a tab
+           meant for whoever is debugging the board. Say what the room is
+           for. */
+        '<div class="hint">Text size, contrast, and how this app behaves</div></span>'+
+        '<span class="chev">›</span></div>';
+    /* D271: the EXO is coming soon to the public; the owner is in through
+       the device list's hidden developer door (devices.js devUnlock). This
+       row, shown ONLY while that is on, locks it again: the key goes and
+       the device list opens with the EXO back to Coming soon. Small, last,
+       no picture, so nobody else ever meets it. */
+    var devKey = null;
+    for(di=0; di<DEVS.length; di++) if(DEVS[di] && DEVS[di].devUnlock) devKey = DEVS[di].devUnlock;
+    var devOn = false;
+    try{ devOn = !!devKey && localStorage.getItem(devKey)==='1'; }catch(e){}
+    if(devOn && !hostOwnsDevices) h += '<div class="mrow mrow-dev" data-more="devlock"><span class="t"><div class="lab">Lock developer access</div>'+
+        '<div class="hint">Show the EXO as Coming soon on this device again</div></span></div>';
+    var body = sheetOpen('More', h);
+    wireArt(body);
+    body.querySelectorAll('.mrow').forEach(function(el){
+      el.addEventListener('click', function(){
+        var w = el.dataset.more; sheetClose();
+        if(w==='devices') location.href=devicesURL();
+        else if(w==='devlock'){
+          try{ localStorage.removeItem(devKey); }catch(e){}
+          location.href = devicesURL()+'&locked=1';
+        }
+        else if(w==='configs') openDetail({id:'profiles', lab:'Configs'});
+        else openDetail({id:'global', lab:'Global Settings'});
+      });
+      kb(el);
+    });
+  }
+
+  /* The app-bar device switcher that used to be here (the h1 turning into
+     "ZeroStick EXO v" once two products shipped) could never run: the
+     app bar's h1 is the logo (#brand, D185) and the block returned on
+     exactly that. The way to another device is More > Your devices
+     (deleted 2026-10-31). */
+
+  renderHome();
+  /* THE TWO LIVE SURFACES ON HOME subscribe to the device bar's existing
+     pollers rather than starting their own (see ZS.onLiveInput in devbar.js).
+     CALLED FROM AFTER devbar.js, NOT FROM HERE: this script runs before that
+     file is fetched, so ZS.onLiveInput does not exist yet and a call here
+     would be skipped by its own `if` - silently, which is exactly the kind of
+     no-op that looks like a broken feature. Declared here (with the code it
+     belongs to) and invoked at the bottom of the page, next to the tag that
+     defines what it needs. */
+  function wireHomeLive(){
+    if(!window.ZS) return;
+    if(ZS.onLiveInput) ZS.onLiveInput(function(){ paintHomeKeys(); paintHomeNav(); paintHomeGun(); paintHomeDev(); });
+    if(ZS.onDevicesChange) ZS.onDevicesChange(function(){
+      paintDevPills();
+      /* a pad swapped mid-session changes which glyph set is right, and
+         keySig is keyed on the family - clear it or the old symbols persist. */
+      keySig = null; paintHomeKeys();
+    });
+  }
+  /* the two panel-header board chips: static markup, so this is the only
+     wiring pass they ever need, and it must happen before the first poll can
+     land so their state is never a request behind the app's */
+  wireBoardChips();
+  wireSaveChips();
+  applyAccess();
+  /* The one place the boot entrance fires — AFTER applyAccess, so a stored
+     Reduce Motion is already on the <body> before any animation could start
+     a first frame. All in one synchronous task with renderHome, so there is
+     no paint between the children appearing and the class arriving. */
+  homeEnter();
+  syncInert();
+
+  /* The photos of the adapter this list belongs to, from the app's own
+     drawer, before anything is asked of the adapter: they are not on it
+     (D120), so a player opening the app with the adapter away still sees
+     their pictures on the configs they last saw. */
+  loadPhotos();
+  /* connect to the board: load real configs, then keep status fresh */
+  Promise.all([loadLive(), refreshStatus()]).then(function(r){
+    renderHomeIfVisible();
+    if(r[0]){ flushPendingBinds(); toast('Connected — configs loaded'); settleOwedReverts(); offerDrafts(); /* M9, D668 */ }
+    /* teach the swipe gesture once, after the connect toast has had its moment */
+    if(!STORE.vals['ui|swipetip']){
+      setTimeout(function(){
+        toast('Tip: swipe right to go back, left for the next tab', {ms:6000});
+        STORE.vals['ui|swipetip']=1; persist();
+      }, r[0] ? 3200 : 600);
+    }
+  });
+  setInterval(function(){
+    if(document.hidden) return;
+    /* D719: the connect's own reads are under way (connectReady, below):
+       a second /status and a second whole config list on the same link
+       would only make the gate longer */
+    if(READY.loading) return;
+    var wasOffline = LIVE.online===false || !Object.keys(LIVE.full).length;
+    /* in the background (D718): over Bluetooth its 5.7 KB no longer goes
+       ahead of what the player just asked for */
+    refreshStatus(true).then(function(j){
+      /* the board may boot (or the cable go back in) AFTER the app opened —
+         pull the real configs the first time it answers, or the app keeps
+         showing preview data while claiming to be connected */
+      if(j && j.ok && wasOffline){
+        loadLive().then(function(ok){
+          renderHomeIfVisible();
+          /* anything edited while it was away goes out now, before the user
+             sees the board's own values reappear under their fingers */
+          if(ok){ flushPendingBinds(); toast('Board found — configs loaded'); settleOwedReverts(); offerDrafts(); /* M9, D668 */ }
+        });
+        return;
+      }
+      renderHomeIfVisible();
+    });
+  }, 8000);
+  /* ── D719: NOTHING IS SHOWN UNTIL IT IS TRUE ──────────────────────
+     Owner, 2026-11-13: "the phone connects and takes another second to
+     show the actual thing, like it will say no devices connected. Don't
+     have the phone actually connect until it's going to be ready and show
+     the information correctly." The Bluetooth (and USB) gate used to lift
+     the moment the link was up, while HOME still held what it had drawn
+     before there was one: offline, then "No device plugged in" (the list
+     not asked yet read as an empty one), then the cached or preview config,
+     each replaced a moment later as the answers came in.
+
+     connectReady() is the step between "linked" and "showing": the gate
+     stays up ("Loading your Core…") while the essentials are read, in
+     this order, ahead of every poll on the one Bluetooth lane:
+       the config list's first page and /devices (both 'high'), the
+       PLAYING config's copy (loadLive reads it first, alone), then /status
+       ('high'; over a cable or the network it is asked at once).
+     When all four have answered (or failed: an answer either way) HOME is
+     drawn once, correct, and the promise resolves; the gate lifts. If they
+     have not all answered in `ms` (4 s), it resolves anyway with what
+     arrived, and whatever has not answered is drawn as not known yet
+     (paintDevPills' "Looking for devices…"), never as a definite "none".
+     The rest of the config list keeps loading behind it, as before.
+     Resolves { why:'ready'|'timeout', ms, at:{status, list, devices,
+     active} (ms after the start each answered) }. */
+  var READY = { run:null, loading:false, last:null, revealed:false };
+  /* the list as it is known the moment the playing config's copy is read:
+     that one from its copy, the others as this app last saw them (or, new
+     to this app, from their list row); loadLive replaces it whole when
+     every copy is in */
+  function provisionalList(list, row, f){
+    if(!Array.isArray(list) || !list.length) return;
+    var cached = {};
+    PROFILES.forEach(function(p){ if(p && p.id) cached[p.id] = p; });
+    var ui = list.map(function(r, i){
+      if(row && r && r.id === row.id){
+        if(!(f && f.ok && f.data)) return uiUnreadable(r, f, i);
+        /* D724: the playing config's copy is the app's from this moment,
+           not from when the whole list has been read (seconds later over
+           Bluetooth with many configs): its Settings, AI Scripts and
+           HOME's weapon card read LIVE.full, and said "loading" until then */
+        LIVE.full[r.id] = adoptBoard(r.id, f.data);
+        if(LIVE.boardIds) LIVE.boardIds[r.id] = 1;
+        return uiProfile(LIVE.full[r.id], i);
+      }
+      if(r && cached[r.id]) return cached[r.id];
+      return { id: r.id, name: r.name || r.id, platform: r.console || 'ps5',
+               input: r.inputType || 'mnk', game: '', pack: '',
+               color: STORE.vals['pcolor|'+r.id] || PALETTE[i%PALETTE.length] };
+    });
+    var was = PROFILES.map(function(p){ return p && p.id; });
+    var at = function(p){ var k = was.indexOf(p.id); return k < 0 ? was.length : k; };
+    ui = ui.map(function(p, k){ return {p:p, k:k}; }).sort(function(a, b){
+      return (at(a.p) - at(b.p)) || (a.k - b.k);
+    }).map(function(x){ return x.p; });
+    ui = inPlayerOrder(ui);
+    PROFILES.length = 0; ui.forEach(function(p){ PROFILES.push(p); });
+    PROFILES_PREVIEW = false;
+    var act = row && row.id;
+    if(act && prof(act)) activeId = act;
+    else if(!PROFILES.some(function(p){ return p.id === activeId; })) activeId = PROFILES[0].id;
+  }
+  function readyNow(){
+    return (window.performance && typeof performance.now === 'function') ? performance.now() : Date.now();
+  }
+  /* ── D724: READY IS EVERYTHING THE FIRST SCREENS SHOW ────────────────
+     Owner, 2026-11-14: "Don't show anything except the splash screen until
+     you are ready to actually be connected and I can instantly change
+     settings ... I'll be connected looking at the game artwork in settings
+     but it's not fully connected yet, so it won't show AI scripts ... it
+     says 'no devices detected' because it's still processing everything
+     plugged into the Core." D719's four essentials (the list, /devices, the
+     playing config, /status) made HOME right; the screens one tap away were
+     still catching up behind it. So the gate now also waits for:
+       settled  the Core done opening what is plugged into it: its own
+                "settling" flag on /devices when it sends one (a proposed
+                firmware field), else the app's rule: a Core up for less
+                than SETTLE_UPTIME_S is asked /devices again every
+                SETTLE_GAP_MS until two answers agree (and are not empty),
+                or it has been up that long;
+       packs    the game list (a local file);
+       art      the playing config's game pictures, loaded AND decoded
+                (HOME's tall one, Settings' panel and wide ones);
+       game     what the AI Scripts room reads on opening (ZSAUTO.prime):
+                the game's weapon list, this phone's gun pictures, and the
+                Core's /vision/status;
+       live     the first /output/live of this link (HOME's weapon card),
+                then the held gun's name table and picture (ZSWEAPONLIVE
+                .prime).
+     opts.onStep({say, done, total}) hears each step, in words, for the
+     gate's loader. At `ms` (READY_CAP_MS) it opens anyway; whatever has not
+     answered keeps loading behind it and is drawn as not known yet. */
+  var READY_CAP_MS = 8000, SETTLE_UPTIME_S = 10, SETTLE_GAP_MS = 700;
+  var READY_STEPS = [
+    { say: 'Reading your configs…',  need: ['list', 'active', 'packs'] },
+    { say: 'Checking your devices…', need: ['devices', 'settled'] },
+    { say: 'Loading AI Scripts…',    need: ['game', 'live'] },
+    { say: 'Almost ready…',          need: ['status', 'art'] }
+  ];
+  var READY_NEED = [];
+  READY_STEPS.forEach(function(s){ READY_NEED = READY_NEED.concat(s.need); });
+  /* one subscription to the device bar's /output/live for every link,
+     made the first time it is needed (devbar.js loads after this file) */
+  var readyLiveWait = null, readyLiveSub = false;
+  function readyLiveTick(){ if(readyLiveWait) readyLiveWait(); }
+  function devSigOf(list){
+    return JSON.stringify((list || []).map(function(d){ return d && (d.ident || d.name || ''); }).sort());
+  }
+  function connectReady(opts){
+    if(READY.run) return READY.run;
+    opts = opts || {};
+    var ms = opts.ms > 0 ? opts.ms : READY_CAP_MS;
+    var onStep = typeof opts.onStep === 'function' ? opts.onStep : null;
+    var t0 = readyNow(), wall0 = Date.now(), got = {}, at = {}, revealed = false, finish, timer;
+    var liveAt0 = (window.ZS && ZS.liveInput && ZS.liveInput.at) || 0;
+    READY.loading = true;
+    READY.revealed = false;
+    /* the link is up: "offline" (what the app concluded while there was
+       none) is no longer true, and "online" is not known until the Core
+       answers; unknown draws neither the offline sentence nor a "none" */
+    if(LIVE.online === false){ LIVE.online = null; offlineStreak = 0; }
+    /* this link's devices, not the last link's (the device bar redraws as
+       "looking for devices…") */
+    if(window.ZS && ZS.devbar && ZS.devbar.forget) ZS.devbar.forget();
+    if(window.ZS) ZS.devicesSettling = false;
+    var run = READY.run = new Promise(function(r){ finish = r; });
+    function step(){
+      if(!onStep || revealed) return;
+      var done = READY_NEED.filter(function(n){ return got[n]; }).length, say = READY_STEPS[READY_STEPS.length-1].say;
+      for(var i=0; i<READY_STEPS.length; i++){
+        if(!READY_STEPS[i].need.every(function(n){ return got[n]; })){ say = READY_STEPS[i].say; break; }
+      }
+      try{ onStep({ say: say, done: done, total: READY_NEED.length }); }catch(e){}
+    }
+    function reveal(why){
+      if(revealed) return;
+      revealed = true;
+      READY.revealed = true;
+      clearTimeout(timer);
+      try{ renderHomeIfVisible(); }catch(e){}
+      READY.last = { why: why, ms: Math.round(readyNow() - t0), at: at,
+                     missing: READY_NEED.filter(function(n){ return !got[n]; }) };
+      if(READY.run === run) READY.run = null;
+      finish(READY.last);
+    }
+    function mark(k){
+      if(got[k]) return;
+      got[k] = true; at[k] = Math.round(readyNow() - t0);
+      if(READY_NEED.every(function(n){ return got[n]; })) reveal('ready');
+      else step();
+    }
+    timer = setTimeout(function(){ reveal('timeout'); }, ms);
+    step();
+
+    /* /status (5.7 KB, half a second on the Bluetooth air) goes after
+       what HOME shows (the list, the devices, the playing config): the
+       lane carries one reply at a time, so the gate's time is the same
+       either way, and if time runs out it is the least visible one that
+       is late. Over a cable or the network it is asked at once. */
+    var statusAsked = false;
+    function askStatus(){
+      if(statusAsked) return;
+      statusAsked = true;
+      refreshStatus('high').then(function(){ mark('status'); settle(); },
+                                 function(){ mark('status'); settle(); });
+    }
+    var ble = !!(window.ZSBLE && ZSBLE.isConnected && ZSBLE.isConnected());
+    if(!ble) askStatus();
+
+    /* settled: see the top of this block. Waits for the first /devices
+       answer and /status (the Core's uptime). */
+    var devReply = null, settleRun = false;
+    function settle(){
+      if(settleRun || !got.devices || !got.status) return;
+      settleRun = true;
+      var last = devReply, same = 0;
+      function upNow(){
+        var u = LIVE.status && typeof LIVE.status.uptimeS === 'number' ? LIVE.status.uptimeS : null;
+        return u === null ? null : u + (Date.now() - wall0) / 1000;
+      }
+      function done(){
+        if(window.ZS && ZS.devicesSettling){
+          ZS.devicesSettling = false;
+          try{ paintDevPills(); }catch(e){}
+          if(ZS.devbar && ZS.devbar.refreshDevices) ZS.devbar.refreshDevices();
+        }
+        mark('settled');
+      }
+      function judge(j){
+        var list = (j && j.ok && Array.isArray(j.data)) ? j.data : null;
+        /* not the list (busy, refused, timed out): asked again while the
+           gate is up; once it is down the device bar's poll carries on */
+        if(!list) return revealed ? done() : again();
+        if(j.settling === true) return again();      /* the Core says so (proposed field) */
+        if(j.settling === false) return done();
+        var up = upNow();
+        if(up === null || up >= SETTLE_UPTIME_S) return done();
+        var sig = devSigOf(list);
+        same = (last && devSigOf(last.data) === sig) ? same + 1 : 0;
+        last = j;
+        if(same >= 1 && list.length) return done();
+        again();
+      }
+      function again(){
+        if(window.ZS && !ZS.devicesSettling){ ZS.devicesSettling = true; try{ paintDevPills(); }catch(e){} }
+        setTimeout(function(){
+          var p = (window.ZS && ZS.devbar && ZS.devbar.refreshDevices) ? ZS.devbar.refreshDevices(true) : null;
+          Promise.resolve(p).then(function(j){
+            if(j && j.settling === true && window.ZS) ZS.devicesSettling = true;
+            judge(j);
+          }, done);
+        }, SETTLE_GAP_MS);
+      }
+      /* the first answer, judged without asking again: the Core said it, or
+         it has been up long enough that it has opened what is there */
+      var first = devReply;
+      last = null;
+      judge(first);
+    }
+
+    /* what the first screens one tap away read (packs, art, the AI Scripts
+       room, the weapon card), once the playing config is known */
+    var packsP = (window.ZSPACKS && ZSPACKS.load) ? Promise.resolve(ZSPACKS.load()) : Promise.resolve(false);
+    packsP.then(function(){ mark('packs'); }, function(){ mark('packs'); });
+    var gameAsked = false;
+    function askGame(){
+      if(gameAsked) return;
+      gameAsked = true;
+      packsP.then(function(){
+        var p = prof(activeId), full = p && LIVE.full[p.id];
+        var P = window.ZSPACKS;
+        var pk = P ? (P.ofConfig(full || p) || (p && !P.packIdOf(full || p) ? P.forGame(p.name) : null)) : null;
+        if(pk && P.primeArt) P.primeArt(pk.id, ['tall', 'panel', 'wide']).then(function(){ mark('art'); }, function(){ mark('art'); });
+        else mark('art');
+        var nba = !!(P && P.isNba2k && (P.isNba2k(full || {}) || P.isNba2k(p || {})));
+        if(!p || !pk || nba || !window.ZSAUTO || !ZSAUTO.prime) mark('game');
+        else ZSAUTO.prime(p, { high: true }).then(function(){ mark('game'); }, function(){ mark('game'); });
+        /* the weapon card: a gun-reading Core's first /output/live, then
+           the held gun's names and picture */
+        if(nba || !pk || productId() !== 'core'){ mark('live'); return; }
+        function liveIn(){
+          if(!(window.ZS && ZS.liveInput && ZS.liveInput.at > liveAt0)) return;
+          readyLiveWait = null;
+          var wp = (window.ZSWEAPONLIVE && ZSWEAPONLIVE.prime) ? ZSWEAPONLIVE.prime() : null;
+          Promise.all([wp, primeGunNames()]).then(function(){
+            /* drawn once more now that the names are in, behind the gate */
+            gunSig = null;
+            try{ paintHomeGun(); }catch(e){}
+            mark('live');
+          }, function(){ mark('live'); });
+        }
+        readyLiveWait = liveIn;
+        if(!readyLiveSub && window.ZS && ZS.onLiveInput){ readyLiveSub = true; ZS.onLiveInput(readyLiveTick); }
+        liveIn();                     /* it may have answered already */
+        /* asked now, ahead of the polls and of the rest of the config list */
+        if(window.ZS && ZS.devbar && ZS.devbar.refreshLive) ZS.devbar.refreshLive();
+      });
+    }
+
+    loadLive({
+      first: true,
+      onList: function(list){
+        mark('list');
+        if(!list || !list.length){ mark('active'); askStatus(); askGame(); }
+      },
+      onActive: function(row, f, list){
+        /* HOME's config is the board's from here on, not the cached or
+           made-up one (behind the gate, or at once if time ran out first);
+           loadLive's own end replaces the list again when every copy is in */
+        provisionalList(list, row, f);
+        if(revealed){ try{ renderHomeIfVisible(); }catch(e){} }
+        mark('active');
+        askStatus();
+        askGame();
+      }
+    }).then(function(ok){
+      READY.loading = false;
+      mark('list'); mark('active');
+      askStatus(); askGame();
+      try{ renderHomeIfVisible(); }catch(e){}
+      /* what boot does when the board answers it (the gate's page booted
+         with no link, so boot's own pass found nothing to do) */
+      if(ok){ flushPendingBinds(); settleOwedReverts(); offerDrafts(); }
+    }, function(){ READY.loading = false; mark('list'); mark('active'); askStatus(); askGame(); });
+    var dv = (window.ZS && ZS.devbar && ZS.devbar.refreshDevices) ? ZS.devbar.refreshDevices(true) : null;
+    Promise.resolve(dv).then(function(j){
+      devReply = j || null;
+      if(j && j.settling === true && window.ZS){ ZS.devicesSettling = true; try{ paintDevPills(); }catch(e){} }
+      mark('devices'); settle();
+    }, function(){ mark('devices'); settle(); });
+    return run;
+  }
+  if(window.ZS){
+    ZS.connectReady = connectReady;
+    ZS.readyLast = function(){ return READY.last; };
+  }
+  /* 2026-10-23 (owner: "the gap between the EXO logo bar and the colourful
+     part is a hard line, blend the colour all the way to the top"): on HOME
+     the appbar is see-through and #home's wash and lights reach up under
+     it. zs-fixes.css pulls #home up by the appbar's height, which differs
+     with the phone's notch, so it is measured here into --zs-abh. */
+  (function(){
+    var ab = document.querySelector('.screen > .appbar');
+    var sc = ab && ab.parentNode;
+    if(!ab || !sc || !sc.style || !sc.style.setProperty) return;
+    function put(){ var h = ab.offsetHeight; if(h > 0) sc.style.setProperty('--zs-abh', h + 'px'); }
+    put();
+    if(typeof ResizeObserver === 'function'){ try{ new ResizeObserver(put).observe(ab); }catch(e){} }
+    else if(window.addEventListener){ window.addEventListener('resize', put); }
+  })();
