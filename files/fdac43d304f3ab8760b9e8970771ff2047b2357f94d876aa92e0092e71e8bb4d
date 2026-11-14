@@ -1,0 +1,346 @@
+/* owner-kbm.js — the owner's keyboard & mouse layout as every config's
+ * default (D706). window.ZSOWNERKBM.
+ *
+ * ES5 ONLY (no arrow function, template literal, let/const or class), like
+ * zs-profile-encode.js: the PC exe, the phone app and Studio's My EXO tab
+ * all load it from phone.html.
+ *
+ * -- What it is ---------------------------------------------------------
+ *
+ * The owner (2026-11-13): "my current keybinds - make this the default for
+ * every profile that is created new for M&K, and for current profiles when
+ * M&K is detected." His keybinds are the keyboard and mouse bindings of the
+ * config he plays, Call of Duty: Modern Warfare 4. They live in
+ * owner-kbm-layout.js (window.ZS_OWNER_KBM_LAYOUT), which is GENERATED from
+ * a byte-exact backup of that config (tools/gen-owner-kbm-layout.js, run it
+ * again on a newer .zsp to refresh it). Only plain key and mouse-button
+ * bindings are taken: never Smart Actions, aim, translation or game-pack
+ * items.
+ *
+ * -- New configs (ZS.newConfigDoc calls forNewConfig) ----------------------
+ *
+ * Every keyboard or mouse binding the new config copied from its template
+ * (D694), or was given by its game pack, is replaced by the owner layout.
+ * Controller bindings (a pad's own buttons, a pack's controller layout) are
+ * kept exactly. Not on a Native Mouse & Keyboard config (D470: its keys go
+ * to the console as keys).
+ *
+ * -- Existing configs, when a keyboard or mouse is plugged in --------------
+ *
+ * Never silently. When the Core's device list shows a keyboard or a mouse
+ * and the ACTIVE config has no keyboard & mouse bindings of its own (none at
+ * all, or exactly one of the layouts the app used to ship), one sheet asks
+ * "Use your keyboard & mouse layout on this config?". Yes applies it and
+ * saves through the normal save (ZS.putProfile); No is remembered for that
+ * config on this device and never asked again there; closing the sheet (B)
+ * only quiets it for this session. A config with its own bindings is never
+ * offered, so nothing a player made is ever overwritten.
+ */
+(function () {
+  'use strict';
+
+  var DECLINED_KEY = 'zs-owner-kbm-no';
+  var quiet = {};            /* config id -> true: closed this session */
+
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  function clone(v) { return JSON.parse(JSON.stringify(v)); }
+  function Z() { return window.ZS || null; }
+
+  /* the generated layout, or null when the data file is missing */
+  function layoutData() {
+    var d = window.ZS_OWNER_KBM_LAYOUT;
+    return (d && Array.isArray(d.bindings) && d.bindings.length) ? d : null;
+  }
+  function layout() { var d = layoutData(); return d ? clone(d.bindings) : null; }
+
+  /* WHICH DEVICE SENDS A CODE: the app's one table (shell/07-inputs.js
+     srcDeviceClass), with the same rules here for a page or a tool that
+     loads this file without the shell (the generator, the tests). */
+  function ownClass(code) {
+    var c = String(code == null ? '' : code);
+    if (!c) return '';
+    if (c.indexOf('region:') === 0 && c.length > 7) return 'screen';
+    if (c === 'BTN_LEFT' || c === 'BTN_RIGHT' || c === 'BTN_MIDDLE' || c === 'BTN_SIDE' || c === 'BTN_EXTRA' ||
+        c === 'BTN_WHEEL_UP' || c === 'BTN_WHEEL_DOWN') return 'mouse';
+    if (c.indexOf('KEY_') === 0 && c !== 'KEY_RECORD') return 'keyboard';
+    if (c === 'lt' || c === 'rt' || c.indexOf('BTN_') === 0 || c === 'KEY_RECORD') return 'controller';
+    return '';
+  }
+  function deviceClass(code) {
+    var zs = Z();
+    return (zs && typeof zs.srcDeviceClass === 'function') ? zs.srcDeviceClass(code) : ownClass(code);
+  }
+  function isKbmCode(code) { var k = deviceClass(code); return k === 'mouse' || k === 'keyboard'; }
+  /* a binding is keyboard & mouse when its key is, or its shift layer is
+     held on a key or mouse button */
+  function isKbmBinding(b) {
+    if (!b || typeof b !== 'object') return false;
+    if (isKbmCode(b.source)) return true;
+    var ch = arr(b.chord);
+    for (var i = 0; i < ch.length; i++) if (isKbmCode(ch[i])) return true;
+    return false;
+  }
+  function kbmOf(list) { return arr(list).filter(isKbmBinding); }
+
+  /* one binding as a comparable word (smart-actions/13-join.js bindKey) */
+  function bindKey(b) {
+    b = b || {};
+    return [b.source, b.target, b.mode || 'hold', arr(b.chord).slice().sort().join('+'),
+            b.holdTarget || ''].join('|');
+  }
+  function sameSet(a, b) {
+    var x = arr(a).map(bindKey).sort(), y = arr(b).map(bindKey).sort();
+    if (x.length !== y.length) return false;
+    for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+  function pairs(s) {
+    return s.split(' ').map(function (t) { var i = t.indexOf('>'); return { source: t.slice(0, i), target: t.slice(i + 1) }; });
+  }
+  /* THE LAYOUTS THE APP USED TO SHIP, so a config still on one counts as
+     "no layout of its own" (owner: "or only the old shipped default"):
+       D280   the shipped default since 2026-10-13 (schema.py
+              DEFAULT_PROFILE, the app's STARTER_DOC): R reload, G lethal;
+       0804   the owner's layout of 2026-08-04, before D280: X reload, R lethal;
+       LEGACY the layout before 2026-08-04 (Esc = Options, 1-4 the D-pad;
+              tools/fixtures/board.json's configs).
+     Each is also matched with X's job moved off X (Turn assist, D291) and
+     with the home button put on Esc (D696). */
+  var COMMON = 'KEY_W>ly+ KEY_S>ly- KEY_A>lx- KEY_D>lx+ KEY_SPACE>south KEY_LEFTSHIFT>r3 KEY_Q>l1 ' +
+    'KEY_E>east KEY_F>dpad_right KEY_3>dpad_up KEY_CAPSLOCK>dpad_left KEY_C>dpad_down KEY_ESC>guide ' +
+    'KEY_TAB>select KEY_LEFTALT>start BTN_LEFT>rt+ BTN_RIGHT>lt+ BTN_MIDDLE>north BTN_SIDE>l3 BTN_EXTRA>east';
+  var SHIPPED = {
+    d280: pairs(COMMON + ' KEY_R>west KEY_G>r1'),
+    d0804: pairs(COMMON + ' KEY_X>west KEY_R>r1'),
+    legacy: pairs('KEY_W>ly+ KEY_S>ly- KEY_A>lx- KEY_D>lx+ KEY_SPACE>south KEY_LEFTSHIFT>l3 KEY_R>west ' +
+      'KEY_E>east KEY_C>r3 KEY_TAB>select KEY_ESC>start KEY_1>dpad_left KEY_2>dpad_up KEY_3>dpad_right ' +
+      'KEY_4>dpad_down BTN_LEFT>rt+ BTN_RIGHT>lt+ BTN_MIDDLE>r3 BTN_SIDE>l1 BTN_EXTRA>r1')
+  };
+  function variants(base) {
+    var out = [base];
+    var homed = base.map(function (b) { return b.source === 'KEY_ESC' && b.target === 'start' ? { source: 'KEY_ESC', target: 'guide' } : b; });
+    if (!sameSet(homed, base)) out.push(homed.concat([{ source: 'KEY_LEFTALT', target: 'start' }]));
+    out.slice().forEach(function (l) {
+      var noX = l.filter(function (b) { return b.source !== 'KEY_X'; });
+      if (noX.length !== l.length) out.push(noX);
+    });
+    return out;
+  }
+  function isShippedDefault(list) {
+    var k = kbmOf(list), names = Object.keys(SHIPPED);
+    for (var i = 0; i < names.length; i++) {
+      var vs = variants(SHIPPED[names[i]]);
+      for (var j = 0; j < vs.length; j++) if (sameSet(k, vs[j])) return names[i];
+    }
+    return '';
+  }
+  function isOwnerLayout(list) {
+    var l = layout();
+    return !!l && sameSet(kbmOf(list), l);
+  }
+  /* does this document have keyboard & mouse bindings the player made? */
+  function hasOwnKbm(doc) {
+    var k = kbmOf(doc && doc.bindings);
+    if (!k.length) return false;
+    if (isShippedDefault(k)) return false;
+    return true;      /* the owner layout itself counts as its own: nothing to offer */
+  }
+
+  /* Put the owner layout on `doc`: every keyboard & mouse binding goes, the
+     owner's go in first, every controller binding stays as it was (in its
+     order, after). A keyboard or mouse binding waiting in "Not attached"
+     (D291) was the old layout's too. true when `doc` changed. */
+  function applyTo(doc) {
+    var l = layout();
+    if (!l || !doc || typeof doc !== 'object') return false;
+    var before = JSON.stringify(doc.bindings || null);
+    var keep = arr(doc.bindings).filter(function (b) { return !isKbmBinding(b); });
+    doc.bindings = l.concat(keep);
+    if (Array.isArray(doc.unattachedBindings)) {
+      var u = doc.unattachedBindings.filter(function (b) { return !isKbmBinding(b); });
+      if (u.length !== doc.unattachedBindings.length) {
+        if (u.length) doc.unattachedBindings = u; else delete doc.unattachedBindings;
+        delete doc.turnAssistMoved;
+      }
+    }
+    return JSON.stringify(doc.bindings) !== before;
+  }
+  /* ZS.newConfigDoc's turn: after the game pack, so the owner layout is the
+     last word on keys and mouse buttons and the pack's controller layout
+     stays. pr.native (D470) is never touched. */
+  function forNewConfig(doc, pr) {
+    if (pr && pr.native) return false;
+    if (doc && doc.nativeKbm === true) return false;
+    return applyTo(doc);
+  }
+
+  /* ── the offer for a config the player already has ───────────────── */
+
+  function deviceKey(pid) {
+    var zs = Z(), st = zs && zs.live && zs.live.status;
+    return ((st && st.deviceId) || 'core') + '/' + pid;
+  }
+  function declinedMap() {
+    try { var m = JSON.parse(localStorage.getItem(DECLINED_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; }
+    catch (e) { return {}; }
+  }
+  function declined(pid) { return !!declinedMap()[deviceKey(pid)]; }
+  function decline(pid) {
+    var m = declinedMap();
+    m[deviceKey(pid)] = 1;
+    try { localStorage.setItem(DECLINED_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+  function kbmPlugged() {
+    var zs = Z();
+    var dc = (zs && typeof zs.deviceClasses === 'function') ? zs.deviceClasses() : null;
+    return !!(dc && (dc.keyboard || dc.mouse));
+  }
+  /* config `pid` could take the layout: loaded, not Native M&K, no layout of
+     its own, not already the owner's. Says nothing about devices. */
+  function offerable(pid) {
+    var zs = Z();
+    if (!layoutData() || !zs || !pid) return false;
+    var full = zs.live && zs.live.full ? zs.live.full[pid] : null;
+    if (!full || full.nativeKbm === true) return false;
+    if (hasOwnKbm(full) || isOwnerLayout(full.bindings)) return false;
+    return true;
+  }
+  /* should the sheet show for `pid` now? */
+  function wanted(pid) {
+    var zs = Z();
+    if (!zs || (zs.live && zs.live.online === false)) return false;
+    return kbmPlugged() && offerable(pid) && !declined(pid) && !quiet[pid];
+  }
+
+  function nameOf(code, pad) {
+    var SM = window.ZS_SMART;
+    try {
+      if (SM && typeof SM.buttonName === 'function') {
+        return pad ? SM.buttonName({ trigger: { follows: code } }) : SM.buttonName({ trigger: { source: code } });
+      }
+    } catch (e) {}
+    return String(code).replace(/^KEY_|^BTN_/, '');
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  var STICK = { 'ly+': 'Move forward', 'ly-': 'Move back', 'lx-': 'Move left', 'lx+': 'Move right',
+    'ry+': 'Look up', 'ry-': 'Look down', 'rx-': 'Look left', 'rx+': 'Look right' };
+  function targetName(t) {
+    t = String(t == null ? '' : t);
+    if (STICK[t]) return STICK[t];
+    return nameOf(t.replace(/[+-]$/, ''), true);
+  }
+  function listHTML() {
+    return arr(layout()).map(function (b) {
+      return esc(nameOf(b.source, false)) + ' → ' + esc(targetName(b.target));
+    }).join(', ');
+  }
+
+  /* Open the sheet for config `pid`. true when it opened. */
+  function open(pid, opener) {
+    var zs = Z();
+    if (!zs || typeof zs.sheetOpen !== 'function' || !offerable(pid)) return false;
+    var p = zs.prof ? zs.prof(pid) : null;
+    var nm = (p && p.name) || 'this config';
+    var help = typeof zs.helpHTML === 'function'
+      ? zs.helpHTML('okbm-why', 'What this changes',
+          'Your layout is the keys and mouse buttons from your Modern Warfare 4 config. ' +
+          'Only keyboard and mouse buttons change. Controller buttons, Scripts, aim and translation stay as they are. ' +
+          'You can change any key afterwards in Mappings. ' +
+          'The keys: ' + listHTML() + '.')
+      : '';
+    var body = zs.sheetOpen('Use your keyboard & mouse layout on this config?',
+      '<div class="xsub" style="margin:0 0 8px">A keyboard or mouse is plugged in, and ' + esc(nm) +
+        ' has no key bindings of its own yet.</div>' +
+      help +
+      '<div class="note warn" id="okbm-err" role="alert" hidden></div>' +
+      '<button class="btn primary" id="okbm-yes" style="margin-top:12px">Yes, use my layout</button>' +
+      '<button class="btn ghost" id="okbm-no" style="margin-top:10px">No, keep this config as it is</button>',
+      function () { quiet[pid] = true; }, opener);
+    if (!body) return false;
+    var yes = body.querySelector('#okbm-yes'), no = body.querySelector('#okbm-no');
+    var err = body.querySelector('#okbm-err');
+    var saving = false;
+    function say(t) {
+      if (!err) return;
+      if (t) { err.textContent = t; err.removeAttribute('hidden'); }
+      else { err.textContent = ''; err.setAttribute('hidden', ''); }
+    }
+    yes.addEventListener('click', function () {
+      if (saving) return;
+      saving = true; yes.disabled = true; yes.textContent = 'Saving…'; say('');
+      var put = zs.putProfile ? zs.putProfile(pid, function (f) { applyTo(f); })
+        : Promise.resolve({ ok: false, error: 'no save path' });
+      Promise.resolve(put).then(function (j) {
+        saving = false; yes.disabled = false; yes.textContent = 'Yes, use my layout';
+        if (j && j.ok) {
+          quiet[pid] = true;
+          /* the Scripts that follow a button resolve against the new keys */
+          if (window.ZS_SMART && typeof ZS_SMART.reresolve === 'function') { try { ZS_SMART.reresolve(); } catch (e) {} }
+          zs.sheetClose();
+          if (zs.toast) zs.toast('Your keyboard & mouse layout is on ' + nm);
+          if (typeof zs.redrawOpenScreen === 'function') { try { zs.redrawOpenScreen(); } catch (e) {} }
+        } else {
+          say('Not saved: ' + String((j && (j.error || (j.errors && j.errors[0]))) || 'the Core did not take it') + '. Try again.');
+        }
+      }, function () {
+        saving = false; yes.disabled = false; yes.textContent = 'Yes, use my layout';
+        say('Not saved. Try again.');
+      });
+    });
+    no.addEventListener('click', function () {
+      decline(pid);
+      quiet[pid] = true;
+      zs.sheetClose();
+    });
+    /* controller-first: up/down walks the "?" and the two buttons, A presses,
+       B is the sheet's own close */
+    body.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      var list = Array.prototype.filter.call(body.querySelectorAll('[data-qh], #okbm-yes, #okbm-no'),
+        function (x) { return !x.disabled; });
+      var i = list.indexOf(document.activeElement);
+      e.preventDefault();
+      var n = i < 0 ? 0 : Math.max(0, Math.min(list.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+      try { list[n].focus(); } catch (x) {}
+    });
+    try { yes.focus(); } catch (e) {}
+    return true;
+  }
+  /* Show it for config `pid` (the active one when omitted) if it should be
+     shown. true when it was. */
+  function maybe(pid) {
+    if (window.ZS_NO_OWNER_KBM_OFFER) return false;      /* the test harness, unless a suite asks */
+    var zs = Z();
+    if (!zs) return false;
+    if (!pid) pid = zs.activeId;
+    if (!wanted(pid)) return false;
+    var w = document.getElementById('sheetwrap');
+    if (!w || w.classList.contains('open')) return false;  /* never over another sheet */
+    return open(pid);
+  }
+  /* asked again whenever the Core's device list changes (devbar.js loads
+     after this file, so the hook is taken when it exists) */
+  (function hook() {
+    var zs = Z();
+    if (zs && typeof zs.onDevicesChange === 'function') {
+      zs.onDevicesChange(function () { setTimeout(function () { maybe(); }, 0); });
+      return;
+    }
+    setTimeout(hook, 300);
+  })();
+
+  window.ZSOWNERKBM = {
+    layout: layout, data: layoutData,
+    isKbmCode: isKbmCode, isKbmBinding: isKbmBinding, kbmOf: kbmOf, ownClass: ownClass,
+    sameSet: sameSet, isShippedDefault: isShippedDefault, isOwnerLayout: isOwnerLayout,
+    hasOwnKbm: hasOwnKbm, applyTo: applyTo, forNewConfig: forNewConfig,
+    offerable: offerable, wanted: wanted, declined: declined, maybe: maybe, open: open,
+    SHIPPED: SHIPPED, DECLINED_KEY: DECLINED_KEY,
+    /* the tests' way to forget this session's "closed" */
+    _resetQuiet: function () { quiet = {}; }
+  };
+}());
