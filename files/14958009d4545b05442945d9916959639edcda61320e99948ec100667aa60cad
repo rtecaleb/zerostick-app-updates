@@ -1,0 +1,264 @@
+/* gun-learned.js - what the gun reader has learned, and a way to forget it
+ * (window.ZSGUNLEARN). ES5 only.
+ *
+ * Owner, 2026-11-16: the Core's gun reader now learns guns as you play and
+ * keeps that across sessions; "a button somewhere hidden but there to reset
+ * training, and then it uses the default one we have".
+ *
+ * WHERE: the foot of the Gun reader frame screen (gun-frame.js), where a
+ * config's gun reader is already set up, folded shut under a small "Gun
+ * training" line. Never on HOME. Inside the fold:
+ *
+ *   Learned: N guns, M pictures                       [?]
+ *   To relearn a gun, open it in AI Scripts: View gun training ...
+ *
+ * 2026-11-16 (owner): "don't have a button that resets it completely". The
+ * global Reset gun training button is GONE from the app; each gun's page has
+ * "View gun training" (gun-teach.js) with Delete and Relearn this gun. The
+ * Core keeps POST .../reset {scope} for support and tools only.
+ *
+ * and, only when the Core reports a name it does not know, above the fold:
+ *
+ *   New gun seen: NAME. Add it?      [Add] [Ignore]
+ *
+ * THE CORE'S ROUTES (firmware branch core/reader-r2):
+ *   GET  /vision/textread/learned -> {ok, config, guns, pictures, bytes,
+ *        newNames:[{name, seen}], lastSaveAgoS, corrections}
+ *   POST /vision/textread/learned/reset  {scope:'config'}
+ *        -> {ok, cleared:{guns, pictures, bytes}}
+ *   POST /vision/textread/learned/accept {name}
+ *
+ * REAL HARDWARE ONLY. A Core without the routes (every Core before
+ * core/reader-r2) answers 404 / "not found": the whole block stays hidden
+ * and that link is not asked again. Nothing here is drawn from made-up
+ * numbers. The GET is asked when the screen opens and then every POLL_MS
+ * ONLY while this screen is open and the page is on screen, as a background
+ * ask (D718), one at a time; leaving the screen ends it (the next tick finds
+ * the screen gone and sets no other).
+ *
+ * "Ignore" is this phone's answer for this visit of the app (the Core has no
+ * route for it): the name is not offered again until the app is reopened.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+  var ZS = window.ZS;
+  var PATH = '/vision/textread/learned';
+  var POLL_MS = 5000;
+  var CSS_ID = 'zs-gunlearn-css';
+  var HELP = 'Your Core’s gun reader learns as you play: each time it is sure which gun you are ' +
+    'holding it keeps a small picture of that gun’s name, so it reads your screen better over time. ' +
+    'It is kept on your Core for this game. Each gun’s page in AI Scripts has View gun training, where ' +
+    'you can see and delete what it learned for that gun; ' +
+    'the built-in reader keeps working.';
+
+  function esc(s) { return ZS.esc ? ZS.esc(s) : String(s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function num(v) { v = +v; return (isFinite(v) && v > 0) ? Math.floor(v) : 0; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  /* the Core's JSON, whether it came bare or under "data" */
+  function dataOf(j) {
+    if (!j || j.ok !== true) { return null; }
+    var d = (j.data && typeof j.data === 'object') ? j.data : j;
+    return d;
+  }
+  function missing(j) {
+    var e = String((j && j.error) || '');
+    return /unknown route|not found|no such|does not answer|501|404/i.test(e);
+  }
+  function linkTrouble(j) {
+    var e = String((j && j.error) || '');
+    return /unreachable|timed out|slow to answer|busy|not connected|disconnect/i.test(e);
+  }
+
+  var S = {
+    host: null,                 /* the element on screen, or null */
+    pid: null,
+    d: null,                    /* the Core's last answer */
+    unsupported: false,         /* this link's Core has no such route */
+    asking: false,
+    timer: null,
+    busy: '',                   /* '' | 'reset' | 'accept' */
+    say: '',
+    ignored: {},                /* names the player said Ignore to */
+    open: false                 /* the fold */
+  };
+
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.gfl{margin:22px 0 6px;border-top:1px solid var(--line);padding-top:10px}',
+      '.gfl-new{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;padding:10px 12px;',
+        'border:1px solid var(--line);border-radius:12px;background:var(--zs-raised,var(--panel2))}',
+      '.gfl-new p{margin:0;flex:1 1 180px;font-size:13px;line-height:1.45;color:var(--text)}',
+      '.gfl-new .btn{min-height:44px}',
+      '.gfl-sum{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 2px;margin:0;',
+        'background:none;border:0;color:var(--muted);font:inherit;font-size:13px;text-align:left;cursor:pointer}',
+      '.gfl-sum .gfl-chev{display:inline-block;transition:transform var(--t-quick,170ms) var(--ease-settle,ease)}',
+      '.gfl-sum[aria-expanded="true"] .gfl-chev{transform:rotate(90deg)}',
+      '.gfl-body{padding:2px 2px 4px}',
+      '.gfl-line{display:flex;align-items:center;gap:8px;margin:0 0 4px}',
+      '.gfl-line p{margin:0;flex:1 1 auto;font-size:13px;line-height:1.5;color:var(--zs-ink-2,var(--text));',
+        'font-variant-numeric:tabular-nums}',
+      '.gfl-body .btn{min-height:44px;margin-top:8px}',
+      '.gfl-say{margin:8px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}',
+      '@media (prefers-reduced-motion: reduce){.gfl-sum .gfl-chev{transition:none}}',
+      'body.a11y-motion .gfl-sum .gfl-chev{transition:none}'
+    ].join('')));
+    document.head.appendChild(s);
+  }
+
+  function newNames() {
+    var a = (S.d && S.d.newNames && S.d.newNames.length) ? S.d.newNames : [];
+    var out = [];
+    for (var i = 0; i < a.length; i++) {
+      var n = a[i] && typeof a[i].name === 'string' ? a[i].name : '';
+      if (n && !S.ignored[n]) { out.push({ name: n, seen: num(a[i].seen) }); }
+    }
+    return out;
+  }
+  function learnedLine() {
+    return 'Learned: ' + plural(num(S.d && S.d.guns), 'gun', 'guns') + ', ' +
+      plural(num(S.d && S.d.pictures), 'picture', 'pictures');
+  }
+  function html() {
+    if (!S.d) { return ''; }
+    var nn = newNames(), h = '';
+    /* one name at a time: the first the Core reported */
+    if (nn.length) {
+      h += '<div class="gfl-new" role="group" aria-label="New gun seen">' +
+        '<p>New gun seen: <b>' + esc(nn[0].name) + '</b>. Add it?</p>' +
+        '<button type="button" class="btn primary" data-gfl="add" data-name="' + esc(nn[0].name) + '"' +
+          (S.busy ? ' disabled' : '') + '>Add</button>' +
+        '<button type="button" class="btn" data-gfl="ignore" data-name="' + esc(nn[0].name) + '"' +
+          (S.busy ? ' disabled' : '') + '>Ignore</button>' +
+        '</div>';
+    }
+    var help = ZS.helpHTML ? ZS.helpHTML('gfl-help', 'Gun training', HELP) : '';
+    var q = help.indexOf('<div class="note qhfold');
+    var chip = q > 0 ? help.slice(0, q) : '', fold = q > 0 ? help.slice(q) : '';
+    var nothing = !num(S.d.guns) && !num(S.d.pictures);
+    h += '<button type="button" class="gfl-sum" data-gfl="fold" aria-expanded="' + (S.open ? 'true' : 'false') +
+        '" aria-controls="gfl-body"><span class="gfl-chev" aria-hidden="true">›</span><span>Gun training</span></button>' +
+      '<div class="gfl-body" id="gfl-body"' + (S.open ? '' : ' hidden') + '>' +
+        '<div class="gfl-line"><p role="status">' + esc(learnedLine()) + '</p>' + chip + '</div>' + fold +
+        /* 2026-11-16 (owner): no button that resets it all; each gun's page
+           has "View gun training" (gun-teach.js) with Delete / Relearn */
+        '<p class="gfl-say">' + (nothing ? 'Nothing learned yet.' : 'To relearn a gun, open it in AI Scripts: ' +
+          'View gun training is at the bottom of its page.') + '</p>' +
+        (S.say ? '<p class="gfl-say" role="status" aria-live="polite">' + esc(S.say) + '</p>' : '') +
+      '</div>';
+    return h;
+  }
+  function attached() {
+    var h = S.host;
+    return !!(h && (h.isConnected !== false) && document.getElementById('gfl') === h);
+  }
+  function onScreen() {
+    if (!attached()) { return false; }
+    /* a closed panel keeps its last screen's markup: closed is not open
+       (mount() runs while the panel is still opening, so the first ask and
+       the paints only need the block to be there) */
+    var dt = document.getElementById('detail');
+    return !dt || !dt.classList || dt.classList.contains('open');
+  }
+  function paint() {
+    if (!attached()) { return; }
+    var h = html();
+    if (!h) { S.host.hidden = true; S.host.innerHTML = ''; S.host._zsHtml = ''; return; }
+    /* a poll that changed nothing rebuilds nothing (focus and an open "?" stay) */
+    if (S.host._zsHtml !== h) { S.host.innerHTML = h; S.host._zsHtml = h; }
+    S.host.hidden = false;
+  }
+
+  function stop() {
+    if (S.timer) { clearTimeout(S.timer); S.timer = null; }
+  }
+  /* the next ask, POLL_MS on, for as long as this screen is the one open */
+  function again() {
+    stop();
+    S.timer = setTimeout(function () {
+      S.timer = null;
+      if (!onScreen() || S.unsupported) { return; }
+      ask();
+      again();
+    }, POLL_MS);
+  }
+  function ask() {
+    if (!attached()) { stop(); return; }
+    if (S.unsupported || S.asking || S.busy || document.hidden) { return; }
+    if (ZS.live && ZS.live.online === false) { return; }
+    S.asking = true;
+    /* a background ask (D718): behind the player's own requests */
+    ZS.api(PATH, undefined, undefined, undefined, true).then(function (j) {
+      S.asking = false;
+      var d = dataOf(j);
+      if (d && typeof d.guns !== 'undefined') { S.d = d; paint(); return; }
+      if (linkTrouble(j)) { return; }          /* not an answer; what is shown stays */
+      /* a Core without the route, or one that refuses it: nothing is shown,
+         and this link is not asked again */
+      if (missing(j) || !d) { S.unsupported = true; S.d = null; stop(); paint(); }
+    }, function () { S.asking = false; });
+  }
+
+  function accept(name) {
+    if (S.busy || !name) { return; }
+    S.busy = 'accept'; S.say = ''; paint();
+    ZS.api(PATH + '/accept', 'POST', { name: name }).then(function (j) {
+      S.busy = '';
+      if (dataOf(j)) {
+        S.ignored[name] = true;               /* answered: not offered again */
+        if (ZS.toast) { ZS.toast('Added: ' + name); }
+      } else if (ZS.toast) {
+        ZS.toast(String((j && j.error) || 'Your Core did not take that. Try again.'));
+      }
+      paint();
+      ask();
+    }, function () { S.busy = ''; paint(); });
+  }
+
+  function onClick(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-gfl]') : null;
+    if (!t || t.disabled) { return; }
+    var what = t.getAttribute('data-gfl');
+    if (what === 'fold') { S.open = !S.open; paint(); var b = S.host.querySelector('[data-gfl="fold"]'); if (b && b.focus) { try { b.focus(); } catch (x) {} } }
+    else if (what === 'add') { accept(t.getAttribute('data-name')); }
+    else if (what === 'ignore') { S.ignored[t.getAttribute('data-name')] = true; paint(); }
+  }
+
+  /* gun-frame.js: the placeholder in its screen, and the call from its
+     after(). A redraw of the same visit keeps what is known. */
+  function slotHTML() { return '<div class="gfl" id="gfl" hidden></div>'; }
+  function mount(root, p) {
+    var host = root && root.querySelector ? root.querySelector('#gfl') : null;
+    stop();
+    S.host = host;
+    if (!host) { return; }
+    injectCss();
+    var pid = p && p.id ? p.id : null;
+    if (pid !== S.pid) { S.pid = pid; S.d = null; S.say = ''; S.open = false; }
+    host.addEventListener('click', onClick);
+    paint();
+    ask();
+    if (!S.unsupported) { again(); }
+  }
+
+  /* a new link may be another Core, or this one after an update */
+  function relink() { S.unsupported = false; S.asking = false; }
+  if (window.ZSBLE && typeof window.ZSBLE.on === 'function') {
+    window.ZSBLE.on('status', function (s) { if (s && s.connected) { relink(); } });
+  }
+  if (window.ZSSERIAL && typeof window.ZSSERIAL.on === 'function') {
+    window.ZSSERIAL.on('status', function (s) { if (s && s.connected) { relink(); } });
+  }
+
+  window.ZSGUNLEARN = {
+    slotHTML: slotHTML,
+    mount: mount,
+    HELP: HELP,
+    /* tests only */
+    _state: function () { return S; },
+    _ask: ask
+  };
+})();

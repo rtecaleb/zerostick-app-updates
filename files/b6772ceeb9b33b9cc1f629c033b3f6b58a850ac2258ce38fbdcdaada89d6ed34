@@ -1,0 +1,654 @@
+/* gun-teach.js - "Add a gun not on this list" and each gun's "View gun
+ * training" (window.ZSGUNTEACH). ES5 only.
+ *
+ * Owner, 2026-11-16: "at the bottom of AI Scripts, an option to add a gun
+ * not on here: you click it with your gun out, type in the gun name letter
+ * for letter as the title, then it screenshots that frame and trains itself
+ * on that new name it identified in the screenshot, so people can
+ * self-learn DLC weapons or weird blueprint names." And the same day: "move
+ * the reset gun training to the bottom of every gun config individually -
+ * don't have a button that resets it completely - and make it a little
+ * sub-tab like 'View gun training' that shows my frame if I have one for
+ * it, and the ones the user auto-generated while playing if there are any,
+ * and they can reset/delete theirs to be able to relearn."
+ *
+ * WHERE
+ *   AI Scripts (auto-actions.js listHTML): one row at the very bottom of the
+ *     weapon list, "Add a gun not on this list". Tapping it opens a sheet:
+ *     the gun's name typed as the game shows it (phone typing; the sheet's
+ *     every control is a button or the one field, so a controller-first
+ *     player needs nothing else), how the reader will hold it ("Stored as
+ *     KRAITP68"), Capture. The Core reads its newest frame and answers:
+ *     the crop of the name it saw, what its letters read, how sure, and
+ *     "added" or a plain reason with Retry (a near-twin: "Add anyway").
+ *   The guns your Core added appear in the list in their own class, "Added
+ *     on your Core", as rows like any other: scripts attach to them as to
+ *     any gun (augment()).
+ *   Each gun's page (auto-actions.js renderGun), at the bottom: a folded
+ *     "View gun training": Built-in (the game pack's own example frame of
+ *     that gun, if it has one; read only), Learned on your Core (each kept
+ *     name picture with when, and Delete), "Relearn this gun" (every learned
+ *     picture of it goes, with a confirm), and for a gun YOU added, "Remove
+ *     this gun". A built-in gun is never removable, only its pictures.
+ *
+ * THE CORE'S ROUTES (firmware core/teach-gun):
+ *   GET  /vision/textread/learned            ... "teach":true, "added":[{name,display,taught}]
+ *   POST /vision/textread/learned/teach      {name, confirm?} -> {result, added, why, read,
+ *        stored, twin, confidence, w, h, b64}
+ *   GET  /vision/textread/learned/gun/<KEY>  -> {name, known, added, taught, pictures:[{k,slot,
+ *        w, h, samples, hits, sessionsAgo, taught}]}
+ *   GET  /vision/textread/learned/gunpic/<k>/<KEY> -> {w, h, b64}
+ *   POST /vision/textread/learned/delete     {name, slot?|forget?}
+ *
+ * REAL HARDWARE ONLY. A Core without the routes (404 / "not found", or a
+ * status with no "teach") shows none of this, and that link is not asked
+ * again. Nothing is drawn from made-up numbers.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+  var ZS = window.ZS;
+  var PATH = '/vision/textread/learned';
+  var GROUP_ID = 'zs_added';
+  var GROUP_NAME = 'Added on your Core';
+  var CSS_ID = 'zs-gunteach-css';
+  var TEACH_MS = 15000;              /* the Core waits up to 6 s for a frame */
+  var HELP_ADD = 'For a gun your game shows that is not on this list (a new DLC gun, or a blueprint ' +
+    'with its own name). Take the gun out so its name shows on screen, type the name exactly as the ' +
+    'game writes it, and tap Capture: your Core reads that frame, checks every letter against what ' +
+    'you typed, and learns the name (and any letter shapes it did not know). It says so if the ' +
+    'letters do not match, if the name box is empty, or if the name looks like a gun already on the ' +
+    'list. A gun you add can be removed again from its own page.';
+  var HELP_TRAIN = 'Built-in is the example picture that came with the game (if it has one for this ' +
+    'gun). Learned on your Core are the pictures of this gun’s name your Core kept while you played: ' +
+    'a clean one, and a hard one (the name over a dark or busy picture). Delete one, or Relearn this ' +
+    'gun to delete them all, and your Core learns them again from the next clear reads. The built-in ' +
+    'reader keeps working either way.';
+
+  function esc(s) { return ZS.esc ? ZS.esc(s) : String(s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function dataOf(j) {
+    if (!j || j.ok !== true) { return null; }
+    return (j.data && typeof j.data === 'object') ? j.data : j;
+  }
+  function missing(j) {
+    return /unknown route|not found|no such|does not answer|cannot add|cannot delete|501|404/i.test(String((j && j.error) || ''));
+  }
+  function linkTrouble(j) {
+    return /unreachable|timed out|slow to answer|busy|not connected|disconnect/i.test(String((j && j.error) || ''));
+  }
+  function helpParts(id, label, t) {
+    var h = ZS.helpHTML ? ZS.helpHTML(id, label, t) : '';
+    var q = h.indexOf('<div class="note qhfold');
+    return q > 0 ? { chip: h.slice(0, q), fold: h.slice(q) } : { chip: h, fold: '' };
+  }
+  /* The reader's fold (firmware zs_tr_fold): upper case, accents off, no
+     spaces; a character it cannot hold becomes '?'. */
+  var ACC = { 'Ä': 'A', 'Á': 'A', 'À': 'A', 'Â': 'A', 'Ã': 'A', 'Å': 'A', 'Ö': 'O', 'Ó': 'O', 'Ò': 'O', 'Ô': 'O',
+    'Õ': 'O', 'Ø': 'O', 'Ü': 'U', 'Ú': 'U', 'Ù': 'U', 'Û': 'U', 'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E', 'Í': 'I',
+    'Ì': 'I', 'Î': 'I', 'Ï': 'I', 'Ñ': 'N', 'Ç': 'C', '’': '\'' };
+  function fold(s) {
+    var out = '', t = String(s || '').toUpperCase();
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charAt(i);
+      if (c === ' ') { continue; }
+      if (ACC[c]) { c = ACC[c]; }
+      var n = c.charCodeAt(0);
+      out += (n >= 0x20 && n <= 0x5F) ? c : '?';
+    }
+    return out;
+  }
+  function nameOk(s) {
+    var k = fold(s), alnum = (k.match(/[A-Z0-9]/g) || []).length;
+    return k.length >= 2 && k.length <= 40 && alnum >= 2 && k.indexOf('?') < 0;
+  }
+
+  var S = {
+    supported: null,                  /* null: not asked on this link yet */
+    asking: false,
+    config: '',                       /* the config the Core's layer is */
+    added: [],                        /* [{name, display, taught}] of that config */
+    listeners: [],
+    busy: false,
+    train: {}                         /* key -> the Core's last answer for a gun */
+  };
+
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.gt-add{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;margin:14px 0 6px;padding:10px 14px;',
+        'border:1px dashed var(--line);border-radius:14px;background:var(--zs-raised,var(--panel2));color:var(--text);',
+        'font:inherit;text-align:left;cursor:pointer}',
+      '.gt-add:focus-visible{outline:2px solid var(--accent);outline-offset:2px}',
+      '.gt-add.zs-pressing{transform:scale(.985)}',
+      '.gt-plus{flex:0 0 36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:22px;',
+        'font-weight:600;background:var(--panel,#1b1f27);color:var(--accent)}',
+      '.gt-addt{flex:1 1 auto;display:flex;flex-direction:column;gap:2px}',
+      '.gt-addt b{font-size:15px;font-weight:650}',
+      '.gt-addt span{font-size:12.5px;color:var(--muted);line-height:1.35}',
+      '.gt-addrow{display:flex;align-items:center;gap:6px}',
+      '.gt-addrow .gt-add{flex:1 1 auto}',
+      '.gt-sheet{display:flex;flex-direction:column;gap:10px}',
+      '.gt-sheet .gt-lead{margin:0;font-size:14px;line-height:1.5;color:var(--zs-ink-2,var(--text))}',
+      '.gt-lab{font-size:12.5px;color:var(--muted);margin:2px 0 -4px}',
+      '.gt-sheet input.txt{min-height:48px;font-size:17px;letter-spacing:.02em}',
+      '.gt-norm{margin:0;font-size:12.5px;color:var(--muted);min-height:18px;font-variant-numeric:tabular-nums}',
+      '.gt-norm b{color:var(--text);font-weight:600;letter-spacing:.04em}',
+      '.gt-sheet .btn{min-height:48px}',
+      '.gt-out{display:flex;flex-direction:column;gap:8px;margin-top:2px}',
+      '.gt-shot{display:flex;align-items:center;justify-content:center;min-height:56px;padding:8px;border-radius:12px;',
+        'background:#000;border:1px solid var(--line)}',
+      '.gt-shot img{max-width:100%;height:auto;image-rendering:pixelated;min-height:28px}',
+      '.gt-read{margin:0;font-size:13px;color:var(--muted)}',
+      '.gt-read b{color:var(--text);letter-spacing:.04em}',
+      '.gt-res{margin:0;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.45;border:1px solid var(--line)}',
+      '.gt-res.ok{border-color:color-mix(in srgb,var(--good,#3ecf8e) 55%,transparent);',
+        'background:color-mix(in srgb,var(--good,#3ecf8e) 12%,transparent)}',
+      '.gt-res.no{border-color:color-mix(in srgb,var(--warn,#f5a524) 55%,transparent);',
+        'background:color-mix(in srgb,var(--warn,#f5a524) 10%,transparent)}',
+      '.gt-btns{display:flex;gap:10px;flex-wrap:wrap}',
+      '.gt-btns .btn{flex:1 1 140px}',
+      /* the training fold */
+      '.gtr{margin:22px 0 6px;border-top:1px solid var(--line);padding-top:10px}',
+      '.gtr-sum{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 2px;margin:0;background:none;',
+        'border:0;color:var(--muted);font:inherit;font-size:13.5px;text-align:left;cursor:pointer}',
+      '.gtr-sum .gtr-chev{display:inline-block;transition:transform var(--t-quick,170ms) var(--ease-settle,ease)}',
+      '.gtr-sum[aria-expanded="true"] .gtr-chev{transform:rotate(90deg)}',
+      '.gtr-sum .gtr-n{margin-left:auto;font-variant-numeric:tabular-nums}',
+      '.gtr-h{display:flex;align-items:center;gap:6px;margin:12px 0 6px;font-size:12px;font-weight:650;letter-spacing:.06em;',
+        'text-transform:uppercase;color:var(--muted)}',
+      '.gtr-pic{display:flex;align-items:center;gap:12px;padding:8px;margin:0 0 8px;border:1px solid var(--line);border-radius:12px;',
+        'background:var(--zs-raised,var(--panel2))}',
+      '.gtr-img{flex:0 0 112px;width:112px;min-height:40px;display:grid;place-items:center;background:#000;border-radius:8px;overflow:hidden}',
+      '.gtr-img img{max-width:112px;max-height:64px;width:auto;height:auto;image-rendering:pixelated}',
+      '.gtr-img.wide{flex:1 1 auto;width:100%}',
+      '.gtr-img.wide img{max-width:100%;max-height:none;image-rendering:auto}',
+      '.gtr-meta{flex:1 1 0;display:flex;flex-direction:column;gap:2px;min-width:0}',
+      '.gtr-meta b{font-size:14px;font-weight:600;line-height:1.3}',
+      '.gtr-meta span{font-size:12.5px;line-height:1.35;color:var(--muted)}',
+      '.gtr .gtr-pic .btn{min-height:44px;flex:0 0 auto;width:auto;margin:0;padding:0 14px;position:static}',
+      '.gtr-none{margin:0 0 8px;font-size:13px;color:var(--muted);line-height:1.45}',
+      '.gtr .gtr-relearn{width:100%;min-height:44px;margin-top:6px}',
+      '.gtr-say{margin:8px 0 0;font-size:13px;color:var(--muted)}',
+      '@media (prefers-reduced-motion: reduce){.gtr-sum .gtr-chev{transition:none}.gt-add.zs-pressing{transform:none}}'
+    ].join('')));
+    document.head.appendChild(s);
+  }
+
+  /* ------------------------------------------------------- the status -- */
+  /* the guns the Core added changed: AI Scripts (or a gun's page) redraws
+     if it is the screen open, so the list holds them */
+  function changed() {
+    S.listeners.forEach(function (fn) { try { fn(); } catch (e) {} });
+    var body = document.getElementById('dbody'), det = document.getElementById('detail');
+    if (body && det && det.classList.contains('open') && /\/auto$/.test(String(body.dataset.ns || '')) &&
+        typeof ZS.redrawOpenScreen === 'function') {
+      ZS.redrawOpenScreen();
+    }
+  }
+  function onChange(fn) { if (typeof fn === 'function') { S.listeners.push(fn); } }
+  function isCore() { return !!(ZS.productId && ZS.productId() === 'core'); }
+
+  function refresh() {
+    if (S.asking || S.supported === false || !isCore()) { return Promise.resolve(); }
+    if (ZS.live && ZS.live.online === false) { return Promise.resolve(); }
+    S.asking = true;
+    return ZS.api(PATH, undefined, undefined, undefined, true).then(function (j) {
+      S.asking = false;
+      var d = dataOf(j);
+      /* a redraw only when what is SHOWN changes (a Core without the
+         feature shows nothing either way: no redraw of a 270-row list) */
+      var shown = function () { return S.supported === true ? JSON.stringify([S.config, S.added]) : ''; };
+      if (d && typeof d.guns !== 'undefined') {
+        var was = shown();
+        S.supported = d.teach === true;
+        S.config = typeof d.config === 'string' ? d.config : '';
+        S.added = (d.added && d.added.length) ? d.added.filter(function (a) {
+          return a && typeof a.name === 'string' && a.name;
+        }).map(function (a) {
+          return { name: a.name, display: (typeof a.display === 'string' && a.display) ? a.display : a.name,
+                   taught: a.taught === true };
+        }) : [];
+        if (shown() !== was) { changed(); }
+        return;
+      }
+      if (linkTrouble(j)) { return; }
+      if (missing(j) || !d) {
+        var had = shown();
+        S.supported = false;
+        if (had) { changed(); }
+      }
+    }, function () { S.asking = false; });
+  }
+
+  /* A new link may be another Core, or this one after an update. */
+  function relink() { S.supported = null; S.asking = false; S.added = []; S.config = ''; S.train = {}; }
+  if (window.ZSBLE && typeof window.ZSBLE.on === 'function') {
+    window.ZSBLE.on('status', function (s) { if (s && s.connected) { relink(); } });
+  }
+  if (window.ZSSERIAL && typeof window.ZSSERIAL.on === 'function') {
+    window.ZSSERIAL.on('status', function (s) { if (s && s.connected) { relink(); } });
+  }
+
+  /* ---------------------------------------- the guns your Core added -- */
+  function itemId(key) { return 'core:' + key; }
+  function keyOf(item) {
+    if (!item) { return ''; }
+    return (typeof item.id === 'string' && item.id.indexOf('core:') === 0) ? item.id.slice(5) : fold(item.name);
+  }
+  /* The catalog the list draws gains (or loses) one class of the guns the
+     Core added for config `p`. Idempotent: called on every draw. Only a
+     single-kind catalog (a game of guns). */
+  function augment(cat, p) {
+    if (!cat || cat.multi || !cat.groups || !cat.byId) { return; }
+    var groups = cat.groups;
+    for (var i = groups.length - 1; i >= 0; i--) {
+      if (groups[i] && groups[i].id === GROUP_ID) {
+        groups[i].items.forEach(function (it) { delete cat.byId[it.id]; });
+        groups.splice(i, 1);
+      }
+    }
+    if (!p || S.supported !== true || !S.added.length || S.config !== p.id) { return; }
+    var keys = window.ZSAUTO && ZSAUTO.searchKeys;
+    var items = [];
+    S.added.forEach(function (a) {
+      var id = itemId(a.name);
+      if (cat.byId[id]) { return; }
+      /* a name the shipped list already has (an accepted report of a gun
+         the catalog spells otherwise) keeps its own row */
+      var it = { id: id, name: a.display || a.name, from: '', image: '', uncertain: null, usedBy: [],
+                 loadout: null, aliases: a.display !== a.name ? [a.name] : [], fireMode: '', ammo: [],
+                 since: '', coreAdded: true, taught: a.taught };
+      it.keys = keys ? keys(it.name, it.aliases) : { runs: [fold(it.name)], words: [fold(it.name)] };
+      items.push(it);
+    });
+    if (!items.length) { return; }
+    var g = { id: GROUP_ID, name: GROUP_NAME, items: items };
+    groups.push(g);
+    items.forEach(function (it) { cat.byId[it.id] = { kind: cat.lead || { kind: cat.kind }, group: g, item: it }; });
+  }
+
+  /* --------------------------------------------- the row and the sheet -- */
+  function canTeach(st) {
+    return S.supported === true && isCore() && !!(st && st.pack && window.ZSAUTO && ZSAUTO.readsNames &&
+      ZSAUTO.readsNames(st.pack.id));
+  }
+  /* EXO Studio or GPC mode: the Core's capture is parked and AI Scripts
+     asks the Core's vision nothing (D215 / D218) */
+  function parked() { return !!(window.ZSMODES && ZSMODES.parked && ZSMODES.parked()); }
+  function entryHTML(p, st) {
+    if (parked()) { return ''; }
+    if (S.supported === null) { refresh(); }
+    if (!canTeach(st)) { return ''; }
+    injectCss();
+    var hp = helpParts('gt-help', 'Add a gun not on this list', HELP_ADD);
+    return '<div class="gt-addrow"><button type="button" class="gt-add" id="gt-add" aria-label="Add a gun not on this list">' +
+      '<span class="gt-plus" aria-hidden="true">+</span>' +
+      '<span class="gt-addt"><b>Add a gun not on this list</b><span>Take the gun out, type its name, your Core learns it</span></span>' +
+      '<span class="chev" aria-hidden="true">›</span></button>' + hp.chip + '</div>' + hp.fold;
+  }
+  function wire(root, p) {
+    var b = root && root.querySelector ? root.querySelector('#gt-add') : null;
+    if (!b) { return; }
+    b.addEventListener('click', function () { openSheet(p, b); });
+    b.addEventListener('pointerdown', function () { b.classList.add('zs-pressing'); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      b.addEventListener(ev, function () { b.classList.remove('zs-pressing'); });
+    });
+  }
+
+  /* A grey picture (w x h bytes, base64) as an image the page can show. */
+  function greyImg(b64, w, h, scale) {
+    if (!b64 || !(w > 0) || !(h > 0) || typeof document.createElement !== 'function') { return ''; }
+    try {
+      var bin = window.atob(b64);
+      if (bin.length < w * h) { return ''; }
+      var c = document.createElement('canvas');
+      if (!c || !c.getContext) { return ''; }
+      c.width = w; c.height = h;
+      var x = c.getContext('2d');
+      if (!x) { return ''; }
+      var im = x.createImageData(w, h);
+      for (var i = 0; i < w * h; i++) {
+        var v = bin.charCodeAt(i);
+        im.data[i * 4] = v; im.data[i * 4 + 1] = v; im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255;
+      }
+      x.putImageData(im, 0, 0);
+      var s = scale || 2;
+      return '<img alt="" src="' + c.toDataURL('image/png') + '" width="' + (w * s) + '" height="' + (h * s) + '">';
+    } catch (e) { return ''; }
+  }
+
+  var SAY = {
+    added: 'Added',
+    known: 'Already on the list',
+    empty: 'The name box is empty',
+    misread: 'That is not what it reads',
+    ambiguous: 'Not clear enough',
+    twin: 'Two guns look the same',
+    gate: 'Not added: it would confuse another gun',
+    unsure: 'Not clear enough',
+    noroom: 'No room',
+    badname: 'Type the name',
+    noreader: 'The gun reader is not running'
+  };
+
+  function sheetHTML(name) {
+    return '<div class="gt-sheet">' +
+      '<p class="gt-lead">Hold the gun so its name shows, then type the name exactly as the game shows it.</p>' +
+      '<label class="gt-lab" for="gt-name">Gun name</label>' +
+      '<input type="text" class="txt" id="gt-name" data-nosave="1" autocomplete="off" autocapitalize="characters" ' +
+        'autocorrect="off" spellcheck="false" maxlength="48" enterkeyhint="go" value="' + esc(name || '') + '">' +
+      '<p class="gt-norm" id="gt-norm" aria-live="polite"></p>' +
+      '<button type="button" class="btn primary" id="gt-go">Capture</button>' +
+      '<div class="gt-out" id="gt-out" role="status" aria-live="polite"></div>' +
+      '</div>';
+  }
+  function normLine(v) {
+    var k = fold(v);
+    if (!v || !k) { return ''; }
+    if (!nameOk(v)) {
+      return k.indexOf('?') >= 0 ? 'The reader cannot hold one of these characters.' : 'Type at least two letters or numbers.';
+    }
+    return 'Stored as: <b>' + esc(k) + '</b>';
+  }
+  function resultHTML(d) {
+    var r = d.result || '', ok = r === 'added';
+    var pct = (typeof d.confidence === 'number' && d.confidence > 0) ? Math.round(d.confidence * 100) : 0;
+    var h = '';
+    var img = greyImg(d.b64, d.w, d.h, 2);
+    if (img) { h += '<div class="gt-shot" aria-label="What your Core saw">' + img + '</div>'; }
+    if (d.read) {
+      h += '<p class="gt-read">Your Core read <b>' + esc(d.read) + '</b>' + (pct ? ' · ' + pct + '% sure' : '') + '</p>';
+    }
+    h += '<p class="gt-res ' + (ok ? 'ok' : 'no') + '" id="gt-res" data-result="' + esc(r) + '">' +
+      (ok ? '' : '<b>' + esc(SAY[r] || 'Not added') + '.</b> ') + esc(d.why || '') + '</p>';
+    if (ok) {
+      h += '<div class="gt-btns"><button type="button" class="btn primary" id="gt-open">Set up its AI Scripts</button>' +
+        '<button type="button" class="btn" id="gt-done">Done</button></div>';
+    } else if (r === 'twin') {
+      h += '<div class="gt-btns"><button type="button" class="btn" id="gt-retry">Retry</button>' +
+        '<button type="button" class="btn danger" id="gt-anyway">Add anyway</button></div>';
+    } else if (r === 'known') {
+      h += '<div class="gt-btns"><button type="button" class="btn" id="gt-done">Done</button></div>';
+    } else {
+      h += '<div class="gt-btns"><button type="button" class="btn primary" id="gt-retry">Retry</button></div>';
+    }
+    return h;
+  }
+
+  function openSheet(p, opener, preset) {
+    if (!ZS.sheetOpen) { return null; }
+    injectCss();
+    var host = ZS.sheetOpen('Add a gun not on this list', sheetHTML(preset), null, opener);
+    var root = (host && host.querySelector) ? host : document;
+    var inp = root.querySelector('#gt-name'), go = root.querySelector('#gt-go');
+    var norm = root.querySelector('#gt-norm'), out = root.querySelector('#gt-out');
+    if (!inp || !go) { return host; }
+    function paintNorm() { norm.innerHTML = normLine(inp.value); go.disabled = S.busy || !nameOk(inp.value); }
+    function send(confirm) {
+      var v = inp.value.replace(/^\s+|\s+$/g, '');
+      if (S.busy || !nameOk(v)) { return; }
+      S.busy = true;
+      go.disabled = true;
+      go.textContent = 'Reading your screen…';
+      out.innerHTML = '';
+      ZS.api(PATH + '/teach', 'POST', confirm ? { name: v, confirm: true } : { name: v }, TEACH_MS).then(function (j) {
+        S.busy = false;
+        go.textContent = 'Capture';
+        paintNorm();
+        var d = dataOf(j);
+        if (!d) {
+          out.innerHTML = '<p class="gt-res no" id="gt-res" data-result="error"><b>Not added.</b> ' +
+            esc(String((j && j.error) || 'Your Core did not answer. Try again.')) + '</p>' +
+            '<div class="gt-btns"><button type="button" class="btn primary" id="gt-retry">Retry</button></div>';
+        } else {
+          out.innerHTML = resultHTML(d);
+          if (d.result === 'added') {
+            S.added.push({ name: d.stored || fold(v), display: v, taught: true });
+            S.config = p.id;
+            refresh();
+            changed();
+            if (ZS.toast) { ZS.toast('Added: ' + v); }
+          }
+        }
+        wireResult(d ? (d.stored || fold(v)) : '');
+      }, function () {
+        S.busy = false;
+        go.textContent = 'Capture';
+        paintNorm();
+        out.innerHTML = '<p class="gt-res no" id="gt-res" data-result="error"><b>Not added.</b> Your Core did not answer. Try again.</p>';
+      });
+    }
+    function wireResult(key) {
+      var a = out.querySelector('#gt-retry'), y = out.querySelector('#gt-anyway');
+      var o = out.querySelector('#gt-open'), dn = out.querySelector('#gt-done');
+      if (a) { a.addEventListener('click', function () { send(false); }); }
+      if (y) { y.addEventListener('click', function () { send(true); }); }
+      if (dn) { dn.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } }); }
+      if (o) {
+        o.addEventListener('click', function () {
+          if (ZS.sheetClose) { ZS.sheetClose(); }
+          if (window.ZSAUTO && ZSAUTO.openGun) { ZSAUTO.openGun(p, itemId(key)); }
+        });
+      }
+      var first = o || a || dn;
+      if (first && first.focus) { try { first.focus(); } catch (e) {} }
+    }
+    inp.addEventListener('input', paintNorm);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(false); } });
+    go.addEventListener('click', function () { send(false); });
+    paintNorm();
+    try { inp.focus(); } catch (e) {}
+    return host;
+  }
+
+  /* ------------------------------------------- View gun training (gun page) -- */
+  var EXAMPLES = {};                  /* packId -> readerExamples (or []) */
+  function examplesOf(packId) {
+    if (EXAMPLES[packId]) { return EXAMPLES[packId].promise; }
+    var e = EXAMPLES[packId] = { list: [], promise: null };
+    e.promise = (typeof window.fetch === 'function'
+      ? window.fetch('game-data/' + encodeURIComponent(packId) + '/recognition.json', { cache: 'no-cache' })
+        .then(function (r) { return r && r.ok ? r.json() : null; })
+        .then(function (j) {
+          e.list = (j && j.names && j.names.readerExamples) || (j && j.readerExamples) || [];
+          return e.list;
+        })['catch'](function () { return []; })
+      : Promise.resolve([]));
+    return e.promise;
+  }
+  /* the pack's example frame that shows this gun: its "shows" starts with
+     the gun's name ("ISO Trace in a match") */
+  function builtInFor(packId, item) {
+    var list = (EXAMPLES[packId] && EXAMPLES[packId].list) || [];
+    var k = fold(item && item.name);
+    for (var i = 0; i < list.length; i++) {
+      var ex = list[i];
+      if (ex && typeof ex.image === 'string' && typeof ex.shows === 'string' && k &&
+          fold(ex.shows).indexOf(k) === 0) { return ex; }
+    }
+    return null;
+  }
+
+  var T = { host: null, pid: null, key: '', item: null, pack: '', d: null, open: false, pics: {}, say: '',
+            busy: false, unsupported: false };
+
+  function sessionsWord(n) {
+    n = +n || 0;
+    return n <= 0 ? 'learned this session' : n === 1 ? 'learned last session' : 'learned ' + n + ' sessions ago';
+  }
+  function trainingHTML() {
+    var d = T.d, item = T.item;
+    if (!d || !item) { return ''; }
+    var pics = (d.pictures && d.pictures.length) ? d.pictures : [];
+    var ex = builtInFor(T.pack, item);
+    var hp = helpParts('gtr-help', 'View gun training', HELP_TRAIN);
+    var n = pics.length + (ex ? 1 : 0);
+    var h = '<button type="button" class="gtr-sum" data-gtr="fold" aria-expanded="' + (T.open ? 'true' : 'false') +
+      '" aria-controls="gtr-body"><span class="gtr-chev" aria-hidden="true">›</span><span>View gun training</span>' +
+      '<span class="gtr-n">' + (n ? n + (n === 1 ? ' picture' : ' pictures') : 'nothing yet') + '</span></button>' +
+      '<div class="gtr-body" id="gtr-body"' + (T.open ? '' : ' hidden') + '>';
+    h += '<div class="gtr-h">Built-in' + hp.chip + '</div>' + hp.fold;
+    if (ex) {
+      h += '<div class="gtr-pic" data-gtr-builtin="1"><span class="gtr-img wide"><img alt="' + esc(ex.shows || item.name) +
+        '" src="' + esc('game-data/' + T.pack + '/' + ex.image) + '" decoding="async"></span></div>' +
+        '<p class="gtr-none">' + esc(ex.shows || '') + '. Comes with the game: read only.</p>';
+    } else {
+      h += '<p class="gtr-none">No built-in picture for this gun. The built-in reader reads its name by its letters.</p>';
+    }
+    h += '<div class="gtr-h">Learned on your Core</div>';
+    if (d.added) {
+      h += '<div class="gtr-pic" data-gtr-added="1"><span class="gtr-meta"><b>' +
+        esc(d.taught ? 'Added by you' : 'Added from a name your Core saw') + '</b>' +
+        '<span>Its name' + (d.display ? ', ' + esc(d.display) : '') + ', is on your Core’s list.</span></span>' +
+        '<button type="button" class="btn danger" data-gtr="forget"' + (T.busy ? ' disabled' : '') + '>Remove this gun</button></div>';
+    }
+    if (!pics.length) {
+      h += '<p class="gtr-none" id="gtr-none">Nothing learned yet. Your Core learns this gun’s name as you play.</p>';
+    }
+    pics.forEach(function (pc) {
+      var img = T.pics[pc.k] || '';
+      var what = pc.slot === 2 ? 'Hard view' : 'Clean picture';
+      var sub = (pc.taught ? 'from the frame you added it on, ' : '') + sessionsWord(pc.sessionsAgo) +
+        (pc.hits ? ', used ' + pc.hits + (pc.hits === 1 ? ' time' : ' times') : '');
+      h += '<div class="gtr-pic" data-gtr-slot="' + (pc.slot === 2 ? 2 : 1) + '"><span class="gtr-img">' + img + '</span>' +
+        '<span class="gtr-meta"><b>' + esc(what) + '</b><span>' + esc(sub) + '</span></span>' +
+        '<button type="button" class="btn" data-gtr="del" data-slot="' + (pc.slot === 2 ? 2 : 1) + '"' +
+        (T.busy ? ' disabled' : '') + ' aria-label="' + esc('Delete the ' + what.toLowerCase() + ' of ' + item.name) + '">Delete</button></div>';
+    });
+    if (pics.length) {
+      h += '<button type="button" class="btn danger gtr-relearn" data-gtr="relearn"' + (T.busy ? ' disabled' : '') +
+        '>Relearn this gun</button>';
+    }
+    if (T.say) { h += '<p class="gtr-say" role="status" aria-live="polite">' + esc(T.say) + '</p>'; }
+    return h + '</div>';
+  }
+  function tAttached() { return !!(T.host && T.host.isConnected !== false && document.getElementById('gtr') === T.host); }
+  function tPaint() {
+    if (!tAttached()) { return; }
+    var h = trainingHTML();
+    if (!h) { T.host.hidden = true; T.host.innerHTML = ''; T.host._zsHtml = ''; return; }
+    if (T.host._zsHtml !== h) { T.host.innerHTML = h; T.host._zsHtml = h; }
+    T.host.hidden = false;
+  }
+  function tAsk() {
+    if (!tAttached() || T.unsupported || !T.key) { return; }
+    var key = T.key;
+    ZS.api(PATH + '/gun/' + encodeURIComponent(key), undefined, undefined, undefined, true).then(function (j) {
+      if (key !== T.key) { return; }
+      var d = dataOf(j);
+      if (d && d.pictures) {
+        T.d = d;
+        S.train[key] = d;
+        tPaint();
+        d.pictures.forEach(function (pc) { tPic(key, pc); });
+        return;
+      }
+      if (linkTrouble(j)) { return; }
+      /* an older Core (no route), or no gun reader running: nothing shown */
+      if (missing(j) || !d) { T.unsupported = missing(j); T.d = null; tPaint(); }
+    }, function () {});
+  }
+  function tPic(key, pc) {
+    if (T.pics[pc.k]) { return; }
+    ZS.api(PATH + '/gunpic/' + pc.k + '/' + encodeURIComponent(key), undefined, undefined, undefined, true).then(function (j) {
+      var d = dataOf(j);
+      if (!d || key !== T.key) { return; }
+      var img = greyImg(d.b64, d.w, d.h, 1);
+      if (img) { T.pics[pc.k] = img; tPaint(); }
+    }, function () {});
+  }
+  function tDelete(body, sayDone) {
+    if (T.busy) { return; }
+    T.busy = true; T.say = ''; tPaint();
+    ZS.api(PATH + '/delete', 'POST', body).then(function (j) {
+      T.busy = false;
+      var d = dataOf(j);
+      if (d) {
+        T.say = sayDone;
+        T.pics = {};
+        if (body.forget) {
+          S.added = S.added.filter(function (a) { return a.name !== T.key; });
+          changed();
+        }
+        if (ZS.toast) { ZS.toast(sayDone); }
+      } else {
+        T.say = String((j && j.error) || 'Your Core did not take that. Try again.');
+      }
+      tPaint();
+      tAsk();
+    }, function () { T.busy = false; T.say = 'Your Core did not answer. Try again.'; tPaint(); });
+  }
+  function confirmThen(title, line, yes, run, opener) {
+    if (!ZS.sheetOpen) { run(); return; }
+    var body = '<p class="note">' + esc(line) + '</p>' +
+      '<div class="row2" style="display:flex;gap:10px;margin-top:14px">' +
+        '<button type="button" class="btn danger" id="gtr-yes" style="flex:1;min-height:44px">' + esc(yes) + '</button>' +
+        '<button type="button" class="btn" id="gtr-no" style="flex:1;min-height:44px">Cancel</button></div>';
+    var sb = ZS.sheetOpen(title, body, null, opener);
+    var root = (sb && sb.querySelector) ? sb : document;
+    var y = root.querySelector('#gtr-yes'), n = root.querySelector('#gtr-no');
+    if (y) { y.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } run(); }); }
+    if (n) { n.addEventListener('click', function () { if (ZS.sheetClose) { ZS.sheetClose(); } }); }
+  }
+  function tClick(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-gtr]') : null;
+    if (!t || t.disabled) { return; }
+    var what = t.getAttribute('data-gtr'), name = T.item ? T.item.name : T.key;
+    if (what === 'fold') {
+      T.open = !T.open; tPaint();
+      var b = T.host.querySelector('[data-gtr="fold"]');
+      if (b && b.focus) { try { b.focus(); } catch (x) {} }
+    } else if (what === 'del') {
+      var slot = +t.getAttribute('data-slot') === 2 ? 2 : 1;
+      tDelete({ name: T.key, slot: slot }, (slot === 2 ? 'Hard view' : 'Clean picture') + ' deleted. Your Core learns it again as you play.');
+    } else if (what === 'relearn') {
+      confirmThen('Relearn ' + name + '?', 'This deletes every picture your Core learned of ' + name +
+        '’s name. It learns them again from the next clear reads; the built-in reader keeps working.',
+        'Relearn this gun', function () { tDelete({ name: T.key }, 'Learned pictures of ' + name + ' deleted.'); }, t);
+    } else if (what === 'forget') {
+      confirmThen('Remove ' + name + '?', 'This takes ' + name + ' off your Core’s gun list, with what it ' +
+        'learned for it. Its AI Scripts stay in this config but cannot run until you add the gun again.',
+        'Remove this gun', function () { tDelete({ name: T.key, forget: true }, name + ' removed from your Core.'); }, t);
+    }
+  }
+  function trainingSlotHTML() { return '<div class="gtr" id="gtr" hidden></div>'; }
+  function mountTraining(root, p, item, packId) {
+    var host = root && root.querySelector ? root.querySelector('#gtr') : null;
+    T.host = host;
+    if (!host || !item || !isCore() || parked()) { return; }
+    if (S.supported === null) { refresh(); }
+    injectCss();
+    var key = keyOf(item);
+    if (key !== T.key || (p && p.id) !== T.pid) {
+      T.key = key; T.pid = p && p.id; T.item = item; T.pack = packId || ''; T.d = S.train[key] || null;
+      T.open = false; T.pics = {}; T.say = '';
+    }
+    T.item = item;
+    host.addEventListener('click', tClick);
+    if (packId) { examplesOf(packId).then(function () { tPaint(); }); }
+    tPaint();
+    tAsk();
+  }
+
+  window.ZSGUNTEACH = {
+    entryHTML: entryHTML,
+    wire: wire,
+    open: openSheet,
+    augment: augment,
+    refresh: refresh,
+    onChange: onChange,
+    trainingSlotHTML: trainingSlotHTML,
+    mountTraining: mountTraining,
+    fold: fold,
+    itemId: itemId,
+    GROUP_ID: GROUP_ID,
+    HELP_ADD: HELP_ADD,
+    HELP_TRAIN: HELP_TRAIN,
+    /* tests only */
+    _state: function () { return S; },
+    _train: function () { return T; }
+  };
+})();
