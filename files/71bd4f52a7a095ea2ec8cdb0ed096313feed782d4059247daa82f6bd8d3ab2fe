@@ -1,0 +1,285 @@
+/* core-health.js: the EXO Core's field health report on HOME (D873), ZSHEALTH.
+ *
+ * Until D873 a Core that crashed or restarted was only noticed because a
+ * developer watched the owner's board on its serial port. A player's Core
+ * has nobody on that port, so the Core now keeps a short record of every
+ * unexpected restart (a crash, a frozen task, a power dip) and says what it
+ * is worried about right now.
+ *
+ * THE CONTRACT (firmware branch core/health-report, zs_api.h):
+ *   GET  /status        gains "health": {"unseen":N,"lastId":N,"warn":[...]}
+ *                       (the 8 s poll carries it; ABSENT on older firmware,
+ *                       and then this file draws nothing)
+ *                       warn: "power"  devices on the EXO keep dropping, or
+ *                                      its power dipped (brown-out)
+ *                             "memory" internal memory is low, or an extra
+ *                                      was refused for it
+ *   GET  /health        the records (newest first) and the live numbers:
+ *                       {"unseen","lastId","store","warn","records":[...],
+ *                        "live":{"heap","stacks","power","link","guard",...}}
+ *   POST /health/clear  {"seen":id}: those records are shown (kept on the
+ *                       EXO for support, no longer new)
+ *
+ * WHAT IT DRAWS, under HOME's device card, only while the EXO is online:
+ *   - a calm banner while a restart record is new: "Your EXO restarted
+ *     unexpectedly." with [Send report] and [Dismiss], and the explanation
+ *     behind a "?" (owner rule: help behind a ?). Not amber: it is news, not
+ *     an alarm, and HOME has one alarm at a time (DESIGN.md D192).
+ *   - ONE warning chip (note(t,'warn'), D70), power before memory.
+ * Send report reads GET /health, makes a plain-text report, COPIES it and,
+ * outside the phone app, SAVES it as a .txt file. Nothing is uploaded.
+ * Both buttons mark the records seen on the EXO.
+ *
+ * Real hardware only: every word comes from the Core's own answers; there is
+ * no sample record and no demo path. Pure helpers (reportText, homeHTML's
+ * inputs) are exported for dashboard/tools/test-core-health.js.
+ */
+(function () {
+  'use strict';
+
+  var DISMISSED_KEY = 'zs-health-dismissed';    /* "<deviceId>:<lastId>": hide at once, before the next poll */
+  var busy = false;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function live() { return (window.ZS && ZS.live) || null; }
+  function status() { var l = live(); return l && l.status; }
+  function online() { var l = live(); return !!(l && l.online !== false && l.status); }
+
+  /* the Core's /status "health", or null (older firmware, not a Core) */
+  function healthOf(st) {
+    var h = st && st.health;
+    if (!h || typeof h !== 'object') return null;
+    return {
+      unseen: Math.max(0, Number(h.unseen) || 0),
+      lastId: Math.max(0, Number(h.lastId) || 0),
+      warn: Array.isArray(h.warn) ? h.warn.filter(function (w) { return w === 'power' || w === 'memory'; }) : []
+    };
+  }
+
+  function dismissKey(st, h) { return String((st && st.deviceId) || 'core') + ':' + h.lastId; }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  /* a new restart record the player has not answered yet */
+  function bannerDue(st, dismissed) {
+    var h = healthOf(st);
+    return !!(h && h.unseen > 0 && h.lastId > 0 && dismissed !== dismissKey(st, h));
+  }
+
+  /* ONE alarm at a time on HOME: power first (it is the one a player can fix
+     with a plug), then memory */
+  var WARN_TEXT = {
+    power: 'Your EXO’s USB power is dropping: devices plugged into it are cutting out, or its ' +
+           'power dipped. Plug a power supply into AUX (a 5 V, 3 A USB charger or a powered hub).',
+    memory: 'Your EXO is low on memory. To keep your controller, mouse and keyboard working it may ' +
+            'switch off extras (scripts, headset audio, the gun reader) for now. Restarting your EXO ' +
+            'clears it.'
+  };
+  function warnPick(h) {
+    if (!h) return '';
+    if (h.warn.indexOf('power') >= 0) return 'power';
+    if (h.warn.indexOf('memory') >= 0) return 'memory';
+    return '';
+  }
+
+  var HELP = 'Your EXO keeps a short note each time it restarts on its own: a crash, a frozen ' +
+    'task, or the power dipping too low.\n' +
+    'Send report copies that note (and saves it as a file on a computer) so you can paste it ' +
+    'to ZeroStick support. Nothing is uploaded.\n' +
+    'Dismiss hides this message. The note stays on your EXO in case support asks for it.';
+
+  function css() {
+    if (document.getElementById('zs-health-css')) return;
+    var s = document.createElement('style');
+    s.id = 'zs-health-css';
+    s.textContent =
+      '.hl-card{margin:10px 0 0;padding:12px 14px;border-radius:14px;border:1px solid var(--line);' +
+        'background:var(--panel);color:var(--text)}' +
+      '.hl-row{display:flex;align-items:flex-start;gap:8px}' +
+      '.hl-t{flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--text);font-weight:600}' +
+      '.hl-row .qhrow{margin:0}' +
+      '.hl-btns{display:flex;gap:8px;margin-top:10px}' +
+      '.hl-btns button{flex:1;min-height:44px;border-radius:12px;font:inherit;font-size:13px;' +
+        'font-weight:700;cursor:pointer}' +
+      '.hl-send{background:var(--accent);color:var(--accent-ink);border:0}' +
+      '.hl-dis{background:transparent;color:var(--zs-ink-2,var(--text));border:1px solid var(--line)}' +
+      '.hl-btns button:disabled{opacity:.6;cursor:default}' +
+      '.hl-warn{margin:10px 0 0}';
+    document.head.appendChild(s);
+  }
+
+  /* HOME's piece, under the device card; '' when there is nothing to say */
+  function homeHTML() {
+    var st = status();
+    if (!online() || !st) return '';
+    var h = healthOf(st);
+    if (!h) return '';
+    var h2 = '';
+    var help = (window.ZS && ZS.helpHTML) ? ZS.helpHTML('core-health', 'Unexpected restart', HELP) : '';
+    if (bannerDue(st, lsGet(DISMISSED_KEY))) {
+      css();
+      h2 += '<div class="hl-card" role="status" data-hl="1">' +
+        '<div class="hl-row"><div class="hl-t">Your EXO restarted unexpectedly.</div>' + help + '</div>' +
+        '<div class="hl-btns">' +
+          '<button type="button" class="hl-send" data-hl-send="1"' + (busy ? ' disabled' : '') + '>Send report</button>' +
+          '<button type="button" class="hl-dis" data-hl-dis="1"' + (busy ? ' disabled' : '') + '>Dismiss</button>' +
+        '</div></div>';
+    }
+    var w = warnPick(h);
+    if (w && window.ZS && ZS.warnHTML) {
+      css();
+      h2 += '<div class="hl-warn">' + ZS.warnHTML(esc(WARN_TEXT[w]), 'core-health-' + w) + '</div>';
+    }
+    return h2;
+  }
+
+  /* ---------------------------------------------------------------- report */
+
+  var REASON = {
+    panic: 'a crash',
+    task_wdt: 'a task froze (task watchdog)',
+    int_wdt: 'an interrupt froze (interrupt watchdog)',
+    wdt: 'a watchdog reset',
+    brownout: 'the power dipped too low (brown-out)',
+    pwr_glitch: 'a power glitch',
+    cpu_lockup: 'a CPU lock-up'
+  };
+  function kb(n) { return Math.round((Number(n) || 0) / 1024) + ' KB'; }
+  function dur(s) {
+    s = Math.max(0, Math.floor(Number(s) || 0));
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    return (h ? h + ' h ' : '') + (h || m ? m + ' min ' : '') + r + ' s';
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+  /* the plain-text report; `when` a Date (tests pass a fixed one) */
+  function reportText(health, st, when) {
+    var L = [];
+    st = st || {};
+    health = health || {};
+    L.push('ZeroStick EXO restart report');
+    L.push('Made: ' + (when || new Date()).toISOString());
+    L.push('EXO: firmware ' + (st.version || '?') + (st.devMode === false ? ' (release)' : '') +
+      ', device ' + (st.deviceId || '?') + ', up ' + dur(st.uptimeS) +
+      (st.boots ? ', start ' + st.boots + ' since power-on' : '') +
+      (st.brownouts ? ', ' + plural(st.brownouts, 'brown-out', 'brown-outs') : ''));
+    var recs = Array.isArray(health.records) ? health.records : [];
+    if (!recs.length) L.push('', 'No restart records are kept on this EXO.');
+    recs.forEach(function (r) {
+      L.push('');
+      L.push('Restart #' + r.id + ': ' + (REASON[r.reason] || r.reason || 'unknown') +
+        ', after ' + dur(r.upS) + (r.boot ? ' (start ' + r.boot + ' since power-on)' : '') +
+        (r.seen ? '' : ' [new]'));
+      if (r.ver) L.push('  Firmware: ' + r.ver);
+      var p = r.panic;
+      if (p) {
+        L.push('  Task: ' + (p.task || '?') + ' on core ' + p.core);
+        if (p.what) L.push('  What: ' + p.what);
+        L.push('  PC ' + p.pc + ', RA ' + p.ra + ', SP ' + p.sp + ', cause ' + p.cause + ', tval ' + p.tval);
+        if (p.bt && p.bt.length) L.push('  Stack code words: ' + p.bt.join(' '));
+      }
+      if (r.mem) {
+        L.push('  Memory a moment before: internal DMA ' + kb(r.mem.dma) + ' free (lowest ' + kb(r.mem.dmaMin) +
+          '), internal ' + kb(r.mem.int) + ', PSRAM ' + kb(r.mem.psram));
+      }
+      if (r.dev) {
+        var d = [];
+        if (r.dev.pads) d.push(plural(r.dev.pads, 'controller', 'controllers'));
+        if (r.dev.mice) d.push(plural(r.dev.mice, 'mouse', 'mice'));
+        if (r.dev.kbds) d.push(plural(r.dev.kbds, 'keyboard', 'keyboards'));
+        if (r.dev.other) d.push(plural(r.dev.other, 'other device', 'other devices'));
+        L.push('  Plugged in: ' + (d.length ? d.join(', ') : 'nothing'));
+      }
+    });
+    var w = Array.isArray(health.warn) ? health.warn : [];
+    L.push('');
+    L.push('Warnings now: ' + (w.length ? w.join(', ') : 'none'));
+    L.push('');
+    L.push('Raw (for support):');
+    L.push(JSON.stringify(health));
+    return L.join('\n') + '\n';
+  }
+
+  function nativeApp() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+  function toast(t) { if (window.ZS && ZS.toast) ZS.toast(t); }
+
+  function copyAndSave(text, name) {
+    if (window.ZS && ZS.copyText) {
+      ZS.copyText(text, 'Report copied: paste it to ZeroStick support',
+                  nativeApp() ? 'Copy failed: this device did not allow it' : 'Copy failed: the report was saved as a file instead');
+    }
+    if (nativeApp()) return;           /* a download would leave the phone app */
+    try {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { try { URL.revokeObjectURL(a.href); a.remove(); } catch (e) {} }, 2000);
+    } catch (e) {}
+  }
+
+  function repaint() {
+    try { if (typeof renderHomeIfVisible === 'function') renderHomeIfVisible(); } catch (e) {}
+  }
+
+  /* both buttons: the records up to lastId are seen on the EXO; hidden here at once */
+  function markSeen(st, h) {
+    lsSet(DISMISSED_KEY, dismissKey(st, h));
+    return ZS.api('/health/clear', 'POST', { seen: h.lastId }).then(function (j) {
+      if (j && j.ok && st.health) st.health.unseen = 0;
+      return j;
+    });
+  }
+
+  function send() {
+    var st = status(), h = healthOf(st);
+    if (busy || !st || !h) return;
+    busy = true;
+    repaint();
+    ZS.api('/health').then(function (j) {
+      if (!j || !j.ok || !j.data) {
+        toast('Your EXO did not send its report. Try again in a moment.');
+        return null;
+      }
+      var stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+      copyAndSave(reportText(j.data, st), 'zerostick-exo-report-' + stamp + '.txt');
+      return markSeen(st, h);
+    }).then(function () { busy = false; repaint(); }, function () { busy = false; repaint(); });
+  }
+
+  function dismiss() {
+    var st = status(), h = healthOf(st);
+    if (busy || !st || !h) return;
+    busy = true;
+    var done = function () { busy = false; repaint(); };
+    markSeen(st, h).then(done, done);
+    repaint();
+  }
+
+  function wireHome(root) {
+    var s = root && root.querySelector ? root.querySelector('[data-hl-send]') : null;
+    var d = root && root.querySelector ? root.querySelector('[data-hl-dis]') : null;
+    if (s) {
+      s.addEventListener('click', send);
+      if (window.ZSM && ZSM.pressable) ZSM.pressable(s);
+    }
+    if (d) {
+      d.addEventListener('click', dismiss);
+      if (window.ZSM && ZSM.pressable) ZSM.pressable(d);
+    }
+  }
+
+  window.ZSHEALTH = {
+    homeHTML: homeHTML, wireHome: wireHome,
+    /* for dashboard/tools/test-core-health.js */
+    healthOf: healthOf, bannerDue: bannerDue, warnPick: warnPick, reportText: reportText,
+    WARN_TEXT: WARN_TEXT, DISMISSED_KEY: DISMISSED_KEY, dismissKey: dismissKey
+  };
+})();
