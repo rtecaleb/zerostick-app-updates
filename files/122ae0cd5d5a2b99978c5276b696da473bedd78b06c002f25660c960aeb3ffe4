@@ -1,0 +1,757 @@
+/* core-update.js: the EXO Core's firmware Update screen (D905), ZSUPDATE.
+ *
+ * Owner decision 2026-11-21: customers update the EXO's firmware from the
+ * phone app over Bluetooth (the same screen works over the USB cable in the
+ * PC app). EXO CLOUD comes later and plugs in as another SOURCE of the same
+ * offer (below).
+ *
+ * WHERE A RELEASE COMES FROM. tools/fw_release.py (firmware repo) signs and
+ * publishes to the app's live-update host:
+ *   <HOST>firmware/<channel>.json     {format:"zs-fw-channel/1", version,
+ *                                      boards:{p4v1:"<v>/p4v1/manifest.json",
+ *                                      p4v3:...}, notes, minApp, required?,
+ *                                      message?}
+ *   <HOST>firmware/<v>/<board>/manifest.json
+ *                                     the signed manifest (size, sha256,
+ *                                     version, sig, keyId, board, chipRevMin/
+ *                                     Max) + z:{file, size, sha256, blocks:
+ *                                     [[off, len, zoff, zlen, crc32, kind]]}
+ *                                     + cert (ZCRT v1, firmware D908: the
+ *                                     EXO root's certificate for keyId;
+ *                                     sent with /ota/begin when present)
+ *   <HOST>firmware/<v>/<board>/image.z
+ *                                     the image in independent deflate blocks
+ * The channel is "stable" for customers and "beta" in the owner's build
+ * (ZS_BUILD.dev), the same split as the app's own live updates.
+ *
+ * THE OFFER (the data model; EXO CLOUD's hook). Everything the screen shows
+ * about "an update is available" is one object, whoever produced it:
+ *   { source: "feed" | "cloud", version, manifestUrl, notes, message,
+ *     required, id }
+ * Today the published feed makes it (check()). Later EXO CLOUD hands one in
+ * with ZSUPDATE.offer({...}) (an owner-targeted notice: the same manifest
+ * fields, plus "required" and an optional "message"). NOTHING INSTALLS
+ * WITHOUT THE CUSTOMER'S TAP: an offer only draws the card and the screen;
+ * the install starts from the Update button. required:true keeps the card
+ * on HOME (it cannot be dismissed for good: "Later" hides it until the app
+ * is opened again) and says "Required update"; it never gates a feature.
+ *
+ * WHAT THE EXO DOES (firmware docs/OTA.md section 9): /ota/begin checks the
+ * signature BEFORE a byte is written; blocks go to the slot it is NOT
+ * running from; /ota/finish checks the SHA-256 of what landed, the
+ * signature again and the image, and only then switches; the new firmware
+ * must check in (this screen asks GET /ota/status as soon as it is back) or
+ * the EXO goes back to the old one by itself. So "never brick": any failure
+ * here, a closed app, a dropped link or a pulled cable leaves the EXO on its
+ * current firmware, and the screen says so in plain words.
+ *
+ * WHAT IT DRAWS
+ *   the sheet  "EXO firmware": what the EXO runs, what is newest, the notes,
+ *              Update / Check again; then download, send (a progress bar,
+ *              the speed, the time left, "keep your EXO plugged in"),
+ *              install, restart, the check-in, and "Your EXO now runs X" or
+ *              the plain failure with Try again. Help behind a "?".
+ *   HOME       one calm card under the device card while an offer is open
+ *              (or "Required update"), or while an update is running.
+ *   More menu  an "EXO firmware" row (shell/16-start.js).
+ *
+ * Real hardware only: every fact comes from the EXO's own /ota/status and the
+ * published files; no demo path. ES5 (DESIGN.md). Pure helpers are exported
+ * for dashboard/tools/test-core-update.js.
+ */
+(function () {
+  'use strict';
+
+  var HOST = 'https://rtecaleb.github.io/zerostick-app-updates/';
+  var FORMAT_CHANNEL = 'zs-fw-channel/1';
+  var FORMAT_RELEASE = 'zs-core-release/1';
+  var PIECE = 4096;
+  var TRIES = 6;                 /* one request, before the update stops */
+  var LINK_WAIT_MS = 90000;      /* a dropped link mid-transfer: wait this long */
+  var BACK_WAIT_MS = 150000;     /* the restart: the EXO back on the link */
+  var CONFIRM_WAIT_MS = 90000;   /* then confirmed by its health check */
+  var CHECK_EVERY_MS = 6 * 3600 * 1000;   /* HOME's quiet check of the feed */
+  var K_LAST = 'zs.fwCheckAt', K_LATER = 'zs.fwLater';
+
+  var S = {
+    phase: 'idle',      /* idle checking current available running done failed */
+    step: '',           /* while running: download send install restart verify */
+    ota: null,          /* the EXO's last /ota/status data */
+    offer: null,        /* the offer (see the header) */
+    manifest: null,
+    err: '', errWhy: '',
+    total: 0, done: 0, zsent: 0, ztotal: 0, startAt: 0, rate: 0,
+    from: '', to: '',
+    rolled: '',
+    cancel: false,
+    laterSession: {}    /* offers hidden until the app is opened again */
+  };
+  var host = null;      /* the open sheet's body */
+  var cssDone = false;
+
+  /* ------------------------------------------------------------ helpers */
+
+  function Z() { return window.ZS; }
+  function esc(s) {
+    var z = Z();
+    if (z && z.esc) return z.esc(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+  function now() { return Date.now(); }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function online() { var z = Z(); return !!(z && z.live && z.live.online !== false && z.live.status); }
+  function channelName() { return (window.ZS_BUILD && window.ZS_BUILD.dev) ? 'beta' : 'stable'; }
+
+  /* the firmware's own rule (zs_ota_version_cmp): the leading MAJOR.MINOR.
+     PATCH numbers, missing parts 0, anything after them ignored. null when
+     either has no leading number. */
+  function verParts(s) {
+    var m = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(String(s || ''));
+    return m ? [Number(m[1]), Number(m[2] || 0), Number(m[3] || 0)] : null;
+  }
+  function verCmp(a, b) {
+    var x = verParts(a), y = verParts(b), i;
+    if (!x || !y) return null;
+    for (i = 0; i < 3; i++) { if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; }
+    return 0;
+  }
+  /* "0.1.1-core" -> "0.1.1": what a person reads */
+  function shown(v) { var p = verParts(v); return p ? p.join('.') : String(v || '?'); }
+
+  /* /ota/status haveMap: byte i covers pieces 8i..8i+7, low bit first */
+  function haveSet(hex) {
+    var out = {}, i, b, k;
+    hex = String(hex || '');
+    for (i = 0; i + 1 < hex.length; i += 2) {
+      b = parseInt(hex.substr(i, 2), 16);
+      for (k = 0; k < 8; k++) { if (b & (1 << k)) out[(i / 2) * 8 + k] = true; }
+    }
+    return out;
+  }
+  function blockIn(have, off, len) {
+    var p;
+    for (p = Math.floor(off / PIECE); p <= Math.floor((off + len - 1) / PIECE); p++) {
+      if (!have[p]) return false;
+    }
+    return true;
+  }
+
+  function b64(bytes, from, n) {
+    var CH = 0x8000, s = '', i;
+    for (i = 0; i < n; i += CH) {
+      s += String.fromCharCode.apply(null, bytes.subarray(from + i, from + Math.min(n, i + CH)));
+    }
+    return window.btoa(s);
+  }
+
+  function hex(buf) {
+    var b = new Uint8Array(buf), s = '', i;
+    for (i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+    return s;
+  }
+  /* null when this webview has no SubtleCrypto (the EXO checks anyway) */
+  function sha256Hex(bytes) {
+    var c = window.crypto && window.crypto.subtle;
+    if (!c || !c.digest) return Promise.resolve(null);
+    return Promise.resolve(c.digest('SHA-256', bytes)).then(hex, function () { return null; });
+  }
+
+  /* the release's manifest, checked before anything is sent; '' = fine */
+  function manifestProblem(m, ota) {
+    if (!m || typeof m !== 'object') return 'The update’s description could not be read.';
+    if (m.release !== FORMAT_RELEASE) return 'This update needs a newer ZeroStick app. Update the app first, then try again.';
+    if (!m.z || !Array.isArray(m.z.blocks) || !m.z.file) return 'The update’s description is incomplete.';
+    if (typeof m.size !== 'number' || !/^[0-9a-f]{64}$/.test(String(m.sha256 || '')) || !m.sig || !m.version) {
+      return 'The update’s description is incomplete.';
+    }
+    if (ota && ota.board && m.board !== ota.board) {
+      return 'This update is for the other EXO board (' + esc(m.board) + '), not yours (' + esc(ota.board) + ').';
+    }
+    if (ota && ota.keyId && m.keyId && m.keyId !== ota.keyId) {
+      return 'Your EXO only takes updates signed with its own key, and this one is signed with another. ' +
+        'Nothing was changed. Contact ZeroStick support.';
+    }
+    /* ZCRT v1 (firmware D908, docs/OTA.md 10): a chain firmware takes only an
+       update that carries the EXO root's certificate for its signing key */
+    if (m.cert !== undefined && (typeof m.cert !== 'string' || !/^[A-Za-z0-9+\/]{166}==$/.test(m.cert) ||
+        !/^[0-9a-f]{16}$/.test(String(m.keyId || '')))) {
+      return 'The update’s description is incomplete.';
+    }
+    if (ota && ota.trust === 'chain' && !m.cert) {
+      return 'Your EXO only takes updates certified by ZeroStick, and this one carries no certificate. ' +
+        'Nothing was changed. Contact ZeroStick support.';
+    }
+    return '';
+  }
+
+  function fetchJSON(url) {
+    return window.fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 't=' + now(), { cache: 'no-store' })
+      .then(function (r) {
+        if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+        return r.json();
+      });
+  }
+  function fetchBytes(url, expect, onProgress) {
+    return window.fetch(url + '?t=' + now(), { cache: 'no-store' }).then(function (r) {
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      if (!r.body || !r.body.getReader) {
+        return r.arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+      }
+      var rd = r.body.getReader(), parts = [], got = 0;
+      function pump() {
+        return rd.read().then(function (x) {
+          if (x.done) {
+            var out = new Uint8Array(got), at = 0;
+            parts.forEach(function (p) { out.set(p, at); at += p.length; });
+            return out;
+          }
+          parts.push(x.value);
+          got += x.value.length;
+          if (onProgress) onProgress(got, expect);
+          return pump();
+        });
+      }
+      return pump();
+    });
+  }
+
+  function otaStatus() {
+    return Z().api('/ota/status', 'GET', undefined, 8000).then(function (j) {
+      return (j && j.ok && j.data) ? j.data : null;
+    });
+  }
+
+  /* ------------------------------------------------------------ the offer */
+
+  function laterKey(o) { return (o && (o.id || o.version)) || ''; }
+  function offerHidden(o) {
+    if (!o) return true;
+    if (S.laterSession[laterKey(o)]) return true;
+    return !o.required && lsGet(K_LATER) === laterKey(o);
+  }
+
+  /* EXO CLOUD's door (later): an owner-targeted notice for this EXO.
+     { version, manifest (object) | manifestUrl, notes?, message?, required?,
+       id? }. It only OFFERS: the customer still taps Update. Returns false
+       when the notice cannot describe an update. */
+  function offer(n) {
+    if (!n || !n.version || (!n.manifest && !n.manifestUrl)) return false;
+    S.offer = {
+      source: 'cloud', id: String(n.id || ''), version: String(n.version),
+      manifestUrl: n.manifestUrl ? String(n.manifestUrl) : '',
+      manifest: (n.manifest && typeof n.manifest === 'object') ? n.manifest : null,
+      notes: String(n.notes || ''), message: String(n.message || ''), required: n.required === true
+    };
+    if (S.phase === 'idle' || S.phase === 'current' || S.phase === 'failed') S.phase = 'available';
+    repaint();
+    return true;
+  }
+
+  /* ------------------------------------------------------------ checking */
+
+  function check(quiet) {
+    if (S.phase === 'running' || S.phase === 'checking') return Promise.resolve(S.phase);
+    S.phase = 'checking';
+    S.err = S.errWhy = '';
+    repaint();
+    return otaStatus().then(function (ota) {
+      S.ota = ota;
+      if (!ota) {
+        return fail('Your EXO did not say which firmware it runs. Check it is connected, then try again.', '', true);
+      }
+      if (ota.available === false) {
+        return fail('This EXO cannot take updates from the app.', ota.unavailable || '', true);
+      }
+      if (!ota.zblock || !ota.board) {
+        return fail('Your EXO’s firmware is older than this screen. Update it once with EXO Studio over USB; ' +
+          'after that, updates come here.', '', true);
+      }
+      S.rolled = ota.rolledBackFrom || '';
+      lsSet(K_LAST, String(now()));
+      var url = HOST + 'firmware/' + channelName() + '.json';
+      return fetchJSON(url).then(function (ch) {
+        if (!ch || ch.format !== FORMAT_CHANNEL || !ch.boards) {
+          return fail('The update list could not be read. Try again later.', '', true);
+        }
+        var rel = ch.boards[ota.board];
+        if (!rel) {
+          S.phase = 'current';
+          S.offer = null;
+          return S.phase;
+        }
+        var cmp = verCmp(ch.version, ota.running);
+        var resumable = ota.state === 'receiving' && ota.version === ch.version;
+        if ((cmp === null || cmp <= 0) && !resumable) {
+          if (!(S.offer && S.offer.source === 'cloud')) S.offer = null;
+          S.phase = S.offer ? 'available' : 'current';
+          return S.phase;
+        }
+        S.offer = {
+          source: 'feed', id: '', version: String(ch.version), manifestUrl: HOST + 'firmware/' + rel,
+          manifest: null, notes: String(ch.notes || ''), message: String(ch.message || ''),
+          required: ch.required === true
+        };
+        S.phase = 'available';
+        return S.phase;
+      }, function () {
+        return fail('The update list could not be downloaded. Check this phone is online, then try again.', '', true);
+      });
+    }).then(function (p) { repaint(); return p; });
+  }
+
+  /* a refusal before anything was sent */
+  function fail(msg, why, beforeSend) {
+    S.phase = 'failed';
+    S.err = msg;
+    S.errWhy = why || '';
+    S.beforeSend = !!beforeSend;
+    repaint();
+    return 'failed';
+  }
+
+  /* -------------------------------------------------------------- the run */
+
+  function Stop(msg, why) { this.msg = msg; this.why = why || ''; }
+
+  function linkUp() { return online(); }
+
+  /* the link came back (or the time ran out); the EXO's status either way */
+  function waitLink(ms) {
+    var until = now() + (ms || LINK_WAIT_MS);
+    function poll() {
+      if (S.cancel) return Promise.resolve(null);
+      return otaStatus().then(function (o) {
+        if (o) return o;
+        if (now() > until) return null;
+        return wait(1500).then(poll);
+      });
+    }
+    return poll();
+  }
+
+  /* one POST, asked again on what the EXO calls "send it again", a slow
+     answer or a dropped link; anything else stops the update */
+  function ask(path, body, ms) {
+    var tries = 0;
+    function once() {
+      if (S.cancel) return Promise.reject(new Stop('You stopped the update. Your EXO is still on its current firmware.'));
+      return Z().api(path, 'POST', body, ms || 20000).then(function (j) {
+        if (j && j.ok) return j;
+        var e = String((j && j.error) || '');
+        var again = !linkUp() || /send it again|send that piece again|did not arrive whole|slow to answer|busy|unreachable|timed out|no room/i.test(e);
+        if (again && ++tries < TRIES) {
+          return (linkUp() ? wait(400 * tries) : waitLink()).then(once);
+        }
+        if (!linkUp()) {
+          throw new Stop('The connection to your EXO was lost. Your EXO is still on its current firmware: ' +
+            'reconnect it and tap Try again to carry on where it stopped.');
+        }
+        var err = new Stop('Your EXO did not take the update.', e);
+        err.noUpdate = /No update is open/i.test(e);
+        throw err;
+      });
+    }
+    return once();
+  }
+
+  function begin(m) {
+    var body = { size: m.size, sha256: m.sha256, version: m.version, sig: m.sig,
+                 allowDowngrade: false, checkin: true };
+    /* ZCRT v1 (D908): the root's certificate for the signing key, and that
+       key's id; an old single-key manifest has no cert and sends neither */
+    if (m.cert) {
+      body.cert = m.cert;
+      body.keyId = m.keyId;
+    }
+    return ask('/ota/begin', body, 20000)
+      .then(function (j) { return j.data || {}; });
+  }
+
+  function sendBlocks(m, z, have) {
+    var rows = m.z.blocks, i = 0;
+    S.total = m.size;
+    S.done = 0;
+    S.ztotal = 0;
+    rows.forEach(function (r) { S.ztotal += r[3]; if (blockIn(have, r[0], r[1])) S.done += r[1]; });
+    function next() {
+      var r, off, len, zoff, zlen, crc, kind, p;
+      while (i < rows.length && blockIn(have, rows[i][0], rows[i][1])) i++;
+      if (i >= rows.length) return Promise.resolve();
+      r = rows[i++];
+      off = r[0]; len = r[1]; zoff = r[2]; zlen = r[3]; crc = r[4]; kind = r[5];
+      if (kind === 0) {
+        p = ask('/ota/zchunk', { offset: off, len: len, crc: crc, z: b64(z, zoff, zlen) });
+      } else {
+        p = Promise.resolve();
+        var at;
+        for (at = 0; at < len; at += PIECE) {
+          (function (a) {
+            p = p.then(function () {
+              var n = Math.min(PIECE, len - a);
+              return ask('/ota/chunk', { offset: off + a, data: b64(z, zoff + a, n) });
+            });
+          })(at);
+        }
+      }
+      return p.then(function () {
+        S.done += len;
+        S.zsent += zlen;
+        var secs = (now() - S.startAt) / 1000;
+        S.rate = secs > 0.5 ? S.zsent / secs : 0;
+        paintProgress();
+        return next();
+      });
+    }
+    return next();
+  }
+
+  function run() {
+    if (S.phase === 'running' || !S.offer) return;
+    if (!online()) { fail('Connect your EXO first.', '', true); return; }
+    S.phase = 'running';
+    S.step = 'download';
+    S.cancel = false;
+    S.err = S.errWhy = '';
+    S.done = S.zsent = S.rate = 0;
+    S.from = (S.ota && S.ota.running) || '';
+    S.to = S.offer.version;
+    repaint();
+    var m, z, restarts = 0;
+
+    var gotManifest = S.offer.manifest ? Promise.resolve(S.offer.manifest) : fetchJSON(S.offer.manifestUrl);
+    gotManifest.then(function (mm) {
+      m = mm;
+      var bad = manifestProblem(m, S.ota);
+      if (bad) throw new Stop(bad);
+      S.manifest = m;
+      var zurl = S.offer.manifestUrl ? S.offer.manifestUrl.replace(/[^/]*$/, '') + m.z.file : m.z.url;
+      if (!zurl) throw new Stop('The update’s description has no file to download.');
+      S.total = m.size;
+      return fetchBytes(zurl, m.z.size, function (got, exp) {
+        S.dl = exp ? Math.min(1, got / exp) : 0;
+        paintProgress();
+      }).then(null, function () {
+        throw new Stop('The update could not be downloaded. Check this phone is online, then try again.');
+      });
+    }).then(function (bytes) {
+      z = bytes;
+      if (z.length !== m.z.size) throw new Stop('The download was cut short. Try again.');
+      return sha256Hex(z).then(function (h) {
+        if (h && h !== m.z.sha256) throw new Stop('The download was damaged. Try again.');
+      });
+    }).then(function () {
+      S.step = 'send';
+      S.startAt = now();
+      repaint();
+      function attempt() {
+        return begin(m).then(function (st) {
+          return sendBlocks(m, z, haveSet(st.haveMap));
+        }).then(null, function (e) {
+          /* the EXO restarted mid-way (its update in RAM is gone): open it
+             again, keep going from what it says it has */
+          if (e && e.noUpdate && restarts++ < 3) return attempt();
+          throw e;
+        });
+      }
+      return attempt();
+    }).then(function () {
+      S.step = 'install';
+      repaint();
+      return ask('/ota/finish', { restart: true }, 60000);
+    }).then(function () {
+      S.step = 'restart';
+      repaint();
+      return wait(4000).then(function () { return waitLink(BACK_WAIT_MS); });
+    }).then(function (o) {
+      if (!o) {
+        throw new Stop('Your EXO has not come back yet. Keep it plugged in and reconnect it: it either ' +
+          'starts the new firmware or goes back to the old one by itself.');
+      }
+      S.step = 'verify';
+      repaint();
+      return verify(o, now() + CONFIRM_WAIT_MS);
+    }).then(function (o) {
+      S.ota = o;
+      S.phase = 'done';
+      S.offer = null;
+      repaint();
+      if (Z() && Z().refreshStatus) { try { Z().refreshStatus(); } catch (e) {} }
+    }, function (e) {
+      var stopped = e instanceof Stop ? e : new Stop('Something went wrong: ' + String(e && e.message || e));
+      /* never leave a half update open on the EXO: let it give its memory back */
+      if (S.step === 'send' || S.step === 'download') {
+        try { Z().api('/ota/abort', 'POST', {}, 5000); } catch (x) {}
+      }
+      S.phase = 'failed';
+      S.err = stopped.msg;
+      S.errWhy = stopped.why;
+      S.beforeSend = false;
+      repaint();
+    });
+  }
+
+  /* back on the link: the EXO runs the new firmware and confirms it (the
+     GET /ota/status IS the check-in the new firmware waits for), or it went
+     back to the old one */
+  function verify(o, until) {
+    if (o.running === S.to && o.confirmed) return Promise.resolve(o);
+    if (o.running !== S.to) {
+      if (o.rolledBackFrom === S.to || o.running === S.from) {
+        return Promise.reject(new Stop('The new firmware did not start properly, so your EXO went back to ' +
+          shown(o.running) + ' by itself. Nothing was lost. You can try again.', o.lastError || ''));
+      }
+      return Promise.reject(new Stop('Your EXO came back running ' + shown(o.running) + ', not ' + shown(S.to) + '.'));
+    }
+    if (now() > until) {
+      return Promise.reject(new Stop('Your EXO runs ' + shown(S.to) + ' but has not confirmed it yet. If it does ' +
+        'not within a few minutes it goes back to ' + shown(S.from) + ' by itself.'));
+    }
+    return wait(2000).then(otaStatus).then(function (n) { return verify(n || o, until); });
+  }
+
+  function stop() {
+    if (S.phase !== 'running' || S.step === 'install' || S.step === 'restart' || S.step === 'verify') return;
+    S.cancel = true;
+  }
+
+  /* ------------------------------------------------------------ the sheet */
+
+  var HELP = 'Your EXO’s firmware is the software inside it. Updates bring fixes and new features.\n' +
+    'The update is downloaded to this phone, then sent to your EXO over Bluetooth (or the USB cable). ' +
+    'It takes a few minutes. Keep your EXO plugged in and this app open until it says Done.\n' +
+    'Your EXO keeps its current firmware until the new one has arrived whole and passed its checks: ' +
+    'it is signed by ZeroStick, and your EXO refuses anything else.\n' +
+    'If anything goes wrong, a lost connection, a pulled cable or the app closing, your EXO stays on ' +
+    'the firmware it has, and you can try again. After the update your EXO restarts; if the new ' +
+    'firmware does not start properly it goes back to the old one by itself.\n' +
+    'Your configs are kept.';
+
+  function css() {
+    if (cssDone || document.getElementById('zs-update-css')) { cssDone = true; return; }
+    cssDone = true;
+    var s = document.createElement('style');
+    s.id = 'zs-update-css';
+    s.textContent =
+      '.fu-card{margin:10px 0 0;padding:12px 14px;border-radius:14px;border:1px solid var(--line);' +
+        'background:var(--panel);color:var(--text)}' +
+      '.fu-card.req{border-color:var(--amber)}' +
+      '.fu-row{display:flex;align-items:flex-start;gap:8px}' +
+      '.fu-t{flex:1;min-width:0;font-size:13px;line-height:1.5;font-weight:600}' +
+      '.fu-s{display:block;font-weight:400;color:var(--zs-ink-2,var(--text))}' +
+      '.fu-row .qhrow{margin:0}' +
+      '.fu-btns{display:flex;gap:8px;margin-top:10px}' +
+      '.fu-btns button{flex:1;min-height:44px;border-radius:12px;font:inherit;font-size:13px;' +
+        'font-weight:700;cursor:pointer}' +
+      '.fu-go{background:var(--accent);color:var(--accent-ink);border:0}' +
+      '.fu-alt{background:transparent;color:var(--zs-ink-2,var(--text));border:1px solid var(--line)}' +
+      '.fu-btns button:disabled{opacity:.6;cursor:default}' +
+      '.fu-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 6px}' +
+      '.fu-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}' +
+      '.fu-meta{font-size:12px;color:var(--zs-ink-2,var(--text));min-height:1.4em}' +
+      '.fu-keep{font-size:13px;line-height:1.5;margin:10px 0 0}' +
+      '.fu-err{font-size:13px;line-height:1.5;color:var(--text);margin:8px 0 0}' +
+      '.fu-why{font-size:12px;color:var(--zs-ink-2,var(--text));margin:6px 0 0}' +
+      '.fu-ok{color:var(--green)}' +
+      '.fu-notes{font-size:13px;line-height:1.5;margin:8px 0 0;white-space:pre-line}' +
+      '@media (prefers-reduced-motion: reduce){.fu-bar i{transition:none}}';
+    document.head.appendChild(s);
+  }
+
+  var STEP_WORDS = {
+    download: 'Downloading the update to this phone…',
+    send: 'Sending it to your EXO…',
+    install: 'Checking and installing it on your EXO…',
+    restart: 'Your EXO is restarting into the new firmware…',
+    verify: 'Making sure the new firmware started properly…'
+  };
+
+  function pct() {
+    if (S.step === 'download') return Math.round((S.dl || 0) * 100);
+    if (!S.total) return 0;
+    return Math.min(100, Math.round(S.done * 100 / S.total));
+  }
+  function metaText() {
+    if (S.step !== 'send') return '';
+    var left = S.ztotal - S.zsent, t = '';
+    if (S.rate > 0) {
+      var secs = Math.max(0, Math.round(left / S.rate));
+      t = (S.rate / 1024).toFixed(1) + ' KB/s · about ' +
+        (secs >= 90 ? Math.round(secs / 60) + ' min' : secs + ' s') + ' left';
+    }
+    return pct() + '% ' + (t ? '· ' + t : '');
+  }
+
+  function body() {
+    var o = S.ota, h = '', help = (Z() && Z().helpHTML) ? Z().helpHTML('core-update', 'Firmware updates', HELP) : '';
+    var run = S.phase === 'running';
+    h += '<div class="fu-row"><div class="fu-t">' +
+      (o && o.running ? 'Your EXO runs ' + esc(shown(o.running)) : 'Your EXO’s firmware') +
+      /* AUDIT 2026-11-25 #8: the board revision is a technical detail
+         (Global Settings > Show technical details) */
+      (o && o.board ? '<span class="fu-s zs-tech">Board ' + esc(o.board === 'p4v3' ? 'rev 2' : 'rev A') + '</span>' : '') +
+      '</div>' + help + '</div>';
+    if (S.phase === 'checking') {
+      h += '<p class="fu-keep" role="status">Checking for updates…</p>';
+    } else if (S.phase === 'current') {
+      h += '<p class="fu-keep fu-ok" role="status">✓ Your EXO is up to date.</p>';
+      if (S.rolled) {
+        h += '<p class="fu-why">The last update (' + esc(shown(S.rolled)) + ') did not start properly, so your EXO ' +
+          'went back to the firmware it had. Nothing was lost.</p>';
+      }
+      h += '<div class="fu-btns"><button type="button" class="fu-alt" data-fu="check">Check again</button></div>';
+    } else if (S.phase === 'available' && S.offer) {
+      h += '<p class="fu-keep" role="status"><b>' + (S.offer.required ? 'Required update: ' : 'Update available: ') +
+        esc(shown(S.offer.version)) + '</b></p>';
+      if (S.offer.message) h += '<p class="fu-notes">' + esc(S.offer.message) + '</p>';
+      if (S.offer.notes) h += '<p class="fu-notes">' + esc(S.offer.notes) + '</p>';
+      if (S.rolled && S.rolled === S.offer.version) {
+        h += '<p class="fu-why">The last try of this update did not start properly, so your EXO went back. ' +
+          'Nothing was lost. You can try again.</p>';
+      }
+      h += '<p class="fu-keep">It takes a few minutes. Keep your EXO plugged in and this app open until it says Done.</p>' +
+        '<div class="fu-btns"><button type="button" class="fu-go" data-fu="go">Update now</button></div>';
+    } else if (run) {
+      h += '<p class="fu-keep" role="status" aria-live="polite" id="fu-step">' + esc(STEP_WORDS[S.step] || '') + '</p>' +
+        '<div class="fu-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct() + '" ' +
+          'aria-label="Update progress"><i id="fu-fill" style="width:' + pct() + '%"></i></div>' +
+        '<div class="fu-meta" id="fu-meta">' + esc(metaText()) + '</div>' +
+        '<p class="fu-keep"><b>Keep your EXO plugged in and this app open.</b> If anything goes wrong, your EXO ' +
+          'stays on its current firmware.</p>' +
+        ((S.step === 'download' || S.step === 'send')
+          ? '<div class="fu-btns"><button type="button" class="fu-alt" data-fu="stop">Stop</button></div>' : '');
+    } else if (S.phase === 'done') {
+      h += '<p class="fu-keep fu-ok" role="status">✓ Done. Your EXO now runs ' + esc(shown(S.to)) + '.</p>' +
+        '<div class="fu-btns"><button type="button" class="fu-alt" data-fu="close">Close</button></div>';
+    } else if (S.phase === 'failed') {
+      h += '<p class="fu-err" role="alert">' + esc(S.err) + '</p>' +
+        (S.errWhy ? '<p class="fu-why">Your EXO said: ' + esc(S.errWhy) + '</p>' : '') +
+        (S.beforeSend ? '' : '<p class="fu-why">Your EXO is still on its current firmware.</p>') +
+        '<div class="fu-btns"><button type="button" class="fu-go" data-fu="retry">Try again</button></div>';
+    } else {
+      h += '<div class="fu-btns"><button type="button" class="fu-go" data-fu="check">Check for updates</button></div>';
+    }
+    return h;
+  }
+
+  function wireSheet() {
+    if (!host) return;
+    var b = host.querySelectorAll('[data-fu]'), i;
+    for (i = 0; i < b.length; i++) {
+      b[i].addEventListener('click', onButton);
+      if (window.ZSM && ZSM.pressable) ZSM.pressable(b[i]);
+    }
+  }
+  function onButton(e) {
+    var w = e.currentTarget.getAttribute('data-fu');
+    if (w === 'check') check();
+    else if (w === 'go') run();
+    else if (w === 'stop') stop();
+    else if (w === 'retry') { if (S.offer) run(); else check(); }
+    else if (w === 'close' && typeof window.sheetClose === 'function') window.sheetClose();
+  }
+
+  function paintProgress() {
+    if (host) {
+      var f = host.querySelector('#fu-fill'), m = host.querySelector('#fu-meta'), bar = f && f.parentNode;
+      if (f) f.style.width = pct() + '%';
+      if (bar && bar.setAttribute) bar.setAttribute('aria-valuenow', String(pct()));
+      if (m) m.textContent = metaText();
+    }
+    var hc = document.getElementById('fu-home-pct');
+    if (hc) hc.textContent = pct() + '%';
+  }
+
+  function repaint() {
+    if (host && host.isConnected !== false && document.body.contains(host)) {
+      host.innerHTML = body();
+      wireSheet();
+    } else {
+      host = null;
+    }
+    try { if (typeof window.renderHomeIfVisible === 'function') window.renderHomeIfVisible(); } catch (e) {}
+  }
+
+  function open(from) {
+    css();
+    if (typeof window.sheetOpen !== 'function') return null;
+    var outer = window.sheetOpen('EXO firmware', '<div id="fu-body"></div>', function () { host = null; }, from);
+    host = outer && outer.querySelector ? outer.querySelector('#fu-body') : null;
+    if (host) { host.innerHTML = body(); wireSheet(); }
+    if (S.phase === 'idle' || S.phase === 'current' || (S.phase === 'failed' && S.beforeSend)) check();
+    return host;
+  }
+
+  /* ------------------------------------------------------------- HOME */
+
+  function homeHTML() {
+    if (!online()) return '';
+    var help = '';
+    if (S.phase === 'idle' && !S.autoChecked) setTimeout(autoCheck, 0);
+    if (S.phase === 'running') {
+      css();
+      return '<div class="fu-card" role="status"><div class="fu-row"><div class="fu-t">Updating your EXO’s firmware: ' +
+        '<span id="fu-home-pct">' + pct() + '%</span><span class="fu-s">Keep it plugged in and this app open.</span></div></div>' +
+        '<div class="fu-btns"><button type="button" class="fu-alt" data-fu-home="open">Show</button></div></div>';
+    }
+    if (S.phase !== 'available' || !S.offer || offerHidden(S.offer)) return '';
+    css();
+    help = (Z() && Z().helpHTML) ? Z().helpHTML('core-update-home', 'Firmware updates', HELP) : '';
+    return '<div class="fu-card' + (S.offer.required ? ' req' : '') + '" role="status"><div class="fu-row"><div class="fu-t">' +
+      (S.offer.required ? 'Required update for your EXO: ' : 'A firmware update is ready for your EXO: ') +
+      esc(shown(S.offer.version)) +
+      (S.offer.message ? '<span class="fu-s">' + esc(S.offer.message) + '</span>' : '') +
+      '</div>' + help + '</div>' +
+      '<div class="fu-btns"><button type="button" class="fu-go" data-fu-home="open">Update</button>' +
+      '<button type="button" class="fu-alt" data-fu-home="later">Later</button></div></div>';
+  }
+
+  function wireHome(root) {
+    var b = root && root.querySelectorAll ? root.querySelectorAll('[data-fu-home]') : [], i;
+    for (i = 0; i < b.length; i++) {
+      b[i].addEventListener('click', function (e) {
+        var w = e.currentTarget.getAttribute('data-fu-home');
+        if (w === 'open') open(e.currentTarget);
+        else if (w === 'later' && S.offer) {
+          S.laterSession[laterKey(S.offer)] = true;
+          if (!S.offer.required) lsSet(K_LATER, laterKey(S.offer));
+          repaint();
+        }
+      });
+      if (window.ZSM && ZSM.pressable) ZSM.pressable(b[i]);
+    }
+  }
+
+  /* the quiet check: once a session and at most every few hours, only on a
+     connected Core that says it can take updates. Started from HOME's draw
+     (homeHTML), after it, because HOME keeps its DOM when nothing changed
+     and so does not always wire (D448). A check only OFFERS. */
+  function autoCheck() {
+    var st = Z() && Z().live && Z().live.status;
+    var feats = (st && Array.isArray(st.features)) ? st.features : [];
+    if (S.phase !== 'idle' || S.autoChecked || !online() || feats.indexOf('ota') < 0) return;
+    S.autoChecked = true;
+    var last = Number(lsGet(K_LAST) || 0);
+    if (last && now() - last < CHECK_EVERY_MS) return;
+    check(true).then(function (p) {
+      if (p === 'failed') { S.phase = 'idle'; S.err = ''; repaint(); }
+    });
+  }
+
+  window.ZSUPDATE = {
+    open: open, check: check, run: run, stop: stop, offer: offer,
+    homeHTML: homeHTML, wireHome: wireHome,
+    state: function () { return S; },
+    /* for dashboard/tools/test-core-update.js */
+    verCmp: verCmp, shown: shown, haveSet: haveSet, blockIn: blockIn, manifestProblem: manifestProblem,
+    channelName: channelName, HOST: HOST, FORMAT_CHANNEL: FORMAT_CHANNEL, FORMAT_RELEASE: FORMAT_RELEASE,
+    _reset: function () {
+      S.phase = 'idle'; S.step = ''; S.ota = null; S.offer = null; S.manifest = null; S.err = S.errWhy = '';
+      S.cancel = false; S.laterSession = {}; S.autoChecked = false; S.rolled = ''; host = null;
+      try { window.localStorage.removeItem(K_LAST); window.localStorage.removeItem(K_LATER); } catch (e) {}
+    }
+  };
+})();

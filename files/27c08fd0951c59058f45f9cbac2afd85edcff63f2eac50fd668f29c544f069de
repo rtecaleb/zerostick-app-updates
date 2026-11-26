@@ -1,0 +1,852 @@
+/* zs-share-code.js - SHARE CODES for configs and scripts (window.ZSSHARE).
+ *
+ * Owner, 2026-11-21: "when someone taps Copy on a config or script, they get
+ * a SHORT string like <ZEROSTICK EXO · MW4 Main · Kx9fQ...>", and pasting it
+ * has to be dummy-proof: with or without the arrows, inside any amount of
+ * chat text, after a chat app has broken it over lines, quoted it, put it in
+ * a code block or swapped its dots and quotes. And it must say plainly when a
+ * code is cut off or damaged, and never import half a config.
+ *
+ * ── WHAT A CODE LOOKS LIKE ──────────────────────────────────────────────
+ *
+ *   <ZEROSTICK EXO · MW4 Main · Gx4Hq0...>
+ *    ^product       ^label     ^payload (letters and digits only)
+ *
+ * The product and the label are for PEOPLE. The reader never trusts them:
+ * the label can be lower-cased, its dots turned into dashes, or lost
+ * entirely, and the code still reads, because everything it needs (the kind,
+ * the real name, the game, the content and a checksum) is in the payload.
+ *
+ * ── THE PAYLOAD (format 1) ──────────────────────────────────────────────
+ *
+ * Bytes, written in BASE 62 (0-9 A-Z a-z): no + / _ - * ~ ` | = or space,
+ * so Markdown, Discord, Reddit, texts and email have nothing to eat or turn
+ * into formatting, a double-click selects all of it, and it never becomes a
+ * link. 32 bytes are one block of 43 characters (62^43 > 256^32); the last
+ * block is as short as its bytes allow (CHARS[n]). That is 1.344 characters
+ * per byte, against base64's 1.333.
+ *
+ *   0  'Z' 'X'   magic (lets a bare payload be found without the label)
+ *   2  version   1
+ *   3  kind      1 = config, 2 = script (a Smart Action)
+ *   4  flags     bit 0 deflate with DICT_V1; bit 1 taught pictures left
+ *                out; bit 2 binary blobs follow the JSON
+ *   5  pad       zero bytes at the very end (a payload is at least 32 bytes)
+ *   6  N         the payload's whole length in bytes, 24-bit big-endian
+ *   9  CRC-32    of bytes 0..8 and 15..N-1, big-endian (the content check)
+ *   13 check     the low 16 bits of the CRC-32 of bytes 0..12 (the header's
+ *                own check, so the kind and length can be trusted to say
+ *                "this config code is cut off" even when the rest is not)
+ *   15 body      raw deflate (RFC 1951) against DICT_V1, of:
+ *                  UTF-8 JSON {"p": pack id, "g": game name, "d": document}
+ *                  then, when flag bit 2 is set, a 0x00 byte and each binary
+ *                  blob as a 24-bit length and its bytes. A string in the
+ *                  JSON that was a blob reads "\u0000<index>"; only canonical
+ *                  base64 under the keys `bytecode` (a GPC script) and
+ *                  `patch` (a taught picture) is moved, and only when the
+ *                  base64 comes back identical, so the round trip is exact.
+ *
+ * Because the header gives N, the reader knows exactly how many characters
+ * to take, so text glued on after the code is never read as code, and a
+ * code that stops short is known to be CUT OFF rather than guessed at.
+ *
+ * ── ENCRYPTION? NO: ENCODING, COMPRESSION AND A CHECKSUM ────────────────
+ * The owner asked for "encryption text". A code is made opaque (nobody reads
+ * or edits it by eye) and tamper-evident (one changed character fails the
+ * CRC-32 and nothing is imported), but it is NOT encrypted: any key would
+ * ship inside every copy of the app, where anyone can pull it out, so it
+ * would protect nothing, and a key that ever changed would break every code
+ * already shared. Configs hold no secrets once the private parts are taken
+ * out (cleanConfig below).
+ *
+ * ── WHAT A CONFIG CODE LEAVES OUT ───────────────────────────────────────
+ * The config's id (a pasted config always gets a new one), its photo
+ * (artwork: photos stay in the app that took them, D120), the controllers it
+ * is locked to (inputDevices.allowlist: those are the sender's own pads),
+ * the Remote Play account and console address (output.remotePlay), and the
+ * app's own bookkeeping (turnAssistOffered, keys starting with "_"). Wi-Fi,
+ * the device id and serial are never in a config at all; what the Core's
+ * gun reader learns as you play stays on the Core (gun-learned.js), not in
+ * the config. Taught gun PICTURES are in the config (vision templates'
+ * `patch`, 512 bytes each); they travel unless they push the code past
+ * PICTURE_BUDGET characters, and then they are left out, with the bindings
+ * and scripts that only those pictures could fire, and the caller says so.
+ *
+ * ── WHAT IS STILL READ (backwards compatible) ───────────────────────────
+ *   ZSA2.<base64url JSON>    a script code from the Scripts editor (D432)
+ *   ZSA1.<base64url JSON>    the old editor's script code (migrated by the
+ *                            caller, smart-actions/12-share-live.js)
+ *   ZSC:<base64 JSON>:ZSC    the A7S agent's config code (agent.js)
+ *   a config's raw JSON      what Copy put on the clipboard before codes
+ * A pasted code from another product's app is recognised and pointed at
+ * Legacy Devices (window.ZSXIMCODE.find), never imported here.
+ *
+ * Pure: no DOM, no network, nothing kept. ES5 ONLY (docs/DESIGN.md).
+ * Needs window.ZSDEFLATE (zs-deflate.js, loaded before it) to make and to
+ * read codes. Tests: dashboard/tools/test-share-codes.js.
+ */
+(function (root) {
+  'use strict';
+
+  var PRODUCT = 'ZEROSTICK EXO';
+  var SEP = ' · ';
+  var VERSION = 1;
+  var KIND = { config: 1, script: 2 };
+  var KIND_NAME = { 1: 'config', 2: 'script' };
+  var F_DICT = 1, F_NOPICS = 2, F_BLOBS = 4;
+  var HDR = 15, BLOCK = 32, BLOCK_CH = 43, MIN_BYTES = 32;
+  var MAX_BYTES = 4 * 1024 * 1024;       /* a code's payload, refused past this */
+  var MAX_JSON = 8 * 1024 * 1024;        /* what it may inflate to */
+  /* past this many characters, a config's taught pictures are left out */
+  var PICTURE_BUDGET = 12000;
+  var LABEL_MAX = 40;
+  var ALPHA = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  var VAL = {};
+  (function () { for (var i = 0; i < ALPHA.length; i++) { VAL[ALPHA.charAt(i)] = i; } }());
+
+  /* gen-share-dict.js made this on 2026-11-21. It is PART OF FORMAT 1:
+     never edit it (test-share-codes.js pins its CRC-32). */
+  var DICT_V1 =
+    "{\"name\":\"Rapid fire\",\"enabled\":true,\"colour\":\"#39c5cf\",\"trigger\":{\"src\":\"r2\",\"follow\":null,\"gesture\"" +
+    ":\"press\",\"holdMs\":350,\"windowMs\":300,\"tapMs\":250,\"unbound\":false,\"home\":null},\"holdMode\":\"repeat_whi" +
+    "le_held\",\"gate\":\"always\",\"uninterruptible\":false,\"varianceMs\":15,\"stickVariance\":null,\"maxDurationMs" +
+    "\":10000,\"cooldownMs\":500,\"maxRepeats\":1,\"category\":\"Combat\",\"fromTemplate\":\"\",\"group\":\"\",\"notes\":\"\"," +
+    "\"steps\":[{\"k\":\"press\",\"btn\":\"r2\",\"ms\":40},{\"k\":\"wait\",\"ms\":40},{\"k\":\"stick\",\"stick\":\"right\",\"angle\":" +
+    "270,\"dist\":0.25,\"ms\":100},{\"k\":\"move\",\"dx\":0,\"dy\":4,\"ms\":50}],\"timing\":2,\"madeWith\":{\"sensX\":4,\"sens" +
+    "Y\":4,\"deadzone\":10,\"ads\":1,\"fov\":120,\"curve\":\"Dynamic\"}}{\"activation\":\"always\",\"auto\":{\"item\":\"assau" +
+    "lt_rifles.ak_27\",\"on\":true,\"pack\":\"cod-warzone\"},\"category\":\"Recoil\",\"categoryColor\":\"#f47fa4\",\"cool" +
+    "downMs\":0,\"enabled\":false,\"fromTemplate\":\"recoil-workshop\",\"holdMode\":\"run_while_held\",\"maxDurationM" +
+    "s\":30000,\"maxRepeats\":1,\"name\":\"Anti-recoil\",\"notes\":\"Made in the Anti-Recoil Lab on a controller: p" +
+    "ull down 25%.\",\"recoil\":{\"ads\":false,\"delayMs\":0,\"down\":25,\"end\":100,\"kind\":\"pad\",\"mid\":100,\"side\":0" +
+    ",\"sprayMs\":3000,\"start\":100,\"v\":1},\"steps\":[{\"aim\":{\"angle\":270,\"magnitude\":0.25,\"stick\":\"right\"},\"m" +
+    "s\":3000},{\"aim\":{\"angle\":270,\"magnitude\":0.25,\"stick\":\"right\"},\"ms\":10000},{\"aim\":{\"angle\":270,\"magn" +
+    "itude\":0.25,\"stick\":\"right\"},\"ms\":10000},{\"aim\":{\"angle\":270,\"magnitude\":0.25,\"stick\":\"right\"},\"ms\":" +
+    "7000}],\"trigger\":{\"activation\":\"press\",\"follows\":\"rt+\",\"source\":\"BTN_LEFT\"},\"uninterruptible\":false," +
+    "\"varianceMs\":0}{\"vision\":{\"assist\":{\"activation\":\"ads\",\"continuous\":{\"enabled\":true,\"horizonMs\":120," +
+    "\"viewRate\":1},\"deadZone\":0.012,\"minConfidence\":0.35,\"playerAuthority\":0.7,\"recoil\":{\"decayMs\":150,\"d" +
+    "riftDelayS\":0.25,\"enabled\":false,\"horizontal\":0,\"riseS\":0.3,\"vertical\":0.15},\"smoothingMs\":60,\"stren" +
+    "gth\":0.6,\"verticalScale\":0.6,\"window\":0.12},\"enabled\":false,\"filters\":{\"aimX\":0.5,\"aimY\":0.5,\"crossh" +
+    "airMaxArea\":0.004,\"crosshairRadius\":0.03,\"exclude\":[],\"maxAreaFrac\":0.25,\"maxAspect\":3.5,\"minAreaFra" +
+    "c\":0.0002,\"minAspect\":0.12,\"minFill\":0.1},\"model\":{\"aimAt\":\"body\",\"aimFrac\":0.32,\"classIds\":[0],\"cro" +
+    "pFrac\":0.35,\"enabled\":false,\"everyN\":6,\"headFrac\":0.12,\"inputH\":320,\"inputW\":320,\"labels\":[\"person\"]" +
+    ",\"layout\":\"NCHW\",\"letterbox\":true,\"name\":\"\",\"nmsIou\":0.45,\"path\":\"\",\"runtime\":\"auto\",\"scoreThreshold" +
+    "\":0.35},\"regions\":[],\"reject\":{},\"shotAssist\":{\"abortButton\":\"\",\"aimOffsetMs\":0,\"button\":\"west\",\"com" +
+    "mitMarginMs\":25,\"confidenceSigmas\":2,\"cooldownMs\":500,\"enabled\":false,\"endDropFrac\":0.35,\"feedbackRe" +
+    "gion\":\"\",\"fillMaxMs\":1250,\"fillMinMs\":150,\"fitWindowMs\":250,\"holdMaxMs\":1800,\"holdMinMs\":250,\"lateFi" +
+    "reSlackMs\":16,\"lateGraceMs\":0,\"latencyMaxMs\":400,\"latencyMinMs\":0,\"latencyMs\":90,\"maxGapFrames\":2,\"m" +
+    "axHoldMs\":2200,\"maxResidualFrac\":0.03,\"maxSamples\":20,\"meter\":{\"aimFrac\":0.5,\"axis\":\"x\",\"barLumaMin\"" +
+    ":60,\"barMinFrac\":0.2,\"barRowFrac\":0.5,\"colStep\":1,\"growAtFrac\":1,\"growSoftMult\":0,\"growWidthFrac\":0." +
+    "08,\"indLumaMin\":200,\"indPeakFrac\":0.35,\"read\":\"marker\",\"rect\":[0.4,0.3,0.22,0.06],\"rowStep\":4,\"spanF" +
+    "rac\":0,\"zone\":{},\"zoneMaxFrac\":0.4,\"zoneMinFrac\":0.03},\"minBaselineMs\":120,\"minSamples\":8,\"minSpeedP" +
+    "erS\":0.8,\"minVerdicts\":6,\"pressClockMovingMs\":0,\"pressClockMs\":0,\"priorFireShots\":0,\"trimDecay\":0.88" +
+    ",\"trimMinStepMs\":4,\"trimStepMs\":30,\"zoneDriftFrac\":0.06},\"target\":{\"preset\":\"red\"},\"tracking\":{\"lock" +
+    "Bonus\":0.25,\"lostAfterMs\":350,\"matchRadius\":0.12,\"minConfidence\":0.3,\"minHits\":2,\"staticAfterS\":3,\"s" +
+    "taticEps\":0.0025}}}{\"p\":\"cod-warzone\",\"g\":\"Call of Duty: Warzone\",\"d\":{\"schemaVersion\":11,\"name\":\"De" +
+    "fault\",\"description\":\"Mouse aims the right stick, WASD walks, sensible buttons.\",\"console\":\"ps5\",\"in" +
+    "putType\":\"mnk\",\"game\":\"\",\"inputDevices\":{\"allowlist\":[],\"priority\":[\"gamepad\",\"mouse\",\"keyboard\"]},\"" +
+    "bindings\":[{\"source\":\"KEY_W\",\"target\":\"ly+\"},{\"source\":\"KEY_S\",\"target\":\"ly-\"},{\"source\":\"KEY_A\",\"ta" +
+    "rget\":\"lx-\"},{\"source\":\"KEY_D\",\"target\":\"lx+\"},{\"source\":\"KEY_SPACE\",\"target\":\"south\"},{\"source\":\"KE" +
+    "Y_LEFTSHIFT\",\"target\":\"r3\"},{\"source\":\"KEY_Q\",\"target\":\"l1\"},{\"source\":\"KEY_R\",\"target\":\"west\"},{\"so" +
+    "urce\":\"KEY_G\",\"target\":\"r1\"},{\"source\":\"KEY_E\",\"target\":\"east\"},{\"source\":\"KEY_F\",\"target\":\"dpad_rig" +
+    "ht\"},{\"source\":\"KEY_3\",\"target\":\"dpad_up\"},{\"source\":\"KEY_CAPSLOCK\",\"target\":\"dpad_left\"},{\"source\":" +
+    "\"KEY_C\",\"target\":\"dpad_down\"},{\"source\":\"KEY_ESC\",\"target\":\"guide\"},{\"source\":\"KEY_TAB\",\"target\":\"se" +
+    "lect\"},{\"source\":\"KEY_LEFTALT\",\"target\":\"start\"},{\"source\":\"BTN_LEFT\",\"target\":\"rt+\"},{\"source\":\"BTN" +
+    "_RIGHT\",\"target\":\"lt+\"},{\"source\":\"BTN_MIDDLE\",\"target\":\"north\"},{\"source\":\"BTN_SIDE\",\"target\":\"l3\"}" +
+    ",{\"source\":\"BTN_EXTRA\",\"target\":\"east\"}],\"mouseTranslation\":{\"enabled\":true,\"dpi\":1000,\"game\":\"gener" +
+    "ic\",\"sensitivityX\":0.014,\"sensitivityY\":0.014,\"yxRatio\":1,\"cm360\":0,\"adsCm360\":0,\"calibration\":null," +
+    "\"invertX\":false,\"invertY\":false,\"maxOutput\":1,\"noiseThreshold\":0,\"innerDeadzone\":0,\"outerDeadzone\":1" +
+    ",\"deadzoneMode\":\"radial\",\"curve\":\"linear\",\"curveStrength\":1,\"curvePoints\":[],\"boost\":0,\"steadyAim\":0" +
+    ",\"feel\":\"snappy\",\"smoothing\":0,\"smoothingMode\":\"oneEuro\",\"oneEuroBeta\":1,\"smoothingEasing\":0.3,\"anti" +
+    "Deadzone\":0.12,\"antiDeadzoneShape\":\"circle\",\"acceleration\":0,\"deceleration\":0,\"maxVelocity\":4000,\"ad" +
+    "sSensitivityScale\":0.55,\"adsBinding\":\"BTN_RIGHT\",\"adsSmoothing\":null,\"adsOneEuroBeta\":null,\"adsSmoot" +
+    "hingEasing\":null,\"adsCurve\":null,\"adsCurveStrength\":null,\"adsCurvePoints\":null,\"adsBoost\":null},\"key" +
+    "boardMovement\":{\"enabled\":false,\"walkThreshold\":0.55,\"rampMs\":120,\"releaseMs\":80,\"diagonalShape\":\"ci" +
+    "rcular\",\"antiDeadzone\":0,\"turnAssist\":0,\"stickMerge\":\"strongest\"},\"stick\":{\"mode\":\"tuned\",\"restZone\"" +
+    ":0.05},\"deadZones\":{\"leftInner\":0.08,\"leftOuter\":1,\"rightInner\":0.08,\"rightOuter\":1,\"mode\":\"radial\"," +
+    "\"triggerThreshold\":0.02,\"hairTriggerLeft\":0,\"hairTriggerRight\":0},\"curves\":{\"leftStick\":{\"type\":\"lin" +
+    "ear\",\"strength\":1,\"gain\":1,\"points\":[]},\"rightStick\":{\"type\":\"linear\",\"strength\":1,\"gain\":1,\"adsGain" +
+    "\":null,\"points\":[]}},\"smoothing\":{\"leftStick\":0,\"rightStick\":0},\"lighting\":{\"mode\":\"solid\",\"color\":\"" +
+    "0080ff\",\"brightness\":100,\"speed\":20},\"axisInvert\":{\"lx\":false,\"ly\":false,\"rx\":false,\"ry\":false},\"acc" +
+    "essibilityActions\":[],\"constraints\":{\"disableButtons\":[],\"maxStickMagnitude\":1,\"maxTrigger\":1},\"outp" +
+    "ut\":{\"backend\":\"uinput\",\"rateHz\":250,\"remotePlay\":{\"account\":\"\",\"mac\":\"\"}},\"aiAdjustment\":{\"enabled\"" +
+    ":false,\"maxMagnitude\":0.2},\"vision\":{\"enabled\":false,\"target\":{\"preset\":\"red\"},\"reject\":{},\"filters\"" +
+    ":{\"minAreaFrac\":0.0002,\"maxAreaFrac\":0.25,\"minFill\":0.1,\"minAspect\":0.12,\"maxAspect\":3.5,\"crosshairR" +
+    "adius\":0.03,\"crosshairMaxArea\":0.004,\"aimX\":0.5,\"aimY\":0.5,\"exclude\":[]},\"tracking\":{\"minHits\":2,\"lo" +
+    "stAfterMs\":350,\"matchRadius\":0.12,\"staticEps\":0.0025,\"staticAfterS\":3,\"lockBonus\":0.25,\"minConfidenc" +
+    "e\":0.3},\"assist\":{\"activation\":\"ads\",\"strength\":0.6,\"window\":0.12,\"deadZone\":0.012,\"verticalScale\":0" +
+    ".6,\"playerAuthority\":0.7,\"smoothingMs\":60,\"minConfidence\":0.35,\"recoil\":{\"enabled\":false,\"vertical\":" +
+    "0.15,\"riseS\":0.3,\"decayMs\":150,\"horizontal\":0,\"driftDelayS\":0.25},\"continuous\":{\"enabled\":true,\"view" +
+    "Rate\":1,\"horizonMs\":120}},\"regions\":[],\"model\":{\"enabled\":false,\"name\":\"\",\"path\":\"\",\"runtime\":\"auto\"" +
+    ",\"inputW\":320,\"inputH\":320,\"layout\":\"NCHW\",\"cropFrac\":0.35,\"scoreThreshold\":0.35,\"nmsIou\":0.45,\"aimF" +
+    "rac\":0.32,\"aimAt\":\"body\",\"headFrac\":0.12,\"everyN\":6,\"classIds\":[0],\"labels\":[\"person\"],\"letterbox\":t" +
+    "rue},\"shotAssist\":{\"enabled\":false,\"button\":\"west\",\"abortButton\":\"\",\"feedbackRegion\":\"\",\"meter\":{\"re" +
+    "ct\":[0.4,0.3,0.22,0.06],\"axis\":\"x\",\"read\":\"marker\",\"rowStep\":4,\"colStep\":1,\"barLumaMin\":60,\"barMinFr" +
+    "ac\":0.2,\"barRowFrac\":0.5,\"indLumaMin\":200,\"indPeakFrac\":0.35,\"zone\":{},\"zoneMinFrac\":0.03,\"zoneMaxFr" +
+    "ac\":0.4,\"aimFrac\":0.5,\"spanFrac\":0,\"growAtFrac\":1,\"growWidthFrac\":0.08,\"growSoftMult\":0},\"latencyMs\"" +
+    ":90,\"latencyMinMs\":0,\"latencyMaxMs\":400,\"aimOffsetMs\":0,\"confidenceSigmas\":2,\"trimStepMs\":30,\"trimDe" +
+    "cay\":0.88,\"trimMinStepMs\":4,\"minVerdicts\":6,\"minSamples\":8,\"maxSamples\":20,\"fitWindowMs\":250,\"minBas" +
+    "elineMs\":120,\"commitMarginMs\":25,\"lateGraceMs\":0,\"fillMinMs\":150,\"fillMaxMs\":1250,\"holdMinMs\":250,\"h" +
+    "oldMaxMs\":1800,\"maxHoldMs\":2200,\"pressClockMs\":0,\"pressClockMovingMs\":0,\"cooldownMs\":500,\"lateFireSl" +
+    "ackMs\":16,\"minSpeedPerS\":0.8,\"maxResidualFrac\":0.03,\"zoneDriftFrac\":0.06,\"maxGapFrames\":2,\"endDropFr" +
+    "ac\":0.35,\"priorFireShots\":0}}}";
+  var DICT = null;
+  function dict() {
+    if (!DICT) { DICT = utf8Encode(DICT_V1); }
+    return DICT;
+  }
+
+  /* ── small tools ─────────────────────────────────────────────────── */
+  function isObj(v) { return !!v && typeof v === 'object' && Object.prototype.toString.call(v) !== '[object Array]'; }
+  function isArr(v) { return Object.prototype.toString.call(v) === '[object Array]'; }
+  function clone(v) { return JSON.parse(JSON.stringify(v)); }
+  function D() { return root.ZSDEFLATE || null; }
+
+  function utf8Encode(s) {
+    s = String(s);
+    var out = [], i, c, c2;
+    for (i = 0; i < s.length; i++) {
+      c = s.charCodeAt(i);
+      if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length) {
+        c2 = s.charCodeAt(i + 1);
+        if (c2 >= 0xDC00 && c2 <= 0xDFFF) { c = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00); i++; }
+      }
+      if (c < 0x80) { out.push(c); }
+      else if (c < 0x800) { out.push(0xC0 | (c >> 6), 0x80 | (c & 63)); }
+      else if (c < 0x10000) { out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+      else { out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+    }
+    return new Uint8Array(out);
+  }
+  /* strict: a broken sequence throws (a damaged code, never mojibake) */
+  function utf8Decode(b, from, to) {
+    var s = '', i = from, c, n, k, cp;
+    function bad() { throw new Error('the text inside is damaged'); }
+    while (i < to) {
+      c = b[i++];
+      if (c < 0x80) { s += String.fromCharCode(c); continue; }
+      if (c >= 0xC2 && c < 0xE0) { n = 1; cp = c & 31; }
+      else if (c >= 0xE0 && c < 0xF0) { n = 2; cp = c & 15; }
+      else if (c >= 0xF0 && c < 0xF5) { n = 3; cp = c & 7; }
+      else { bad(); }
+      if (i + n > to) { bad(); }
+      for (k = 0; k < n; k++) {
+        if ((b[i] & 0xC0) !== 0x80) { bad(); }
+        cp = (cp << 6) | (b[i++] & 63);
+      }
+      if (cp > 0xFFFF) {
+        cp -= 0x10000;
+        s += String.fromCharCode(0xD800 + (cp >> 10), 0xDC00 + (cp & 1023));
+      } else { s += String.fromCharCode(cp); }
+    }
+    return s;
+  }
+
+  var CRC_T = (function () {
+    var t = [], c, n, k;
+    for (n = 0; n < 256; n++) {
+      c = n;
+      for (k = 0; k < 8; k++) { c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); }
+      t[n] = c >>> 0;
+    }
+    return t;
+  }());
+  function crc32(parts) {
+    var c = 0xFFFFFFFF, p, i, b;
+    for (p = 0; p < parts.length; p++) {
+      b = parts[p];
+      for (i = 0; i < b.length; i++) { c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); }
+    }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* ── base 62, in blocks ──────────────────────────────────────────── */
+  /* CHARS[n]: the fewest base-62 digits that hold any n bytes. 8n/log2(62)
+     is never an integer for n >= 1 (log2(62) is irrational), so ceil is
+     exact; test-share-codes.js checks every n against BigInt. */
+  var CHARS = (function () {
+    var t = [0], n;
+    for (n = 1; n <= BLOCK; n++) { t[n] = Math.ceil(n * 8 / 5.954196310386876); }
+    return t;
+  }());
+  var BYTES_OF = {};
+  (function () { for (var n = 1; n <= BLOCK; n++) { BYTES_OF[CHARS[n]] = n; } }());
+  function charsFor(nBytes) {
+    var full = Math.floor(nBytes / BLOCK), rest = nBytes % BLOCK;
+    return full * BLOCK_CH + (rest ? CHARS[rest] : 0);
+  }
+  /* how many bytes `nChars` characters hold, or -1 when no length gives
+     exactly that many (a code with characters missing or added) */
+  function bytesFor(nChars) {
+    var full = Math.floor(nChars / BLOCK_CH), rest = nChars % BLOCK_CH;
+    if (!rest) { return full * BLOCK; }
+    return BYTES_OF[rest] ? full * BLOCK + BYTES_OF[rest] : -1;
+  }
+
+  function encBlock(bytes, from, n, out) {
+    var num = [], digits = [], c = CHARS[n], j, k, rem, v;
+    for (j = 0; j < n; j++) { num.push(bytes[from + j]); }
+    for (k = 0; k < c; k++) {
+      rem = 0;
+      for (j = 0; j < n; j++) {
+        v = rem * 256 + num[j];
+        num[j] = (v / 62) | 0;
+        rem = v % 62;
+      }
+      digits.push(rem);
+    }
+    for (k = c - 1; k >= 0; k--) { out.push(ALPHA.charAt(digits[k])); }
+  }
+  function b62encode(bytes) {
+    var out = [], i;
+    for (i = 0; i < bytes.length; i += BLOCK) { encBlock(bytes, i, Math.min(BLOCK, bytes.length - i), out); }
+    return out.join('');
+  }
+  /* digits (values 0..61) of one block -> its n bytes into out at `at`;
+     false when the digits are worth more than n bytes can hold */
+  function decBlock(digits, from, count, n, out, at) {
+    var num = [], j, k, v, carry;
+    for (j = 0; j < n; j++) { num.push(0); }
+    for (k = 0; k < count; k++) {
+      carry = digits[from + k];
+      for (j = n - 1; j >= 0; j--) {
+        v = num[j] * 62 + carry;
+        num[j] = v & 255;
+        carry = v >>> 8;
+      }
+      if (carry) { return false; }
+    }
+    for (j = 0; j < n; j++) { out[at + j] = num[j]; }
+    return true;
+  }
+  /* digits -> bytes, or null when the length or a block is impossible */
+  function digitsToBytes(digits) {
+    var n = bytesFor(digits.length);
+    if (n < 0) { return null; }
+    var out = new Uint8Array(n), i = 0, d = 0;
+    while (i < n) {
+      var nb = Math.min(BLOCK, n - i), nc = CHARS[nb];
+      if (!decBlock(digits, d, nc, nb, out, i)) { return null; }
+      i += nb; d += nc;
+    }
+    return out;
+  }
+  function b62decode(s) {
+    var digits = [], i, v;
+    for (i = 0; i < s.length; i++) {
+      v = VAL[s.charAt(i)];
+      if (v === undefined) { return null; }
+      digits.push(v);
+    }
+    return digitsToBytes(digits);
+  }
+
+  /* The characters EVERY payload starts with: the magic's block, worked out
+     once. The scan below only tries a decode where these are. */
+  var LEAD = (function () {
+    var lo = [], hi = [], a = [], b = [], i, k = 0;
+    for (i = 0; i < BLOCK; i++) { lo.push(i === 0 ? 0x5A : i === 1 ? 0x58 : 0); hi.push(i === 0 ? 0x5A : i === 1 ? 0x58 : 255); }
+    encBlock(lo, 0, BLOCK, a);
+    encBlock(hi, 0, BLOCK, b);
+    while (k < a.length && a[k] === b[k]) { k++; }
+    return a.slice(0, k).join('');
+  }());
+
+  /* ── base64 (for the old codes and the blobs) ───────────────────── */
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  var B64V = {};
+  (function () { for (var i = 0; i < 64; i++) { B64V[B64.charAt(i)] = i; } }());
+  function b64decode(s) {
+    s = String(s).replace(/=+$/, '');
+    if (!/^[A-Za-z0-9+\/]*$/.test(s) || s.length % 4 === 1) { return null; }
+    var out = new Uint8Array(Math.floor(s.length * 3 / 4)), o = 0, acc = 0, bits = 0, i;
+    for (i = 0; i < s.length; i++) {
+      acc = ((acc << 6) | B64V[s.charAt(i)]) & 0xFFFFFF;
+      bits += 6;
+      if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 255; }
+    }
+    return out.subarray(0, o);
+  }
+  function b64encode(b) {
+    var s = '', i, n;
+    for (i = 0; i < b.length; i += 3) {
+      n = (b[i] << 16) | ((i + 1 < b.length ? b[i + 1] : 0) << 8) | (i + 2 < b.length ? b[i + 2] : 0);
+      s += B64.charAt((n >> 18) & 63) + B64.charAt((n >> 12) & 63) +
+        (i + 1 < b.length ? B64.charAt((n >> 6) & 63) : '=') + (i + 2 < b.length ? B64.charAt(n & 63) : '=');
+    }
+    return s;
+  }
+
+  /* ── the label people see ────────────────────────────────────────── */
+  /* No arrows, line breaks, control or invisible characters, Markdown's
+     backtick; one space between words; at most LABEL_MAX characters. */
+  function label(name, kind) {
+    var s = String(name == null ? '' : name)
+      .replace(/[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁠-⁤⁦-⁩﻿­]/g, ' ')
+      .replace(/[<>‹›«»〈〉`]/g, '')
+      .replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    if (s.length > LABEL_MAX) { s = s.slice(0, LABEL_MAX - 1).replace(/\s+$/, '') + '…'; }
+    if (!s) { s = kind === KIND.script ? 'Script' : 'Config'; }
+    return s;
+  }
+
+  /* ── binary blobs ────────────────────────────────────────────────── */
+  var BLOB_KEYS = { bytecode: 1, patch: 1 };
+  function anyMarker(v) {
+    if (typeof v === 'string') { return v.charAt(0) === '\u0000'; }
+    if (!v || typeof v !== 'object') { return false; }
+    for (var k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k) && anyMarker(v[k])) { return true; }
+    }
+    return false;
+  }
+  function pullBlobs(v, blobs) {
+    if (!v || typeof v !== 'object') { return; }
+    for (var k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) { continue; }
+      var x = v[k];
+      if (typeof x === 'string' && BLOB_KEYS[k] && x.length >= 16) {
+        var b = b64decode(x);
+        if (b && b64encode(b) === x) { v[k] = '\u0000' + blobs.length; blobs.push(b); }
+      } else if (x && typeof x === 'object') { pullBlobs(x, blobs); }
+    }
+  }
+  function putBlobs(v, blobs) {
+    if (!v || typeof v !== 'object') { return; }
+    for (var k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) { continue; }
+      var x = v[k];
+      if (typeof x === 'string' && x.charAt(0) === '\u0000') {
+        var i = +x.slice(1);
+        if (!/^\u0000\d+$/.test(x) || !blobs[i]) { throw new Error('a picture or script inside is missing'); }
+        v[k] = b64encode(blobs[i]);
+      } else if (x && typeof x === 'object') { putBlobs(x, blobs); }
+    }
+  }
+
+  /* ── making a code ───────────────────────────────────────────────── */
+  /* make(kind, doc, meta) -> {code, payload, label, chars, bytes}
+     meta: {name, pack, game, flags} */
+  function make(kind, doc, meta) {
+    meta = meta || {};
+    var k = typeof kind === 'number' ? kind : KIND[kind];
+    if (!KIND_NAME[k]) { throw new Error('unknown share code kind'); }
+    var d = clone(doc);
+    var env = {};
+    if (meta.pack) { env.p = String(meta.pack); }
+    if (meta.game) { env.g = String(meta.game); }
+    var flags = meta.flags ? (meta.flags & F_NOPICS) : 0;
+    var blobs = [];
+    if (!anyMarker(d)) { pullBlobs(d, blobs); }
+    env.d = d;
+    var json = utf8Encode(JSON.stringify(env));
+    var raw = json;
+    if (blobs.length) {
+      flags |= F_BLOBS;
+      var size = json.length + 1, i;
+      for (i = 0; i < blobs.length; i++) { size += 3 + blobs[i].length; }
+      raw = new Uint8Array(size);
+      raw.set(json, 0);
+      var at = json.length;
+      raw[at++] = 0;
+      for (i = 0; i < blobs.length; i++) {
+        var L = blobs[i].length;
+        raw[at++] = (L >> 16) & 255; raw[at++] = (L >> 8) & 255; raw[at++] = L & 255;
+        raw.set(blobs[i], at); at += L;
+      }
+    }
+    var body = raw;
+    if (D() && D().deflateRaw) {
+      body = D().deflateRaw(raw, { dict: dict() });
+      flags |= F_DICT;
+    }
+    var n = HDR + body.length, pad = n < MIN_BYTES ? MIN_BYTES - n : 0;
+    n += pad;
+    if (n > MAX_BYTES) { throw new Error('too big for a share code'); }
+    var b = new Uint8Array(n);
+    b[0] = 0x5A; b[1] = 0x58; b[2] = VERSION; b[3] = k; b[4] = flags; b[5] = pad;
+    b[6] = (n >> 16) & 255; b[7] = (n >> 8) & 255; b[8] = n & 255;
+    b.set(body, HDR);
+    var c = crc32([b.subarray(0, 9), b.subarray(HDR, n)]);
+    b[9] = c >>> 24; b[10] = (c >>> 16) & 255; b[11] = (c >>> 8) & 255; b[12] = c & 255;
+    var h = crc32([b.subarray(0, 13)]);
+    b[13] = (h >>> 8) & 255; b[14] = h & 255;
+    var payload = b62encode(b);
+    var lab = label(meta.name != null ? meta.name : (d && d.name), k);
+    var code = '<' + PRODUCT + SEP + lab + SEP + payload + '>';
+    return { code: code, payload: payload, label: lab, chars: code.length, bytes: n, json: json.length };
+  }
+
+  /* ── what a config code leaves out ──────────────────────────────── */
+  function cleanConfig(doc) {
+    var d = clone(isObj(doc) ? doc : {}), removed = [], k;
+    if ('id' in d) { delete d.id; removed.push('id'); }
+    if ('artwork' in d) { delete d.artwork; removed.push('photo'); }
+    if ('turnAssistOffered' in d) { delete d.turnAssistOffered; }
+    for (k in d) { if (Object.prototype.hasOwnProperty.call(d, k) && k.charAt(0) === '_') { delete d[k]; } }
+    if (isObj(d.inputDevices) && isArr(d.inputDevices.allowlist) && d.inputDevices.allowlist.length) {
+      d.inputDevices.allowlist = [];
+      removed.push('controllers');
+    }
+    var rp = isObj(d.output) ? d.output.remotePlay : null;
+    if (isObj(rp)) {
+      var had = false;
+      for (k in rp) {
+        if (Object.prototype.hasOwnProperty.call(rp, k) && typeof rp[k] === 'string' && rp[k]) { rp[k] = ''; had = true; }
+      }
+      if (had) { removed.push('remote play'); }
+    }
+    return { doc: d, removed: removed };
+  }
+
+  /* Taught pictures: templates with a `patch`, in a `match` area that is
+     not read by gun name (encode's byName: id "gun-by-name" or byName). */
+  function pictureLists(doc) {
+    var out = [], regions = isObj(doc) && isObj(doc.vision) && isArr(doc.vision.regions) ? doc.vision.regions : [];
+    for (var i = 0; i < regions.length; i++) {
+      var r = regions[i];
+      if (!isObj(r) || String(r.kind || '').toLowerCase() !== 'match') { continue; }
+      if (r.id === 'gun-by-name' || r.byName === true || (isObj(r.match) && r.match.byName === true)) { continue; }
+      if (isArr(r.templates)) { out.push({ id: r.id, list: r.templates, owner: r, key: 'templates' }); }
+      if (isObj(r.match) && isArr(r.match.templates)) { out.push({ id: r.id, list: r.match.templates, owner: r.match, key: 'templates' }); }
+    }
+    return out;
+  }
+  function countPictures(doc) {
+    var n = 0, lists = pictureLists(doc), i, j;
+    for (i = 0; i < lists.length; i++) {
+      for (j = 0; j < lists[i].list.length; j++) {
+        var t = lists[i].list[j];
+        if (isObj(t) && typeof t.patch === 'string' && t.patch) { n++; }
+      }
+    }
+    return n;
+  }
+  /* Leaves the taught pictures out, in place, and everything that only
+     they could fire: a binding or a script whose source is
+     region:<area>=<label> of a picture that went. The encoder refuses a
+     template with no picture and a source naming a missing picture, so a
+     config with half of this done could not be saved on a Core.
+     -> {pictures, bindings, scripts} */
+  function stripPictures(doc) {
+    var gone = {}, pictures = 0, lists = pictureLists(doc), i, j;
+    for (i = 0; i < lists.length; i++) {
+      var kept = [];
+      for (j = 0; j < lists[i].list.length; j++) {
+        var t = lists[i].list[j];
+        if (isObj(t) && typeof t.patch === 'string' && t.patch) {
+          pictures++;
+          gone[String(lists[i].id || '').replace(/^\s+|\s+$/g, '') + '=' + String(t.label || '').replace(/^\s+|\s+$/g, '')] = true;
+        } else { kept.push(t); }
+      }
+      lists[i].owner[lists[i].key] = kept;
+    }
+    function goneSrc(s) {
+      if (typeof s !== 'string' || s.indexOf('region:') !== 0) { return false; }
+      var body = s.slice(7), eq = body.indexOf('=');
+      if (eq < 0) { return false; }
+      return !!gone[body.slice(0, eq).replace(/^\s+|\s+$/g, '') + '=' + body.slice(eq + 1).replace(/^\s+|\s+$/g, '')];
+    }
+    var nb = 0, ns = 0;
+    if (pictures) {
+      if (isArr(doc.bindings)) {
+        doc.bindings = doc.bindings.filter(function (b) { var g = isObj(b) && goneSrc(b.source); if (g) { nb++; } return !g; });
+      }
+      if (isArr(doc.accessibilityActions)) {
+        doc.accessibilityActions = doc.accessibilityActions.filter(function (a) {
+          var tr = isObj(a) && isObj(a.trigger) ? a.trigger : {};
+          var g = goneSrc(tr.source) || goneSrc(tr.src);
+          if (g) { ns++; }
+          return !g;
+        });
+      }
+    }
+    return { pictures: pictures, bindings: nb, scripts: ns };
+  }
+
+  function packOf(doc) {
+    var P = root.ZSPACKS;
+    var id = (P && P.packIdOf) ? P.packIdOf(doc) : (isObj(doc) && isObj(doc.gamePack) && typeof doc.gamePack.id === 'string' ? doc.gamePack.id : '');
+    var pk = null;
+    try { pk = (P && P.ofConfig) ? P.ofConfig(doc) : null; } catch (e) { pk = null; }
+    return { id: id || (pk && pk.id) || '', game: (pk && pk.name) || (isObj(doc) && typeof doc.game === 'string' ? doc.game : '') };
+  }
+
+  /* makeConfig(fullDoc, {name?, pack?, game?}) -> make()'s answer plus
+     {removed: [...], left: null | {pictures, bindings, scripts}} */
+  function makeConfig(full, meta) {
+    meta = meta || {};
+    var c = cleanConfig(full), d = c.doc, pk = packOf(d);
+    var m = { name: meta.name || d.name, pack: meta.pack || pk.id, game: meta.game || pk.game };
+    var r = make(KIND.config, d, m);
+    r.removed = c.removed;
+    r.left = null;
+    if (r.chars > PICTURE_BUDGET && countPictures(d)) {
+      var left = stripPictures(d);
+      m.flags = F_NOPICS;
+      var r2 = make(KIND.config, d, m);
+      r2.removed = c.removed;
+      r2.left = left;
+      r2.withPictures = r.chars;
+      return r2;
+    }
+    return r;
+  }
+  /* makeScript(action, {pack?, game?}): a shared script is always a NEW one */
+  function makeScript(action, meta) {
+    meta = meta || {};
+    var a = clone(isObj(action) ? action : {});
+    delete a.id; delete a.raw; delete a.edited;
+    return make(KIND.script, a, { name: a.name, pack: meta.pack, game: meta.game });
+  }
+
+  /* ── reading ─────────────────────────────────────────────────────── */
+  var INVISIBLE = /[​-‏‪-‮⁠-⁤⁦-⁩﻿­᠎͏]/g;
+  /* what may sit INSIDE a payload without ending it: spaces and line
+     breaks a chat app wraps with, dashes a word-breaker adds, the ">" an
+     email quote puts at each line's start, Markdown's backticks, the "=" of
+     an email's soft line break */
+  function isGlue(c) {
+    return /\s/.test(c) || /[\-‐-―−﹘﹣－>`=|]/.test(c);
+  }
+  function isB62(c) { return VAL[c] !== undefined; }
+  function clean(text) {
+    var t = String(text == null ? '' : text);
+    if (t.normalize) { try { t = t.normalize('NFKC'); } catch (e) { /* keep */ } }
+    return t.replace(INVISIBLE, '');
+  }
+
+  function fail(reason, kind, message, extra) {
+    var o = { ok: false, reason: reason, kind: kind || null, message: message };
+    if (extra) { for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k)) { o[k] = extra[k]; } } }
+    return o;
+  }
+  function kindWord(k) { return k === KIND.script || k === 'script' ? 'script' : k === KIND.config || k === 'config' ? 'config' : ''; }
+  var SAY = {
+    none: 'There is no ZeroStick code in that text. Copy the whole code, from < to >, and paste it here.',
+    start: 'That looks like a ZeroStick code, but its start is missing or damaged. Copy the whole code again, from < to >, and paste it here.',
+    foreign: 'That code comes from another device’s app, not from ZeroStick. Open a config, then Legacy Devices, to copy its settings in.'
+  };
+  function sayCut(k, got, need) {
+    var pct = Math.max(1, Math.min(99, Math.floor(got * 100 / need)));
+    return 'This ' + (kindWord(k) || 'ZeroStick') + ' code is cut off: only ' + pct + '% of it is here, so nothing was imported. ' +
+      'Copy the whole code again, from < to >, and paste it here.';
+  }
+  function sayDamaged(k) {
+    return 'This ' + (kindWord(k) || 'ZeroStick') + ' code is damaged (a letter in it was changed), so nothing was imported. ' +
+      'Copy it again from the original message and paste it here.';
+  }
+  function sayNewer(k) {
+    return 'This ' + (kindWord(k) || 'ZeroStick') + ' code was made by a newer ZeroStick app. Update this app, then paste it again.';
+  }
+
+  /* The new codes, found anywhere in the text: every place the payload's
+     first characters appear is tried, so neither the product name, the
+     label nor the arrows are needed. */
+  function scan(t) {
+    var A = [], G = [], gap = 2, i, c;
+    for (i = 0; i < t.length; i++) {
+      c = t.charAt(i);
+      if (isB62(c)) { A.push(VAL[c]); G.push(gap); gap = 0; }
+      else if (isGlue(c)) { if (gap < 1) { gap = 1; } }
+      else { gap = 2; }
+    }
+    var L0 = VAL[LEAD.charAt(0)], L1 = LEAD.length > 1 ? VAL[LEAD.charAt(1)] : -1;
+    var first = null, head = new Uint8Array(BLOCK), k, j;
+    for (k = 0; k + BLOCK_CH <= A.length; k++) {
+      if (A[k] !== L0 || (L1 >= 0 && A[k + 1] !== L1)) { continue; }
+      /* the first block may not cross anything but glue */
+      for (j = k + 1; j < k + BLOCK_CH; j++) { if (G[j] === 2) { break; } }
+      if (j < k + BLOCK_CH) { continue; }
+      if (!decBlock(A, k, BLOCK_CH, BLOCK, head, 0)) { continue; }
+      if (head[0] !== 0x5A || head[1] !== 0x58) { continue; }
+      var h = crc32([head.subarray(0, 13)]);
+      if (head[13] !== ((h >>> 8) & 255) || head[14] !== (h & 255)) { continue; }
+      var ver = head[2], kind = head[3];
+      if (ver !== VERSION) {
+        if (ver > VERSION && !first) { first = fail('newer', KIND_NAME[kind] || null, sayNewer(kind)); }
+        continue;
+      }
+      var n = (head[6] << 16) | (head[7] << 8) | head[8];
+      if (!KIND_NAME[kind] || n < MIN_BYTES || n > MAX_BYTES || head[5] >= BLOCK || HDR + head[5] > n) { continue; }
+      var need = charsFor(n), got = 1;
+      while (got < need && k + got < A.length && G[k + got] !== 2) { got++; }
+      if (got < need) {
+        if (!first) { first = fail('cut', KIND_NAME[kind], sayCut(kind, got, need), { got: got, need: need }); }
+        continue;
+      }
+      var r = open(A.slice(k, k + need), kind);
+      if (r.ok) { return r; }
+      if (!first || first.reason === 'newer') {
+        /* damaged, or cut off with the chat's own words glued on after it:
+           if trailing word-like pieces (letters only, like "thanks bro")
+           would leave it short, it was cut off */
+        first = looksCut(A, G, t, k, need) ? fail('cut', KIND_NAME[kind], sayCut(kind, wordless(A, G, k, need), need), {}) : r;
+      }
+    }
+    return first;
+  }
+  /* the pieces of [k, k+need) between glue, from the end, while they look
+     like words; true when dropping them leaves fewer than `need` */
+  function pieces(A, G, k, need) {
+    var out = [], s = k, j;
+    for (j = k + 1; j <= k + need; j++) {
+      if (j === k + need || G[j] === 1) { out.push([s, j]); s = j; }
+    }
+    return out;
+  }
+  function wordy(A, a, b) {
+    if (b - a > 15) { return false; }
+    for (var i = a; i < b; i++) {
+      var v = A[i];
+      if (v < 10) { return false; }                      /* a digit */
+      if (i > a && v < 36) { return false; }             /* a capital past the first letter */
+    }
+    return true;
+  }
+  function wordless(A, G, k, need) {
+    var ps = pieces(A, G, k, need), end = k + need, i;
+    for (i = ps.length - 1; i > 0 && wordy(A, ps[i][0], ps[i][1]); i--) { end = ps[i][0]; }
+    return end - k;
+  }
+  function looksCut(A, G, t, k, need) { return wordless(A, G, k, need) < need; }
+
+  /* one payload's digits -> the answer */
+  function open(digits, kind) {
+    var b = digitsToBytes(digits);
+    if (!b) { return fail('damaged', KIND_NAME[kind], sayDamaged(kind)); }
+    var n = b.length, pad = b[5], flags = b[4];
+    var want = (b[9] << 24 | b[10] << 16 | b[11] << 8 | b[12]) >>> 0;
+    if (crc32([b.subarray(0, 9), b.subarray(HDR, n)]) !== want) { return fail('damaged', KIND_NAME[kind], sayDamaged(kind)); }
+    for (var z = n - pad; z < n; z++) { if (b[z] !== 0) { return fail('damaged', KIND_NAME[kind], sayDamaged(kind)); } }
+    var body = b.subarray(HDR, n - pad), raw, env;
+    try {
+      if (flags & F_DICT) {
+        if (!D() || !D().inflateRaw) { return fail('damaged', KIND_NAME[kind], 'This app cannot read share codes yet. Update it, then paste the code again.'); }
+        raw = D().inflateRaw(body, { dict: dict(), max: MAX_JSON, exact: true });
+      } else { raw = body; }
+      var end = raw.length, blobs = [];
+      if (flags & F_BLOBS) {
+        end = -1;
+        for (var i = 0; i < raw.length; i++) { if (raw[i] === 0) { end = i; break; } }
+        if (end < 0) { throw new Error('no blobs'); }
+        var at = end + 1;
+        while (at < raw.length) {
+          if (at + 3 > raw.length) { throw new Error('a blob is cut'); }
+          var L = (raw[at] << 16) | (raw[at + 1] << 8) | raw[at + 2];
+          at += 3;
+          if (at + L > raw.length) { throw new Error('a blob is cut'); }
+          blobs.push(raw.slice(at, at + L));
+          at += L;
+        }
+      }
+      env = JSON.parse(utf8Decode(raw, 0, end));
+      if (!isObj(env) || !isObj(env.d)) { throw new Error('no document'); }
+      if (blobs.length) { putBlobs(env.d, blobs); }
+    } catch (e) {
+      return fail('damaged', KIND_NAME[kind], sayDamaged(kind));
+    }
+    var d = env.d;
+    return {
+      ok: true, format: 'zsx1', kind: KIND_NAME[kind],
+      name: typeof d.name === 'string' && d.name ? d.name : '',
+      pack: typeof env.p === 'string' ? env.p : '',
+      game: typeof env.g === 'string' ? env.g : (typeof d.game === 'string' ? d.game : ''),
+      picturesLeftOut: !!(flags & F_NOPICS),
+      doc: d
+    };
+  }
+
+  /* ZSA1. / ZSA2. script codes (base64url JSON) */
+  function readZSA(t) {
+    var m = /ZSA([12])\.\s*([A-Za-z0-9_+\/\-=\s]+)/.exec(t);
+    if (!m) { return null; }
+    var b = m[2].replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+    var bytes = b64decode(b), o = null;
+    try { o = bytes ? JSON.parse(utf8Decode(bytes, 0, bytes.length)) : null; } catch (e) { o = null; }
+    if (!isObj(o)) { return fail('damaged', 'script', sayDamaged('script')); }
+    var v1 = m[1] === '1';
+    return {
+      ok: true, format: v1 ? 'zsa1' : 'zsa2', kind: 'script',
+      name: typeof (v1 ? o.n : o.name) === 'string' ? (v1 ? o.n : o.name) : '',
+      pack: '', game: '', picturesLeftOut: false, doc: o
+    };
+  }
+  /* ZSC:<base64 JSON>:ZSC (the A7S agent's config code) */
+  function readZSC(t) {
+    var m = /ZSC:([A-Za-z0-9+\/=\s]+?):ZSC/.exec(t);
+    if (!m) { return null; }
+    var bytes = b64decode(m[1].replace(/\s+/g, '')), o = null;
+    try { o = bytes ? JSON.parse(utf8Decode(bytes, 0, bytes.length)) : null; } catch (e) { o = null; }
+    if (!isObj(o)) { return fail('damaged', 'config', sayDamaged('config')); }
+    return docAnswer(o, 'zsc');
+  }
+  function docAnswer(o, format) {
+    var script = isArr(o.steps) && isObj(o.trigger) && !isArr(o.bindings);
+    var pk = script ? { id: '', game: '' } : packOf(o);
+    return {
+      ok: true, format: format, kind: script ? 'script' : 'config',
+      name: typeof o.name === 'string' ? o.name : '', pack: pk.id, game: pk.game,
+      picturesLeftOut: false, doc: o
+    };
+  }
+  /* a config's raw JSON, from its first "{" to its last "}", with a chat
+     app's curly quotes put back */
+  function readJSON(t) {
+    var a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if (a < 0 || b <= a) { return null; }
+    var s = t.slice(a, b + 1), o = null;
+    try { o = JSON.parse(s); } catch (e) {
+      try { o = JSON.parse(s.replace(/[“”„‟″«»]/g, '"').replace(/[‘’‚‛′]/g, '\'')); } catch (e2) { o = null; }
+    }
+    if (!isObj(o)) { return null; }
+    var cfg = typeof o.name === 'string' && (isArr(o.bindings) || o.schemaVersion !== undefined || isObj(o.mouseTranslation));
+    var scr = isArr(o.steps) && isObj(o.trigger);
+    if (!cfg && !scr) { return null; }
+    return docAnswer(o, 'json');
+  }
+
+  var ANCHOR = /zero[\W_]*stick[\W_]*exo/i;
+
+  /* read(text) -> {ok:true, format, kind:'config'|'script', name, pack,
+     game, picturesLeftOut, doc} or {ok:false, reason:'none'|'start'|'cut'|
+     'damaged'|'newer'|'foreign', kind, message}. `message` is the sentence
+     to show. Never throws. */
+  function read(text) {
+    var t;
+    try { t = clean(text); } catch (e) { return fail('none', null, SAY.none); }
+    if (!t.replace(/\s+/g, '')) { return fail('none', null, SAY.none); }
+    var r = null;
+    try { r = scan(t); } catch (e) { r = null; }
+    if (r && r.ok) { return r; }
+    var legacy = readZSA(t) || readZSC(t);
+    if (legacy && (legacy.ok || !r)) { return legacy; }
+    if (r) { return r; }
+    var X = root.ZSXIMCODE;
+    try { if (X && X.find && X.find(t)) { return fail('foreign', null, SAY.foreign); } } catch (e) { /* not that */ }
+    var j = readJSON(t);
+    if (j) { return j; }
+    if (ANCHOR.test(t)) { return fail('start', null, SAY.start); }
+    return fail('none', null, SAY.none);
+  }
+
+  /* "MW4 Main · config for Call of Duty: Modern Warfare 4" */
+  function describe(r) {
+    if (!r || !r.ok) { return ''; }
+    var P = root.ZSPACKS, pk = null;
+    try { pk = (P && P.get && r.pack) ? P.get(r.pack) : null; } catch (e) { pk = null; }
+    var game = (pk && pk.name) || r.game || '';
+    var name = r.name || (r.kind === 'script' ? 'Untitled script' : 'Untitled config');
+    return name + ' · ' + r.kind + (game ? ' for ' + game : '');
+  }
+
+  root.ZSSHARE = {
+    PRODUCT: PRODUCT, VERSION: VERSION, KIND: KIND, PICTURE_BUDGET: PICTURE_BUDGET,
+    make: make, makeConfig: makeConfig, makeScript: makeScript,
+    read: read, describe: describe, label: label,
+    cleanConfig: cleanConfig, stripPictures: stripPictures, countPictures: countPictures,
+    /* for the tests */
+    _b62encode: b62encode, _b62decode: b62decode, _crc32: function (b) { return crc32([b]); },
+    _charsFor: charsFor, _bytesFor: bytesFor, _CHARS: CHARS, _LEAD: LEAD, _clean: clean,
+    _dict: function () { return DICT_V1; }
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

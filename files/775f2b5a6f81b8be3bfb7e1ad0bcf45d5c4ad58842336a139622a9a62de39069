@@ -1,0 +1,259 @@
+/* zs-mobile.js - the dualshock-tools site inside the EXO app (D414).
+ *
+ * Loaded in <head>, BEFORE app.js (a module, so it runs later), so the
+ * site's own theme code finds the app's choice already stored and paints
+ * nothing in the wrong colours first. Presentation only: no flow, no
+ * timing, no report goes near this file (zs-mobile.css has the layout).
+ *
+ *   - inside the app (same origin, window.parent has the app's ZS): the
+ *     app's palette (--bg, --panel, --accent ...) is copied onto this page
+ *     as --zs-* and html gets .zs-app, which zs-mobile.css maps Bootstrap
+ *     onto; the site's stored theme follows the app's (dark / light), and
+ *     if the app changes theme while this is open the site's own switch is
+ *     flipped, so its canvases and controller picture repaint the site's way;
+ *   - everywhere: the MIT credit line sits in the footer.
+ *
+ * ES5, no dependencies.
+ */
+(function () {
+  'use strict';
+
+  var host = null;
+  try {
+    if (window.parent && window.parent !== window && window.parent.document && window.parent.ZS) host = window.parent;
+  } catch (e) { host = null; }
+
+  function hostLight() {
+    return false;   /* D444: the EXO app is dark only */
+  }
+
+  function rgbOf(c) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c || '').trim());
+    if (m) {
+      var h = m[1].length === 3 ? m[1].replace(/(.)/g, '$1$1') : m[1];
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)].join(', ');
+    }
+    m = /rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/i.exec(String(c || ''));
+    return m ? [m[1], m[2], m[3]].join(', ') : '';
+  }
+
+  var TOKENS = ['bg', 'panel', 'panel2', 'line', 'text', 'muted', 'accent', 'accent-ink', 'green', 'amber', 'red-ink'];
+  var FALLBACK = {
+    dark: { bg: '#15171b', panel: '#1d2026', panel2: '#262a31', line: '#343a44', text: '#e8edf5', muted: '#97a3b6',
+            accent: '#6f9bff', 'accent-ink': '#041a2e', green: '#3fb950', amber: '#e0a33a', 'red-ink': '#ff8078' },
+    light: { bg: '#f2f4f7', panel: '#ffffff', panel2: '#eef1f5', line: '#b8c2d0', text: '#121821', muted: '#536071',
+             accent: '#2856cc', 'accent-ink': '#ffffff', green: '#1a7f37', amber: '#835700', 'red-ink': '#c4302b' }
+  };
+
+  function paint() {
+    var root = document.documentElement;
+    var light = hostLight();
+    var cs = null;
+    try { cs = host.getComputedStyle(host.document.body); } catch (e) { cs = null; }
+    TOKENS.forEach(function (t) {
+      var v = cs ? String(cs.getPropertyValue('--' + t) || '').trim() : '';
+      root.style.setProperty('--zs-' + t, v || FALLBACK[light ? 'light' : 'dark'][t]);
+    });
+    /* the app's own type, so a word here is set like a word there */
+    var font = cs ? String(cs.getPropertyValue('font-family') || '').trim() : '';
+    if (font) root.style.setProperty('--zs-font', font);
+    root.style.setProperty('--zs-accent-rgb', rgbOf(root.style.getPropertyValue('--zs-accent')) || '111, 155, 255');
+    root.classList.add('zs-app');
+    return light ? 'light' : 'dark';
+  }
+
+  if (host) {
+    var theme = paint();
+    /* the site reads this key when it starts (app.js Storage.preferredTheme) */
+    try { localStorage.setItem('preferredTheme', theme); } catch (e) { /* private mode */ }
+    document.documentElement.setAttribute('data-bs-theme', theme);
+
+    /* the app switched theme with this open: repaint, and let the site's
+       own switch redraw its pictures */
+    var follow = function () {
+      var now = paint();
+      var sw = document.getElementById('colorModeSwitch');
+      if (sw && sw.checked !== (now === 'dark')) sw.click();
+    };
+    try {
+      if (window.MutationObserver) {
+        new MutationObserver(follow).observe(host.document.body, { attributes: true, attributeFilter: ['class'] });
+      }
+    } catch (e) { /* the app went away */ }
+  }
+
+  function credit() {
+    var foot = document.querySelector('#footbody > p');
+    if (!foot || document.getElementById('zs-credit')) return;
+    var s = document.createElement('span');
+    s.id = 'zs-credit';
+    s.className = 'text-body-secondary';
+    s.textContent = 'dualshock-tools, MIT licence, © 2024 the_al';
+    foot.appendChild(s);
+  }
+
+  /* ── inside the EXO app: one app, not two (audit 2026-11-25, fix 9) ──
+   * The site's own logo bar, hamburger and footer are hidden by
+   * zs-mobile.css (html.zs-app); what they carried stays reachable:
+   *   - the FAQ (was in the hamburger): a quiet button at the foot;
+   *   - the MIT credit (was in the footer): a line at the very foot;
+   *   - the USB ids after the controller's name are left out of the name
+   *     line (the Info tab still lists everything);
+   *   - Disconnect moves from the top (right above the first calibration
+   *     button) to the foot of the page, and Reboot controller (a red
+   *     button right under Restore) joins it; both ask first. The safe
+   *     answer is "Stay connected", the modal's primary button, so the
+   *     pad's Cross (zs-tweaks.js picks the primary of the topmost modal)
+   *     keeps the controller; if it is disconnected, the Connect button
+   *     takes the focus so the next press reconnects. disconnect() and
+   *     reboot_controller() themselves are the site's, untouched. */
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text) e.textContent = text;
+    return e;
+  }
+  function stripIds() {
+    var n = document.getElementById('devname');
+    if (!n) return;
+    var t = n.textContent || '';
+    var c = t.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '');
+    if (c !== t) n.textContent = c;
+  }
+  /* "Are you sure?" as one of the site's own sheets. The safe answer is the
+     modal's primary button, so the pad's Cross picks it (zs-tweaks.js). */
+  var ASK = {
+    disconnect: { title: 'Disconnect this controller?', yes: 'Disconnect', run: function () { window.disconnect(); },
+      body: 'The sticks stop showing here until you press Connect again.' },
+    reboot: { title: 'Reboot this controller?', yes: 'Reboot', run: function () { window.reboot_controller(); },
+      body: 'It switches off and on again, and any change you have not saved is lost.' }
+  };
+  var asking = null;
+  function ask(what) {
+    var m = document.getElementById('zsAskModal'), a = ASK[what];
+    if (!m || !a || !window.bootstrap) { if (a) a.run(); return; }
+    asking = what;
+    document.getElementById('zsAskTitle').textContent = a.title;
+    document.getElementById('zsAskBody').textContent = a.body;
+    document.getElementById('zsAskYes').textContent = a.yes;
+    window.bootstrap.Modal.getOrCreateInstance(m).show();
+  }
+  function guard(btn, what, id) {
+    btn.removeAttribute('onclick');
+    btn.id = id;
+    btn.addEventListener('click', function () { ask(what); });
+    return btn;
+  }
+  function appLook() {
+    var html = document.documentElement;
+    if (!html.classList.contains('zs-app') || document.getElementById('zs-foot')) return;
+
+    /* the name line, without the USB ids */
+    var dn = document.getElementById('devname');
+    if (dn && window.MutationObserver) {
+      new MutationObserver(stripIds).observe(dn, { childList: true, characterData: true, subtree: true });
+      stripIds();
+    }
+
+    /* the foot of the Calibration tab: Reboot and Disconnect (both ask
+       first), the FAQ, the credit */
+    var pane = document.getElementById('controller-content');
+    var foot = el('div', { id: 'zs-foot', 'class': 'vstack gap-2' });
+    var rb = document.getElementById('resetBtn');
+    if (rb) {
+      /* the site shows / hides #resetBtn itself; its id moves to a holder
+         so that still works, and the button inside it asks first */
+      var hold = el('div', { 'class': 'vstack' });
+      hold.style.display = rb.style.display;
+      rb.parentNode.removeChild(rb);
+      rb.className = 'btn btn-outline-danger ds-btn ds-i18n';
+      guard(rb, 'reboot', 'zs-reboot');
+      hold.id = 'resetBtn';
+      hold.appendChild(rb);
+      foot.appendChild(hold);
+    }
+    var dc = document.querySelector('#onlinebar > button[onclick*="disconnect"]');
+    if (dc) {
+      dc.className = 'btn btn-outline-secondary ds-i18n';
+      foot.appendChild(guard(dc, 'disconnect', 'zs-disconnect'));
+    }
+    var faq = el('button', { type: 'button', id: 'zs-faq', 'class': 'btn btn-link' }, 'Frequently Asked Questions');
+    faq.addEventListener('click', function () { if (window.show_faq_modal) window.show_faq_modal(); });
+    foot.appendChild(faq);
+    foot.appendChild(el('p', { id: 'zs-app-credit' }, 'Calibration screens: dualshock-tools, MIT licence, © 2024 the_al'));
+    if (pane) pane.appendChild(foot);
+
+    var m = el('div', { id: 'zsAskModal', 'class': 'modal fade', tabindex: '-1',
+      'aria-labelledby': 'zsAskTitle', 'aria-hidden': 'true' });
+    m.innerHTML = '<div class="modal-dialog modal-dialog-centered"><div class="modal-content">' +
+      '<div class="modal-header"><h5 class="modal-title" id="zsAskTitle"></h5></div>' +
+      '<div class="modal-body"><p class="mb-2" id="zsAskBody"></p>' +
+      '<p class="mb-0 text-body-secondary">To give the controller back to your console, leave this screen with the back key.</p></div>' +
+      '<div class="modal-footer">' +
+      '<button type="button" class="btn btn-outline-secondary" id="zsAskYes"></button>' +
+      '<button type="button" class="btn btn-primary" id="zsAskNo" data-bs-dismiss="modal">Stay connected</button>' +
+      '</div></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('shown.bs.modal', function () {
+      var no = document.getElementById('zsAskNo');
+      if (no) no.focus();
+    });
+    document.getElementById('zsAskYes').addEventListener('click', function () {
+      var inst = window.bootstrap && window.bootstrap.Modal.getInstance(m);
+      var a = ASK[asking];
+      asking = null;
+      if (inst) inst.hide();
+      if (a) a.run();
+    });
+
+    /* disconnected: the Connect button has the focus, and the sentence
+       says what to do in the app (the site's says "your computer") */
+    var off = document.getElementById('offlinebar');
+    if (off) {
+      var say = off.querySelector('p');
+      if (say) {
+        say.classList.remove('ds-i18n');
+        say.textContent = 'Press Connect to use your controller here. To give it back to your console, ' +
+          'leave this screen with the back key.';
+      }
+      if (window.MutationObserver) {
+        new MutationObserver(function () {
+          var b = document.getElementById('btnconnect');
+          if (off.style.display !== 'none' && b && document.activeElement !== b) b.focus();
+        }).observe(off, { attributes: true, attributeFilter: ['style'] });
+      }
+    }
+  }
+
+  /* ── the app's "Show technical details" switch (polish-5) ──
+   * The Controller Info card (firmware build date, serial, board ids...)
+   * and the Info tab are developer readouts, so inside the app they follow
+   * the app's switch like every other one (.zs-tech, body.zs-showtech in
+   * the app, audit #8): off, html gets .zs-notech and zs-mobile.css hides
+   * them; switched on with this open, they come back. Nothing is removed. */
+  function tech() {
+    if (!host) return;
+    var on = false;
+    try { on = host.document.body.classList.contains('zs-showtech'); } catch (e) { on = false; }
+    var fw = document.getElementById('fwinfo');
+    var card = fw && fw.closest ? fw.closest('.card') : null;
+    if (card) card.classList.add('zs-techcard');
+    document.documentElement.classList.toggle('zs-notech', !on);
+    if (!on) {
+      var info = document.getElementById('info-tab');
+      var cal = document.getElementById('controller-tab');
+      if (info && cal && info.classList.contains('active')) cal.click();
+    }
+  }
+  if (host) {
+    try {
+      if (window.MutationObserver) {
+        new MutationObserver(tech).observe(host.document.body, { attributes: true, attributeFilter: ['class'] });
+      }
+    } catch (e) { /* the app went away */ }
+  }
+
+  function ready() { credit(); appLook(); tech(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
+  else ready();
+})();
