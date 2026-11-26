@@ -1,0 +1,149 @@
+/* xim-parts.js - "which parts do you want?" for a pasted XIM config,
+ * window.ZSXIMPARTS. Pure: no DOM, Node-tested (tools/test-legacy-devices.js).
+ *
+ * The owner (2026-11-25): "When you paste a XIM config, have it be like XIM,
+ * where it asks what part you want." The XIM Matrix screen
+ * (xim-matrix-screen.js) reads a pasted share code with the existing reader
+ * (ZSXIM.fromShareCode over xim-share-code.js), then asks which parts to
+ * bring in. This file decides:
+ *
+ *   parts(report)              the parts the code actually carried (only
+ *                              what the reader filled), in XIM's own order:
+ *                              Hip Aim (Sensitivity, Smoothing, Aim curve),
+ *                              Y Scale, Aim Down Sight
+ *   merge(base, code, chosen)  the form with ONLY the chosen parts taken from
+ *                              the code; every other field keeps this
+ *                              config's own number (ZSXIM.defaults), so the
+ *                              existing preview writes nothing for it
+ *   cannot(report)             what came in the code but cannot be brought
+ *                              in, in plain words (the reader's notCopied
+ *                              and notRead: bindings and Scripts, dead
+ *                              zones, Quantization, ...)
+ *   summary(pv, report, chosen) the short result after Apply: what came in,
+ *                              how many were already the same, what could
+ *                              not be translated
+ *
+ * Nothing new is translated here: the numbers, labels and writes are
+ * ZSXIM.preview's, exactly as the "Copy your XIM settings in" form uses them.
+ * ES5 ONLY, like every file phone.html loads.
+ */
+(function (root) {
+  'use strict';
+
+  var HIP_SMOOTH = ['smoothing', 'precision', 'response', 'easing', 'stability', 'smooth', 'decay', 'synch'];
+  var HIP_CURVE = ['curve', 'grid', 'curveFromConfig'];
+
+  /* `match` is tested against the reader's `filled` words (xim-import.js
+     fromShareCode), which are this app's own and fixed */
+  var PARTS = [
+    { id: 'hipSens', group: 'Hip Aim', lab: 'Sensitivity', match: /^Hip Sensitivity$/,
+      keys: [['hip', 'cm360']] },
+    { id: 'hipSmooth', group: 'Hip Aim', lab: 'Smoothing', match: /^Hip smoothing/,
+      keys: HIP_SMOOTH.map(function (k) { return ['hip', k]; }) },
+    { id: 'hipCurve', group: 'Hip Aim', lab: 'Aim curve', match: /^Hip curve/,
+      keys: HIP_CURVE.map(function (k) { return ['hip', k]; }) },
+    { id: 'yScale', group: 'For both Hip and Aim Down Sight', lab: 'Y Scale', match: /^Y Scale$/,
+      keys: [['yScale']] },
+    { id: 'ads', group: 'Aim Down Sight', lab: 'Aim Down Sight settings', match: /^(Settings inheritance|Aim Down Sight )/,
+      keys: [['inherit'], ['ads']] }
+  ];
+
+  function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+
+  /* the code's own number for a part, where it has one, so the picker reads
+     "32 cm/360" rather than repeating the part's name */
+  var INHERIT_WORDS = { all: 'Inherit All', sens: 'Sensitivity Only', none: 'Inherit Nothing' };
+  function num(v, dp) { return typeof v === 'number' && isFinite(v) ? String(Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp)) : ''; }
+  function valueOf(id, form) {
+    if (!form) { return ''; }
+    if (id === 'hipSens' && form.hip) { return num(form.hip.cm360, 2) ? num(form.hip.cm360, 2) + ' cm/360' : ''; }
+    if (id === 'yScale') { return num(form.yScale, 2) ? (+form.yScale).toFixed(2) : ''; }
+    return '';
+  }
+
+  /* the parts this code carried: [{ id, group, lab, detail: [words] }];
+     `form` (the code's form, optional) adds its numbers */
+  function parts(report, form) {
+    var filled = (report && report.filled) || [], out = [];
+    PARTS.forEach(function (p) {
+      var got = filled.filter(function (f) { return p.match.test(f); });
+      if (!got.length) { return; }
+      var v = valueOf(p.id, form), detail = [];
+      if (v) { detail.push(v); }
+      got.forEach(function (f) {
+        /* "Hip smoothing (Classic)" reads "Classic" under Hip Aim's Smoothing */
+        var m = /\(([^)]+)\)$/.exec(f);
+        if (m) { detail.push(m[1]); return; }
+        if (f === 'Settings inheritance') { detail.push(form && INHERIT_WORDS[form.inherit] || f); return; }
+        if (/Sensitivity$/.test(f) && p.id === 'ads' && form && form.ads) { detail.push(num(form.ads.cm360, 2) + ' cm/360'); return; }
+        if (!v) { detail.push(f.replace(/^Hip /, '').replace(/^Aim Down Sight /, '')); }
+      });
+      out.push({ id: p.id, group: p.group, lab: p.lab, detail: detail });
+    });
+    return out;
+  }
+
+  /* chosen: an object { id: true } or an array of ids */
+  function chosenSet(chosen) {
+    var s = {}, i;
+    if (Object.prototype.toString.call(chosen) === '[object Array]') {
+      for (i = 0; i < chosen.length; i++) { s[chosen[i]] = true; }
+    } else if (chosen && typeof chosen === 'object') {
+      for (i in chosen) { if (Object.prototype.hasOwnProperty.call(chosen, i) && chosen[i]) { s[i] = true; } }
+    }
+    return s;
+  }
+
+  function merge(base, code, chosen) {
+    var out = clone(base), on = chosenSet(chosen);
+    PARTS.forEach(function (p) {
+      if (!on[p.id]) { return; }
+      p.keys.forEach(function (k) {
+        if (k.length === 1) { out[k[0]] = clone(code[k[0]]); }
+        else { out[k[0]][k[1]] = clone(code[k[0]][k[1]]); }
+      });
+    });
+    return out;
+  }
+
+  /* what the code holds that cannot come in: [words] */
+  function cannot(report) {
+    var out = [];
+    ((report && report.notCopied) || []).forEach(function (n) {
+      out.push(n.what + ' (' + n.given + '): ' + n.why);
+    });
+    var nr = (report && report.notRead) || [];
+    if (nr.length) {
+      out.push('Not read from XIM configs yet: ' + nr.join(', ') + '. Set these up in this app.');
+    }
+    return out;
+  }
+
+  function count(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+  /* the result after Apply (or with nothing to apply) */
+  function summary(pv, report, chosen) {
+    var on = chosenSet(chosen), came = [], same = 0, lost = [];
+    ((pv && pv.rows) || []).forEach(function (r) {
+      /* never read from a code (listed by cannot()), or not XIM's to set */
+      if (/dead zone|Stability|Quantization/i.test(r.xim)) { return; }
+      var g = r.group === 'Both' ? 'Hip and Aim Down Sight' : r.group;
+      if (r.changed) { came.push(g + ' · ' + r.xim + ': ' + r.given + ' → ' + r.ours); }
+      else if (r.label === 'none') { lost.push(g + ' · ' + r.xim + ': ' + (r.labelText || 'Not available') + ' on this device'); }
+      else { same++; }
+    });
+    var left = parts(report).filter(function (p) { return !on[p.id]; })
+      .map(function (p) { return p.lab + (p.group === 'Hip Aim' ? ' (Hip Aim)' : ''); });
+    return {
+      came: came,
+      same: same,
+      left: left,
+      lost: lost.concat(cannot(report)),
+      line: came.length
+        ? 'Brought in: ' + count(came.length, 'setting', 'settings') + ' changed.'
+        : 'Nothing to change: this config already has these settings.'
+    };
+  }
+
+  root.ZSXIMPARTS = { PARTS: PARTS, parts: parts, merge: merge, cannot: cannot, summary: summary };
+})(typeof window !== 'undefined' ? window : globalThis);
