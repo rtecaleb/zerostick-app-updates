@@ -1,0 +1,395 @@
+/* xim-matrix-screen.js - the "XIM Matrix" device in Legacy Devices, the
+ * editor's `ximpaste` screen, window.ZSXIMMATRIX.
+ *
+ * The owner (2026-11-25): "Click the XIM Matrix and it just says paste in
+ * the config. When you paste a XIM config, have it be like XIM, where it
+ * asks what part you want. The user can paste it and it auto-translates
+ * that config into our app." Three steps on one screen:
+ *
+ *   1. PASTE. One box, "Paste your XIM config", and Paste from clipboard
+ *      (a controller player never has to type). Read at once by the existing
+ *      reader (ZSXIM.fromShareCode over xim-share-code.js); the box is
+ *      emptied, so the code's text is never kept, only its report.
+ *   2. PICK, the way XIM Manager asks: the parts this code carried, each a
+ *      checkbox, all on (xim-parts.js decides which and what each holds),
+ *      and one line of what cannot come in.
+ *   3. DONE: the chosen parts go into this config through ZSXIM.preview and
+ *      ZS.putProfile, the same writes the "Copy your XIM settings in" form
+ *      makes; a short result (what came in, what could not), with Undo.
+ *
+ * D942 (owner, 2026-11-26): the player's XIM Smart Actions come in too,
+ * recoil patterns included. They ride in the same pasted text (a config's
+ * code holds its whole binding list; XIM Manager's Copy Binding holds one).
+ * xim-smart-actions.js (ZSXIMSA) reads and converts them; each is a part to
+ * tick with a one-line summary, and what cannot convert is listed under
+ * "Can't come in". They go into this config's Smart Actions
+ * (accessibilityActions) in the same write, and Undo takes them out again.
+ * PASTE ONLY (owner, same day): "None of this typing things ... just paste,
+ * and once they paste have them choose what they want to copy over." The
+ * typed-numbers form is not reached from here any more.
+ * XIM aim is mouse aim (D199): a config with no mouse gets one line saying
+ * so instead of the box.
+ *
+ * May say XIM (D402: the legacy import files). No other company's logo or
+ * artwork (D76). Real hardware only: nothing is applied without the Core.
+ * ES5 ONLY; everything into innerHTML through esc().
+ */
+(function () {
+  'use strict';
+  if (!window.ZS || !window.ZSXIM || !window.ZSXIMPARTS) { return; }
+
+  var ZS = window.ZS, X = window.ZSXIM, XP = window.ZSXIMPARTS, esc = ZS.esc;
+  var CSS_ID = 'zs-xm-css';
+  var TITLE = 'XIM Matrix';
+  var NO_MOUSE = 'XIM settings are mouse aim settings, so they come into configs that use a mouse. ' +
+    'Pick or make a mouse config, then paste here.';
+
+  /* module-wide so a redraw of the visit keeps where the player is */
+  var S = { pid: null, step: 'paste', got: null, on: {}, base: null, pv: null, sum: null,
+            undo: null, undoSa: null, busy: false, say: null };
+  var P = null;
+
+  function el(id) { return document.getElementById(id); }
+  function box() { return el('xm'); }
+  function fullOf(p) { return (p && ZS.live && ZS.live.online !== false && ZS.live.full) ? (ZS.live.full[p.id] || null) : null; }
+  function mtOf(p) { var f = fullOf(p); return (f && f.mouseTranslation) || {}; }
+  function online() { return !(ZS.live && ZS.live.online === false); }
+  function hides(name) { return !!(ZS.productHides && ZS.productHides(name)); }
+  function help(id, label, text) { return ZS.helpHTML ? ZS.helpHTML(id, label, esc(text)) : ''; }
+  function hasMouse(p) { return !!(p && ZS.inputShows && ZS.inputShows(p.input, 'mouse')); }
+  function cfgName(p) { return (fullOf(p) || {}).name || (p && p.name) || 'this config'; }
+
+  function reset(p) {
+    S.pid = p ? p.id : null;
+    S.step = 'paste'; S.got = null; S.on = {}; S.base = null; S.pv = null; S.sum = null;
+    S.undo = null; S.undoSa = null; S.busy = false; S.say = null;
+  }
+
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '#xm .xm-lead{color:var(--text);font-size:15px;font-weight:650;line-height:1.45;margin:2px 2px 10px}',
+      '#xm .xm-code{width:100%;min-height:120px;box-sizing:border-box;resize:vertical;font-size:14px;line-height:1.4;',
+      'color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:var(--r-chip,10px);padding:10px 12px}',
+      '#xm .xm-code:focus-visible{outline:2px solid var(--accent);outline-offset:1px}',
+      '#xm .xm-acts{display:flex;flex-direction:column;gap:10px;margin:12px 0 6px}',
+      '#xm .xm-acts .btn{min-height:52px;font-size:16px;width:100%}',
+      '#xm .xm-grp{font-size:12px;font-weight:700;letter-spacing:var(--tr-label,.085em);text-transform:uppercase;',
+      'color:var(--muted);margin:14px 2px 6px}',
+      '#xm .xm-part{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;box-sizing:border-box;margin:0 0 8px;',
+      'padding:8px 14px;text-align:left;color:var(--text);background:var(--panel);border:1px solid var(--line);',
+      'border-radius:var(--r-card,14px);font:inherit;cursor:pointer}',
+      '#xm .xm-part:focus-visible{outline:2px solid var(--accent);outline-offset:2px}',
+      '#xm .xm-box{flex:none;width:26px;height:26px;border-radius:7px;border:2px solid var(--muted);display:flex;',
+      'align-items:center;justify-content:center;font-size:17px;font-weight:900;line-height:1}',
+      '#xm .xm-part[aria-checked="true"] .xm-box{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#06172e)}',
+      '#xm .xm-part b{display:block;font-size:15px;font-weight:650}',
+      '#xm .xm-part em{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px}',
+      '#xm .xm-list{margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.5}',
+      '#xm .xm-list li{margin:2px 0}',
+      '#xm .xm-none{color:var(--muted);font-size:13.5px;line-height:1.5;margin:2px 2px 12px}'
+    ].join('')));
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ═════════════════════════════════════════════════ step 1: paste ══ */
+  function pasteHTML(p) {
+    if (!hasMouse(p)) {
+      return '<p class="xm-lead">Paste your XIM config.</p><p class="xm-none" id="xm-nomouse">' + esc(NO_MOUSE) + '</p>';
+    }
+    return '<label class="xm-lead" for="xm-code" style="display:block">Paste your XIM config.</label>' +
+      help('xm-what', 'Paste your XIM config', 'In XIM Manager, open your config and tap Copy, then paste it here: ' +
+        'everything from “>>> XIM MATRIX” to “END COPY”. Its Smart Actions come with it, and one binding from Copy Binding works too. ' +
+        'You then pick which parts come in, and nothing is saved until you tap Bring in.') +
+      '<textarea class="xm-code" id="xm-code" rows="5" autocomplete="off" autocapitalize="off" spellcheck="false" ' +
+        'placeholder=">>> XIM MATRIX [...] START COPY >>>"></textarea>' +
+      '<div class="xm-acts">' +
+        '<button type="button" class="btn primary" id="xm-clip">Paste from clipboard</button>' +
+      '</div>';
+  }
+
+  /* ═══════════════════════════════════════════ step 2: pick the parts ══ */
+  /* the Smart Actions as parts: { id, group, lab, detail, sa } */
+  function partlyWords(a) {
+    return a.notes.concat(a.lost.map(function (w) { return 'leaves out ' + w; })).join('; ');
+  }
+  function saParts() {
+    var sa = S.got && S.got.sa;
+    return sa && sa.ok ? sa.actions.map(function (a, i) {
+      var d = [a.when, a.steps + (a.steps === 1 ? ' step' : ' steps')];
+      if (a.status === 'partly') { d.push('Partly: ' + partlyWords(a)); }
+      return { id: 'sa:' + i, group: 'Smart Actions', lab: a.name, detail: d, sa: a };
+    }) : [];
+  }
+  function cantList(rep) {
+    var sa = S.got && S.got.sa, out = rep ? XP.cannot(rep) : [];
+    if (sa && sa.ok) {
+      out = sa.cannot.concat(out);
+      if (sa.plain) {
+        out.push(sa.plain + (sa.plain === 1 ? ' plain binding' : ' plain bindings') + ' (one key or click sent as one button): ' +
+          'not brought in. Set your buttons on Mappings.');
+      }
+    }
+    return out;
+  }
+  function pickHTML() {
+    var rep = S.got.report, list = (rep ? XP.parts(rep, S.got.form) : []).concat(saParts()), n = 0, group = '', h;
+    h = '<p class="xm-lead">Found ' + (rep && rep.name ? '“' + esc(rep.name) + '”' : S.got.form ? 'your XIM config' : 'your XIM binding') +
+      (rep && rep.game ? ' (' + esc(rep.game) + ')' : '') + '. Which parts do you want?</p>' +
+      help('xm-pick', 'Which parts', 'Each part this XIM config carries, all ticked. Untick a part to keep this config’s own ' +
+        'setting for it. Nothing is saved until you tap Bring in.');
+    if (S.got.mismatch) { h += '<div class="note warn" id="xm-game">' + esc(S.got.mismatch) + '</div>'; }
+    list.forEach(function (pt) {
+      var on = !!S.on[pt.id];
+      if (on) { n++; }
+      if (pt.group !== group) { group = pt.group; h += '<div class="xm-grp">' + esc(group) + '</div>'; }
+      h += '<button type="button" class="xm-part" role="checkbox" data-xmpart="' + esc(pt.id) + '" aria-checked="' +
+        (on ? 'true' : 'false') + '"><span class="xm-box" aria-hidden="true">' + (on ? '✓' : '') + '</span>' +
+        '<span><b>' + esc(pt.lab) + '</b><em>' + esc(pt.detail.join(' · ')) + '</em></span></button>';
+    });
+    if (!list.length) { h += '<p class="xm-none" id="xm-nothing">Nothing in this paste can come into this app.</p>'; }
+    var cant = cantList(rep);
+    if (cant.length) {
+      h += '<div class="xm-grp">Can’t come in</div><div class="note" id="xm-cant"><ul class="xm-list">' +
+        cant.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    }
+    h += '<div class="xm-acts"><button type="button" class="btn primary" id="xm-go"' + (n && !S.busy ? '' : ' disabled') + '>' +
+      esc(S.busy ? 'Bringing in…' : n ? 'Bring in ' + n + ' part' + (n === 1 ? '' : 's') : 'Tick a part to bring in') + '</button>' +
+      '<button type="button" class="btn ghost" id="xm-again">Paste a different config</button></div>';
+    return h;
+  }
+
+  /* ════════════════════════════════════════════════ step 3: the result ══ */
+  function doneHTML(p) {
+    var r = S.sum, h = '<p class="xm-lead">' + esc(r.line) + '</p>';
+    if (r.came.length) {
+      h += '<div class="xm-grp">Came into ' + esc(cfgName(p)) + '</div><div class="note" id="xm-came"><ul class="xm-list">' +
+        r.came.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (r.same) { h += '<p class="xm-none" id="xm-same">' + esc(r.same + (r.same === 1 ? ' setting was' : ' settings were') + ' already the same.') + '</p>'; }
+    if (r.left.length) { h += '<p class="xm-none" id="xm-left">Kept this config’s own: ' + esc(r.left.join(', ')) + '.</p>'; }
+    if (r.lost.length) {
+      h += '<div class="xm-grp">Could not be translated</div><div class="note warn" id="xm-lost"><ul class="xm-list">' +
+        r.lost.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (S.pv && S.pv.approx) { h += help('xm-approx', 'Feel', S.pv.approxText + ' Aim Speed Match ▸ Calibrate measures this game.'); }
+    return h + '<div class="xm-acts">' +
+      (S.undo || S.undoSa ? '<button type="button" class="btn ghost" id="xm-undo"' + (S.busy ? ' disabled' : '') + '>Undo</button>' : '') +
+      '<button type="button" class="btn ghost" id="xm-again">Paste another config</button></div>';
+  }
+
+  function paint() {
+    var b = box();
+    if (!b) { return; }
+    b.innerHTML = (S.say ? '<div class="note' + (S.say.kind === 'warn' ? ' warn' : '') + '" role="status" id="xm-say">' +
+        esc(S.say.text) + '</div>' : '') +
+      (S.step === 'pick' && S.got ? pickHTML() : S.step === 'done' && S.sum ? doneHTML(P) : pasteHTML(P));
+    wire(b);
+  }
+  function focusFirst(sel) {
+    var b = box(), x = b && b.querySelector(sel);
+    if (x && x.focus) { try { x.focus(); } catch (e) { /* old webview */ } }
+  }
+
+  /* ═══════════════════════════════════════════════════════ actions ══ */
+  /* a pasted text: read it, keep only the report, ask for the parts */
+  function take(text) {
+    var mt = mtOf(P), r = X.fromShareCode(String(text || ''), mt);
+    var sa = window.ZSXIMSA ? window.ZSXIMSA.plan(String(text || ''),
+      { mouse: { dpi: mt.dpi, cm360: mt.cm360, adsCm360: mt.adsCm360 } }) : null;
+    S.say = null;
+    /* one binding from XIM Manager's Copy Binding: Smart Actions only */
+    if ((!r || !r.ok) && sa && sa.ok && sa.source === 'binding') {
+      S.got = { form: null, report: null, sa: sa, mismatch: '' };
+      S.base = null;
+      S.on = {};
+      saParts().forEach(function (pt) { S.on[pt.id] = true; });
+      S.step = 'pick';
+      paint();
+      focusFirst('[data-xmpart]');
+      return;
+    }
+    if (!r || !r.ok) {
+      S.step = 'paste';
+      S.say = { kind: 'warn', text: (r && r.message) || X.SHARE_CODE_MESSAGE };
+      paint();
+      return;
+    }
+    var here = (window.ZSPACKS && ZSPACKS.ofConfig && ZSPACKS.ofConfig(fullOf(P) || P) || {}).name || '';
+    S.got = { form: r.form, report: r.report,
+      mismatch: (r.report.game && here && r.report.game.toLowerCase() !== here.toLowerCase())
+        ? 'This XIM config was made for ' + r.report.game + ', and this config is for ' + here + '. ' +
+          'A sensitivity tuned for one game can feel different in another.' : '' };
+    S.got.sa = sa;
+    if (sa && sa.ok) {
+      /* the Smart Actions ARE read now: drop them from the "not read" words */
+      S.got.report = JSON.parse(JSON.stringify(r.report));
+      S.got.report.notRead = (S.got.report.notRead || []).filter(function (w) { return !/bindings and Scripts/.test(w); });
+    }
+    S.base = X.defaults(mt);
+    S.on = {};
+    XP.parts(r.report).forEach(function (pt) { S.on[pt.id] = true; });
+    saParts().forEach(function (pt) { S.on[pt.id] = true; });
+    S.step = 'pick';
+    paint();
+    focusFirst('[data-xmpart]');
+  }
+  function bringIn() {
+    if (!S.got || S.busy) { return; }
+    if (!online() || !fullOf(P)) { if (ZS.toast) { ZS.toast('Your EXO is offline'); } return; }
+    var mt = mtOf(P), pv = null, writes = [];
+    var aimOn = S.got.report ? XP.parts(S.got.report).some(function (pt) { return S.on[pt.id]; }) : false;
+    if (S.got.form && aimOn) {
+      var form = XP.merge(X.defaults(mt), S.got.form, S.on);
+      pv = X.preview(form, { mt: mt, hides: hides });
+      if (!pv.ok) {
+        S.say = { kind: 'warn', text: 'This XIM config has a number this app cannot hold. Untick its aim parts and bring in the rest.' };
+        paint();
+        return;
+      }
+      writes = pv.writes.slice();
+    }
+    S.pv = pv;
+    var acts = saParts().filter(function (pt) { return S.on[pt.id]; }).map(function (pt) { return pt.sa.action; });
+    if (!writes.length && !acts.length) { finish(null, []); return; }
+    var replaced = null;
+    S.busy = true; paint();
+    ZS.putProfile(P.id, function (f) {
+      replaced = writes.length ? X.applyWrites(f, writes) : null;
+      if (acts.length) {
+        if (!Array.isArray(f.accessibilityActions)) { f.accessibilityActions = []; }
+        acts.forEach(function (a) { f.accessibilityActions.push(JSON.parse(JSON.stringify(a))); });
+      }
+    }).then(function (j) {
+      S.busy = false;
+      if (!j || j.ok === false) {
+        S.say = { kind: 'warn', text: 'Nothing was changed: ' + ((j && (j.error || (j.errors && j.errors[0]))) || 'the EXO did not take it.') };
+        paint();
+        return;
+      }
+      finish(replaced, acts.map(function (a) { return a.id; }));
+    }, function () {
+      S.busy = false;
+      S.say = { kind: 'warn', text: 'Nothing was changed: the EXO did not answer.' };
+      paint();
+    });
+  }
+  function finish(replaced, saIds) {
+    S.undo = replaced && replaced.length ? replaced : null;
+    S.undoSa = saIds && saIds.length ? saIds : null;
+    S.sum = S.got.report ? XP.summary(S.pv, S.got.report, S.on)
+      : { came: [], same: 0, left: [], lost: [], line: '' };
+    /* the Smart Actions, said the same way */
+    var took = saParts().filter(function (pt) { return S.on[pt.id]; });
+    took.forEach(function (pt) {
+      S.sum.came.push('Smart Action · ' + pt.lab + (pt.sa.status === 'partly' ? ' (partly)' : ''));
+      if (pt.sa.status === 'partly') { S.sum.lost.push(pt.lab + ': ' + partlyWords(pt.sa)); }
+    });
+    S.sum.left = S.sum.left.concat(saParts().filter(function (pt) { return !S.on[pt.id]; }).map(function (pt) { return pt.lab; }));
+    if (!S.got.report) { S.sum.lost = S.sum.lost.concat(cantList(null)); }
+    if (took.length) {
+      var aimN = S.sum.came.length - took.length;
+      S.sum.line = 'Brought in: ' + (aimN ? aimN + (aimN === 1 ? ' setting changed and ' : ' settings changed and ') : '') +
+        took.length + (took.length === 1 ? ' Smart Action.' : ' Smart Actions.');
+    } else if (!S.got.report) { S.sum.line = 'Nothing was brought in.'; }
+    S.step = 'done';
+    S.say = null;
+    paint();
+    focusFirst('#xm-undo, #xm-again');
+  }
+  function undoIt() {
+    if ((!S.undo && !S.undoSa) || S.busy) { return; }
+    if (!online() || !fullOf(P)) { if (ZS.toast) { ZS.toast('Your EXO is offline'); } return; }
+    var list = S.undo, ids = S.undoSa || [];
+    S.busy = true; paint();
+    ZS.putProfile(P.id, function (f) {
+      if (list) { X.undo(f, list); }
+      if (ids.length && Array.isArray(f.accessibilityActions)) {
+        f.accessibilityActions = f.accessibilityActions.filter(function (a) { return !a || ids.indexOf(a.id) < 0; });
+      }
+    }).then(function (j) {
+      S.busy = false;
+      if (!j || j.ok === false) {
+        S.say = { kind: 'warn', text: 'Undo did not save: ' + ((j && j.error) || 'the EXO did not take it.') + ' Try again.' };
+      } else {
+        S.undo = null; S.undoSa = null;
+        S.say = { kind: 'ok', text: 'Put back. This config is as it was before you brought your XIM config in.' };
+      }
+      paint();
+    }, function () { S.busy = false; paint(); });
+  }
+  function fromClipboard() {
+    var cb = navigator.clipboard;
+    var nope = function () {
+      S.say = { kind: 'warn', text: 'This phone did not let the app read the clipboard. Long-press the box and tap Paste.' };
+      paint();
+      focusFirst('#xm-code');
+    };
+    if (!cb || typeof cb.readText !== 'function') { nope(); return; }
+    cb.readText().then(function (t) { take(t); }, nope);
+  }
+
+  function pastedText(e) {
+    var d = e && (e.clipboardData || window.clipboardData);
+    try { return d && d.getData ? String(d.getData('text') || d.getData('Text') || '') : ''; } catch (x) { return ''; }
+  }
+
+  function wire(b) {
+    function on(id, fn) { var x = el(id); if (x) { x.addEventListener('click', fn); } }
+    on('xm-clip', fromClipboard);
+    on('xm-go', bringIn);
+    on('xm-undo', undoIt);
+    on('xm-again', function () { reset(P); paint(); focusFirst('#xm-code'); });
+    var ta = el('xm-code');
+    if (ta) {
+      ta.addEventListener('paste', function (e) {
+        var t = pastedText(e);
+        if (!t) { return; }               /* let the box take it; input reads it */
+        if (e.preventDefault) { e.preventDefault(); }
+        take(t);
+      });
+      ta.addEventListener('input', function () {
+        var v = ta.value;
+        if (X.looksLikeShareCode(v) && /:(XMC|XMMB)(\s|<|$)/.test(v)) { ta.value = ''; take(v); }
+      });
+    }
+    b.querySelectorAll('[data-xmpart]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-xmpart');
+        S.on[id] = !S.on[id];
+        paint();
+        focusFirst('[data-xmpart="' + id + '"]');
+      });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════ the screen itself ══ */
+  var DESC = null;
+  function render(p, s) {
+    injectCss();
+    /* a fresh visit (a new descriptor) or another config starts at the box;
+       a redraw of the same visit keeps the step */
+    if (S.pid !== (p && p.id) || (s && s !== DESC)) { reset(p); }
+    DESC = s || DESC;
+    P = p;
+    return { html: '<div id="xm"></div>', after: function (root) {
+      root.setAttribute('data-tint', 'aim');
+      paint();
+    } };
+  }
+  function open(p) { ZS.openDetail({ id: 'ximpaste', lab: TITLE }, p); }
+
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.ximpaste = render;
+
+  window.ZSXIMMATRIX = {
+    TITLE: TITLE,
+    NO_MOUSE: NO_MOUSE,
+    open: open,
+    take: function (t) { take(t); },
+    /* for the tests */
+    state: function () { return S; }
+  };
+}());

@@ -1,0 +1,431 @@
+/* xim-smart-actions.js - an XIM MATRIX player's Smart Actions, read from what
+ * they paste and turned into this app's own Smart Actions. window.ZSXIMSA.
+ * Pure: no DOM, Node-tested (tools/test-xim-smart-actions.js).
+ *
+ * The owner (2026-11-26): "figure out how to transplant xim smart actions
+ * into our script engine", and (same day) "just paste, and once they paste
+ * have them choose what they want to copy over". docs/XIM-SMART-ACTIONS.md
+ * has the format, the mapping table and the limits; DECISIONS D942.
+ *
+ * WHERE THEY LIVE. A Smart Action is not a thing of its own in XIM: it is a
+ * BINDING (one input, a condition, an activation) whose output is a sequence
+ * of actions. Both texts a player can copy out of XIM Manager carry them:
+ *   - a config's share code (">>> XIM MATRIX [name] START COPY >>> XMC:...")
+ *     holds the whole binding list of that config;
+ *   - "Copy Binding" (">>> XIM MATRIX [Mappings Binding] ... XMMB:...")
+ *     holds one binding.
+ * Both are base64 of a length and a zlib stream (xim-share-code.js inflates
+ * them, ZSXIMCODE.bytesOf). The .ximcb backup file holds the same config
+ * records, so nothing here needs a file.
+ *
+ * HOW IT WAS LEARNT (clean room, D76): XIM's public guide (guide.xim.tech:
+ * Bindings, Smart Actions Reference and the scenario pages, whose example
+ * bindings are published as XMMB text beside a picture of each action and
+ * its value), and the owner's own XIM backups, as data. No XIM software or
+ * firmware was opened. Every value below says how sure we are (see the doc).
+ *
+ * ONE STEP = ONE 16-BIT NUMBER, in decimal bands: XIM numbers each action
+ * and its slider value together ("RT pulled 100%" is 5822, "Wait 100 ms" is
+ * 64625). BAND below decodes them.
+ *
+ * read(text)      -> { ok, source: 'config' | 'binding', bindings: [...] }
+ *                    or { ok: false, message }
+ * convert(b, opt) -> { status: 'full' | 'partly' | 'none', kind, name,
+ *                      summary, notes: [words], action (board JSON) }
+ * plan(text)      -> read + convert, sorted into what the picker shows
+ *
+ * Words the player sees never say XIM outside Legacy Devices (D402): an
+ * imported action's NAME and NOTES travel into the Smart Actions screens, so
+ * they say "imported", never the other device's name.
+ * ES5 ONLY, like every file phone.html loads.
+ */
+(function (root) {
+  'use strict';
+
+  var STEP_MS_CAP = 10000;            /* smart-actions/01-model.js */
+  var DUR_MAX = 30000;
+  var DPS_MIN = 0.1, DPS_MAX = 4000;
+
+  /* ── where the binding list sits in a config record ─────────────────
+     Key: format byte ':' inflated size (xim-share-code.js LAYOUTS).
+     `at` is the first binding; `enc` the entry shape (see entryAt). */
+  var LISTS = {
+    '52:1918': { at: 0x4e4, enc: 'a' },
+    '52:2734': { at: 0x50e, enc: 'b' },
+    '53:2734': { at: 0x360, enc: 'b' }
+  };
+
+  /* ── inputs: XIM's input number -> this app's source code ───────────
+     sure: 'high' (a public example shows it) | 'med' (consistent in the
+     owner's data). Anything else is unnamed and imports with no button. */
+  var INPUTS = {
+    0x05: ['BTN_LEFT', 'high'], 0x06: ['BTN_RIGHT', 'high'], 0x07: ['BTN_MIDDLE', 'med'],
+    0x08: ['BTN_EXTRA', 'med'], 0x09: ['BTN_SIDE', 'med'],
+    0x61: ['KEY_SPACE', 'med'], 0x62: ['KEY_TAB', 'high'],
+    0x84: ['KEY_LEFTCTRL', 'med'], 0x85: ['KEY_LEFTSHIFT', 'high'], 0x86: ['KEY_LEFTALT', 'high'],
+    0xa4: ['rt', 'med'], 0xa5: ['lt', 'med']
+  };
+  (function () {
+    var i;
+    for (i = 0; i < 26; i++) { INPUTS[0x23 + i] = ['KEY_' + String.fromCharCode(65 + i), 'high']; }
+    for (i = 0; i < 10; i++) { INPUTS[0x3d + i] = ['KEY_' + ((i + 1) % 10), 'high']; }
+    for (i = 0; i < 12; i++) { INPUTS[0x47 + i] = ['KEY_F' + (i + 1), 'med']; }
+  }());
+  /* the analog inputs (aim and movement) are not Smart Actions */
+  var MOUSE_NAMES = { BTN_LEFT: 'Left click', BTN_RIGHT: 'Right click', BTN_MIDDLE: 'Middle click',
+    BTN_SIDE: 'Mouse button 4', BTN_EXTRA: 'Mouse button 5', rt: 'Right trigger', lt: 'Left trigger',
+    KEY_SPACE: 'Space', KEY_TAB: 'Tab', KEY_LEFTCTRL: 'Ctrl', KEY_LEFTSHIFT: 'Shift', KEY_LEFTALT: 'Alt' };
+  function inputName(code) {
+    if (!code) { return 'no button yet'; }
+    if (MOUSE_NAMES[code]) { return MOUSE_NAMES[code]; }
+    return code.replace(/^KEY_/, '') + ' key';
+  }
+
+  /* ── outputs: XIM's controller buttons, in its numbering ───────────
+     Each button has three numbers: Release, Press, Tap = 5924 + 3k + 0/1/2.
+     k 2 = RB and k 7 = Y are shown in XIM's guide; k 4 = A goes with its
+     Space example; the rest of 0-7 is the order those fix. 8-15 (the D-pad
+     and the system buttons) are not pinned down, so they do not come in. */
+  var BUTTONS = ['l3', 'l1', 'r1', 'r3', 'south', 'east', 'west', 'north'];
+
+  /* ── conditions and the flag bits ─────────────────────────────────── */
+  var CONDS = ['Held', 'Unheld', 'Press', 'Release', 'Double', 'Tap', 'Hold'];
+
+  function u16(p, o) { return p[o] | (p[o + 1] << 8); }
+
+  /* One entry. Shape 'a' (1918-byte configs and XMMB bindings):
+       [input][f1][f2][f3] then f3>>3 steps; f2 = ads(7) hip(6) . . toggle(3) cond(2..0)
+     Shape 'b' (2734-byte configs):
+       [input][f][g][n] then n/2+1 bytes = 0x0001 + steps (an analog entry,
+       cond 7, has 4 bytes); f = . . ads(5) hip(4) toggle(3) cond(2..0)
+     cond 7 is an analog binding (aim, movement). Returns { b, next } or null. */
+  function entryAt(p, o, enc, end) {
+    if (o + 4 > end) { return null; }
+    var inp = p[o], b = { input: inp, steps: [] }, n, i, data;
+    if (enc === 'a') {
+      var f2 = p[o + 2];
+      n = p[o + 3] >> 3;
+      if (o + 4 + 2 * n > end) { return null; }
+      b.cond = f2 & 7; b.toggle = !!(f2 & 8); b.hip = !!(f2 & 64); b.ads = !!(f2 & 128);
+      for (i = 0; i < n; i++) { b.steps.push(u16(p, o + 4 + 2 * i)); }
+      return { b: b, next: o + 4 + 2 * n };
+    }
+    var f = p[o + 1];
+    b.cond = f & 7; b.toggle = !!(f & 8); b.hip = !!(f & 16); b.ads = !!(f & 32);
+    data = b.cond === 7 ? 4 : (p[o + 3] >> 1) + 1;
+    if (o + 4 + data > end || data < 2 || data % 2) { return null; }
+    for (i = 2; i < data; i += 2) { b.steps.push(u16(p, o + 4 + i)); }
+    return { b: b, next: o + 4 + data };
+  }
+
+  function listAt(p, at, enc, end) {
+    var out = [], o = at, e;
+    while (o < end) {
+      if (p[o] === 0 && p[o + 1] === 0) { return out; }   /* the list's end */
+      e = entryAt(p, o, enc, end);
+      if (!e) { return null; }
+      out.push(e.b);
+      o = e.next;
+      if (out.length > 400) { return null; }
+    }
+    return null;
+  }
+
+  /* ── the text ───────────────────────────────────────────────────────── */
+  var NOT_READ = 'This XIM text could not be read. Copy it again from XIM Manager and paste it here.';
+  function read(text) {
+    var C = root.ZSXIMCODE;
+    if (!C || typeof C.bytesOf !== 'function' || typeof text !== 'string') { return { ok: false, message: NOT_READ }; }
+    var p = C.bytesOf(text, 'XMMB');
+    if (p) {
+      /* 00 00 00 08 "XMMB" (UTF-16BE), count, format, stamp(2), then per
+         binding: its length and the entry */
+      if (p.length < 18 || p[3] !== 8 || p[5] !== 0x58 || p[11] !== 0x42) { return { ok: false, message: NOT_READ }; }
+      var count = p[12], o = 16, bs = [], k, e;
+      for (k = 0; k < count && o < p.length; k++) {
+        var len = p[o];
+        e = entryAt(p, o + 1, 'a', Math.min(p.length, o + 1 + len));
+        if (!e) { return { ok: false, message: NOT_READ }; }
+        bs.push(e.b);
+        o += 1 + len;
+      }
+      return { ok: bs.length > 0, source: 'binding', bindings: bs, message: bs.length ? '' : NOT_READ };
+    }
+    p = C.bytesOf(text, 'XMC');
+    if (!p) { return { ok: false, message: NOT_READ }; }
+    var lay = LISTS[p[11] + ':' + p.length];
+    if (!lay) { return { ok: false, message: 'This XIM config comes from an XIM version this app has not seen yet, so its Smart Actions are not read.' }; }
+    var list = listAt(p, lay.at, lay.enc, p.length);
+    if (!list) { return { ok: false, message: 'The Smart Actions in this XIM config could not be read. Copy it again from XIM Manager.' }; }
+    return { ok: true, source: 'config', bindings: list };
+  }
+
+  /* ── one step number -> what it is ─────────────────────────────────── */
+  function band(w) {
+    if (w >= 3950 && w <= 4000) { return { t: 'rmag', v: w - 3950 }; }
+    if (w >= 4001 && w <= 4360) { return { t: 'rang', v: w - 4001 }; }
+    if (w >= 5311 && w <= 5361) { return { t: 'lmag', v: w - 5311 }; }
+    if (w >= 5362 && w <= 5721) { return { t: 'lang', v: w - 5362 }; }
+    if (w >= 5722 && w <= 5822) { return { t: 'trig', tgt: 'rt+', v: w - 5722 }; }
+    if (w >= 5823 && w <= 5923) { return { t: 'trig', tgt: 'lt+', v: w - 5823 }; }
+    if (w >= 5924 && w <= 5924 + 3 * 16 - 1) {
+      var k = Math.floor((w - 5924) / 3), m = (w - 5924) % 3;
+      return { t: ['release', 'hold', 'tap'][m], tgt: BUTTONS[k] || null, k: k };
+    }
+    if (w >= 7100 && w <= 7199) { return { t: 'pcout' }; }
+    if (w === 40000) { return { t: 'swap' }; }
+    if (w >= 45000 && w <= 49999) { return { t: 'amag', v: (w - 45000) / 10 }; }
+    if (w >= 50000 && w <= 53599) { return { t: 'aang', v: (w - 50000) / 10 }; }
+    if (w >= 54000 && w <= 54500) { return { t: 'sens', v: w - 54000 }; }
+    if (w >= 54600 && w <= 54700) { return { t: 'tassist', v: w - 54600 }; }
+    if (w >= 54701 && w <= 54999) { return { t: 'sensaxis' }; }
+    if (w >= 56100 && w <= 56299) { return { t: 'group' }; }
+    if (w >= 58002 && w <= 58999) { return { t: 'config', v: w - 58001 }; }
+    if (w >= 64525 && w <= 65525) { return { t: 'wait', ms: w - 64525 }; }
+    if (w >= 65526 && w <= 65534) { return { t: 'wait', ms: (w - 65524) * 1000, guess: true }; }
+    if (w === 65535) { return { t: 'forever' }; }
+    return { t: 'unknown' };
+  }
+
+  /* XIM measures an angle from straight up, clockwise; this app from the
+     right, anticlockwise (270 = down) */
+  function ourAngle(x) { return ((Math.round(450 - x) % 360) + 360) % 360; }
+  function r2(v) { return Math.round(v * 100) / 100; }
+
+  /* XIM's aim actions are a turn rate in degrees per second (its guide:
+     "move the reticle down at a rate of 10 degrees-per-second"). This
+     app's recoil steps (the Anti-Recoil Lab's, D170) are MOUSE COUNTS over
+     a time, fed through the config's own mouse translator, so the rate is
+     turned into counts with the config's DPI and cm/360:
+       counts per degree = DPI / 2.54 * cm360 / 360
+     The same turn in the game, as long as the config's cm/360 is the
+     game's (Aim Speed Match measures that). */
+  function countsPerDegree(mouse, adsOnly) {
+    if (!mouse || !(mouse.dpi > 0)) { return 0; }
+    var cm = adsOnly && mouse.adsCm360 > 0 ? mouse.adsCm360 : mouse.cm360;
+    return cm > 0 ? mouse.dpi / 2.54 * cm / 360 : 0;
+  }
+  function moveOf(dps, xang, ms, cpd) {
+    var counts = dps * (ms / 1000) * cpd, rad = xang * Math.PI / 180;
+    return { k: 'move', dx: clamp(r2(counts * Math.sin(rad)), -32767, 32767),
+      dy: clamp(r2(-counts * Math.cos(rad)), -32767, 32767), ms: ms };
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* Is this binding just one control sent as another (a remap, which is
+     Mappings' job), rather than a Smart Action? */
+  function isPlain(b) {
+    if (b.cond !== 0 || b.toggle || b.steps.length !== 1) { return false; }
+    var s = band(b.steps[0]);
+    return s.t === 'hold' || (s.t === 'trig' && s.v === 100) || s.t === 'pcout' ||
+      (s.t === 'unknown' && (b.steps[0] === 0 || b.steps[0] === 8191));
+  }
+
+  /* ── convert one binding ─────────────────────────────────────────────── */
+  function convert(b, opt) {
+    opt = opt || {};
+    var notes = [], lost = {}, out = [], steps = b.steps.slice();
+    var aim = { dps: 0, ang: 0 }, ls = { m: 0, a: 0 }, rs = { m: 0, a: 0 };
+    var held = false, forever = false, approx = false, kinds = {}, i;
+    function lose(word) { lost[word] = (lost[word] || 0) + 1; }
+    function push(st) { out.push(st); }
+    function moving() {
+      var m = [];
+      if (aim.dps > 0) { m.push({ k: 'stick', stick: 'right', angle: ourAngle(aim.ang), dps: aim.dps }); }
+      if (ls.m > 0) { m.push({ k: 'stick', stick: 'left', angle: ourAngle(ls.a), dist: r2(ls.m / 100) }); }
+      if (rs.m > 0) { m.push({ k: 'stick', stick: 'right', angle: ourAngle(rs.a), dist: r2(rs.m / 100) }); }
+      return m;
+    }
+    /* counts per degree for this config's mouse (D170's recoil steps are
+       mouse counts the Core feeds through its own translator), or 0 */
+    var cpd = countsPerDegree(opt.mouse, b.ads && !b.hip);
+    function hold(ms) {
+      var m = moving();
+      while (ms > 0) {
+        var c = Math.min(ms, STEP_MS_CAP);
+        if (m.length) {
+          var s = JSON.parse(JSON.stringify(m[0]));
+          s.ms = c;
+          if (s.dps && cpd) { s = moveOf(aim.dps, aim.ang, c, cpd); }
+          push(s);
+          if (m.length > 1) { approx = true; notes.push('two sticks moved at once: only the first one comes in'); m = [m[0]]; }
+        } else { push({ k: 'wait', ms: c }); }
+        ms -= c;
+      }
+    }
+    for (i = 0; i < steps.length && !forever; i++) {
+      var s = band(steps[i]);
+      switch (s.t) {
+        case 'wait':
+          if (s.guess) { approx = true; notes.push('a wait over 1 second is read as ' + (s.ms / 1000) + ' s; check it'); }
+          hold(s.ms);
+          break;
+        case 'forever':
+          forever = true;
+          if (moving().length || held) { hold(STEP_MS_CAP); }
+          break;
+        case 'amag': aim.dps = s.v; kinds.aim = true; break;
+        case 'aang':
+          aim.ang = s.v; kinds.aim = true; kinds.angles = (kinds.angles || 0) + 1;
+          if (s.v >= 135 && s.v <= 225) { kinds.down = (kinds.down || 0) + 1; }
+          break;
+        case 'lmag': ls.m = s.v * 2; kinds.stick = true; approx = true; break;
+        case 'lang': ls.a = s.v; kinds.stick = true; if (!ls.m) { ls.m = 100; } break;
+        case 'rmag': rs.m = s.v * 2; kinds.stick = true; approx = true; break;
+        case 'rang': rs.a = s.v; kinds.stick = true; if (!rs.m) { rs.m = 100; } break;
+        case 'trig':
+          if (s.v === 0) { push({ k: 'release', t: [s.tgt] }); kinds.release = true; }
+          else {
+            push({ k: 'hold', t: [s.tgt] }); held = true; kinds.press = true;
+            if (s.tgt === 'rt+') { kinds.fire = true; }
+            if (s.v !== 100) { approx = true; notes.push('a trigger pulled ' + s.v + '% comes in as a full pull'); }
+          }
+          break;
+        case 'hold': case 'release': case 'tap':
+          if (!s.tgt) { lose('a press of a D-pad or system button (not identified yet)'); break; }
+          if (s.t === 'hold') { push({ k: 'hold', t: [s.tgt] }); held = true; kinds.press = true; }
+          else if (s.t === 'release') { push({ k: 'release', t: [s.tgt] }); kinds.release = true; }
+          else { push({ k: 'tap', t: [s.tgt], ms: 50 }); kinds.tap = true; }
+          break;
+        case 'swap': push({ k: 'swap', ms: 0 }); kinds.swap = true; break;
+        case 'sens':
+          push({ k: 'sens', which: 'aim', scale: r2(clamp(s.v / 100, 0, 3)), axis: 'both', ms: 0 });
+          kinds.sens = true;
+          if (s.v > 300) { approx = true; notes.push('aim speed ' + s.v + '% comes in as 300%, the most this app sets'); }
+          break;
+        case 'tassist': push({ k: 'tassist' }); kinds.tassist = true; approx = true; notes.push('turn assist uses this app’s own strength'); break;
+        case 'config':
+          push({ k: 'config', to: s.v }); kinds.config = true; approx = true;
+          notes.push('it switches to config ' + s.v + ' on this device; check that is the right one');
+          break;
+        case 'sensaxis': lose('an up/down-only or left/right-only speed change'); break;
+        case 'group': lose('a binding-group switch (this app has no binding groups)'); break;
+        case 'pcout': lose('a mouse or keyboard output (this app’s Smart Actions drive the controller)'); break;
+        default: lose('an action this app does not know');
+      }
+    }
+    /* the action's trigger, gesture and repeat */
+    var inp = INPUTS[b.input], src = inp ? inp[0] : null, gesture = 'press', holdMode = 'once', blocker = '';
+    if (!src) { notes.push('pick the button that starts it (its input is not one this app can name)'); }
+    if (b.cond === 0) { holdMode = forever ? 'run_while_held' : 'repeat_while_held'; }
+    else if (b.cond === 1) { blocker = 'it runs while a button is NOT held, which this app cannot do'; }
+    else if (b.cond === 3) { gesture = 'release'; }
+    else if (b.cond === 4) { gesture = 'double_tap'; }
+    else if (b.cond === 5) { gesture = 'tap'; }
+    else if (b.cond === 6) { gesture = 'hold_ms'; approx = true; notes.push('“held long” starts after 350 ms here'); }
+    if (b.toggle) { holdMode = 'toggle'; gesture = 'press'; }
+    if (forever && b.cond !== 0 && (moving().length || held)) { approx = true; notes.push('a step that held on forever now lets go after 10 s'); }
+    var gate = b.ads && b.hip ? 'off' : b.ads ? 'ads' : b.hip ? 'hip' : 'always';
+
+    var kind = kindOf(kinds, b);
+    var lostWords = Object.keys(lost).map(function (w) { return lost[w] > 1 ? w + ' (' + lost[w] + ' times)' : w; });
+    var hasWork = out.some(function (st) { return st.k !== 'wait'; });
+    var status = blocker || !hasWork ? 'none' : (lostWords.length || approx || !src || gate === 'off') ? 'partly' : 'full';
+    if (gate === 'off') { notes.push('it was switched off, so it comes in switched off'); }
+    var name = kind + (src ? ' (' + inputName(src) + ')' : '');
+    var res = {
+      status: status, kind: kind, name: name, src: src, steps: b.steps.length,
+      when: whenWords(b, src),
+      summary: inputName(src) + ', ' + whenWords(b, src) + ' · ' + kind + ' · ' + b.steps.length + (b.steps.length === 1 ? ' step' : ' steps'),
+      notes: notes, lost: lostWords, why: blocker || (!hasWork ? (lostWords.length ? 'it only does ' + lostWords.join(', ') : 'it does nothing this app can do') : ''),
+      model: { name: name, src: src, gesture: gesture, holdMode: holdMode, gate: gate, steps: out }
+    };
+    if (status !== 'none') { res.action = boardAction(res.model, opt.id, res); }
+    return res;
+  }
+
+  function kindOf(k, b) {
+    /* an aim that goes round (many angles, most not downward) is the
+       "aim assist" circle; one that pulls downward is anti-recoil */
+    if (k.aim && k.angles >= 4 && (k.down || 0) * 2 < k.angles) { return 'Aim circle'; }
+    if (k.aim) { return (k.fire || k.down) ? 'Anti-recoil' : 'Aim move'; }
+    if ((k.press || k.tap) && k.release && b.cond === 0) { return 'Rapid fire'; }
+    if (k.config) { return 'Switch config'; }
+    if (k.tassist) { return 'Turn assist'; }
+    if (k.swap) { return 'Swap sticks'; }
+    if (k.sens) { return 'Aim speed change'; }
+    if (k.stick) { return 'Stick move'; }
+    return 'Button sequence';
+  }
+  function whenWords(b, src) {
+    var w = b.toggle ? 'on a press, on and off' : ['while held', 'while not held', 'on a press', 'on a release',
+      'on a double press', 'on a quick tap', 'on a long hold'][b.cond] || 'on a press';
+    if (b.ads && !b.hip) { w += ', aiming down sight only'; }
+    if (b.hip && !b.ads) { w += ', hip fire only'; }
+    return w;
+  }
+
+  /* ── this app's board JSON (smart-actions/01-model.js emitStep / toBoard) ── */
+  function mintId() { return 'zs-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function emit(s) {
+    if (s.k === 'tap') { return { press: s.t.slice(), ms: s.ms }; }
+    if (s.k === 'hold') { return { hold: s.t.slice() }; }
+    if (s.k === 'release') { return { release: s.t.slice() }; }
+    if (s.k === 'wait') { return { wait: clamp(Math.round(s.ms), 0, STEP_MS_CAP) }; }
+    if (s.k === 'stick') {
+      var a = { angle: s.angle, magnitude: 0, stick: s.stick };
+      if (s.dps) {
+        a.dps = clamp(s.dps, DPS_MIN, DPS_MAX);
+        /* what a Core with no measured game pushes instead (D189) */
+        a.magnitude = r2(clamp(s.dps / 100, 0.01, 1));
+      } else { a.magnitude = clamp(s.dist, 0, 1); }
+      return { aim: a, ms: clamp(Math.round(s.ms), 0, STEP_MS_CAP) };
+    }
+    if (s.k === 'move') { return { move: [s.dx, s.dy], ms: clamp(Math.round(s.ms), 0, STEP_MS_CAP) }; }
+    if (s.k === 'sens') { return { sensitivity: { which: s.which, scale: s.scale, axis: s.axis }, ms: 0 }; }
+    if (s.k === 'swap') { return { swapSticks: true, ms: 0 }; }
+    if (s.k === 'config') { return { loadConfig: s.to }; }
+    if (s.k === 'tassist') { return { turnAssist: {}, ms: 0 }; }
+    return null;
+  }
+  function boardAction(m, id, res) {
+    var j = {
+      id: id || mintId(),
+      name: m.name,
+      enabled: m.gate !== 'off',
+      trigger: { source: m.src || 'KEY_X', activation: m.holdMode === 'once' ? m.gesture : 'press' },
+      steps: m.steps.map(emit).filter(function (s) { return !!s; }),
+      holdMode: m.holdMode,
+      activation: m.gate === 'off' ? 'always' : m.gate,
+      uninterruptible: false,
+      varianceMs: 15,
+      maxDurationMs: DUR_MAX,
+      cooldownMs: 0,
+      maxRepeats: 1,
+      category: res.kind === 'Anti-recoil' ? 'Recoil' : 'Imported',
+      notes: 'Imported. ' + (res.notes.concat(res.lost.map(function (w) { return 'left out: ' + w; })).join('; ') || 'Came in whole.')
+    };
+    if (!m.src) { j.trigger.unbound = true; j.enabled = false; }
+    if (m.holdMode === 'once' && m.gesture === 'hold_ms') { j.trigger.holdMs = 350; }
+    if (m.holdMode === 'once' && m.gesture === 'double_tap') { j.trigger.windowMs = 300; }
+    if (m.holdMode === 'once' && m.gesture === 'tap') { j.trigger.tapMs = 250; }
+    return j;
+  }
+
+  /* ── read + convert, for the picker ─────────────────────────────────── */
+  /* opt.mouse = { dpi, cm360, adsCm360 } of the config it goes into, so
+     recoil comes in as the Lab's mouse-count steps (otherwise as aim pushes
+     in degrees per second) */
+  function plan(text, opt) {
+    var r = read(text);
+    if (!r.ok) { return { ok: false, message: r.message, source: r.source }; }
+    var actions = [], cannot = [], plain = 0, analog = 0, i;
+    for (i = 0; i < r.bindings.length; i++) {
+      var b = r.bindings[i];
+      if (b.cond === 7) { analog++; continue; }
+      if (isPlain(b)) { plain++; continue; }
+      var c = convert(b, { id: mintId() + i, mouse: opt && opt.mouse });
+      c.index = i;
+      if (c.status === 'none') { cannot.push(c.summary + ': ' + c.why + '.'); }
+      else { actions.push(c); }
+    }
+    return { ok: true, source: r.source, actions: actions, cannot: cannot, plain: plain, analog: analog,
+      total: r.bindings.length };
+  }
+
+  root.ZSXIMSA = {
+    read: read, convert: convert, plan: plan, band: band, isPlain: isPlain,
+    ourAngle: ourAngle, inputName: inputName, countsPerDegree: countsPerDegree,
+    LISTS: LISTS, INPUTS: INPUTS, BUTTONS: BUTTONS, CONDS: CONDS
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,267 @@
+/* zen-menu.js - the config editor's menu in Zen mode. window.ZSZEN.
+ *
+ * The owner, 2026-11-26: "when zen mode is on it disables all scripts and ai
+ * scripts", then: "maybe when zen mode is on the whole menu changes to the
+ * top being the zen screen and script list under it then under that aim
+ * then mapping then translation until they turn it off it goes back to
+ * normal", and, revised the same day: the Zen screen on top, a Zen-only
+ * "Zen scripts" door with every GPC slot, Aim, Mappings, Translation, and a
+ * "Zen mode off" key. AI Scripts and the script rooms are GONE from the
+ * menu (not greyed) while Zen mode is on, and off on the Core; their stored
+ * settings stay, so they come back when it is turned off.
+ *
+ * ZEN MODE is the GPC script device being on (its switch is IN the Cronus
+ * Zen screen, gpc-tab.js; core-modes.js ZSMODES; the Core's /status
+ * `mode: "gpc"`). The Core then runs the config's GPC scripts and nothing
+ * else of ours: Smart Actions are held by the engine (ZS_ENGINE_HOLD_GPC,
+ * firmware), the capture is parked so AI Scripts, Screen Assist and Auto
+ * green have no picture, and EXO Studio is off (exclusive, D215).
+ *
+ * While it is on, shell/10-editor.js renderEdMenu draws, in this order:
+ *   1. the Cronus Zen's screen: gpc-tab.js's own device, mounted by its own
+ *      renderer (ZSGPC.mountInline, the 'device' part), never a copy;
+ *   2. Zen scripts: a door to the same renderer's 'slots' part (the
+ *      `zenscripts` screen): add, paste, check, reorder the 8 slots;
+ *   3. Aim, Mappings, Translation, which keep working;
+ *   4. "Zen mode off": turns the GPC script device off (never asks, as the
+ *      switch never asks to turn off); the normal menu comes back.
+ * The simple/Advanced fold is not drawn in Zen mode. The switch between the
+ * two menus is live: the Core's answer (ZSMODES.onChange) and every /status
+ * (statusSeen) re-ask on().
+ *
+ * openDetail (shell/11-detail-swipe.js) asks blocks() too, so no other path
+ * (HOME, a deep link) opens a script room in Zen mode: it says why and
+ * offers Zen mode off instead.
+ *
+ * ES5 ONLY; everything into innerHTML through esc(). Dark theme only
+ * (owner, 2026-10-23); help behind a "?". Tests: tools/test-zen-menu.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var CSS_ID = 'zs-zen-css';
+  var LINE = 'Zen mode is on';
+  var HOW = 'Turn Zen mode off to use this.';
+  var WHY = 'While Zen mode is on (the Cronus Zen, the GPC script device), your EXO runs only the GPC scripts ' +
+    'in its memory slots. Smart Actions, AI Scripts, Auto green, Screen Assist and EXO Studio stay off until you ' +
+    'turn it off. Nothing is deleted: everything comes back as it was. Aim, Mappings and Translation keep working.';
+  /* the rooms Zen mode turns off: our scripts and everything that reads the
+     picture. Aim, Mappings, Translation and the curves are not scripts. */
+  var LOCKS = { smart: 1, auto: 1, autogun: 1, autoframe: 1, weaponlive: 1, autogreen: 1, vision: 1, studio: 1 };
+  /* Zen mode's menu, in order (owner, 2026-11-26) */
+  var ORDER = ['zenscripts', 'aim', 'bindings', 'translation'];
+  var ZEN_SCRIPTS = { id: 'zenscripts', grp: '', ico: 'code', img: 'brand/zs-legacy-zen.png', lab: 'Zen scripts',
+    hint: function (p) {
+      var h = window.ZSGPC && p ? window.ZSGPC.hint(p) : '';
+      return h || 'Your GPC scripts, 8 slots';
+    } };
+
+  function M() { return window.ZSMODES || null; }
+  function isCore() { return !(ZS.productId && ZS.productId() !== 'core'); }
+  function status() { return (ZS.live && ZS.live.status) || null; }
+  /* the Core's word: /status `mode` when it says one, else the switch's own
+     last answer (a reply to GET/POST /gpc/device) */
+  function zenOn() {
+    if (!M() || !isCore()) { return false; }
+    var st = status();
+    if (st && typeof st.mode === 'string') { return st.mode === 'gpc'; }
+    var g = M().state().gpc;
+    return g.known === true && g.enabled === true;
+  }
+  function on(p) { return zenOn() && !(p && p.unreadable); }
+  function locks(id) { return !!LOCKS[id]; }
+  function blocks(id, p) { return locks(id) && on(p); }
+
+  /* SECTIONS in Zen mode: only these, in this order; Zen scripts is Zen
+     mode's own */
+  function order(sections) {
+    var by = { zenscripts: ZEN_SCRIPTS };
+    sections.forEach(function (s) { by[s.id] = s; });
+    return ORDER.map(function (id) { return by[id]; }).filter(Boolean);
+  }
+  function grpOf() { return ''; }
+
+  /* ═════════════════════════════════════════════════════ the CSS ══ */
+  function css() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var st = document.createElement('style');
+    st.id = CSS_ID;
+    st.appendChild(document.createTextNode([
+      /* the list scrolls in Zen mode: the device is taller than a door */
+      'html body #editor #edmenu.edzen-menu{overflow-y:auto;padding-bottom:var(--edfoot,122px)}',
+      'html body #edmenu.edzen-menu>.item{flex:0 0 68px!important;height:68px!important;min-height:68px!important;max-height:68px!important;margin:4px 14px}',
+      'html body #edmenu.edzen-menu .item.has-pic>.ico.ico-img{height:68px;width:76px;flex:0 0 76px}',
+      'html body #edmenu.edzen-menu .item .lab{font-size:17px}',
+      'html body #edmenu.edzen-menu .item .hint{font-size:13px}',
+      '#edmenu .item[data-room="zenscripts"]{--room:var(--tint-gpc,#ff9457)}',
+      '#edmenu .item[data-room="zenscripts"] .ico.ico-img{background:transparent}',
+      '#edmenu .item[data-room="zenscripts"] .ico.ico-img .ico-pic{object-fit:contain;object-position:center;padding:6px;box-sizing:border-box}',
+      /* the device on top */
+      '#edmenu .edzen{flex:none;margin:6px 14px 6px;padding:12px 12px 2px;border-radius:16px;' +
+        'background:var(--panel);border:1px solid color-mix(in srgb,var(--tint-gpc,#ff9457) 38%,var(--line));' +
+        'border-left:3px solid var(--tint-gpc,#ff9457)}',
+      '#edmenu .edzen-hd{display:flex;align-items:center;gap:10px;margin:0 0 8px}',
+      '#edmenu .edzen-hd .t{flex:1;min-width:0}',
+      '#edmenu .edzen-hd .qhrow{margin:0;flex:none}',
+      '#edmenu .edzen-hd .lab{font-size:17px;font-weight:700;color:var(--text)}',
+      '#edmenu .edzen-chip{display:inline-flex;align-items:center;gap:6px;margin-top:2px;font-size:12px;font-weight:650;' +
+        'color:var(--tint-gpc,#ff9457)}',
+      '#edmenu .edzen-chip i{width:7px;height:7px;border-radius:50%;background:var(--tint-gpc,#ff9457);' +
+        'box-shadow:0 0 6px var(--tint-gpc,#ff9457)}',
+      /* the key at the foot */
+      '#edmenu .edzen-off{flex:none;margin:10px 14px 6px}',
+      '#edmenu .edzen-off .btn{width:100%;min-height:52px;margin:0!important;font-weight:700}',
+      '#edmenu .edzen-off .zm-err{color:var(--st-warn,var(--amber));font-size:13px;line-height:1.45;margin:8px 2px 0}',
+      /* the sheet */
+      '.zen-say{margin:0 0 12px;font-size:15px;line-height:1.5;color:var(--text)}',
+      '.zen-keys{display:flex;gap:10px;margin-top:14px}',
+      '.zen-keys .btn{flex:1;min-height:48px;margin:0!important;width:auto}'
+    ].join('')));
+    (document.head || document.body).appendChild(st);
+  }
+
+  /* ═══════════════════════════════════════════ the top: the device ══ */
+  function drawTop(m, p) {
+    css();
+    var box = document.createElement('section');
+    box.className = 'edzen';
+    box.id = 'edzen';
+    box.setAttribute('aria-label', 'Cronus Zen');
+    /* the "?" sits on the title's row, its fold under it */
+    var hh = ZS.helpHTML ? ZS.helpHTML('edzen-why', 'Zen mode', esc(WHY)) : '';
+    var cut = hh.indexOf('<div class="note qhfold"');
+    box.innerHTML = '<div class="edzen-hd"><div class="t"><div class="lab">Cronus Zen</div>' +
+      '<span class="edzen-chip" id="edzen-chip"><i aria-hidden="true"></i>' + esc(LINE) + '</span></div>' +
+      (cut > 0 ? hh.slice(0, cut) : '') + '</div>' + (cut > 0 ? hh.slice(cut) : hh) +
+      '<div id="edzen-dev"></div>';
+    m.appendChild(box);
+    /* a room open on the device keeps it; the menu takes it back when
+       that room closes (remount) */
+    if (!mountDev(p)) {
+      var host = box.querySelector('#edzen-dev');
+      if (host) { host.setAttribute('data-gpc-lent', '1'); }
+    }
+  }
+  function mountDev(p) {
+    var host = document.getElementById('edzen-dev');
+    if (!host || !window.ZSGPC || typeof window.ZSGPC.mountInline !== 'function') { return false; }
+    return window.ZSGPC.mountInline(host, p);
+  }
+
+  /* ═══════════════════════════════════════════ the foot: the key ══ */
+  function footHTML() {
+    var busy = !!(M() && M().state().busy === 'gpc');
+    var err = M() ? M().state().err.gpc : '';
+    return '<button type="button" class="btn" id="edzen-offkey"' + (busy ? ' disabled aria-busy="true"' : '') + '>' +
+      (busy ? 'Turning Zen mode off…' : 'Zen mode off') + '</button>' +
+      (err ? '<p class="zm-err" id="edzen-offerr" role="alert">' + esc(err) + '</p>' : '');
+  }
+  function drawFoot(m, p) {
+    css();
+    var box = document.createElement('div');
+    box.className = 'edzen-off';
+    box.id = 'edzen-off';
+    m.appendChild(box);
+    paintFoot();
+  }
+  var lastFoot = '';
+  function paintFoot() {
+    var box = document.getElementById('edzen-off');
+    if (!box) { return; }
+    var h = footHTML();
+    if (h === lastFoot && box.firstChild) { return; }
+    lastFoot = h;
+    box.innerHTML = h;
+    var k = box.querySelector('#edzen-offkey');
+    if (k) { k.addEventListener('click', off); }
+  }
+  /* Zen mode off: the switch's own way (core-modes.js: turning off never
+     asks); the Core's answer redraws the menu */
+  function off() {
+    var mm = M();
+    if (!mm) { return Promise.resolve(); }
+    mm.fromStatus();
+    var g = mm.state().gpc;
+    if (g.known !== true || g.enabled !== true) { return mm.read('gpc').then(function () { return off2(); }); }
+    return off2();
+  }
+  function off2() {
+    var mm = M(), g = mm.state().gpc;
+    if (g.known !== true || g.enabled !== true || mm.state().busy) { return Promise.resolve(); }
+    var r = mm.tap('gpc');
+    paintFoot();
+    return r;
+  }
+
+  /* any other path into a script room: what is off, and the way back */
+  function explain(s, p) {
+    css();
+    var name = s && s.id === 'studio' ? 'EXO Studio' : ((s && s.lab) || 'This');
+    var html = '<p class="zen-say" id="zen-say"><b>' + esc(LINE) + '.</b> ' + esc(HOW) + '</p>' +
+      (ZS.helpHTML ? ZS.helpHTML('zen-why', 'Zen mode', esc(WHY)) : '') +
+      '<div class="zen-keys"><button type="button" class="btn primary" id="zen-go">Zen mode off</button>' +
+      '<button type="button" class="btn" id="zen-close">Close</button></div>';
+    var body = typeof sheetOpen === 'function' ? sheetOpen(name, html) : null;
+    if (!body) { return; }
+    var go = body.querySelector('#zen-go'), cl = body.querySelector('#zen-close');
+    if (go) { go.addEventListener('click', function () { if (typeof sheetClose === 'function') { sheetClose(); } off(); }); }
+    if (cl) { cl.addEventListener('click', function () { if (typeof sheetClose === 'function') { sheetClose(); } }); }
+  }
+
+  /* ═════════════════════════════════════════════ live, both ways ══ */
+  var last = null;
+  function editorP() {
+    var ed = document.getElementById('editor');
+    if (!ed || !ed.classList.contains('open')) { return null; }
+    if (typeof editId === 'undefined' || !editId || typeof prof !== 'function') { return null; }
+    return prof(editId) || null;
+  }
+  /* a room on the device closed (any back key, a swipe): the menu's copy
+     goes back on top */
+  function remount() {
+    var det = document.getElementById('detail');
+    if (det && det.classList.contains('open')) { return false; }
+    var host = document.getElementById('edzen-dev'), p = editorP();
+    if (host && p && host.getAttribute('data-gpc-lent') === '1' && on(p)) { return mountDev(p); }
+    return false;
+  }
+  function check() {
+    var now = zenOn();
+    paintFoot();
+    if (last === null) { last = now; remount(); return; }
+    if (now === last) { remount(); return; }
+    last = now;
+    var p = editorP();
+    if (p && typeof renderEdMenu === 'function') { lastFoot = ''; renderEdMenu(p); }
+  }
+  if (M()) { M().onChange(check); }
+  /* at once when the browser says the room closed; every /status (and
+     every switch answer) asks again in case it could not */
+  if (typeof MutationObserver === 'function') {
+    var det = document.getElementById('detail');
+    if (det) {
+      new MutationObserver(function () { remount(); }).observe(det, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+
+  window.ZSZEN = {
+    LINE: LINE,
+    HOW: HOW,
+    LOCKS: LOCKS,
+    ORDER: ORDER,
+    on: on,
+    zenOn: zenOn,
+    locks: locks,
+    blocks: blocks,
+    order: order,
+    grpOf: grpOf,
+    drawTop: drawTop,
+    drawFoot: drawFoot,
+    off: off,
+    explain: explain,
+    statusSeen: check,
+    remount: remount
+  };
+}());
