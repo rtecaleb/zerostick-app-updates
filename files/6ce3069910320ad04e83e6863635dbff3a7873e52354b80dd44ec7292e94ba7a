@@ -1,0 +1,281 @@
+/* legacy-room.js - the config editor's "Legacy Devices" room (D215): the
+ * editor's `legacy` screen, window.ZSLEGACY.
+ *
+ * The owner, 2026-10-02: the GPC Scripts room and the XIM import move into
+ * one room of their own. The owner, 2026-11-25: the room shows two DEVICES,
+ * exactly two cards, in the same door/room style as the editor's own:
+ *
+ *   XIM Matrix     "it just says paste in the config": the `ximpaste` screen
+ *                  (xim-matrix-screen.js): paste, pick the parts the way XIM
+ *                  Manager asks, bring them in. Its "Type the numbers
+ *                  instead" keeps the older form (xim-import-screen.js, the
+ *                  `ximimport` screen, unchanged inside). XIM aim is mouse
+ *                  aim (D199): on a controller config the card's line and
+ *                  the screen say so.
+ *   Cronus Zen     "a virtual Cronus Zen with all the script slots": the GPC
+ *                  room (gpc-tab.js, the `gpc` screen). Owner 2026-11-26:
+ *                  while Zen mode is off it is ONLY the Zen mode switch;
+ *                  turned on (and while on) the card lands on the config's
+ *                  Zen-mode menu (zen-menu.js toMenu) instead.
+ *
+ * OLD PATHS STILL OPEN. Everything that opens `gpc` or `ximimport` (a test,
+ * theme-shots, ZSXIMSCREEN.open, anything later) still goes through the one
+ * door every screen passes, openDetail (shell/11-detail-swipe.js), which
+ * hands such a descriptor to route() below: it lands straight in the screen,
+ * as every other deep link in the app does, and its back key now reads
+ * "‹ Legacy Devices" and goes there (the room's own back key goes to the
+ * editor). A descriptor that already owns its back key is left alone, so a
+ * redraw of the same visit (redrawOpenScreen) keeps the visit: the XIM form
+ * keeps what was typed, exactly as before.
+ *
+ * THE GPC SCRIPT DEVICE SWITCH (owner, 2026-10-02: "EXO Studio and the GPC
+ * Scripts tab can't be on at the same time"), device-wide, OFF by default,
+ * is Zen mode's switch. Owner, 2026-11-26: it lives INSIDE the Cronus Zen
+ * screen (gpc-tab.js, drawn by core-modes.js ZSMODES), no longer under the
+ * card here. While it is on, the config menu is Zen mode's (zen-menu.js).
+ *
+ * THE TWO CARDS ARE BIG (owner, 2026-11-26: "make the two cards WAY
+ * bigger"): one big tappable tile each, the device's photo large
+ * (brand/zs-legacy-*.png, 512 px), its name and one line under it.
+ *
+ * The room wears bolt orange, the GPC room's hue (--tint-gpc), and its door
+ * a plain placeholder picture (brand/zs-legacy-devices.svg) until the owner
+ * supplies the artwork. No other company's logo or artwork (D76); the two
+ * screens keep their own words. D212's legal review is still owed for the
+ * share-code reader inside the XIM screen; its gate and notes are the
+ * screen's and are untouched here.
+ *
+ * ES5 ONLY, like every file phone.html loads; everything into innerHTML
+ * through esc(). Tests: tools/test-legacy-room.js.
+ */
+(function () {
+  'use strict';
+  if (!window.ZS) { return; }
+
+  var ZS = window.ZS, esc = ZS.esc;
+  var CSS_ID = 'zs-legacy-css';
+  var ORANGE = '#8cb4e6';           /* --tint-gpc in dark; zs-light.css has the light one */
+  var GOLD = '#e3b341';             /* Aim's gold, the XIM screen's tint */
+  var ROOM = { id: 'legacy', lab: 'Legacy Devices' };   /* D234: EXO Studio is in here (owner) */
+  var BACK = '‹ Legacy Devices';
+  var OLD_FW = 'This EXO’s firmware doesn’t have the GPC script device switch yet.';
+  var ROOT = null, P = null;
+  function M() { return window.ZSMODES || null; }
+  /* D215: the Cronus Zen card's line follows the modes (EXO Studio has it
+     off; Zen mode is on) */
+  function paintHints() {
+    if (!ROOT || document.getElementById('lgroom') !== ROOT) { return; }
+    var hn = ROOT.querySelector('[data-lgdoor="gpc"] .hint'), d = doorOf('gpc');
+    if (hn) { hn.textContent = d.hint(P); }
+  }
+
+  /* the two devices, in the order drawn (owner, 2026-11-25: "Click Legacy
+     devices and see a XIM Matrix and a Cronus Zen. Click the Cronus Zen and
+     it looks like a virtual Cronus Zen with all the script slots. Click the
+     XIM Matrix and it just says paste in the config."). Exactly two cards,
+     on every config: a controller config's XIM Matrix screen says why it
+     needs a mouse config (D199) instead of hiding the card. `title` is the
+     screen's title as the card opens it. */
+  var DOORS = [
+    { id: 'ximpaste', ico: 'copy', pic: 'brand/zs-legacy-xim.png', lab: 'XIM Matrix', title: 'XIM Matrix',
+      hint: function (p) {
+        return p && ZS.inputShows && !ZS.inputShows(p.input, 'mouse') ? 'For configs that use a mouse'
+          : 'Paste your XIM config';
+      },
+      shows: function () { return !!(window.RENDERERS && window.RENDERERS.ximpaste && window.ZSXIMMATRIX); } },
+    /* the GPC room (gpc-tab.js), unchanged inside: the virtual device with
+       its 8 memory slots, the paste sheet per slot, the GPC compiler's check
+       and Send to config */
+    { id: 'gpc', ico: 'code', pic: 'brand/zs-legacy-zen.png', lab: 'Cronus Zen', title: 'Cronus Zen',
+      hint: function (p) {
+        if (window.ZSMODES && window.ZSMODES.studioMode()) { return 'Off while EXO Studio is on'; }
+        if (window.ZSZEN && window.ZSZEN.zenOn()) { return 'Zen mode is on'; }
+        return window.ZSGPC ? window.ZSGPC.hint(p) : 'Paste a script, use its menu';
+      },
+      shows: function () { return !!(window.RENDERERS && window.RENDERERS.gpc); } }
+  ];
+  /* screens reached from inside a device, routed like the doors: the typed
+     XIM numbers ("Copy your XIM settings in", kept; the XIM Matrix screen's
+     "Type the numbers instead" opens it) */
+  var ROUTED = DOORS.concat([
+    { id: 'ximimport', title: 'Copy from XIM' }
+  ]);
+  function routeOf(id) {
+    for (var i = 0; i < ROUTED.length; i++) { if (ROUTED[i].id === id) { return ROUTED[i]; } }
+    return null;
+  }
+  function doorOf(id) {
+    for (var i = 0; i < DOORS.length; i++) { if (DOORS[i].id === id) { return DOORS[i]; } }
+    return null;
+  }
+
+  /* ═══════════════════════════════════════════════════════ the CSS ══
+     The editor menu's door, restated for this room (phone.html scopes the
+     editor's to #edmenu, and its tests read those rules as written): one
+     card, 72 px, the room's rail on the left, the icon chip, one line of
+     hint. */
+  function injectCss() {
+    if (document.getElementById(CSS_ID)) { return; }
+    var s = document.createElement('style');
+    s.id = CSS_ID;
+    s.appendChild(document.createTextNode([
+      '.item .ico.ico-ximpaste{color:var(--gold,' + GOLD + ');background:rgba(227,179,65,.12);border-color:rgba(227,179,65,.40)}',
+      /* owner 2026-11-26: the real devices' photos, not drawn icons */
+      '#lgroom .item .ico.ico-img{padding:0;background:none;border:0;overflow:visible}',
+      '#lgroom .item .ico.ico-img img{display:block;width:100%;height:100%;object-fit:contain}',
+      '#lgroom .lg-lead{color:var(--muted);font-size:13.5px;line-height:1.5;margin:2px 2px 10px}',
+      '#lgroom .item{--room:var(--room-plain);box-sizing:border-box;height:72px;min-height:72px;max-height:72px;',
+      'margin:0 0 12px;padding:0 15px 0 13px;overflow:hidden;cursor:pointer;',
+      'border-left-style:solid;border-left-width:3px;border-left-color:var(--room);',
+      'background-color:var(--panel);background-image:linear-gradient(180deg,',
+      'var(--zs2-card-a,rgba(255,255,255,.075)),var(--zs2-card-b,rgba(255,255,255,.03)))}',
+      '#lgroom .item[data-room="gpc"]{--room:var(--tint-gpc,' + ORANGE + ')}',
+      '#lgroom .item[data-room="ximpaste"]{--room:var(--gold,' + GOLD + ')}',
+      '#lgroom .item[data-room="studio"]{--room:var(--accent)}',
+      '#lgroom .lg-one{color:var(--text);font-size:13px;line-height:1.5;margin:0 2px 12px;padding:8px 11px;' +
+        'border-radius:10px;background:var(--panel2,rgba(255,255,255,.05))}',
+      '#lgroom .item .ico{width:40px;height:40px}',
+      '#lgroom .item .ico img.ico3d{width:26px;height:26px}',
+      /* owner 2026-11-26: the two devices are BIG tiles, the photo large */
+      '#lgroom .item.lg-big{height:auto;min-height:0;max-height:none;flex-direction:column;align-items:stretch;',
+      'padding:14px 16px 16px;margin:0 0 14px;border-radius:18px;gap:6px;position:relative}',
+      '#lgroom .item.lg-big .ico.ico-img{width:100%;height:170px;flex:none;margin:0 auto 4px}',
+      '#lgroom .item.lg-big .ico.ico-img img{filter:drop-shadow(0 10px 18px rgba(0,0,0,.55))}',
+      '#lgroom .item.lg-big .t{display:block}',
+      '#lgroom .item.lg-big .lab{font-size:21px;font-weight:700;letter-spacing:-.01em}',
+      '#lgroom .item.lg-big .hint{font-size:14px;margin-top:3px;white-space:normal}',
+      '#lgroom .item.lg-big .chev{position:absolute;right:16px;bottom:18px}',
+      'body.a11y-big #lgroom .item.lg-big{height:auto;min-height:0;max-height:none}',
+      '@media (min-width:560px){#lgroom .lg-tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px}' +
+        '#lgroom .lg-tiles .item.lg-big{margin:0}}',
+      '#lgroom .item .t{min-width:0}',
+      '#lgroom .item .lab,#lgroom .item .hint{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#lgroom .item .hint:empty{display:none}',
+      '#lgroom .item .chev{color:var(--muted);font-size:19px}',
+      '#lgroom .item:focus-visible{outline-offset:-3px}',
+      'body.a11y-big #lgroom .item{height:96px;min-height:96px;max-height:96px}',
+      'body.a11y-contrast #lgroom .item{background-image:none;box-shadow:none;border-color:var(--muted);border-left-color:var(--room)}',
+      '#lgroom .lg-none{color:var(--muted);font-size:13px;line-height:1.5;margin:0 2px 12px}'
+    ].join('')));
+    (document.head || document.body).appendChild(s);
+  }
+
+  /* ═════════════════════════════════════════ the old paths, routed ══
+     openDetail hands every descriptor here first; a GPC or XIM one that
+     does not own its back key yet gets ours. */
+  /* owner 2026-11-26: Zen mode and XIM Matrix are not in the launch: the
+     whole room and every screen in it is developer mode only */
+  var DEV_ONLY = { legacy: 1, gpc: 1, ximpaste: 1, ximimport: 1, zenscripts: 1 };
+  function locked(id) {
+    return !!DEV_ONLY[id] && !(window.ZS && ZS.devMode && ZS.devMode());
+  }
+  function route(s, p) {
+    /* D402's lock on the XIM import is gone: owner 2026-11-26, "let them get
+       it at launch" (Legacy Devices is open to every player). */
+    var d = s && !s.onBack ? routeOf(s.id) : null;
+    if (!d) { return s; }
+    return {
+      id: d.id,
+      lab: (s.lab && s.lab !== s.id) ? s.lab : d.title,
+      backLabel: BACK,
+      onBack: function () { open(p); },
+      legacy: true
+    };
+  }
+
+  /* the room itself, as its door in the editor opens it */
+  function open(p) {
+    ZS.openDetail({ id: ROOM.id, lab: ROOM.lab }, p);
+  }
+  /* straight into one of its doors, the back key leading to the room */
+  function openDoor(id, p) {
+    var d = doorOf(id);
+    if (!d) { return; }
+    /* owner 2026-11-26: while Zen mode is on, the Cronus Zen IS the config's
+       menu (zen-menu.js): the card takes the player there, not to a second
+       copy of the device */
+    if (id === 'gpc' && window.ZSZEN && window.ZSZEN.zenOn() && typeof window.ZSZEN.toMenu === 'function') {
+      window.ZSZEN.toMenu(p);
+      return;
+    }
+    ZS.openDetail({ id: d.id, lab: d.title }, p);
+  }
+
+  function doorHTML(d, p) {
+    var hint = typeof d.hint === 'function' ? d.hint(p) : (d.hint || '');
+    return '<div class="item' + (d.pic ? ' lg-big' : '') + '" role="button" tabindex="0" data-room="' + esc(d.id) + '" data-lgdoor="' + esc(d.id) + '"' +
+      ' aria-label="' + esc(d.lab + (hint ? ' — ' + hint : '')) + '">' +
+      '<span class="ico ico-' + esc(d.id) + (d.pic ? ' ico-img' : '') + '">' +
+        (d.pic ? '<img class="ico-pic" src="' + esc(d.pic) + '" width="512" height="512" alt="">'
+               : (ZS.icoSVG ? ZS.icoSVG(d.ico, 26) : '')) + '</span>' +
+      '<span class="t"><div class="lab">' + esc(d.lab) + '</div><div class="hint">' + esc(hint) + '</div></span>' +
+      '<span class="chev">›</span></div>';
+  }
+
+  function render(p) {
+    injectCss();
+    P = p;
+    /* open to every player (owner 2026-11-26: "let them get it at launch");
+       the 2026-10-14 COMING SOON banner and developer-mode lock are gone */
+    var h = '<div id="lgroom"><p class="lg-lead">Scripts and settings from devices you used before, ' +
+      'brought into this config.</p>' +
+      /* only where both exist: a Core with EXO Studio (an EXO has none) */
+      (!!(window.RENDERERS && window.RENDERERS.studio) && !(ZS.productId && ZS.productId() !== 'core')
+        ? '<p class="lg-one" id="lg-one">Only one can be on at a time: the <b>GPC script device</b> (Cronus Zen) or <b>EXO Studio</b> (its own row under Advanced).</p>'
+        : '');
+    var drawn = 0;
+    h += '<div class="lg-tiles">';
+    DOORS.forEach(function (d) {
+      if (!d.shows(p)) { return; }
+      h += doorHTML(d, p);
+      drawn++;
+    });
+    h += '</div>';
+    if (!drawn) {
+      h += '<p class="lg-none">Nothing here could load. Reload the app.</p>';
+    }
+    h += '</div>';
+    if (M()) { M().fromStatus(); }
+    return { html: h, after: function (body) {
+      body.setAttribute('data-tint', 'gpc');
+      ROOT = body.querySelector('#lgroom');
+      paintHints();
+      if (M() && ZS.productId && ZS.productId() === 'core' && !(ZS.live && ZS.live.online === false)) {
+        M().read('gpc');
+      }
+      var rows = body.querySelectorAll('[data-lgdoor]');
+      for (var i = 0; i < rows.length; i++) {
+        (function (row) {
+          var id = row.getAttribute('data-lgdoor');
+          function go() { openDoor(id, p); }
+          row.addEventListener('click', go);
+          row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+          });
+        })(rows[i]);
+      }
+    } };
+  }
+
+  /* the editor menu row's second line */
+  function hint(p) {
+    var n = window.ZSGPC && p ? window.ZSGPC.hint(p) : '';
+    return /script/.test(n) && !/^Paste/.test(n) ? 'GPC · ' + n : 'GPC scripts, settings from other devices';
+  }
+
+  if (M()) { M().onChange(paintHints); }
+  injectCss();
+  if (!window.RENDERERS) { window.RENDERERS = {}; }
+  window.RENDERERS.legacy = render;
+
+  window.ZSLEGACY = {
+    ROOM: ROOM,
+    DOORS: DOORS,
+    route: route,
+    locked: locked,
+    open: open,
+    openDoor: openDoor,
+    hint: hint,
+    OLD_FW: OLD_FW
+  };
+}());
